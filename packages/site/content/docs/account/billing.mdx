@@ -1,0 +1,22 @@
+---
+title: Manage Compozy Pro
+description: Buy Pro, manage recurring payments, and find the refund window for your last payment.
+---
+
+## Buy Pro
+
+Open [Get Compozy Pro](https://cloud.compozy.com/billing/upgrade) and continue with Google or GitHub. Choose annual billing at USD 79.99 per year or monthly billing at USD 9.99 per month. Stripe calculates applicable taxes and accepts promotion codes at checkout. After paying, sign in to CompozyOS with the same account.
+
+From a signed-in installation, `compozy account upgrade --annual` opens annual checkout. Omit `--annual` for monthly billing.
+
+## Change your plan or payment method
+
+Open **Settings → Account → Manage billing** to switch intervals, update your payment method, or cancel renewal. Stripe prorates interval changes. Cancelling renewal keeps Pro active until your current billing period ends.
+
+A failed renewal keeps Pro active while Stripe retries. Use **Manage billing** to update your card. If Stripe cancels the subscription after its retries, the account moves to Free and [its computers follow the Free plan limits](/docs/computers/cloud-service#hosted-tunnels).
+
+## Refunds and account deletion
+
+Request a full refund through [support@compozy.com](mailto:support@compozy.com) within 14 days of the first payment or an annual renewal. See the [refund policy](https://compozy.com/legal/refunds).
+
+Account deletion ends complimentary Pro and cancels entitled Stripe subscriptions immediately. It applies the same refund window. The account API exposes the selected subscription's `refund_eligible_until` in UTC. Monthly renewals return `null`.

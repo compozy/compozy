@@ -23,7 +23,7 @@ const extensionPayloadOutputSchema = `{
 	"type":"object",
 	"required":[
 		"name","version","type","format","source","enabled","state",
-		"gateway_confirmation_required","consecutive_failures","restart_backoff_ms",
+		"consecutive_failures","restart_backoff_ms",
 		"update_available","digest_matched","daemon_running"
 	],
 	"properties":{
@@ -34,7 +34,6 @@ const extensionPayloadOutputSchema = `{
 		"source":{"type":"string"},
 		"enabled":{"type":"boolean"},
 		"state":{"type":"string"},
-		"gateway_confirmation_required":{"type":"boolean"},
 		"consecutive_failures":{"type":"integer"},
 		"restart_backoff_ms":{"type":"integer"},
 		"update_available":{"type":"boolean"},

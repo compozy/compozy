@@ -348,7 +348,7 @@ func legacyManifestSectionError(section string) error {
 	if section == legacyManifestNetworkParticipationKey {
 		return &ManifestValidationError{
 			Field:   section,
-			Message: "[network_participation] was removed; rebuild with [gateway] and confirm its requirement digest",
+			Message: "[network_participation] was removed; see https://compozy.com/docs/computers",
 		}
 	}
 	return &ManifestValidationError{

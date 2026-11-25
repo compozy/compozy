@@ -3836,7 +3836,7 @@ func TestUDSTransportAppTokenLifecycleMatchesHTTP(t *testing.T) {
 				},
 				http.StatusForbidden,
 			), "app_origin_not_allowed")
-			for _, endpoint := range []string{"/api/status", "/api/app-tokens", "/api/vault/secrets", "/api/gateway/devices", "/api/agent/me", "/api/fs/browse"} {
+			for _, endpoint := range []string{"/api/status", "/api/app-tokens", "/api/vault/secrets", "/api/migration-notices", "/api/agent/me", "/api/fs/browse"} {
 				decodeError(
 					request(false, http.MethodGet, endpoint, "", browserHeaders, http.StatusForbidden),
 					"app_token_route_forbidden",

@@ -46,6 +46,17 @@ func NormalizeRepoKey(remote string) (string, error) {
 	return strings.ToLower(parsed.Hostname() + "/" + path), nil
 }
 
+func (s *Service) RepositoryKey(ctx context.Context, root string) (string, error) {
+	if s.pullRequests != nil {
+		return s.pullRequests.RepoKey(ctx, root)
+	}
+	out, _, err := s.runner.Run(ctx, root, "remote", "get-url", "origin")
+	if err != nil {
+		return "", err
+	}
+	return NormalizeRepoKey(string(out))
+}
+
 func (s *PullRequestService) RepoKey(ctx context.Context, root string) (string, error) {
 	s.mu.Lock()
 	cached, ok := s.repos[root]

@@ -27,13 +27,13 @@ export function useSessionCatalog(
   const scoped = sessionCatalogScopedFilters(scope, filters, options.lens ?? params);
   const active = enabled && scope !== null;
   const pageOptions = sessionCatalogOptions(scoped);
-  const { q: _search, ...population } = pageOptions.queryKey[4];
+  const { q: _search, ...population } = pageOptions.queryKey[6];
   const populationKey = JSON.stringify(population);
   const page = useInfiniteQuery({
     ...pageOptions,
     enabled: active,
     placeholderData: (previousData, previousQuery) => {
-      const previousFilters = previousQuery?.queryKey[4];
+      const previousFilters = previousQuery?.queryKey[6];
       if (!previousFilters || typeof previousFilters !== "object") return undefined;
       const { q: _previousSearch, ...previousPopulation } = previousFilters;
       return JSON.stringify(previousPopulation) === populationKey

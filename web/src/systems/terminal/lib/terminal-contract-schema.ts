@@ -290,6 +290,7 @@ export const terminalErrorDetailsSchema = z.strictObject({
   mode: terminalModeSchema.optional(),
   platform: z.string().optional(),
   action: z.string().optional(),
+  scope: z.string().optional(),
 });
 export type TerminalErrorDetails = z.infer<typeof terminalErrorDetailsSchema>;
 
@@ -299,4 +300,13 @@ export const terminalErrorEnvelopeSchema = z.strictObject({
     message: z.string().regex(/\S/),
     details: terminalErrorDetailsSchema.optional(),
   }),
+});
+
+/**
+ * Remote host / controller bridge flat error envelope (`{ error, code, details? }`).
+ */
+export const remoteTerminalErrorEnvelopeSchema = z.strictObject({
+  error: z.string().regex(/\S/),
+  code: z.string().regex(/\S/),
+  details: terminalErrorDetailsSchema.optional(),
 });

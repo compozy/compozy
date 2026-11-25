@@ -10,6 +10,171 @@ import (
 	"strings"
 )
 
+// DeleteTask Delete one task
+func (c *Client) DeleteTask(ctx context.Context, params DeleteTaskParams) error {
+	path := "/api/tasks/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteTaskExecutionProfileParams carries the path, query, and header parameters.
+type DeleteTaskExecutionProfileParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// DeleteTaskExecutionProfile Delete one task execution profile
+func (c *Client) DeleteTaskExecutionProfile(ctx context.Context, params DeleteTaskExecutionProfileParams) error {
+	path := "/api/tasks/{id}/execution-profile"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteTerminalParams carries the path, query, and header parameters.
+type DeleteTerminalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+}
+
+// DeleteTerminal Terminate one terminal
+func (c *Client) DeleteTerminal(ctx context.Context, params DeleteTerminalParams, body TerminalCloseRequest) (*TerminalExitResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalExitResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteVaultSecretParams carries the path, query, and header parameters.
+type DeleteVaultSecretParams struct {
+	Ref string `url:"ref"`
+}
+
+// DeleteVaultSecret Delete one vault secret
+func (c *Client) DeleteVaultSecret(ctx context.Context, params DeleteVaultSecretParams) error {
+	path := "/api/vault/secrets"
+	query := url.Values{}
+	query.Set("ref", params.Ref)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteWindowManagerLayoutProfileParams carries the path, query, and header parameters.
+type DeleteWindowManagerLayoutProfileParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ProfileID   string  `url:"profile_id"`
+	Profile     *string `url:"profile"`
+}
+
+// DeleteWindowManagerLayoutProfile Delete one workspace-visible layout profile
+func (c *Client) DeleteWindowManagerLayoutProfile(ctx context.Context, params DeleteWindowManagerLayoutProfileParams, body DeleteResourceRequest) error {
+	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{profile_id}", url.PathEscape(params.ProfileID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, body, nil, "", "")
+}
+
+// DeleteWorkspaceParams carries the path, query, and header parameters.
+type DeleteWorkspaceParams struct {
+	ID string `url:"id"`
+}
+
+// DeleteWorkspace Delete a registered workspace
+func (c *Client) DeleteWorkspace(ctx context.Context, params DeleteWorkspaceParams) error {
+	path := "/api/workspaces/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteWorkspaceFolderParams carries the path, query, and header parameters.
+type DeleteWorkspaceFolderParams struct {
+	FolderID string  `url:"folder_id"`
+	Profile  *string `url:"profile"`
+}
+
+// DeleteWorkspaceFolder Delete a workspace folder; its workspaces return to the root
+func (c *Client) DeleteWorkspaceFolder(ctx context.Context, params DeleteWorkspaceFolderParams) (*WorkspaceLayoutResponse, error) {
+	path := "/api/workspace-folders/{folder_id}"
+	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkspaceLayoutResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeliverGlobalWebhookParams carries the path, query, and header parameters.
+type DeliverGlobalWebhookParams struct {
+	Endpoint                  string  `url:"endpoint"`
+	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
+	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
+	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
+	Profile                   *string `url:"profile"`
+}
+
+// DeliverGlobalWebhook Deliver one global automation webhook
+func (c *Client) DeliverGlobalWebhook(ctx context.Context, params DeliverGlobalWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
+	path := "/api/webhooks/global/{endpoint}"
+	path = strings.ReplaceAll(path, "{endpoint}", url.PathEscape(params.Endpoint))
+	headers := http.Header{}
+	headers.Set("X-Compozy-Webhook-Delivery-ID", params.XCompozyWebhookDeliveryID)
+	headers.Set("X-Compozy-Webhook-Timestamp", params.XCompozyWebhookTimestamp)
+	headers.Set("X-Compozy-Webhook-Signature", params.XCompozyWebhookSignature)
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WebhookDeliveryResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // DeliverWorkspaceWebhookParams carries the path, query, and header parameters.
 type DeliverWorkspaceWebhookParams struct {
 	WorkspaceID               string  `url:"workspace_id"`
@@ -111,28 +276,6 @@ func (c *Client) DiffLoopRun(ctx context.Context, params DiffLoopRunParams) (*Lo
 	return &out, nil
 }
 
-// DisableGatewayProviderParams carries the path, query, and header parameters.
-type DisableGatewayProviderParams struct {
-	Name string `url:"name"`
-	Tier string `url:"tier"`
-}
-
-// DisableGatewayProvider Disable one named connectivity provider for a gateway tier
-func (c *Client) DisableGatewayProvider(ctx context.Context, params DisableGatewayProviderParams) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/providers/{name}/disable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("tier", params.Tier)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 // DisableSkillParams carries the path, query, and header parameters.
 type DisableSkillParams struct {
 	Name      string  `url:"name"`
@@ -165,6 +308,12 @@ func (c *Client) DisableSkill(ctx context.Context, params DisableSkillParams) (*
 	return &out, nil
 }
 
+// DismissAccountSignInNotices Dismiss sign-in notices on this installation
+func (c *Client) DismissAccountSignInNotices(ctx context.Context) error {
+	path := "/api/account/sign-in-notices/dismiss"
+	return c.doContent(ctx, "POST", path, nil, nil, nil, "", "")
+}
+
 // DismissAutomationSuggestionParams carries the path, query, and header parameters.
 type DismissAutomationSuggestionParams struct {
 	WorkspaceID  string `url:"workspace_id"`
@@ -181,6 +330,18 @@ func (c *Client) DismissAutomationSuggestion(ctx context.Context, params Dismiss
 		return nil, err
 	}
 	return &out, nil
+}
+
+// DismissMigrationNoticeParams carries the path, query, and header parameters.
+type DismissMigrationNoticeParams struct {
+	Key string `url:"key"`
+}
+
+// DismissMigrationNotice Dismiss an upgrade notice on this computer
+func (c *Client) DismissMigrationNotice(ctx context.Context, params DismissMigrationNoticeParams) error {
+	path := "/api/migration-notices/{key}/dismiss"
+	path = strings.ReplaceAll(path, "{key}", url.PathEscape(params.Key))
+	return c.doContent(ctx, "POST", path, nil, nil, nil, "", "")
 }
 
 // DismissTaskParams carries the path, query, and header parameters.
@@ -285,154 +446,4 @@ func (c *Client) DownloadTerminalArtifact(ctx context.Context, params DownloadTe
 		return nil, err
 	}
 	return &out, nil
-}
-
-// DownloadTerminalRecordingParams carries the path, query, and header parameters.
-type DownloadTerminalRecordingParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// DownloadTerminalRecording Download one terminal recording
-func (c *Client) DownloadTerminalRecording(ctx context.Context, params DownloadTerminalRecordingParams) (*[]byte, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/recordings/{id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out []byte
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "application/x-asciicast"); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DraftAgentInstructionsParams carries the path, query, and header parameters.
-type DraftAgentInstructionsParams struct {
-	Profile *string `url:"profile"`
-}
-
-// DraftAgentInstructions Draft agent instructions without saving a definition
-func (c *Client) DraftAgentInstructions(ctx context.Context, params DraftAgentInstructionsParams, body DraftAgentInstructionsRequest) (*DraftAgentInstructionsResponse, error) {
-	path := "/api/agents/draft-instructions"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out DraftAgentInstructionsResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DrainDaemon Stop admitting new work
-func (c *Client) DrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
-	path := "/api/drain"
-	var out DrainStatusResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DrainScheduler Pause the scheduler and wait for active claims to drain
-func (c *Client) DrainScheduler(ctx context.Context, body SchedulerDrainRequest) (*SchedulerDrainResponse, error) {
-	path := "/api/scheduler/drain"
-	var out SchedulerDrainResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DuplicateAgentParams carries the path, query, and header parameters.
-type DuplicateAgentParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// DuplicateAgent Duplicate one effective authored agent definition server-side
-func (c *Client) DuplicateAgent(ctx context.Context, params DuplicateAgentParams, body DuplicateAgentRequest) (*AgentResponse, error) {
-	path := "/api/agents/{name}/duplicate"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// EnableGatewayProviderParams carries the path, query, and header parameters.
-type EnableGatewayProviderParams struct {
-	Name string `url:"name"`
-}
-
-// EnableGatewayProvider Enable one connectivity provider for a gateway tier
-func (c *Client) EnableGatewayProvider(ctx context.Context, params EnableGatewayProviderParams, body GatewayProviderEnableRequest) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/providers/{name}/enable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// EnableSkillParams carries the path, query, and header parameters.
-type EnableSkillParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-	ForAgent  *string `url:"for_agent"`
-}
-
-// EnableSkill Enable one skill
-func (c *Client) EnableSkill(ctx context.Context, params EnableSkillParams) (*SkillActionResponse, error) {
-	path := "/api/skills/{name}/enable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillActionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// EnqueueTaskRunParams carries the path, query, and header parameters.
-type EnqueueTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

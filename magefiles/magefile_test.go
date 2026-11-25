@@ -258,35 +258,6 @@ func TestProductionSourceLineLimit(t *testing.T) {
 	})
 }
 
-func TestGatewayBoundaryRules(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should enforce every forbidden gateway dependency in the active boundary set", func(t *testing.T) {
-		t.Parallel()
-
-		want := map[string]bool{
-			"internal/daemon":       false,
-			"internal/api/contract": false,
-			"internal/api/core":     false,
-			"internal/api/httpapi":  false,
-			"internal/api/udsapi":   false,
-			"internal/cli":          false,
-		}
-		for _, rule := range directImportBoundaries() {
-			if rule.importer == "internal/gateway" {
-				if _, exists := want[rule.imported]; exists {
-					want[rule.imported] = true
-				}
-			}
-		}
-		for imported, present := range want {
-			if !present {
-				t.Fatalf("active gateway boundary rule for %q is missing", imported)
-			}
-		}
-	})
-}
-
 func TestDependencyClosureBoundaries(t *testing.T) {
 	t.Parallel()
 
@@ -295,9 +266,9 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 
 		rules := []dependencyClosureRule{{
 			root:            "./fixture",
-			allowedPrefixes: []string{compozyModulePath + "internal/gateway/contract"},
+			allowedPrefixes: []string{compozyModulePath + "internal/remotehost/contract"},
 			forbiddenPrefixes: []string{
-				compozyModulePath + "internal/gateway",
+				compozyModulePath + "internal/remotehost",
 				compozyModulePath + "internal/store",
 				compozyModulePath + "internal/extension",
 			},
@@ -308,12 +279,12 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 			}
 			return []string{
 				"fmt",
-				compozyModulePath + "internal/gateway/contract",
+				compozyModulePath + "internal/remotehost/contract",
 				compozyModulePath + "internal/extensionprotocol",
 				compozyModulePath + "internal/store/globaldb",
 				compozyModulePath + "internal/extension/contract",
-				compozyModulePath + "internal/gateway",
-				compozyModulePath + "internal/gateway/experimental",
+				compozyModulePath + "internal/remotehost",
+				compozyModulePath + "internal/remotehost/experimental",
 			}, nil
 		})
 		if err != nil {
@@ -321,8 +292,8 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 		}
 		want := []dependencyClosureViolation{
 			{root: "./fixture", dependency: compozyModulePath + "internal/extension/contract"},
-			{root: "./fixture", dependency: compozyModulePath + "internal/gateway"},
-			{root: "./fixture", dependency: compozyModulePath + "internal/gateway/experimental"},
+			{root: "./fixture", dependency: compozyModulePath + "internal/remotehost"},
+			{root: "./fixture", dependency: compozyModulePath + "internal/remotehost/experimental"},
 			{root: "./fixture", dependency: compozyModulePath + "internal/store/globaldb"},
 		}
 		if !slices.Equal(violations, want) {

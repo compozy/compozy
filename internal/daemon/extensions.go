@@ -281,9 +281,6 @@ func (s *daemonExtensionService) payloadFromExtension(
 	if err := s.populateExtensionDependencyStatus(ctx, ext, profile.ID, &payload); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	if err := s.populateExtensionGatewayStatus(key, &payload); err != nil {
-		return contract.ExtensionPayload{}, err
-	}
 	if err := s.populateExtensionMCPDetails(ctx, key, profile, &payload); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
@@ -364,28 +361,4 @@ func extensionUpdatePayload(value extensionpkg.MarketplaceUpdateResult) contract
 		Warnings:       append([]contract.DiagnosticItem(nil), value.Warnings...),
 		Error:          value.Error,
 	}
-}
-
-func (s *daemonExtensionService) populateExtensionGatewayStatus(
-	key extensionpkg.InstanceKey,
-	payload *contract.ExtensionPayload,
-) error {
-	if strings.TrimSpace(payload.GatewayRequirementDigest) != "" {
-		if !payload.Dev {
-			key = extensionpkg.GlobalInstanceKey(key.Name)
-		}
-		confirmation, err := s.registry.GatewayConfirmation(key)
-		if err != nil {
-			return fmt.Errorf(
-				"daemon: load extension gateway confirmation for %q in workspace %q: %w",
-				key.Name,
-				key.WorkspaceID,
-				err,
-			)
-		}
-		payload.GatewayRequirementDigest = confirmation.Digest
-		payload.GatewayConfirmationRequired = confirmation.Digest != "" &&
-			(strings.TrimSpace(confirmation.ConfirmedBy) == "" || confirmation.ConfirmedAt.IsZero())
-	}
-	return nil
 }

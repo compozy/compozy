@@ -335,7 +335,6 @@ const extensionInstallInputSchema = `{
 			"description":"Replace the installed local extension; the previous version stays installed ` +
 	`only when the replacement fails before the reinstall transaction completes. A failure after it ` +
 	`returns, such as enable failing, does not restore it."},
-		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"},
 		"with_dependencies":{"type":"boolean","default":false,
 			"description":"Experimental. Install missing and enable disabled requires.extensions dependencies ` +
 	`first, in the same scope and profile. Without it unmet dependencies refuse with ` +
@@ -347,8 +346,7 @@ const extensionInstallInputSchema = `{
 				"type":"object",
 				"properties":{
 					"expected_digest":{"type":"string","pattern":"^[a-fA-F0-9]{64}$"},
-					"allow_unverified":{"type":"boolean"},
-					"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+					"allow_unverified":{"type":"boolean"}
 				},
 				"additionalProperties":false
 			}
@@ -370,8 +368,7 @@ const extensionUpdateInputSchema = `{
 		"check_only":{"type":"boolean"},
 		"version":{"type":"string"},
 		"inputs":` + extensionValuesInputSchema + `,
-		"allow_unverified":{"type":"boolean"},
-		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"allow_unverified":{"type":"boolean"}
 	},
 	"additionalProperties":false
 }`
@@ -424,8 +421,7 @@ const extensionDevInputSchema = `{
 	"required":["origin_path","generation_hash"],
 	"properties":{
 		"origin_path":{"type":"string","minLength":1},
-		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"},
-		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`
@@ -437,8 +433,7 @@ const extensionReloadInputSchema = `{
 		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
 			"description":"Definition owner; must equal extension:<name>."},
 		"name":{"type":"string","minLength":1},
-		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"},
-		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`

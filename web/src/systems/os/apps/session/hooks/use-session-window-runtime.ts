@@ -1,3 +1,4 @@
+import type { ComputerId } from "@/lib/computer-scope";
 import { useDesktop } from "../../../hooks/use-desktop";
 import { matchSessionInstance } from "../../../lib/app-catalog";
 import { useSessionWindowDesktopState } from "./use-session-window-desktop-state";
@@ -12,6 +13,8 @@ export interface SessionWindowRuntime {
   presenceEnabled: boolean;
   sessionId: string | null;
   agentName: string | null;
+  /** Computer that owns this session (`"local"` or a remote computer ID). */
+  computerId: ComputerId;
   /** The route asks the window's board to show the session in its drawer (#1052). */
   drawerOpen: boolean;
 }
@@ -36,12 +39,13 @@ export interface SessionWindowRuntime {
  */
 export function useSessionWindowRuntime(windowId: string): SessionWindowRuntime {
   const live = useSessionWindowDesktopState(windowId);
-  const { drawerOpen, liveTailEnabled, pathname } = live;
+  const { computerId, drawerOpen, liveTailEnabled, pathname } = live;
   const focused = useDesktop(state => state.focusedId === windowId);
   const documentActive = useDocumentActive();
   const sessionId = matchSessionInstance(pathname);
   const agentMatch = SESSION_AGENT_PATTERN.exec(pathname);
   return {
+    computerId,
     focused,
     liveTailEnabled,
     presenceEnabled: focused && liveTailEnabled && documentActive,

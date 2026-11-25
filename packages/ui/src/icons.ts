@@ -199,6 +199,7 @@ export {
   ItalicIcon,
   KeyRound,
   Keyboard,
+  Laptop,
   Layers,
   Layers3Icon,
   LayersIcon,

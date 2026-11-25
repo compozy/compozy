@@ -68,7 +68,6 @@ func (s *daemonExtensionService) Install(
 func (s *daemonExtensionService) commitPreparedInstall(
 	ctx context.Context,
 	prepared preparedDaemonExtensionInstall,
-	confirmation *extensionpkg.GatewayConfirmation,
 	actor taskpkg.ActorContext,
 	event extensionpkg.LifecycleEvent,
 	item *contract.ExtensionPayload,
@@ -85,19 +84,6 @@ func (s *daemonExtensionService) commitPreparedInstall(
 	}
 	if _, err := (extensionInputBinder{service: s}).Commit(ctx, inputs); err != nil {
 		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
-	}
-	if confirmation != nil {
-		if err := s.registry.ConfirmGatewayRequirement(
-			extensionpkg.GlobalInstanceKey(prepared.name), confirmation.Digest,
-			confirmation.ConfirmedBy, confirmation.ConfirmedAt,
-		); err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
-		}
-		if err := s.recordExtensionGatewayConfirmedEvent(
-			ctx, actor, extensionpkg.GlobalInstanceKey(prepared.name), *confirmation,
-		); err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
-		}
 	}
 	if prepared.manifest != nil && len(prepared.manifest.Profiles) > 0 {
 		if s.profiles == nil {
@@ -189,7 +175,7 @@ func (s *daemonExtensionService) Update(
 			CheckOnly:       req.CheckOnly,
 			AllowUnverified: req.AllowUnverified,
 			Inputs:          req.Inputs,
-		}, actor, strings.TrimSpace(req.ConfirmGatewayDigest), target)
+		}, actor, target)
 		return updateErr
 	})
 	if err != nil {
@@ -231,7 +217,7 @@ func (s *daemonExtensionService) UpdateBatch(
 	var items []contract.ManagedExtensionUpdatePayload
 	err = s.lifecycle.withPackageMutation(ctx, names, func() error {
 		var updateErr error
-		items, updateErr = s.updateBatchUnlocked(ctx, req, actor, "", target)
+		items, updateErr = s.updateBatchUnlocked(ctx, req, actor, target)
 		return updateErr
 	})
 	return items, err
@@ -242,7 +228,6 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 	ctx context.Context,
 	req contract.UpdateExtensionsRequest,
 	actor taskpkg.ActorContext,
-	confirmGatewayDigest string,
 	target extensionMutationTarget,
 ) ([]contract.ManagedExtensionUpdatePayload, error) {
 	if len(req.Inputs) > 0 && (req.All || len(req.Names) != 1) {
@@ -276,7 +261,6 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 	) {
 		s.observeExtensionDigestVerification(ctx, actor, trust, verificationErr)
 	}
-	confirmed := s.configureUpdateGatewayGate(&domainReq, confirmGatewayDigest, actor)
 	s.configureUpdateProfileGate(ctx, &domainReq, actor)
 	s.configureUpdateInputGate(ctx, &domainReq, req.Inputs, target)
 	items, updateErr := extensionpkg.UpdateMarketplaceManaged(
@@ -288,10 +272,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		nil,
 	)
 	payloads, finalizeErr := s.finalizeMarketplaceUpdateBatch(ctx, actor, items, updateErr)
-	return payloads, errors.Join(
-		finalizeErr,
-		s.recordCommittedUpdateGatewayConfirmations(ctx, actor, payloads, confirmed),
-	)
+	return payloads, finalizeErr
 }
 
 // Remove validates operator or agent authority before entering the package removal coordinator.
@@ -398,7 +379,7 @@ func (s *daemonExtensionService) rollbackFailedInstall(
 func (s *daemonExtensionService) Enable(
 	ctx context.Context,
 	name string,
-	req contract.EnableExtensionRequest,
+	_ contract.EnableExtensionRequest,
 	actor taskpkg.ActorContext,
 ) (contract.ExtensionEnableResult, error) {
 	if err := s.checkReady(); err != nil {
@@ -410,7 +391,9 @@ func (s *daemonExtensionService) Enable(
 	var result contract.ExtensionEnableResult
 	err := s.lifecycle.withName(ctx, name, func() error {
 		var err error
-		result, err = s.enableUnlocked(ctx, name, req, actor)
+		result, err = s.enableTargetUnlocked(
+			ctx, name, actor, extensionMutationTarget{profile: extensionDefaultProfileLens()},
+		)
 		return err
 	})
 	return result, err

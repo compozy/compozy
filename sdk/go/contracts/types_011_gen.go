@@ -2,34 +2,10 @@
 
 package contracts
 
-import "time"
-
-type HookMode string
-
-type HookRunOutcome string
-
-type HookSkillSource uint8
-
-type HookSource uint8
-
-type Image struct {
-	URL   string `json:"url,omitempty"`
-	Token string `json:"token,omitempty"`
-	Emoji string `json:"emoji,omitempty"`
-}
-
-type InitializeCapabilities struct {
-	Provides              []string        `json:"provides"`
-	GrantedPermissions    []HostAPIMethod `json:"granted_permissions"`
-	GrantedResourceKinds  []string        `json:"granted_resource_kinds"`
-	GrantedResourceScopes []string        `json:"granted_resource_scopes"`
-}
-
-type InitializeExtension struct {
-	Name       string `json:"name"`
-	Version    string `json:"version"`
-	SourceTier string `json:"source_tier"`
-}
+import (
+	"encoding/json"
+	"time"
+)
 
 type InitializeExtensionInfo struct {
 	Name       string `json:"name"`
@@ -192,4 +168,146 @@ type ListLogsParams struct {
 	AfterSequence int64     `json:"after_seq,omitempty"`
 	Since         time.Time `json:"since,omitzero"`
 	Limit         int       `json:"limit,omitempty"`
+}
+
+type LoopContext struct {
+	ProfileID       string `json:"profile_id,omitempty"`
+	LoopRunID       string `json:"loop_run_id,omitempty"`
+	ParentLoopRunID string `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID     string `json:"workspace_id,omitempty"`
+	LoopName        string `json:"loop_name,omitempty"`
+	Generation      int    `json:"generation,omitempty"`
+	TaskID          string `json:"task_id,omitempty"`
+	RunID           string `json:"run_id,omitempty"`
+	RunKind         string `json:"run_kind,omitempty"`
+	NodeID          string `json:"node_id,omitempty"`
+	WorkflowID      string `json:"workflow_id,omitempty"`
+	AgentName       string `json:"agent_name,omitempty"`
+	SessionID       string `json:"session_id,omitempty"`
+	ActorKind       string `json:"actor_kind,omitempty"`
+	ActorID         string `json:"actor_id,omitempty"`
+	OriginKind      string `json:"origin_kind,omitempty"`
+	OriginRef       string `json:"origin_ref,omitempty"`
+}
+
+type LoopControlPatch struct {
+	Deny       bool   `json:"deny,omitempty"`
+	DenyReason string `json:"deny_reason,omitempty"`
+}
+
+type LoopGatePostPayload struct {
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	LoopRunID       string    `json:"loop_run_id,omitempty"`
+	ParentLoopRunID string    `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	LoopName        string    `json:"loop_name,omitempty"`
+	Generation      int       `json:"generation,omitempty"`
+	TaskID          string    `json:"task_id,omitempty"`
+	RunID           string    `json:"run_id,omitempty"`
+	RunKind         string    `json:"run_kind,omitempty"`
+	NodeID          string    `json:"node_id,omitempty"`
+	WorkflowID      string    `json:"workflow_id,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	ActorKind       string    `json:"actor_kind,omitempty"`
+	ActorID         string    `json:"actor_id,omitempty"`
+	OriginKind      string    `json:"origin_kind,omitempty"`
+	OriginRef       string    `json:"origin_ref,omitempty"`
+	GateID          string    `json:"gate_id,omitempty"`
+	// Outcome is the machine result already computed when the hook observes the gate.
+	Outcome string `json:"outcome,omitempty"`
+	// Score is the computed metric score, when the observed gate has a metric criterion.
+	Score *float64 `json:"score,omitempty"`
+	// BestGeneration is the durable best generation known when the hook observes the result.
+	BestGeneration *int64          `json:"best_generation,omitempty"`
+	Status         string          `json:"status,omitempty"`
+	ReasonCode     string          `json:"reason_code,omitempty"`
+	Details        json.RawMessage `json:"details,omitempty"`
+	Denied         bool            `json:"denied,omitempty"`
+	DenyReason     string          `json:"deny_reason,omitempty"`
+}
+
+type LoopGatePrePatch struct {
+	Deny       bool   `json:"deny,omitempty"`
+	DenyReason string `json:"deny_reason,omitempty"`
+}
+
+type LoopGatePrePayload struct {
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	LoopRunID       string    `json:"loop_run_id,omitempty"`
+	ParentLoopRunID string    `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	LoopName        string    `json:"loop_name,omitempty"`
+	Generation      int       `json:"generation,omitempty"`
+	TaskID          string    `json:"task_id,omitempty"`
+	RunID           string    `json:"run_id,omitempty"`
+	RunKind         string    `json:"run_kind,omitempty"`
+	NodeID          string    `json:"node_id,omitempty"`
+	WorkflowID      string    `json:"workflow_id,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	ActorKind       string    `json:"actor_kind,omitempty"`
+	ActorID         string    `json:"actor_id,omitempty"`
+	OriginKind      string    `json:"origin_kind,omitempty"`
+	OriginRef       string    `json:"origin_ref,omitempty"`
+	GateID          string    `json:"gate_id,omitempty"`
+	// Outcome is the machine result already computed when the hook observes the gate.
+	Outcome string `json:"outcome,omitempty"`
+	// Score is the computed metric score, when the observed gate has a metric criterion.
+	Score *float64 `json:"score,omitempty"`
+	// BestGeneration is the durable best generation known when the hook observes the result.
+	BestGeneration *int64          `json:"best_generation,omitempty"`
+	Status         string          `json:"status,omitempty"`
+	ReasonCode     string          `json:"reason_code,omitempty"`
+	Details        json.RawMessage `json:"details,omitempty"`
+	Denied         bool            `json:"denied,omitempty"`
+	DenyReason     string          `json:"deny_reason,omitempty"`
+}
+
+type LoopGenerationOrigin string
+
+const (
+	LoopGenerationOriginInitial            LoopGenerationOrigin = "initial"
+	LoopGenerationOriginStopWhen           LoopGenerationOrigin = "stop_when"
+	LoopGenerationOriginReattempt          LoopGenerationOrigin = "reattempt"
+	LoopGenerationOriginGateRevise         LoopGenerationOrigin = "gate_revise"
+	LoopGenerationOriginGateNextGeneration LoopGenerationOrigin = "gate_next_generation"
+	LoopGenerationOriginDodRetry           LoopGenerationOrigin = "dod_retry"
+	LoopGenerationOriginRatchetRestore     LoopGenerationOrigin = "ratchet_restore"
+)
+
+type LoopGenerationPostPayload struct {
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	LoopRunID       string    `json:"loop_run_id,omitempty"`
+	ParentLoopRunID string    `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	LoopName        string    `json:"loop_name,omitempty"`
+	Generation      int       `json:"generation,omitempty"`
+	TaskID          string    `json:"task_id,omitempty"`
+	RunID           string    `json:"run_id,omitempty"`
+	RunKind         string    `json:"run_kind,omitempty"`
+	NodeID          string    `json:"node_id,omitempty"`
+	WorkflowID      string    `json:"workflow_id,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	ActorKind       string    `json:"actor_kind,omitempty"`
+	ActorID         string    `json:"actor_id,omitempty"`
+	// OriginKind identifies the actor or task source kind that started the loop.
+	OriginKind string `json:"origin_kind,omitempty"`
+	// OriginRef identifies the actor or task source reference that started the loop.
+	OriginRef string `json:"origin_ref,omitempty"`
+	// Origin is the closed loop-generation provenance value that explains why this generation exists.
+	Origin           LoopGenerationOrigin `json:"origin"`
+	ParentGeneration int64                `json:"parent_generation"`
+	Status           string               `json:"status,omitempty"`
+	ReasonCode       string               `json:"reason_code,omitempty"`
+	Details          json.RawMessage      `json:"details,omitempty"`
+	Denied           bool                 `json:"denied,omitempty"`
+	DenyReason       string               `json:"deny_reason,omitempty"`
 }

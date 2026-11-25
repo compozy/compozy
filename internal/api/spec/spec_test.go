@@ -1645,14 +1645,23 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					assertResponseStatus(t, operation, http.StatusNotFound)
 					assertResponseStatus(t, operation, http.StatusConflict)
 				}
-				if schema := jsonResponseSchema(
-					t,
-					operationFor(t, doc, "/api/tools/{id}/invoke", "POST"),
-					400,
-				); len(
-					schema.OneOf,
-				) != 2 {
-					t.Fatalf("profile-scoped tool error variants = %d, want 2", len(schema.OneOf))
+				invoke := operationFor(t, doc, "/api/tools/{id}/invoke", "POST")
+				errorVariants := []struct {
+					status int
+					names  []string
+				}{
+					{http.StatusBadRequest, []string{"ProfileErrorPayload", "ToolErrorResponse", "ErrorPayload"}},
+					{http.StatusForbidden, []string{"ToolErrorResponse", "ErrorPayload"}},
+				}
+				for _, variant := range errorVariants {
+					schema := jsonResponseSchema(t, invoke, variant.status)
+					refs := make([]string, 0, len(schema.OneOf))
+					for _, ref := range schema.OneOf {
+						refs = append(refs, strings.TrimPrefix(ref.Ref, "#/components/schemas/"))
+					}
+					if !slices.Equal(refs, variant.names) {
+						t.Fatalf("tool invoke HTTP %d variants = %v, want %v", variant.status, refs, variant.names)
+					}
 				}
 				if schema := jsonResponseSchema(
 					t,
@@ -1672,6 +1681,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				toolSchema := toolsSchema.Items.Value
 				assertRequired(t, toolSchema, "descriptor", "availability", "decision")
 				descriptorSchema := propertySchema(t, toolSchema, "descriptor")
+				assertNotRequired(t, descriptorSchema, "remote_scope")
+				assertSchemaIncludesType(t, propertySchema(t, descriptorSchema, "remote_scope"), "string")
 				assertRequired(
 					t,
 					descriptorSchema,
@@ -1719,7 +1730,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"read",
 				)
 
-				invoke := operationFor(t, doc, "/api/tools/{id}/invoke", "POST")
 				assertResponseStatus(t, invoke, 202)
 				assertResponseStatus(t, invoke, 507)
 				invokeRequest := jsonRequestSchema(t, invoke)
@@ -3311,9 +3321,11 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		addNativeReadPagingSchemas(t, baseline)
 		addManualJobWaitParameters(t, baseline)
-		if addNativeResultViewSchemas(baseline) == 0 {
-			t.Fatal("approved output_views addition: no historical tool descriptors found")
+		if addToolDescriptorSchemaFields(baseline) == 0 {
+			t.Fatal("approved output_views and remote_scope additions: no historical tool descriptors found")
 		}
+		addRemoteToolInvokeResponses(baseline)
+		addComputerPlacementSchemas(t, baseline)
 		addSettingsMCPHeaderPresence(t, baseline)
 		deprecateRetiredWindowManagerSettings(t, baseline)
 		deprecateRetiredWindowManagerWireFields(t, baseline)
@@ -3399,10 +3411,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
 		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
+		removeRetiredGatewaySchemas(t, baseline)
 		addMCPHotActivationSchemas(t, baseline, current)
-		// Gateway pairing exposes a hand-typed 6-digit alias beside the opaque artifact; the redeem
-		// request accepts either representation, so artifact becomes optional.
-		addGatewayManualPairingSchemas(t, baseline, current)
 		addMarketplacePluginCatalogSchemas(baseline)
 		oldComponents["ExtensionValidatePayload"].(map[string]any)["properties"].(map[string]any)["inputs"] = map[string]any{
 			"type": "array",
@@ -4096,8 +4106,8 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// #1011: optional typed diagnostics; existing fields and required sets stay unchanged.
 	addMissingWorkspaceDiagnosticsSchemas(t, baseline)
 
-	// #1005: lossless workspace archive metadata and typed busy blockers are additive.
-	if addWorkspaceArchiveSchemas(baseline) == 0 {
+	// Workspace archive metadata, busy blockers, and normalized repository identity are additive.
+	if addWorkspaceSchemaFields(baseline) == 0 {
 		t.Fatal("no historical workspace/error schemas found")
 	}
 	for _, code := range []tools.ErrorCode{tools.ErrorCodeWorkspaceBusy, tools.ErrorCodeWorkspaceArchived, tools.ErrorCodeWorkspaceRootMissing} {
@@ -5493,16 +5503,16 @@ func addShellAppearanceSchema(t *testing.T, baseline map[string]any) {
 	}
 }
 
-func addWorkspaceArchiveSchemas(value any) int {
+func addWorkspaceSchemaFields(value any) int {
 	count := 0
 	switch node := value.(type) {
 	case []any:
 		for _, child := range node {
-			count += addWorkspaceArchiveSchemas(child)
+			count += addWorkspaceSchemaFields(child)
 		}
 	case map[string]any:
 		for child := range maps.Values(node) {
-			count += addWorkspaceArchiveSchemas(child)
+			count += addWorkspaceSchemaFields(child)
 		}
 		properties, ok := node["properties"].(map[string]any)
 		if !ok {
@@ -5511,6 +5521,7 @@ func addWorkspaceArchiveSchemas(value any) int {
 		if properties["id"] != nil && properties["root_dir"] != nil && properties["created_at"] != nil {
 			properties["archived_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
 			properties["root_missing"] = map[string]any{"type": "boolean"}
+			properties["repository_key"] = map[string]any{"type": "string"}
 			count++
 		}
 		if properties["error"] != nil && properties["current_turn_id"] != nil && properties["diagnostic"] != nil {
@@ -7076,19 +7087,20 @@ func addAgentMCPAttachmentSchemas(t *testing.T, baseline map[string]any) {
 	}
 }
 
-func addNativeResultViewSchemas(value any) int {
+func addToolDescriptorSchemaFields(value any) int {
 	count := 0
 	switch node := value.(type) {
 	case []any:
 		for _, child := range node {
-			count += addNativeResultViewSchemas(child)
+			count += addToolDescriptorSchemaFields(child)
 		}
 	case map[string]any:
 		for _, child := range node {
-			count += addNativeResultViewSchemas(child)
+			count += addToolDescriptorSchemaFields(child)
 		}
 		properties, ok := node["properties"].(map[string]any)
 		if ok && properties["tool_id"] != nil && properties["input_schema_digest"] != nil && properties["risk"] != nil {
+			properties["remote_scope"] = map[string]any{"type": "string"}
 			view := map[string]any{
 				"type":       "object",
 				"required":   []any{"schema"},
@@ -7106,6 +7118,65 @@ func addNativeResultViewSchemas(value any) int {
 		}
 	}
 	return count
+}
+
+func addRemoteToolInvokeResponses(baseline map[string]any) {
+	paths := baseline["paths"].(map[string]any)
+	invoke := paths["/api/tools/{id}/invoke"].(map[string]any)["post"].(map[string]any)
+	responses := invoke["responses"].(map[string]any)
+	media := func(status string) map[string]any {
+		return responses[status].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	}
+	// The existing 503 response already freezes the same generic error schema.
+	remoteError := media("503")["schema"]
+	badRequest := media("400")["schema"].(map[string]any)
+	badRequest["oneOf"] = append(badRequest["oneOf"].([]any), remoteError)
+	forbidden := media("403")
+	forbidden["schema"] = map[string]any{"oneOf": []any{forbidden["schema"], remoteError}}
+	result := media("200")["schema"].(map[string]any)["properties"].(map[string]any)
+	result["_meta"] = map[string]any{
+		"type": "object", "nullable": true, "required": []any{"computer_id"},
+		"properties": map[string]any{"computer_id": map[string]any{"type": "string"}},
+	}
+}
+
+func addComputerPlacementSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	for _, code := range []string{
+		admission.LocalExecutionDisabledCode, "remote_scope_denied", string(tools.ErrorCodeNotForwardable),
+		string(tools.ErrorCodeForwardDenied), string(tools.ErrorCodeSecretAnswerOperatorOnly),
+	} {
+		if addToolErrorCode(baseline, code) == 0 {
+			t.Fatalf("approved computer tool error %s: no historical tool error enums found", code)
+		}
+	}
+	paths := baseline["paths"].(map[string]any)
+	text := map[string]any{"type": "string"}
+	create := baselineOperationSchema(t, paths, specSessionsPath, "post", "requestBody")
+	fields := create["properties"].(map[string]any)
+	fields["computer"], fields["project_computer_id"] = text, text
+
+	// SessionResponse is shared by these operations, and only Auto creation populates computer_id.
+	for _, route := range []struct{ path, method, status string }{
+		{specSessionsPath, "post", "201"},
+		{specSessionsPath + "/{session_id}", "get", "200"},
+		{specWorkspaceSessionPath, "get", "200"},
+		{specWorkspaceSessionPath, "patch", "200"},
+		{specWorkspaceSessionPath + "/archive", "post", "200"},
+		{specWorkspaceSessionPath + "/clear", "post", "200"},
+		{specWorkspaceSessionPath + "/runtime", "delete", "200"},
+		{specWorkspaceSessionPath + "/runtime", "put", "200"},
+		{specWorkspaceSessionPath + "/unarchive", "post", "200"},
+		{specWorkspaceSessionPath + "/worktree-fork", "post", "201"},
+	} {
+		response := baselineOperationSchema(t, paths, route.path, route.method, "responses", route.status)
+		response["properties"].(map[string]any)["computer_id"] = text
+	}
+	workspaces := paths["/api/workspaces"].(map[string]any)["get"].(map[string]any)
+	workspaces["parameters"] = []any{
+		map[string]any{"name": "archived", "in": "query", "schema": map[string]any{"type": "boolean"}},
+		map[string]any{"name": "include_repository", "in": "query", "schema": map[string]any{"type": "boolean"}},
+	}
 }
 
 // addPermanentExtensionRemoveParameter inserts the optional boolean `permanent` query flag into the
@@ -7257,7 +7328,7 @@ func addExtensionDependencyFields(baseline map[string]any, components map[string
 	}{
 		{"InstallExtensionRequest", []string{"ref", "source", "allow_unverified", "expected_digest"}, 0,
 			[]string{"with_dependencies", "dependencies"}},
-		{"ExtensionInstallPreviewPayload", []string{"declared_profiles", "placements", "inputs"}, 6,
+		{"ExtensionInstallPreviewPayload", []string{"declared_profiles", "placements", "inputs", "digest_sha256"}, 5,
 			[]string{"dependencies"}},
 		{"InstallExtensionResponse", []string{"enable_error", "extension"}, 0,
 			[]string{"dependencies_installed"}},
@@ -7296,7 +7367,7 @@ func addExtensionDependencyGuardFields(t *testing.T, baseline, current, componen
 		field     string
 	}{
 		{"ExtensionOperationErrorPayload", []string{"listed_digest", "declared_env", "input_id"}, "dependents"},
-		{"ExtensionPayload", []string{"gateway_confirmation_required", "consecutive_failures", "restart_backoff_ms"},
+		{"ExtensionPayload", []string{"missing_env", "consecutive_failures", "restart_backoff_ms"},
 			"unmet_dependencies"},
 	}
 	for _, target := range fields {
@@ -7454,34 +7525,55 @@ func addMCPReloadErrorFields(value any) int {
 	return count
 }
 
-// These additions expose MCP status without changing any historical field.
-// addGatewayManualPairingSchemas approves the hand-typed 6-digit pairing alias.
-func addGatewayManualPairingSchemas(t *testing.T, baseline, current map[string]any) {
+// ADR-002 removes the Gateway routes and the fields carrying its runtime state and consent.
+func removeRetiredGatewaySchemas(t *testing.T, baseline map[string]any) {
 	t.Helper()
-	newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
-	oldPaths := baseline["paths"].(map[string]any)
-	manualCodeProperty := map[string]any{"type": "string"}
-	pairingComponent := newComponents["GatewayPairingArtifactPayload"].(map[string]any)
-	if pairingComponent["properties"].(map[string]any)["manual_code"] == nil {
-		t.Fatal("missing approved gateway pairing field manual_code")
+	paths := baseline["paths"].(map[string]any)
+	maps.DeleteFunc(paths, func(path string, _ any) bool { return strings.HasPrefix(path, "/api/gateway/") })
+	for path, method := range map[string]string{
+		"/api/extensions/update": "post",
+		"/api/extensions/{name}": "put",
+	} {
+		operation := paths[path].(map[string]any)[method].(map[string]any)
+		responses := operation["responses"].(map[string]any)
+		conflict, ok := responses["409"].(map[string]any)
+		if !ok || conflict["description"] != "Gateway confirmation required" {
+			t.Fatalf("%s %s has unexpected historical conflict response: %v", method, path, conflict)
+		}
+		delete(responses, "409")
 	}
-	// The mint response gains the required alias beside the opaque artifact.
-	mint := gatewayBaselineSchema(t, oldPaths, "/api/gateway/pairings", "post", "responses", "201")
-	mint["properties"].(map[string]any)["manual_code"] = manualCodeProperty
-	mint["required"] = append(mint["required"].([]any), "manual_code")
-	// The redeem request accepts the artifact or the alias, so artifact is no longer required.
-	redeem := gatewayBaselineSchema(t, oldPaths, "/api/gateway/pairings/redeem", "post", "requestBody")
-	redeem["properties"].(map[string]any)["manual_code"] = manualCodeProperty
-	required := make([]any, 0, len(redeem["required"].([]any)))
-	for _, name := range redeem["required"].([]any) {
-		if name != "artifact" {
-			required = append(required, name)
+	schemas := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	maps.DeleteFunc(schemas, func(name string, _ any) bool { return strings.HasPrefix(name, "Gateway") })
+	var visit func(any)
+	visit = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				visit(child)
+			}
+		case map[string]any:
+			if properties, ok := node["properties"].(map[string]any); ok {
+				for _, field := range []string{
+					"confirm_gateway_digest", "gateway", "gateway_confirmation_required", "gateway_requirement_digest",
+				} {
+					delete(properties, field)
+					if required, ok := node["required"].([]any); ok {
+						node["required"] = slices.DeleteFunc(required, func(name any) bool { return name == field })
+					}
+				}
+				if properties["agents"] != nil && properties["fetched_digest"] != nil {
+					delete(properties, "current_digest")
+				}
+			}
+			for child := range maps.Values(node) {
+				visit(child)
+			}
 		}
 	}
-	redeem["required"] = required
+	visit(baseline)
 }
 
-func gatewayBaselineSchema(
+func baselineOperationSchema(
 	t *testing.T,
 	paths map[string]any,
 	path string,

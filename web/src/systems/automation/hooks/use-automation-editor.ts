@@ -22,6 +22,12 @@ import {
   useUpdateAutomationTrigger,
 } from "./use-automation-actions";
 import { createWorkspaceEditorLogic, type WorkspaceEditorFailure } from "./automation-editor-store";
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import {
+  resolveEffectiveRunOnTarget,
+  useComputers,
+  useComputerWorkspaces,
+} from "@/systems/computers";
 import { useAgents } from "@/systems/agent";
 
 /** What the save produced: the daemon entity decides the detail route. */
@@ -97,6 +103,18 @@ export function automationSaveFailure(name: string) {
  * (create + deep links) and the detail page (edit, optionally at a section).
  * The Starts choice decides whether the save creates a job or a trigger.
  */
+function projectActiveWorkspaceOptions(
+  workspaces: ReadonlyArray<{ id: string; name: string; archived_at?: string | null }>
+): WorkspaceOption[] {
+  const active: WorkspaceOption[] = [];
+  for (const workspace of workspaces) {
+    if (!workspace.archived_at) {
+      active.push({ id: workspace.id, name: workspace.name });
+    }
+  }
+  return active;
+}
+
 export function useAutomationEditor({
   activeWorkspaceId,
   onSaved,
@@ -110,8 +128,32 @@ export function useAutomationEditor({
   const submitError = useSelector(store, snapshot => snapshot.context.submitError);
   const submitErrorField = useSelector(store, snapshot => snapshot.context.submitErrorField);
   const [handle] = useState(createAutomationDialogHandle);
-  // A global automation still addresses the active project's agents.
-  const agentsQuery = useAgents(activeWorkspaceId);
+  const creatingJob = editor?.mode === "create" && editor.draft.start === "schedule";
+  const computers = useComputers({ enabled: creatingJob });
+  const requestedComputerId = normalizeComputerId(editor?.draft.computerId);
+  const targetComputerId =
+    creatingJob && computers.data
+      ? resolveEffectiveRunOnTarget({
+          requested: requestedComputerId,
+          local: computers.localView,
+          computers: computers.computerViews,
+          loadBalancingEnabled: false,
+          allowAuto: false,
+        })
+      : requestedComputerId;
+  const isRemoteComputer = isRemoteComputerId(targetComputerId);
+  const remoteWorkspacesQuery = useComputerWorkspaces(
+    targetComputerId,
+    editor !== null && isRemoteComputer
+  );
+  const effectiveWorkspaces: ReadonlyArray<WorkspaceOption> | undefined = isRemoteComputer
+    ? projectActiveWorkspaceOptions(remoteWorkspacesQuery.data ?? [])
+    : workspaces;
+  // A global automation still addresses the active project's agents on the chosen computer.
+  const agentsQuery = useAgents(
+    isRemoteComputer ? (editor?.draft.workspace_id ?? null) : activeWorkspaceId,
+    { computerId: targetComputerId }
+  );
   const createJob = useCreateAutomationJob();
   const updateJob = useUpdateAutomationJob();
   const createTrigger = useCreateAutomationTrigger();
@@ -145,13 +187,13 @@ export function useAutomationEditor({
 
   const openEdit = (
     automation: AutomationJob | AutomationTrigger,
-    { section }: { section?: AutomationEditorSection } = {}
+    { section, computerId }: { section?: AutomationEditorSection; computerId?: ComputerId } = {}
   ) => {
     const isTrigger = "event" in automation;
     open({
       draft: isTrigger
         ? automationTriggerToFormDraft(automation)
-        : automationJobToFormDraft(automation),
+        : automationJobToFormDraft(automation, computerId),
       entity: isTrigger ? "trigger" : "job",
       id: automation.id,
       mode: "edit",
@@ -167,8 +209,9 @@ export function useAutomationEditor({
     if (request.entity === "job") {
       const automation =
         current.mode === "create"
-          ? await createJob.mutateAsync(request.create)
+          ? await createJob.mutateAsync({ ...request.create, computerId: targetComputerId })
           : await updateJob.mutateAsync({
+              computerId: targetComputerId,
               data: request.update,
               id: current.id,
               profile: current.profile,
@@ -206,10 +249,11 @@ export function useAutomationEditor({
     agentsError: agentCatalogErrorMessage(agentsQuery.error),
     agentsLoading: agentsQuery.isLoading,
     handle,
-    workspaces,
+    workspaces: effectiveWorkspaces,
     editor: editor
       ? {
           ...editor,
+          draft: creatingJob ? { ...editor.draft, computerId: targetComputerId } : editor.draft,
           isPending: pendingRequest !== null,
           onCancel: close,
           onChange: (draft: AutomationFormDraft) =>

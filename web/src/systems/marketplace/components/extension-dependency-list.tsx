@@ -1,4 +1,4 @@
-import { Eyebrow, MonoId, Pill } from "@compozy/ui";
+import { Eyebrow, Pill } from "@compozy/ui";
 
 import type { ExtensionDependency } from "@/systems/extensions";
 
@@ -59,12 +59,6 @@ function ExtensionDependencyRow({ dependency }: { dependency: ExtensionDependenc
       <span className="text-form-hint text-muted-foreground">
         {extensionDependencySourceLabel(dependency.source)} · {dependency.ref}
       </span>
-      {dependency.gateway_requirement_digest ? (
-        <span className="flex items-center gap-2 text-form-hint text-muted-foreground">
-          Remote access
-          <MonoId size="sm" value={dependency.gateway_requirement_digest} />
-        </span>
-      ) : null}
       {blocked ? (
         <span className="text-form-hint text-warning" role="alert">
           {blocked}

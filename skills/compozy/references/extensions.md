@@ -25,7 +25,7 @@ optional `profile`. Previous string arrays are normalized during loading through
 builds emit tables. Convert handwritten strings to `{ path = "..." }` entries before their removal
 in v0.3.0-beta.31. Omit `profile` to retain the previous all-profile visibility.
 
-Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--profile <name>` on the CLI; HTTP/UDS accepts `?workspace=<id>&profile=<name>` to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, placements, and any Gateway digest without changing state.
+Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--profile <name>` on the CLI; HTTP/UDS accepts `?workspace=<id>&profile=<name>` to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, and placements without changing state.
 
 In extension detail, `created_by_extension: true` confirms that this extension created the current
 profile ID. `false` covers existing-profile bindings and historical declarations whose creator was
@@ -37,8 +37,6 @@ For client Agent Plugins, the same list and set commands accept optional secret 
 referenced by MCP header templates. Use the listed key name and omit `--remote-header`. These
 credentials belong to the exact profile and extension instance. An unset input with an empty
 default leaves its credential header out of the request.
-
-If a candidate extension changes its normalized gateway permission requirement, install or update returns `extension_gateway_confirmation_required` with the exact digest before changing package state. Inspect that digest and retry with `--confirm-gateway-requirement <digest>` or the equivalent `confirm_gateway_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to those exact gateway permissions.
 
 A subprocess extension that publishes layouts directly declares the generic Host API permissions and `window_layouts` family. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically.
 
@@ -206,7 +204,7 @@ Every catalog entry has exactly one category id: `productivity`, `communication`
 - `GET /api/marketplace/sections?per_section=1..12`: the Browse home in one read.
 - Add = `compozy extension install <ref> --enable` / `compozy__extensions_install {enable: true}` /
   `POST /api/extensions {"enable": true}`: install and enable in one operation. Every install gate
-  still applies (`extension_inputs_required`, consent, conflicts, gateway). If enabling fails after
+  still applies (`extension_inputs_required`, publisher consent, and name conflicts). If enabling fails after
   install, the result is still success (`201`, exit 0) with `extension.enabled: false` and
   `enable_error {error, code}`; the package stays installed. Retry with
   `compozy extension enable <name>` / `compozy__extensions_enable`.
@@ -335,7 +333,7 @@ A local bundle replaces the installed package of the same name with
 `compozy extension install <path> --replace`, `POST /api/extensions` with
 `{"source": "local_path", "replace": true}`, or `compozy__extensions_install {replace: true}`. The
 replacement runs through the same transaction as a published reinstall: the previous directory,
-registry record, gateway confirmation, and selected input cell stay available until reload and the
+registry record and selected input cell stay available until reload and the
 returned status step both succeed, so a failure inside that transaction after publication restores
 the previous version. Once the reinstall transaction returns successfully, a subsequent enable
 failure retains the new package. `replace` applies to `local_path` only; published
@@ -378,9 +376,9 @@ Install that extension in the global scope for the selected profile before retry
 Preview (`POST /api/extensions/preview-install`) returns `dependencies[]`, dependencies first, each
 with `state` (`met`, `missing`, `disabled`, `version_unmet`, `installed_elsewhere`), `required_by`, `depth`, `registry_tier`
 (only `official` and `community` are registry-verified; earlier consent is not), and, for a missing
-package, its `version`, `digest_sha256`, `gateway_requirement_digest` and `consent_required` (true when
-it needs `allow_unverified`). An installed `disabled` dependency carries `installed_version` and, when
-enabling must confirm it again, `gateway_requirement_digest`. A marketplace dependency is previewed at
+package, its `version`, `digest_sha256`, and `consent_required` (true when it needs
+`allow_unverified`). An installed `disabled` dependency carries `installed_version`.
+A marketplace dependency is previewed at
 its listed digest; installing it still requires that digest as `dependencies.<name>.expected_digest`. Install without `with_dependencies` refuses any unmet
 dependency with `422 extension_dependencies_required` listing the unmet entries. `version_unmet`
 always refuses, even with consent, and a missing one (its source offers only an older `version`) has
@@ -399,10 +397,10 @@ from a source that provides `min_version`. Nothing is ever auto-updated.
 
 `with_dependencies: true` installs `missing` and enables `disabled` dependencies in the dependent's
 scope and profile, dependencies first, before the dependent's own input gate. Consent is per
-artifact under `dependencies.<name>` (`expected_digest`, `allow_unverified`,
-`confirm_gateway_digest`); the root `allow_unverified` never covers a dependency. A missing
-confirmation refuses with that gate's existing code (`extension_checksum_unverified`,
-`extension_source_changed`, `extension_gateway_confirmation_required`, ...) plus `dependency: "<name>"`.
+artifact under `dependencies.<name>` (`expected_digest` and `allow_unverified`). Root
+`allow_unverified` applies to the requested extension. A missing consent refuses with the gate's
+existing code, such as `extension_checksum_unverified` or `extension_source_changed`, and adds
+`dependency: "<name>"`.
 Every artifact's consent is checked before the first dependency installs, so a missing one installs
 nothing. Execution then stops at the first runtime failure and keeps completed dependencies, reported as
 `dependencies_installed` on the error (including one committed before its enable failed); a successful
@@ -416,13 +414,12 @@ naming it; set it up separately first. `compozy__extensions_install` accepts the
 `with_dependencies` and closed `dependencies` object with the authority of a plain install.
 
 CLI: on a human TTY, `compozy extension install` answers `extension_dependencies_required` with one
-consolidated preview (name, version, source, state, trust, gateway digest, required by), asks once,
-then asks each artifact's own gates (unverified consent, gateway digest) and retries with
+consolidated preview (name, version, source, state, trust, required by), asks once, then asks for
+each dependency's unverified consent and retries with
 `with_dependencies`. Without a TTY or with `-o json`, pass `--with-dependencies`; bare
 `--allow-unverified` covers only the requested extension, each unverified dependency needs
 `--allow-unverified-dependency <name>`, which asks first on a human terminal like `--allow-unverified`
-(structured output needs `--yes`), and `--confirm-gateway-requirement` takes a bare digest for the root
-(repeated, the last one wins) and `<name>=<digest>` for a dependency.
+(structured output needs `--yes`).
 A `version_unmet` or `installed_elsewhere` dependency never prompts: it prints `Run first:
 <retry_command>`, or, without one, the reinstall guidance or the source version when no version
 satisfies `min_version`, and exits 2.

@@ -19,7 +19,7 @@ vi.mock("@tanstack/react-query", async importOriginal => {
           if (realSummaryQueries) return actual.useQuery(options);
           return { data: terminalMetadata, isError: terminalMetadataError, isLoading: false };
         }
-        if (options.queryKey[0] === "notifications")
+        if (options.queryKey[2] === "notifications")
           return { data: notificationResponse, isError: notificationStale, isLoading: false };
         return queryMock(options);
       }),
@@ -278,9 +278,9 @@ describe("useOsAttention", () => {
     );
     expect(vi.mocked(useLoopRequestAttention)).toHaveBeenCalledWith(expect.anything(), true, true);
     const calls = vi.mocked(useQuery).mock.calls.map(([options]) => options);
-    const terminal = calls.find(options => options.queryKey[0] === "terminal");
+    const terminal = calls.find(options => options.queryKey[2] === "terminal");
     expect(terminal?.refetchInterval).toBe(5_000);
-    const bell = calls.find(options => options.queryKey[0] === "notifications");
+    const bell = calls.find(options => options.queryKey[2] === "notifications");
     const interval = bell?.refetchInterval as (query: unknown) => number | false;
     expect(interval({ state: { status: "success" } })).toBe(5_000);
   });

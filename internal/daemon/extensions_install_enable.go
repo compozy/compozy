@@ -21,9 +21,7 @@ func (s *daemonExtensionService) enableInstalledExtension(
 	case item.Enabled && len(item.MissingEnv) == 0 && len(item.MissingInputs) == 0:
 		result.Extension = *item
 	case prepared.target.profile.ID == extensionDefaultProfileLens().ID:
-		result, err = s.enableTargetUnlocked(ctx, prepared.name, contract.EnableExtensionRequest{
-			ConfirmGatewayDigest: req.ConfirmGatewayDigest,
-		}, actor, prepared.target)
+		result, err = s.enableTargetUnlocked(ctx, prepared.name, actor, prepared.target)
 	default:
 		preview, previewErr := s.previewExtensionTarget(ctx, prepared.name, prepared.target)
 		err = previewErr

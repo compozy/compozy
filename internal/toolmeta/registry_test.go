@@ -78,6 +78,7 @@ func TestNativeEntryMatchesBuiltinDescriptorInventory(t *testing.T) {
 
 func expectedNativeEntries() map[string]toolmeta.Entry {
 	return map[string]toolmeta.Entry{
+		"compozy__account_status":                 expectedNativeEntry("Reading", " ", false, "🖥️", "auto"),
 		"compozy__agent_activity":                 expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
 		"compozy__agent_draft_instructions":       expectedNativeEntry("Drafting", " ", false, "🤖", "auto"),
 		"compozy__agent_instance_archive":         expectedNativeEntry("Archiving", " ", false, "🤖", "auto"),
@@ -139,6 +140,13 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__cmd_palette_invoke":    expectedNativeEntry("Running", " ", false, "💬", "auto"),
 		"compozy__cmd_palette_list":      expectedNativeEntry("Reading", " ", false, "💬", "auto"),
 		"compozy__command_list":          expectedNativeEntry("Reading", " ", false, "💬", "auto"),
+		"compozy__computer_add":          expectedNativeEntry("Adding", " ", false, "🖥️", "auto"),
+		"compozy__computer_list":         expectedNativeEntry("Reading", " ", false, "🖥️", "auto"),
+		"compozy__computer_remove":       expectedNativeEntry("Removing", " ", false, "🖥️", "auto"),
+		"compozy__computer_setup_answer": expectedNativeEntry("Answering", " ", false, "🖥️", "auto"),
+		"compozy__computer_setup_cancel": expectedNativeEntry("Canceling", " ", false, "🖥️", "auto"),
+		"compozy__computer_setup_status": expectedNativeEntry("Reading", " ", false, "🖥️", "auto"),
+		"compozy__computer_status":       expectedNativeEntry("Reading", " ", false, "🖥️", "auto"),
 		"compozy__config_diff":           expectedNativeEntry("Reading", " ", false, "⚙️", "auto"),
 		"compozy__config_get":            expectedNativeEntry("Reading", " ", false, "⚙️", "auto"),
 		"compozy__config_list":           expectedNativeEntry("Reading", " ", false, "⚙️", "auto"),
@@ -174,7 +182,6 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__extensions_setup":        expectedNativeEntry("Configuring", " ", false, "🧩", "auto"),
 		"compozy__extensions_update":       expectedNativeEntry("Updating", " ", false, "🧩", "auto"),
 		"compozy__extensions_validate":     expectedNativeEntry("Validating", " ", false, "🧩", "auto"),
-		"compozy__gateway":                 expectedNativeEntry("Reading", " ", false, "🌐", "auto"),
 		"compozy__goal_control":            expectedNativeEntry("Updating", " ", false, "🎯", "auto"),
 		"compozy__goal_get":                expectedNativeEntry("Reading", " ", false, "🎯", "auto"),
 		"compozy__goal_report":             expectedNativeEntry("Reporting", " ", false, "🎯", "auto"),
@@ -249,6 +256,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__provider_models_list":          expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
 		"compozy__provider_models_refresh":       expectedNativeEntry("Refreshing", " ", false, "🤖", "auto"),
 		"compozy__provider_models_status":        expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
+		"compozy__remote_status":                 expectedNativeEntry("Reading", " ", false, "🖥️", "auto"),
 		"compozy__resources_info":                expectedNativeEntry("Reading", " ", false, "📚", "auto"),
 		"compozy__resources_list":                expectedNativeEntry("Reading", " ", false, "📚", "auto"),
 		"compozy__resources_snapshot":            expectedNativeEntry("Reading", " ", false, "📚", "auto"),

@@ -78,11 +78,6 @@ func manifestFromDescribe(input *extensioncontract.DescribePayload) (*Manifest, 
 			Env:     cloneStringMap(payload.Subprocess.Env),
 		},
 	}
-	if payload.Gateway != nil {
-		manifest.Gateway = (&GatewayRequirement{
-			Permissions: slices.Clone(payload.Gateway.Permissions),
-		}).Normalize()
-	}
 	if err := validateDescribeSDK(payload.SDK); err != nil {
 		return nil, err
 	}

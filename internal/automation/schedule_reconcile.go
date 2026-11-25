@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/account"
 )
 
 func (s *Scheduler) reconcileSchedulerState(
@@ -19,8 +21,10 @@ func (s *Scheduler) reconcileSchedulerState(
 		return SchedulerState{}, err
 	}
 	state := s.initialSchedulerState(job, plan, now, defaultPolicy)
+	signedOut := s.localExecution != nil && errors.Is(s.localExecution(), account.ErrSignInRequired)
 	if s.store == nil {
-		return schedulerStateWithoutStore(state, plan.register, now), nil
+		state.HeldForSignIn = !plan.register && signedOut
+		return schedulerStateWithoutStore(state, plan.register || state.HeldForSignIn, now), nil
 	}
 
 	existing, loadErr := s.store.GetSchedulerState(ctx, job.ID)
@@ -46,10 +50,7 @@ func (s *Scheduler) reconcileSchedulerState(
 		return state, nil
 	}
 	if !plan.register {
-		state.NextRunAt = nil
-		state.LastMisfireAt = new(now)
-		state.MisfireCount++
-		state.UpdatedAt = now
+		state = unregisteredSchedulerState(state, signedOut, now)
 		return s.store.SaveSchedulerState(ctx, state)
 	}
 	if state.NextRunAt == nil || state.NextRunAt.IsZero() {
@@ -57,10 +58,22 @@ func (s *Scheduler) reconcileSchedulerState(
 		state.UpdatedAt = now
 		return s.store.SaveSchedulerState(ctx, state)
 	}
-	if !state.NextRunAt.After(now) {
+	if !signedOut && !state.NextRunAt.After(now) {
 		return s.reconcileMissedSchedulerState(ctx, job, state, now)
 	}
 	return s.store.SaveSchedulerState(ctx, state)
+}
+
+func unregisteredSchedulerState(state SchedulerState, signedOut bool, now time.Time) SchedulerState {
+	if state.NextRunAt != nil && !state.NextRunAt.IsZero() && (state.HeldForSignIn || signedOut) {
+		state.HeldForSignIn = true
+		return state
+	}
+	state.NextRunAt = nil
+	state.LastMisfireAt = new(now)
+	state.MisfireCount++
+	state.UpdatedAt = now
+	return state
 }
 
 func (s *Scheduler) initialSchedulerState(
@@ -119,6 +132,7 @@ func (s *Scheduler) mergeSchedulerState(
 	if scheduleChanged {
 		state.NextRunAt = new(plan.nextRun)
 		if !zoneChanged {
+			state.HeldForSignIn = false
 			state.DeferredUntil = nil
 			state.ConsecutiveResumeFailures = 0
 		}

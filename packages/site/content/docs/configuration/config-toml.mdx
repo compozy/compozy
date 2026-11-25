@@ -95,7 +95,7 @@ CompozyOS archives them on load instead of failing; see
 | `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                                 | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`                        |
 | `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                                   | agents may force release, force fail, and retry                                                       |
 | `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                          | empty list                                                                                            |
-| `[gateway]`                          | Remote gateway ceiling, listener ports, and bounded security tunables.                 | disabled; both tier ports assigned by the operating system                                            |
+| `[computers]`                        | Local agent execution and automatic session placement.                                 | local execution on, Auto off, local weight `50`                                                       |
 
 ## Load And Merge Order
 
@@ -174,7 +174,7 @@ written, loading fails and the original file remains unchanged.
 
 ## Complete Annotated Example
 
-```toml
+````toml
 # ~/.compozy/config.toml
 
 [daemon]
@@ -857,99 +857,11 @@ env = { HOOK_LOG = "1" }
 [hooks.declarations.matcher]
 agent_name = "general"
 
-[gateway]
-enabled = false
-private_port = 0
-public_port = 0
+[computers]
+local_run_agents = true
+load_balancing = false
+local_load_balancing_weight = 50
 
-[gateway.pairing]
-ttl = "5m"
-max_pending = 8
-
-[gateway.stream_ticket]
-ttl = "30s"
-
-[gateway.auth.rate_limit]
-window = "60s"
-max_fails = 10
-
-[gateway.verify]
-timeout = "10s"
-public_dns_resolver = "1.1.1.1:853"
-```
-
-## `[daemon]`
-
-`shutdown_grace` defaults to `"30s"` and accepts durations from `"0s"` through `"5m"`.
-On a requested restart it gives admitted turns time to finish before CompozyOS records interruptions
-and stops provider processes concurrently. That wait is the smaller of `shutdown_grace` and 5 seconds,
-ends as soon as no turn is running, and skips turns waiting on an approval or a question: an
-interrupted turn is checkpointed and resumed by the next start, so a longer wait only delays the
-restart. `"0s"` still disables the wait. The total shutdown budget also reserves time for the
-session termination ladder and resource cleanup; the relaunch helper waits through that budget.
-Explicit daemon stop does not wait for restart continuation and never auto-resumes work.
-Changing this setting requires a restart.
-
-| Field                                    | Type        | Default                     | Valid values                               | Description                                                                                                                 |
-| ---------------------------------------- | ----------- | --------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `socket`                                 | string path | `$COMPOZY_HOME/daemon.sock` | Non-empty path. `~` is expanded.           | Unix domain socket used by CLI IPC and the UDS API server.                                                                  |
-| `memory_report_interval`                 | duration    | `5m`                        | `0s` to disable, or any positive duration. | Cadence for daemon process-memory snapshots in logs and `runtime.memory`.                                                   |
-| `subprocess_health_escalation_threshold` | integer     | `3`                         | `0` or a positive integer.                 | Failed health checks before CompozyOS moves a task-bound nonterminal run to `needs_attention`; `0` disables the transition. |
-
-The daemon captures a baseline snapshot at startup, periodic snapshots at this cadence, and one
-final snapshot during joined shutdown. Each `[memory]` log record and the `runtime.memory` item from
-`compozy doctor -o json` reports Go heap allocation, heap in-use bytes, goroutines, uptime, and resident
-memory when the operating system exposes it. `resident_memory_kind` distinguishes current resident
-memory from the peak value available on macOS. Setting the interval to `0s` starts no sampling
-worker; doctor reports the feature as disabled. Changing this field is restart-required.
-
-`subprocess_health_escalation_threshold` consumes the health verdict exposed by an active ACP
-subprocess. At the configured consecutive-failure count, CompozyOS moves the exact task run bound to that
-session from `queued`, `claimed`, `starting`, or `running` to `needs_attention`. Repeated failed
-verdicts do not emit another transition, and a completed, failed, or canceled run remains terminal.
-An unexpected ACP process exit triggers the same transition immediately when the value is positive.
-Set the field to `0` when you want `compozy status` and `compozy doctor` evidence without task mutation.
-Changing this field is restart-required.
-
-## `[daemon.load]`
-
-These fields keep many concurrent agents from saturating the host and starving the desktop UI.
-
-| Field                 | Type     | Default | Valid values                                                       | Description                                                                                        |
-| --------------------- | -------- | ------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `agent_niceness`      | integer  | `10`    | `0` through `19`. `0` disables.                                    | CPU niceness applied to each agent's process group on macOS and Linux. Ignored on Windows.         |
-| `admission_threshold` | float    | `1.5`   | `0` to disable, or a positive number.                              | Normalized load (1-minute load average divided by logical CPUs) above which background work waits. |
-| `admission_max_wait`  | duration | `2m`    | `1s` through `30m` when the threshold is enabled; otherwise `0s`+. | Longest one background session start or prompt waits for load to drop before it proceeds anyway.   |
-
-CompozyOS starts each agent in its own process group. On Linux, it applies `agent_niceness` on a
-disposable launch thread before exec, so even children forked immediately at startup inherit the
-priority. The launch thread is discarded without changing the daemon's other threads. Agent-owned
-PTY and pipe terminals use the same launch policy. On macOS, priority is applied to the process
-group after startup; a fork in flight during that adjustment can retain the previous priority.
-Windows ignores this setting. Priority failures are logged and do not prevent launch. On an idle
-machine the agent still gets all available CPU; niceness matters when processes compete for CPU.
-
-When `admission_threshold` is above zero, the daemon samples the load average every five seconds.
-While normalized load exceeds the threshold, new sessions and prompts started by scheduled or
-triggered automations, Loops, and scheduler wakes wait until load drops or `admission_max_wait`
-elapses, then proceed. Prompts and sessions you start yourself, and manual automation runs, are never
-delayed. `compozy doctor -o json` reports the current state in the `runtime.load` item: the sampled and
-normalized load, whether background work is waiting, and how many admissions were delayed. Platforms
-without a load average (Windows) report the feature as unavailable and never delay work. Changing any
-field is restart-required.
-
-## `[http]`
-
-| Field  | Type    | Default     | Valid values                    | Description           |
-| ------ | ------- | ----------- | ------------------------------- | --------------------- |
-| `host` | string  | `localhost` | Non-empty host or bind address. | HTTP/SSE server host. |
-| `port` | integer | `2123`      | `1` through `65535`             | HTTP/SSE server port. |
-
-## `[app]`
-
-The daemon is the sole consumer of both keys. It schedules read-only checks for the runtime and,
-when installed, the desktop app. The shell never parses `config.toml`; it observes the durable
-update operation when an app apply is staged. The one setting the desktop app reads is
 [`desktop.editor_command`](#desktop), and it reads it through the local daemon's
 `GET /api/settings/general`, not from the file.
 
@@ -1101,7 +1013,7 @@ leftover `scope` key never blocks the daemon from starting. To migrate now:
 ```bash
 compozy config unset shell.sessions.scope
 compozy config set shell.sessions.group_by project
-```
+````
 
 All fields have the `live` lifecycle. The daemon stores them in global `config.toml`, so the
 preference survives browser restarts without browser-local storage. Workspace overlays and
@@ -2937,66 +2849,17 @@ The budget applies to unary requests only: log and terminal streams keep their o
 Profiles and workspace config reject `client.*`, because the CLI resolves the budget before it selects
 a profile for the command.
 
-## `[gateway]`
+## `[computers]`
 
-Gateway config sets a local safety ceiling and bounded runtime controls. Exposure intent is stored in
-the Global DB; no config key can enable a provider, tier, or surface. Setting `enabled = false`
-disables all gateway tiers during live reload.
+These keys apply live from the installation's global `config.toml`.
 
-| Field          | Type    | Default | Validation                 | Lifecycle        |
-| -------------- | ------- | ------- | -------------------------- | ---------------- |
-| `enabled`      | boolean | `false` | `true` or `false`          | Live             |
-| `private_port` | integer | `0`     | `0` or `1` through `65535` | Restart required |
-| `public_port`  | integer | `0`     | `0` or `1` through `65535` | Restart required |
+| Field                         | Default | Behavior                                                                                                                                        |
+| ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `local_run_agents`            | `true`  | Set to `false` after adding a remote computer to turn off new local sessions, Loop runs, and automation runs. Existing records remain readable. |
+| `load_balancing`              | `false` | Enable Auto placement for new sessions in a project that has a Git origin.                                                                      |
+| `local_load_balancing_weight` | `50`    | Use `100` for Prefer, `50` for Normal, `25` for Less often, or `0` for Manual only.                                                             |
 
-Port `0` asks the operating system to assign an available loopback port. Gateway tier listeners do
-not bind non-loopback addresses.
-
-| Field                        | Type     | Default       | Validation                  | Lifecycle |
-| ---------------------------- | -------- | ------------- | --------------------------- | --------- |
-| `pairing.ttl`                | duration | `5m`          | Positive                    | Live      |
-| `pairing.max_pending`        | integer  | `8`           | Positive                    | Live      |
-| `stream_ticket.ttl`          | duration | `30s`         | Positive                    | Live      |
-| `auth.rate_limit.window`     | duration | `60s`         | Positive                    | Live      |
-| `auth.rate_limit.max_fails`  | integer  | `10`          | Positive                    | Live      |
-| `verify.timeout`             | duration | `10s`         | Positive                    | Live      |
-| `verify.public_dns_resolver` | string   | `1.1.1.1:853` | Public IP and non-zero port | Live      |
-
-Public endpoint verification uses authenticated DNS-over-TLS through `verify.public_dns_resolver`
-instead of the host resolver. This keeps a Tailscale MagicDNS answer from satisfying a public Funnel
-proof through the private tailnet.
-Change it when the default resolver is unavailable from the daemon host.
-
-`verify.timeout` bounds one endpoint probe. Provider activation runs under its own fixed one-minute
-bound, and a failed probe keeps the listener staged while the daemon retries with backoff — raising
-`verify.timeout` is rarely the fix for a slow first activation.
-
-`gateway.public_ui.enabled` does not exist. Public operator UI reachability is an explicit,
-consented database transition, not a config value.
-
-### Client connection profiles
-
-`active_connection` and `[[gateway.connections]]` describe how _this_ machine reaches a remote
-daemon. They are written by `compozy connect` on the client side and are not read by a daemon that
-is serving a gateway.
-
-| Field                             | Type    | Default | Validation                                    | Lifecycle |
-| --------------------------------- | ------- | ------- | --------------------------------------------- | --------- |
-| `active_connection`               | string  | empty   | Name of a declared connection                 | Live      |
-| `connections[].name`              | string  | —       | Unique, non-empty                             | Live      |
-| `connections[].scheme`            | string  | —       | `https` or `ssh`                              | Live      |
-| `connections[].host`              | string  | —       | Non-empty host                                | Live      |
-| `connections[].port`              | integer | —       | `1` through `65535`                           | Live      |
-| `connections[].credential_file`   | string  | empty   | `<name>.cred` for an `https` connection       | Live      |
-| `connections[].default_workspace` | string  | empty   | Workspace id                                  | Live      |
-| `connections[].remote_home`       | string  | empty   | Remote `COMPOZY_HOME`; `ssh` connections only | Live      |
-
-A connection entry holds no secret: the device credential lives in the referenced file with
-owner-only permissions. Copying these entries to another machine does not transfer identity — use
-`compozy connect export` and `compozy connect import`.
-
-See the [Gateway section](/docs/gateway) for setup, tutorials, and operations, and
-[Gateway security](/docs/gateway/security) for what each tier exposes.
+Manage a linked computer's weight through its controller entry. See [Place new sessions automatically](/docs/computers/controller#place-new-sessions-automatically).
 
 ## Related Pages
 

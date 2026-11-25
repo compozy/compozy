@@ -1,18 +1,16 @@
 /** Closing: the side-by-side comparison, install, and the final call to action. */
 import { Tabs, TabsContent, TabsList, TabsTrigger, cn } from "@compozy/ui";
-import { Check, Download, Star } from "@compozy/ui/icons";
+import { Download, Star } from "@compozy/ui/icons";
 
 import {
   COMPARE_CHECKED_ON,
   COMPARE_COLUMNS,
   COMPARE_ROWS,
   COMPARE_SOURCES,
-  COMPARE_VERDICTS,
-  type CompareVerdict,
   HREF,
   INSTALL_COMMAND,
   INSTALL_STEPS,
-  installMethods,
+  OFFICIAL_INSTALL_METHODS,
 } from "@/components/landing/content";
 import { FinalScene } from "@/components/landing/final-scene";
 import { PopCheck } from "@/components/landing/pop-check";
@@ -30,24 +28,6 @@ import {
   TextLink,
 } from "@/components/site/primitives";
 import { siteConfig } from "@/lib/site-config";
-
-const VERDICT_LABEL: Record<CompareVerdict, string> = {
-  yes: "Yes",
-  partial: "Partial",
-  no: "No",
-};
-
-/** A competitor's cell: a check, the word "Partial", or a dash, each named for screen readers. */
-function Verdict({ value }: { value: CompareVerdict }) {
-  if (value === "yes") {
-    return <Check aria-label="Yes" className="mx-auto size-5 text-[#0a0a0a]" />;
-  }
-  return (
-    <span aria-label={VERDICT_LABEL[value]} className="font-mono text-[12px] text-site-dark-600">
-      {value === "partial" ? "Partial" : "—"}
-    </span>
-  );
-}
 
 export function Comparison() {
   return (
@@ -69,7 +49,7 @@ export function Comparison() {
           <table className="w-full min-w-[860px] border-collapse text-left text-[16px] leading-[normal]">
             <thead>
               <tr>
-                <th className="w-[34%] pb-5 font-normal" />
+                <th className="w-[36%] pb-5 font-normal" />
                 <th className="rounded-t-[16px] bg-[#2448e6] px-4 py-5 text-center font-medium text-white">
                   CompozyOS
                 </th>
@@ -83,21 +63,30 @@ export function Comparison() {
             <tbody>
               {COMPARE_ROWS.map((row, index) => (
                 <tr
-                  key={row}
+                  key={row.label}
                   className="border-t border-site-dark-100 transition-colors hover:bg-site-dark-030"
                 >
-                  <td className="py-6 pr-6 text-[#0a0a0a]">{row}</td>
+                  <td className="py-6 pr-6 text-[#0a0a0a]">{row.label}</td>
                   <td
                     className={cn(
-                      "bg-[#2448e6] px-4 text-center",
+                      "bg-[#2448e6] px-4 text-center text-white",
                       index === COMPARE_ROWS.length - 1 && "rounded-b-[16px]"
                     )}
                   >
-                    <PopCheck index={index} />
+                    {row.compozy === "check" ? (
+                      <PopCheck index={index} />
+                    ) : (
+                      <span className="font-mono text-[13px] font-medium text-white">
+                        {row.compozy}
+                      </span>
+                    )}
                   </td>
                   {COMPARE_COLUMNS.map(column => (
-                    <td key={column} className="px-4 text-center">
-                      <Verdict value={COMPARE_VERDICTS[column][index] ?? "no"} />
+                    <td
+                      key={column}
+                      className="px-4 text-center font-mono text-[12.5px] text-site-dark-600"
+                    >
+                      {row.competitors[column]}
                     </td>
                   ))}
                 </tr>
@@ -106,8 +95,8 @@ export function Comparison() {
           </table>
         </div>
         <p className="m-0 mt-10 max-w-[760px] text-[16px]/[1.5] text-site-dark-700">
-          Why it holds: one runtime, one state model. Sessions, agents, approvals, and runs are core
-          objects, so nothing has to be glued together.
+          Why it holds: one runtime, one state model. Sessions, agents, approvals, and remote
+          computers are core objects, so nothing has to be glued together.
         </p>
         <p className="m-0 mt-3 text-[13px] text-site-dark-600">
           Checked against the public documentation of{" "}
@@ -124,7 +113,7 @@ export function Comparison() {
               {index < all.length - 2 ? ", " : index === all.length - 2 ? " and " : ""}
             </span>
           ))}{" "}
-          on {COMPARE_CHECKED_ON}. Partial means the docs cover part of the row.
+          on {COMPARE_CHECKED_ON}.
         </p>
       </div>
     </section>
@@ -133,9 +122,7 @@ export function Comparison() {
 
 const TAB = "h-11 rounded-[12px] px-4 text-[14.5px] after:hidden data-[active]:bg-site-light-100";
 
-/** `releaseTag` pins the Go install line to the current release. */
-export function Install({ releaseTag }: { releaseTag: string }) {
-  const methods = installMethods(releaseTag);
+export function Install() {
   return (
     <section id="install" className="relative py-24 md:py-44">
       <div className={cn(CONTAINER, "grid gap-14 lg:grid-cols-[1fr_1.15fr] lg:gap-20")}>
@@ -149,8 +136,8 @@ export function Install({ releaseTag }: { releaseTag: string }) {
           <Reveal>
             <Lead>
               Download the desktop app, or install the runtime with the verified installer,
-              Homebrew, npm, or Go. Today's experience is technical: a terminal, a local daemon, and
-              one config file.
+              Homebrew, or npm. Sign in once with Google or GitHub; local work continues offline
+              after that.
             </Lead>
           </Reveal>
         </div>
@@ -159,7 +146,7 @@ export function Install({ releaseTag }: { releaseTag: string }) {
             <Tabs defaultValue="Desktop" className="gap-0">
               <div className="border-b border-site-light-100 p-2">
                 <TabsList className="flex-wrap gap-1 border-b-0 group-data-horizontal/tabs:h-auto">
-                  {["Desktop", ...methods.map(method => method.id)].map(id => (
+                  {["Desktop", ...OFFICIAL_INSTALL_METHODS.map(method => method.id)].map(id => (
                     <TabsTrigger key={id} value={id} className={TAB}>
                       {id}
                     </TabsTrigger>
@@ -175,7 +162,7 @@ export function Install({ releaseTag }: { releaseTag: string }) {
                 </PrimaryCta>
                 <TextLink href={HREF.download}>All platforms and checksums</TextLink>
               </TabsContent>
-              {methods.map(method => (
+              {OFFICIAL_INSTALL_METHODS.map(method => (
                 <TabsContent key={method.id} value={method.id} className="min-h-[132px] p-7">
                   <InstallCommand command={method.command} className="w-full justify-between" />
                 </TabsContent>

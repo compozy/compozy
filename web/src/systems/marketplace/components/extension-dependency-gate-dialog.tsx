@@ -1,5 +1,3 @@
-import { ExtensionGatewayConfirmDialog } from "@/systems/extensions";
-
 import type { ExtensionDependencyGate } from "./extension-dependency-model";
 import { ExtensionTrustDialog } from "./extension-trust-dialog";
 
@@ -20,19 +18,6 @@ export function ExtensionDependencyGateDialog({
   const onOpenChange = (open: boolean) => {
     if (!open) onCancel();
   };
-  if (gate.kind === "gateway") {
-    return (
-      <ExtensionGatewayConfirmDialog
-        digest={gate.digest}
-        extensionName={gate.name}
-        key={`gateway:${gate.name}`}
-        onConfirm={onAccept}
-        onOpenChange={onOpenChange}
-        open
-        pending={false}
-      />
-    );
-  }
   return (
     <ExtensionTrustDialog
       action="install"

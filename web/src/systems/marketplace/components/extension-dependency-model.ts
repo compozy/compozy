@@ -2,9 +2,10 @@ import type { ExtensionDependency, ExtensionInstallPreview } from "@/systems/ext
 import type { ExtensionInstallRequest } from "../types";
 
 /** One consent decision a dependency needs before the joint install, in preview order. */
-export type ExtensionDependencyGate =
-  | { kind: "trust"; name: string; requiredBy: string[] }
-  | { kind: "gateway"; name: string; digest: string };
+export interface ExtensionDependencyGate {
+  name: string;
+  requiredBy: string[];
+}
 
 const SOURCE_LABEL: Record<string, string> = {
   curated: "Curated catalog",
@@ -76,24 +77,14 @@ function installableDependencies(preview: Pick<ExtensionInstallPreview, "depende
   );
 }
 
-/**
- * Each dependency keeps its own trust gates — unverified consent, then the gateway digest — in the
- * preview's topological order, dependencies first. There is no blanket consent.
- */
+/** Collects unverified dependency consent in dependency order. */
 export function extensionDependencyGates(
   preview: Pick<ExtensionInstallPreview, "dependencies">
 ): ExtensionDependencyGate[] {
   const gates: ExtensionDependencyGate[] = [];
   for (const dependency of installableDependencies(preview)) {
     if (dependency.consent_required) {
-      gates.push({ kind: "trust", name: dependency.name, requiredBy: dependency.required_by });
-    }
-    if (dependency.gateway_requirement_digest) {
-      gates.push({
-        digest: dependency.gateway_requirement_digest,
-        kind: "gateway",
-        name: dependency.name,
-      });
+      gates.push({ name: dependency.name, requiredBy: dependency.required_by });
     }
   }
   return gates;
@@ -113,9 +104,6 @@ export function extensionDependencyInstallFields(
     const consent = {
       ...(dependency.digest_sha256 ? { expected_digest: dependency.digest_sha256 } : {}),
       ...(dependency.consent_required ? { allow_unverified: true } : {}),
-      ...(dependency.gateway_requirement_digest
-        ? { confirm_gateway_digest: dependency.gateway_requirement_digest }
-        : {}),
     };
     if (Object.keys(consent).length > 0) dependencies[dependency.name] = consent;
   }

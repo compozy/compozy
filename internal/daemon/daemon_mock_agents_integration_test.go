@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -2216,6 +2217,23 @@ func startHostedMCPClient(
 		t.Fatalf("Connect(hosted MCP %q) error = %v", stdio.Command, err)
 	}
 	return session
+}
+
+type lockedHostedMCPBuffer struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (b *lockedHostedMCPBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.Write(p)
+}
+
+func (b *lockedHostedMCPBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.String()
 }
 
 func listLegacyHostedMCPTools(

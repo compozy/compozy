@@ -105,7 +105,8 @@ CREATE TABLE "automation_scheduler_state" (
 			misfire_count                INTEGER NOT NULL DEFAULT 0
 				CHECK (misfire_count >= 0),
 			updated_at                   TEXT NOT NULL,
-			deferred_until               TEXT
+			deferred_until               TEXT,
+			held_for_sign_in            INTEGER NOT NULL DEFAULT 0 CHECK (held_for_sign_in IN (0, 1))
 		);
 
 CREATE TABLE automation_trigger_catalog_entries (

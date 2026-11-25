@@ -7,13 +7,6 @@ import { Extension } from "../extension.js";
 import { SDK_INPUTS_MIN_COMPOZY_VERSION, SDK_MIN_COMPOZY_VERSION } from "../extension-contract.js";
 import { describeInputsFloor } from "../extension-describe.js";
 import {
-  CONNECTIVITY_ESTABLISH_METHOD,
-  CONNECTIVITY_STATUS_METHOD,
-  CONNECTIVITY_TEARDOWN_METHOD,
-  registerConnectivityProvider,
-  type ConnectivityProviderHandlers,
-} from "../connectivity-provider.js";
-import {
   FORGE_CAPABILITIES_METHOD,
   FORGE_PR_CREATE_METHOD,
   FORGE_STATUS_METHOD,
@@ -31,8 +24,7 @@ import {
 } from "../errors.js";
 import { canonicalJSON, schemaDigest } from "../schema-digest.js";
 import { TestHarness } from "../testing/harness.js";
-import { createMockTransportPair, MockTransport } from "../testing/mock-transport.js";
-import type { TransportHandler } from "../transport.js";
+import { createMockTransportPair } from "../testing/mock-transport.js";
 import type { DescribePayload, InitializeRequest, JSONValue, ViewFrame } from "../types.js";
 import {
   VIEW_CLOSE_METHOD,
@@ -53,26 +45,6 @@ interface SchemaDigestFixture {
   schema: JSONValue;
   canonical: string;
   sha256: string;
-}
-
-class FailingProvideTransport extends MockTransport {
-  public readonly connectivityHandlers = new Set<string>();
-
-  public override handle(method: string, handler: TransportHandler): void {
-    super.handle(method, handler);
-    if (!method.startsWith("connectivity/")) {
-      return;
-    }
-    this.connectivityHandlers.add(method);
-    if (method === CONNECTIVITY_STATUS_METHOD) {
-      throw new Error("connectivity transport bind failed");
-    }
-  }
-
-  public override unhandle(method: string): void {
-    super.unhandle(method);
-    this.connectivityHandlers.delete(method);
-  }
 }
 
 function initializeFor(extension: Extension): InitializeRequest {
@@ -669,51 +641,6 @@ describe("Extension", () => {
     });
   });
 
-  it("registers and serves a connectivity provider", async () => {
-    const harness = new TestHarness();
-    const extension = new Extension({ name: "connectivity", version: "0.1.0" });
-    registerConnectivityProvider(extension, {
-      establish: (_context, request) => ({
-        tier: request.tier,
-        endpoints: [{ url: "https://gateway.example.test", scheme: "https", stability: "stable" }],
-        health: "healthy",
-      }),
-      status: (_context, request) => ({
-        tier: request.tier,
-        endpoints: [{ url: "https://gateway.example.test", scheme: "https", stability: "stable" }],
-        health: "healthy",
-      }),
-      teardown: () => ({ stopped: true }),
-    });
-    await harness.loadExtension(extension);
-    expect(extension.definition.capabilities?.provides).toContain("connectivity.provider");
-    expect(harness.getLastInitializeResponse()?.implemented_methods).toEqual(
-      expect.arrayContaining([
-        "connectivity/establish",
-        "connectivity/status",
-        "connectivity/teardown",
-      ])
-    );
-    await expect(
-      harness.call("connectivity/establish", {
-        tier: "private",
-        forward_target: "127.0.0.1:43210",
-        challenge_path: "/.well-known/compozy/gateway-challenge/typescript",
-        deadline: "2026-08-07T12:00:00Z",
-      })
-    ).resolves.toMatchObject({ tier: "private", health: "healthy" });
-    await expect(harness.call("connectivity/status", { tier: "private" })).resolves.toMatchObject({
-      tier: "private",
-      health: "healthy",
-    });
-    await expect(
-      harness.call("connectivity/teardown", {
-        tier: "private",
-        deadline: "2026-08-07T12:00:00Z",
-      })
-    ).resolves.toEqual({ stopped: true });
-  });
-
   it("registers and serves a forge provider", async () => {
     const harness = new TestHarness();
     const extension = new Extension({ name: "forge", version: "0.1.0" });
@@ -884,93 +811,20 @@ describe("Extension", () => {
     expect(() => extension.handle(FORGE_PR_CREATE_METHOD, () => ({}))).not.toThrow();
   });
 
-  it("rejects malformed connectivity requests before calling provider handlers", async () => {
-    const harness = new TestHarness();
-    const establish = vi.fn<ConnectivityProviderHandlers["establish"]>(() => ({
-      tier: "private",
-      endpoints: [],
-      health: "healthy",
-    }));
-    const status = vi.fn<ConnectivityProviderHandlers["status"]>(() => ({
-      tier: "private",
-      endpoints: [],
-      health: "healthy",
-    }));
-    const teardown = vi.fn<ConnectivityProviderHandlers["teardown"]>(() => ({ stopped: true }));
-    const extension = new Extension({ name: "connectivity-validation", version: "0.1.0" });
-    registerConnectivityProvider(extension, { establish, status, teardown });
-    await harness.loadExtension(extension);
-
-    await expect(
-      harness.call(CONNECTIVITY_ESTABLISH_METHOD, {
-        tier: "private",
-        forward_target: "127.0.0.1:43210",
-        challenge_path: "/challenge",
-      })
-    ).rejects.toBeInstanceOf(InvalidParamsError);
-    await expect(harness.call(CONNECTIVITY_STATUS_METHOD, { tier: 42 })).rejects.toBeInstanceOf(
-      InvalidParamsError
-    );
-    await expect(harness.call(CONNECTIVITY_TEARDOWN_METHOD, null)).rejects.toBeInstanceOf(
-      InvalidParamsError
-    );
-
-    expect(establish).not.toHaveBeenCalled();
-    expect(status).not.toHaveBeenCalled();
-    expect(teardown).not.toHaveBeenCalled();
-  });
-
-  it("keeps connectivity provider registration atomic across collisions", () => {
-    const extension = new Extension({ name: "connectivity-collision", version: "0.1.0" });
-    extension.handle(CONNECTIVITY_STATUS_METHOD, () => ({ tier: "private", health: "down" }));
-
-    expect(() => registerConnectivityProvider(extension, connectivityHandlers())).toThrow(
-      "connectivity/status is already registered"
-    );
-    expect(extension.definition.capabilities?.provides ?? []).not.toContain(
-      "connectivity.provider"
-    );
-    expect(() => extension.handle(CONNECTIVITY_ESTABLISH_METHOD, () => ({}))).not.toThrow();
-    expect(() => extension.handle(CONNECTIVITY_TEARDOWN_METHOD, () => ({}))).not.toThrow();
-  });
-
-  it("rolls back transport handlers when connectivity registration fails", () => {
-    const transport = new FailingProvideTransport();
-    const extension = new Extension(
-      { name: "connectivity-bind-failure", version: "0.1.0" },
-      { transport }
-    );
-
-    expect(() => registerConnectivityProvider(extension, connectivityHandlers())).toThrow(
-      "connectivity transport bind failed"
-    );
-    expect(transport.connectivityHandlers.size).toBe(0);
-    expect(extension.definition.capabilities?.provides ?? []).not.toContain(
-      "connectivity.provider"
-    );
-    expect(extension.getImplementedMethods()).not.toEqual(
-      expect.arrayContaining([
-        CONNECTIVITY_ESTABLISH_METHOD,
-        CONNECTIVITY_STATUS_METHOD,
-        CONNECTIVITY_TEARDOWN_METHOD,
-      ])
-    );
-  });
-
   it("rejects duplicate and every post-start registration surface", async () => {
-    const duplicate = new Extension({ name: "connectivity-duplicate", version: "0.1.0" });
-    registerConnectivityProvider(duplicate, connectivityHandlers());
-    expect(() => registerConnectivityProvider(duplicate, connectivityHandlers())).toThrow(
-      "connectivity/establish is already registered"
+    const duplicate = new Extension({ name: "forge-duplicate", version: "0.1.0" });
+    registerForgeProvider(duplicate, forgeHandlers());
+    expect(() => registerForgeProvider(duplicate, forgeHandlers())).toThrow(
+      "forge/capabilities is already registered"
     );
 
     const pair = createMockTransportPair();
     const late = new Extension(
-      { name: "connectivity-late", version: "0.1.0" },
+      { name: "forge-late", version: "0.1.0" },
       { transport: pair.extension }
     );
     const started = late.start();
-    expect(() => registerConnectivityProvider(late, connectivityHandlers())).toThrow(
+    expect(() => registerForgeProvider(late, forgeHandlers())).toThrow(
       "extension registration is closed after start"
     );
     expect(() =>
@@ -1050,22 +904,6 @@ describe("Extension", () => {
     }
   });
 });
-
-function connectivityHandlers(): ConnectivityProviderHandlers {
-  return {
-    establish: (_context, request) => ({
-      tier: request.tier,
-      endpoints: [{ url: "https://gateway.example.test", scheme: "https", stability: "stable" }],
-      health: "healthy",
-    }),
-    status: (_context, request) => ({
-      tier: request.tier,
-      endpoints: [{ url: "https://gateway.example.test", scheme: "https", stability: "stable" }],
-      health: "healthy",
-    }),
-    teardown: () => ({ stopped: true }),
-  };
-}
 
 function forgeHandlers(): ForgeProviderHandlers {
   return {

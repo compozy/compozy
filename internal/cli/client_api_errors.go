@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
@@ -230,7 +231,7 @@ func (e *daemonAPIError) Error() string {
 }
 
 func (e *daemonAPIError) cliExitCode() int {
-	if e == nil {
+	if e == nil || e.payload.Code == account.ErrSignInRequired.Code {
 		return 1
 	}
 	return apiStatusExitCode(e.statusCode)

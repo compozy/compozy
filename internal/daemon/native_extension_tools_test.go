@@ -1433,15 +1433,14 @@ func nativeExtensionDownloadResult(t *testing.T, version string) *registrypkg.Do
 	}
 }
 
-func nativeExtensionTarGz(t *testing.T, version string) []byte {
-	t.Helper()
-	return nativeExtensionTarGzWithGateway(t, version, "")
+func nativeExtensionTarGz(t *testing.T, version string, manifestSections ...string) []byte {
+	return nativeExtensionArchive(t, version, false, manifestSections...)
 }
 
-func nativeExtensionTarGzWithGateway(
+func nativeExtensionArchive(
 	t *testing.T,
 	version string,
-	permission string,
+	withSkill bool,
 	manifestSections ...string,
 ) []byte {
 	t.Helper()
@@ -1449,16 +1448,13 @@ func nativeExtensionTarGzWithGateway(
 	integrationManifestSections := ""
 	runtimeCapabilities := `provides = []`
 	runtimePermissions := `requires = ["sessions/list"]`
-	if strings.TrimSpace(permission) != "" {
+	if withSkill {
 		runtimeCapabilities = "provides = []"
 		runtimePermissions = "requires = []"
-		integrationManifestSections = fmt.Sprintf(`
+		integrationManifestSections = `
 [[resources.skills]]
 path = "skills/"
-
-[gateway]
-permissions = [%q]
-`, permission)
+`
 	}
 
 	integrationManifestSections += "\n" + strings.Join(manifestSections, "\n")
@@ -1477,7 +1473,7 @@ min_compozy_version = "0.5.0"
 %s`, version, runtimeCapabilities, runtimePermissions, integrationManifestSections),
 		filepath.Join("tool-ext", "VERSION.txt"): version + "\n",
 	}
-	if strings.TrimSpace(permission) != "" {
+	if withSkill {
 		files[filepath.Join("tool-ext", "skills", "native-tool", "SKILL.md")] = `---
 name: native-tool
 description: Native tool integration skill

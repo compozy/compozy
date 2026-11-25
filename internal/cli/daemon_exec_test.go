@@ -1,18 +1,40 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/compozy/compozy/internal/account"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozylogger "github.com/compozy/compozy/internal/logger"
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 // not parallel: detached children inherit the test mode and isolated home through the environment.
 func TestSpawnDetachedDaemonProcess(t *testing.T) {
+	t.Run("Should pass the account token only to the daemon (UT-125)", func(t *testing.T) {
+		t.Setenv("COMPOZY_TEST_DAEMON_MODE", "account-handoff")
+		t.Setenv(account.TokenEnv, "sentinel")
+		t.Setenv(procutil.InternalAccountTokenEnv, "")
+		home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, err := spawnDetachedDaemonProcess(t.Context(), home, os.Executable)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := child.Wait(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("Should launch and reap a detached child", func(t *testing.T) {
 		t.Setenv("COMPOZY_TEST_DAEMON_MODE", "success")
 		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
@@ -96,6 +118,16 @@ func TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv(t *testing.T) {
 
 func runDetachedDaemonTestChild() int {
 	switch os.Getenv("COMPOZY_TEST_DAEMON_MODE") {
+	case "account-handoff":
+		return testDaemonTokenHandoff()
+	case "account-descendant":
+		if _, exists := os.LookupEnv(account.TokenEnv); exists {
+			return 3
+		}
+		if _, exists := os.LookupEnv(procutil.InternalAccountTokenEnv); exists {
+			return 4
+		}
+		return 0
 	case "success":
 		return 0
 	case "mirror":
@@ -132,4 +164,35 @@ func runDetachedDaemonTestChild() int {
 	default:
 		return 2
 	}
+}
+
+func testDaemonTokenHandoff() int {
+	if os.Getenv(procutil.InternalAccountTokenEnv) != "sentinel" || os.Getenv(account.TokenEnv) != "" {
+		return 2
+	}
+	token, err := account.TakeLauncherToken(procutil.InternalAccountTokenEnv)
+	if err != nil || token != "sentinel" {
+		return 3
+	}
+	if _, exists := os.LookupEnv(account.TokenEnv); exists {
+		return 4
+	}
+	if _, exists := os.LookupEnv(procutil.InternalAccountTokenEnv); exists {
+		return 5
+	}
+	path, err := os.Executable()
+	if err != nil {
+		return 6
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	for _, env := range [][]string{os.Environ(), procutil.FilteredDaemonEnv(nil), procutil.IsolatedDaemonEnv(nil)} {
+		child := exec.CommandContext(ctx, path, os.Args[1:]...)
+		env = append(env, "COMPOZY_TEST_DAEMON_MODE=account-descendant")
+		child.Env = env
+		if err := child.Run(); err != nil {
+			return 7
+		}
+	}
+	return 0
 }

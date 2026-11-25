@@ -130,9 +130,6 @@ name = "resource-only"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[gateway]
-permissions = ["gateway.private"]
-
 [[resources.skills]]
 path = "skills"
 `)
@@ -148,13 +145,6 @@ path = "skills"
 		}
 		if !strings.Contains(string(copied), "# Writer") {
 			t.Fatalf("copied skill = %q, want Writer content", copied)
-		}
-		if result.Manifest.Gateway == nil ||
-			!reflect.DeepEqual(result.Manifest.Gateway.Permissions, []string{"gateway.private"}) {
-			t.Fatalf(
-				"generated Gateway = %#v, want gateway.private permission",
-				result.Manifest.Gateway,
-			)
 		}
 		if len(runner.Commands()) != 0 {
 			t.Fatalf("commands = %#v, want none", runner.Commands())
@@ -186,31 +176,6 @@ description: Edit clear release notes.
 		}
 		if len(runner.Commands()) != 0 {
 			t.Fatalf("commands after rebuild = %#v, want none", runner.Commands())
-		}
-		writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
-name = "resource-only"
-version = "0.1.0"
-min_compozy_version = "0.0.0"
-
-[gateway]
-permissions = ["gateway.public"]
-
-[[resources.skills]]
-path = "skills"
-`)
-		gatewayChanged, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
-		if err != nil {
-			t.Fatalf("buildBundle(gateway changed) error = %v", err)
-		}
-		if gatewayChanged.GenerationHash == changed.GenerationHash {
-			t.Fatalf("gateway-changed generation hash = %q, want a new hash", gatewayChanged.GenerationHash)
-		}
-		if gatewayChanged.Manifest.Gateway == nil ||
-			!reflect.DeepEqual(gatewayChanged.Manifest.Gateway.Permissions, []string{"gateway.public"}) {
-			t.Fatalf(
-				"gateway-changed permissions = %#v, want gateway.public permission",
-				gatewayChanged.Manifest.Gateway,
-			)
 		}
 	})
 
@@ -845,30 +810,6 @@ func TestManifestFromDescribeResources(t *testing.T) {
 			t.Fatalf("manifest.Resources.Hooks[0].Profile = %q, want finance", got)
 		}
 	})
-
-	t.Run("Should preserve normalized gateway permissions", func(t *testing.T) {
-		t.Parallel()
-
-		payload := validDescribePayload()
-		payload.Gateway = &extensioncontract.DescribeGatewayRequirement{
-			Permissions: []string{
-				" gateway.public ",
-				"gateway.private",
-				"gateway.public",
-			},
-		}
-		manifest, err := manifestFromDescribe(&payload)
-		if err != nil {
-			t.Fatalf("manifestFromDescribe() error = %v", err)
-		}
-		if manifest.Gateway == nil ||
-			!slices.Equal(
-				manifest.Gateway.Permissions,
-				[]string{"gateway.private", "gateway.public"},
-			) {
-			t.Fatalf("Gateway = %#v, want normalized gateway permissions", manifest.Gateway)
-		}
-	})
 }
 
 func TestManifestFromDescribeInputs(t *testing.T) {
@@ -1178,8 +1119,7 @@ func TestScaffoldExtension(t *testing.T) {
 	})
 
 	expectedTemplates := []ScaffoldTemplate{
-		ScaffoldTemplateConnectivityProviderGo,
-		ScaffoldTemplateConnectivityProviderTS,
+
 		ScaffoldTemplateHeartbeatSourceGo,
 		ScaffoldTemplateLoopWatchSourceGo,
 		ScaffoldTemplateToolProviderGo,

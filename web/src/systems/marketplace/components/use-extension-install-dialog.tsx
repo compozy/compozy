@@ -80,9 +80,6 @@ export function useExtensionInstallDialog(
       ...form,
       ...extensionDependencyInstallFields(previewed),
       ...(previewed.digest_sha256 ? { expected_digest: previewed.digest_sha256 } : {}),
-      ...(previewed.gateway_requirement_digest
-        ? { confirm_gateway_digest: previewed.gateway_requirement_digest }
-        : {}),
     };
     const gates = extensionDependencyGates(previewed);
     if (gates.length === 0) {

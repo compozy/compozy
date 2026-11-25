@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { DirectoryPickerSuggestion } from "@compozy/ui";
 
 import { useDebouncedValue } from "@/hooks/use-debounced-input";
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import {
   completionTarget,
   contractHome,
@@ -31,6 +32,8 @@ interface UseDirectoryPathFieldOptions {
   /** Whether a normalized absolute path is already a registered project. */
   isProject?: (path: string) => boolean;
   enabled?: boolean;
+  /** Target computer for `/api/fs/browse`; remote computers omit the native OS folder dialog (US-012.AC-2). */
+  computerId?: ComputerId;
 }
 
 export interface DirectoryPathField {
@@ -142,9 +145,11 @@ export function useDirectoryPathField({
   onValueChange,
   isProject = () => false,
   enabled = true,
+  computerId = LOCAL_COMPUTER_ID,
 }: UseDirectoryPathFieldOptions): DirectoryPathField {
+  const remote = isRemoteComputerId(computerId);
   // The unscoped listing names the daemon's home and doubles as the empty-field suggestions.
-  const homeListing = useQuery(directoryBrowseOptions({ dirsOnly: true }, enabled));
+  const homeListing = useQuery(directoryBrowseOptions({ dirsOnly: true }, enabled, computerId));
   const home = homeListing.data?.home ?? null;
 
   const typed = value.trim();
@@ -154,12 +159,16 @@ export function useDirectoryPathField({
 
   const completion = completionQuery(settled);
   const listing = useQuery(
-    directoryBrowseOptions(completion.query, enabled && completion.target !== null)
+    directoryBrowseOptions(completion.query, enabled && completion.target !== null, computerId)
   );
 
   const candidate = isAbsolutePath(settled) ? normalizeDirectoryPath(settled) : "";
   const validation = useQuery(
-    directoryBrowseOptions({ path: candidate, dirsOnly: true }, enabled && candidate !== "")
+    directoryBrowseOptions(
+      { path: candidate, dirsOnly: true },
+      enabled && candidate !== "",
+      computerId
+    )
   );
 
   const expanded = expandHome(typed, home);
@@ -199,7 +208,8 @@ export function useDirectoryPathField({
     status,
     path: valid ? candidate : null,
     message: message ?? dialog.error,
-    browse: dialog.browse,
-    browsePending: dialog.pending,
+    // Client-OS native folder picker is hidden for remote computers (US-012.AC-2, UT-090).
+    browse: remote ? undefined : dialog.browse,
+    browsePending: remote ? false : dialog.pending,
   };
 }

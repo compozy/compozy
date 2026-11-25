@@ -3,6 +3,8 @@
 import { Activity } from "react";
 import type { TerminalEngineLoader } from "@compozy/ui";
 
+import type { ComputerId } from "@/lib/computer-scope";
+
 import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-attachment";
 import { useCompactTerminalWindow } from "../hooks/use-compact-terminal-window";
 import { useTerminalWindowAppState } from "../hooks/use-terminal-window-app-state";
@@ -54,6 +56,9 @@ function resolveTerminalPrimarySurface({
 
 export interface TerminalWindowAppProps {
   workspaceId: string;
+  computerId?: ComputerId;
+  /** Optional provenance chip rendered in the terminal head's status zone. */
+  headerStatusExtra?: React.ReactNode;
   /** The project's display name, for the journal's identity row. */
   projectLabel?: string;
   profile: string;
@@ -113,6 +118,8 @@ export interface TerminalWindowAppProps {
  */
 export function TerminalWindowApp({
   workspaceId,
+  computerId,
+  headerStatusExtra,
   projectLabel,
   profile,
   viewerId,
@@ -158,6 +165,7 @@ export function TerminalWindowApp({
   } = useTerminalWindowAppState({
     workspaceId,
     profile,
+    computerId,
     terminals,
     limit,
     readOnly,
@@ -202,9 +210,11 @@ export function TerminalWindowApp({
           <TerminalWindowBody
             actions={{ ...actions, onOpenTerminal: openTerminal }}
             compact={compact}
+            computerId={computerId}
             detachedTtl={detachedTtl}
             engineLoader={engineLoader}
             exitRetentionMs={exitRetentionMs}
+            headerStatusExtra={headerStatusExtra}
             hostChrome={hostChrome}
             inputRequestTitles={inputRequestTitles}
             inputRequests={inputRequests.filter(request => request.terminal_id === active.id)}
@@ -213,9 +223,9 @@ export function TerminalWindowApp({
               request => request.terminal_id === active.id
             )}
             // Keyed by the full scoped identity: the same terminal id under a
-            // different profile is a different terminal, and must not inherit
+            // different computer or profile is a different terminal, and must not inherit
             // the previous one's in-flight confirmation.
-            key={terminalInstanceKey(workspaceId, activeProfile, active.id)}
+            key={terminalInstanceKey(workspaceId, activeProfile, active.id, computerId)}
             onViewJournal={openJournal}
             pipeOutput={pipeOutput?.[active.id]}
             profile={activeProfile}

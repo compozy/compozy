@@ -1,6 +1,7 @@
 import { Field, FieldLabel, RequiredMark } from "@compozy/ui";
 
-import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
+import { AgentCommandSelect } from "@/systems/agent/components/agent-command-select";
+import type { AgentPayload } from "@/systems/agent/types";
 
 interface SessionCreateSimpleSectionProps {
   agents: AgentPayload[];

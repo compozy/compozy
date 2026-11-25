@@ -3,23 +3,14 @@ package daemon
 import (
 	"context"
 	"slices"
-	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-func (s *daemonExtensionService) enableUnlocked(
-	ctx context.Context, name string, req contract.EnableExtensionRequest, actor taskpkg.ActorContext,
-) (contract.ExtensionEnableResult, error) {
-	return s.enableTargetUnlocked(
-		ctx, name, req, actor, extensionMutationTarget{profile: extensionDefaultProfileLens()},
-	)
-}
-
 func (s *daemonExtensionService) enableTargetUnlocked(
-	ctx context.Context, name string, req contract.EnableExtensionRequest, actor taskpkg.ActorContext,
+	ctx context.Context, name string, actor taskpkg.ActorContext,
 	target extensionMutationTarget,
 ) (contract.ExtensionEnableResult, error) {
 	var result contract.ExtensionEnableResult
@@ -40,15 +31,6 @@ func (s *daemonExtensionService) enableTargetUnlocked(
 	if len(preview.AgentConflicts) > 0 {
 		return result, &extensionpkg.AgentConflictError{Agents: slices.Clone(preview.AgentConflicts)}
 	}
-	confirmation, confirmErr := s.confirmGatewayForEnable(
-		extensionpkg.GlobalInstanceKey(name),
-		preview.GatewayRequirementDigest,
-		strings.TrimSpace(req.ConfirmGatewayDigest),
-		actor,
-	)
-	if confirmErr != nil {
-		return result, confirmErr
-	}
 	if enableErr := s.registry.Enable(name); enableErr != nil {
 		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, enableErr)
 	}
@@ -64,8 +46,6 @@ func (s *daemonExtensionService) enableTargetUnlocked(
 	if eventErr := s.recordExtensionEnableEvents(
 		ctx,
 		actor,
-		target.key(name),
-		confirmation,
 		&result,
 	); eventErr != nil {
 		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, eventErr)

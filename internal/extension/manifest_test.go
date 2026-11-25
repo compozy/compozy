@@ -469,7 +469,7 @@ profiel = "studio"
 			wantFragments: []string{"unknown manifest field"},
 		},
 		{
-			name:     "Should reject retired Network participation in TOML with Gateway guidance",
+			name:     "Should reject retired Network participation in TOML with migration guidance",
 			fileName: manifestTOMLFileName,
 			content: `[extension]
 name = "retired-participation"
@@ -479,14 +479,14 @@ min_compozy_version = "0.6.0"
 permissions = ["network.gateway.private"]
 `,
 			wantField:     "network_participation",
-			wantFragments: []string{"[gateway]", "confirm"},
+			wantFragments: []string{"was removed", "/docs/computers"},
 		},
 		{
-			name:          "Should reject retired Network participation in JSON with Gateway guidance",
+			name:          "Should reject retired Network participation in JSON with migration guidance",
 			fileName:      manifestJSONFileName,
 			content:       `{"extension":{"name":"retired-participation","version":"0.1.0","min_compozy_version":"0.6.0"},"network_participation":{"permissions":["network.gateway.private"]}}`,
 			wantField:     "network_participation",
-			wantFragments: []string{"[gateway]", "confirm"},
+			wantFragments: []string{"was removed", "/docs/computers"},
 		},
 		{
 			name:     "Should reject an unknown provide and list the closed set",

@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,7 +20,6 @@ import (
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
-	"github.com/compozy/compozy/internal/gateway"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
@@ -148,101 +146,6 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 	); err == nil {
 		t.Fatal("New() without workspace resolver error = nil, want non-nil")
 	}
-}
-
-func TestGatewayTierServerConstruction(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should preserve an explicit zero port for OS assignment", func(t *testing.T) {
-		t.Parallel()
-
-		server, err := New(
-			WithHomePaths(newTestHomePaths(t)),
-			WithHost("127.0.0.1"),
-			WithPort(0),
-			WithSurfaceSet(SurfaceSetPrivate),
-			WithGatewayChallenge(gateway.TierPrivate, gateway.NewChallengeRegistry()),
-			WithGatewayService(gatewayHTTPServiceStub{}),
-			WithDeviceAuth(gatewayHTTPAuthenticatorStub{}),
-			WithSessionManager(&stubSessionManager{}),
-			WithTaskService(&stubTaskManager{}),
-			WithObserver(stubObserver{}),
-			WithWorkspaceResolver(stubWorkspaceService{}),
-		)
-		if err != nil {
-			t.Fatalf("New() error = %v", err)
-		}
-		if server.port != 0 {
-			t.Fatalf("configured port = %d, want explicit 0", server.port)
-		}
-		if err := server.Start(t.Context()); err != nil {
-			t.Fatalf("Start() error = %v", err)
-		}
-		t.Cleanup(func() {
-			shutdownCtx, cancelShutdown := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
-			defer cancelShutdown()
-			if err := server.Shutdown(shutdownCtx); err != nil {
-				t.Errorf("Shutdown() error = %v", err)
-			}
-		})
-		if server.Port() <= 0 {
-			t.Fatalf("resolved port = %d, want OS-assigned port", server.Port())
-		}
-	})
-
-	t.Run("Should reject every non-loopback bind for a tier listener", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := New(
-			WithHomePaths(newTestHomePaths(t)),
-			WithHost("0.0.0.0"),
-			WithSurfaceSet(SurfaceSetPrivate),
-			WithGatewayService(gatewayHTTPServiceStub{}),
-			WithDeviceAuth(gatewayHTTPAuthenticatorStub{}),
-			WithSessionManager(&stubSessionManager{}),
-			WithTaskService(&stubTaskManager{}),
-			WithObserver(stubObserver{}),
-			WithWorkspaceResolver(stubWorkspaceService{}),
-		)
-		if err == nil || !strings.Contains(err.Error(), "loopback") {
-			t.Fatalf("New(non-loopback tier) error = %v, want loopback refusal", err)
-		}
-	})
-
-	t.Run("Should require Gateway on every operator tier listener", func(t *testing.T) {
-		t.Parallel()
-		for _, surfaceSet := range []SurfaceSet{SurfaceSetPrivate, SurfaceSetPublicOperator, SurfaceSetPublicCombined} {
-			_, err := New(
-				WithHomePaths(newTestHomePaths(t)),
-				WithHost("127.0.0.1"),
-				WithSurfaceSet(surfaceSet),
-				WithDeviceAuth(gatewayHTTPAuthenticatorStub{}),
-				WithSessionManager(&stubSessionManager{}),
-				WithTaskService(&stubTaskManager{}),
-				WithObserver(stubObserver{}),
-				WithWorkspaceResolver(stubWorkspaceService{}),
-			)
-			if err == nil || !strings.Contains(err.Error(), "gateway service") {
-				t.Fatalf("New(%s without Gateway) error = %v, want gateway-service refusal", surfaceSet, err)
-			}
-		}
-	})
-
-	t.Run("Should require admission control on every non-local tier listener", func(t *testing.T) {
-		t.Parallel()
-		_, err := New(
-			WithHomePaths(newTestHomePaths(t)),
-			WithHost("127.0.0.1"),
-			WithSurfaceSet(SurfaceSetPublicIngress),
-			WithSessionManager(&stubSessionManager{}),
-			WithTaskService(&stubTaskManager{}),
-			WithObserver(stubObserver{}),
-			WithWorkspaceResolver(stubWorkspaceService{}),
-		)
-		if err == nil || !strings.Contains(err.Error(), "admission") {
-			t.Fatalf("New(public ingress without admission) error = %v", err)
-		}
-	})
 }
 
 func TestNewRejectsResourceAuthWithoutResourceService(t *testing.T) {
@@ -1060,6 +963,7 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 		{name: "Should block reading restart status", path: "/api/settings/actions/restart/op-123"},
 		{name: "Should block listing extensions", path: "/api/extensions"},
 		{name: "Should block reading extension status", path: "/api/extensions/demo"},
+		{name: "Should block the controller bridge", path: "/c/cmp_fixture/api/sessions"},
 	}
 	for _, tc := range readCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1487,13 +1391,17 @@ func newLifecycleServer(t *testing.T, entered chan<- struct{}, release <-chan st
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 	engine := gin.New()
-	engine.GET("/lifecycle-block", func(c *gin.Context) {
+	engine.Use(func(c *gin.Context) {
+		if c.Request.URL.Path != "/api/status" {
+			c.Next()
+			return
+		}
 		select {
 		case entered <- struct{}{}:
 		default:
 		}
 		<-release
-		c.Status(http.StatusNoContent)
+		c.AbortWithStatus(http.StatusNoContent)
 	})
 
 	server, err := New(
@@ -1546,7 +1454,7 @@ func requestLifecycleBlock(ctx context.Context, server *Server) <-chan error {
 		req, err := http.NewRequestWithContext(
 			ctx,
 			http.MethodGet,
-			mustURL("127.0.0.1", server.Port(), "/lifecycle-block"),
+			mustURL("127.0.0.1", server.Port(), "/api/status"),
 			http.NoBody,
 		)
 		if err != nil {

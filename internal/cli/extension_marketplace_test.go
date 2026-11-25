@@ -578,10 +578,7 @@ func TestExtensionInstallPromptsForRequiredInputs(t *testing.T) {
 		})
 		server := httptest.NewServer(mux)
 		t.Cleanup(server.Close)
-		client, err := NewClient(ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL})
-		if err != nil {
-			t.Fatal(err)
-		}
+		client := testDaemonHTTPClient(t, server)
 		deps, _ := newExtensionLocalDeps(t, client)
 		markExtensionDaemonRunning(&deps)
 		_, stderr, err := executeRootCommand(t, deps, "extension", "install", "git:https://example.com/r.git@v2",
@@ -943,11 +940,9 @@ func TestPluginSourceInstallSelection(t *testing.T) {
 // Owner: CLI extension install/remove commands. Canonical suite: extension_marketplace_test.go.
 func TestExtensionInstallDependencyFlow(t *testing.T) {
 	t.Parallel()
-	gateway := strings.Repeat("d", 64)
 	core := contract.ExtensionDependencyPayload{
 		Name: "acme-core", Source: "curated", Ref: "acme/core", RequiredBy: []string{"typed"}, Depth: 1,
 		State: "missing", Version: "0.5.1", DigestSHA256: strings.Repeat("a", 64), ConsentRequired: true,
-		GatewayRequirementDigest: gateway,
 	}
 	other := contract.ExtensionDependencyPayload{
 		Name: "acme-other", Source: "curated", Ref: "acme/other", RequiredBy: []string{"typed"}, Depth: 1,
@@ -992,7 +987,7 @@ func TestExtensionInstallDependencyFlow(t *testing.T) {
 		stdout, stderr, err := executeRootCommandWithInput(
 			t,
 			deps,
-			"y\ny\ny\ny\n",
+			"y\ny\ny\n",
 			"extension",
 			"install",
 			"compozy/typed",
@@ -1004,14 +999,14 @@ func TestExtensionInstallDependencyFlow(t *testing.T) {
 			t.Fatalf("first request includes dependency consent before the prompt: %+v", first)
 		}
 		want := map[string]contract.ExtensionDependencyConsent{
-			"acme-core":  {ExpectedDigest: core.DigestSHA256, AllowUnverified: true, ConfirmGatewayDigest: gateway},
+			"acme-core":  {ExpectedDigest: core.DigestSHA256, AllowUnverified: true},
 			"acme-other": {ExpectedDigest: other.DigestSHA256, AllowUnverified: true},
 		}
 		if retry := calls[1]; !retry.WithDependencies || !reflect.DeepEqual(retry.Dependencies, want) {
 			t.Fatalf("retry = %+v, want with_dependencies and per-extension consent %+v", retry, want)
 		}
 		for _, text := range []string{"Dependencies (experimental):", "acme-core 0.5.1 from curated acme/core",
-			"Install these dependencies first", "acme-core is not registry-verified", "gateway requirement " + gateway,
+			"Install these dependencies first", "acme-core is not registry-verified",
 			"acme-other is not registry-verified"} {
 			if !strings.Contains(stderr, text) {
 				t.Fatalf("stderr = %q, want %q", stderr, text)
@@ -1164,23 +1159,22 @@ func TestExtensionInstallDependencyFlow(t *testing.T) {
 		}
 	})
 
-	t.Run("Should consent only for the named dependency and confirm a dependency gateway digest", func(t *testing.T) {
+	t.Run("Should consent only for the named dependency with both artifacts pinned", func(t *testing.T) {
 		t.Parallel()
 		var calls []InstallExtensionRequest
-		root := strings.Repeat("e", 64)
 		deps := newDeps(t, false, &calls, nil)
 		_, _, err := executeRootCommandWithInput(t, deps, "", "extension", "install", "compozy/typed",
 			"--with-dependencies", "--allow-unverified-dependency", "acme-core", "--yes",
-			"--confirm-gateway-requirement", root, "--confirm-gateway-requirement", "acme-core="+gateway, "-o", "json")
+			"-o", "json")
 		if err != nil || len(calls) != 1 {
 			t.Fatalf("install calls = %d, err = %v", len(calls), err)
 		}
 		request := calls[0]
 		wantCore := contract.ExtensionDependencyConsent{
-			ExpectedDigest: core.DigestSHA256, AllowUnverified: true, ConfirmGatewayDigest: gateway,
+			ExpectedDigest: core.DigestSHA256, AllowUnverified: true,
 		}
 		wantOther := contract.ExtensionDependencyConsent{ExpectedDigest: other.DigestSHA256}
-		if !request.WithDependencies || request.AllowUnverified || request.ConfirmGatewayDigest != root ||
+		if !request.WithDependencies || request.AllowUnverified ||
 			request.Dependencies["acme-core"] != wantCore || request.Dependencies["acme-other"] != wantOther {
 			t.Fatalf("request = %+v, want consent for acme-core only", request)
 		}
@@ -1210,19 +1204,6 @@ func TestExtensionInstallDependencyFlow(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "--allow-unverified-dependency requires --yes") ||
 			len(calls) != 0 {
 			t.Fatalf("structured output: calls = %d, err = %v; want --yes required", len(calls), err)
-		}
-	})
-
-	// Invariant: the stable --confirm-gateway-requirement keeps last-wins for a repeated bare digest (SD-013).
-	t.Run("Should let the last repeated bare gateway digest win", func(t *testing.T) {
-		t.Parallel()
-		var calls []InstallExtensionRequest
-		first, last := strings.Repeat("e", 64), strings.Repeat("f", 64)
-		deps := newDeps(t, false, &calls, nil)
-		_, _, err := executeRootCommandWithInput(t, deps, "", "extension", "install", "compozy/typed",
-			"--confirm-gateway-requirement", first, "--confirm-gateway-requirement", last, "--yes", "-o", "json")
-		if err != nil || len(calls) != 1 || calls[0].ConfirmGatewayDigest != last {
-			t.Fatalf("calls = %+v, err = %v; want the last bare digest %s", calls, err, last)
 		}
 	})
 
@@ -1282,17 +1263,14 @@ func TestExtensionRemoveDependencyGuard(t *testing.T) {
 			})
 			server := httptest.NewServer(mux)
 			t.Cleanup(server.Close)
-			client, err := NewClient(ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL})
-			if err != nil {
-				t.Fatal(err)
-			}
+			client := testDaemonHTTPClient(t, server)
 			deps, _ := newExtensionLocalDeps(t, client)
 			markExtensionDaemonRunning(&deps)
 			args := []string{"extension", "remove", "acme-core", "--global"}
 			if testCase.force {
 				args = append(args, "--force")
 			}
-			_, _, err = executeRootCommand(t, deps, args...)
+			_, _, err := executeRootCommand(t, deps, args...)
 			if testCase.force {
 				if err != nil {
 					t.Fatalf("forced remove: %v", err)

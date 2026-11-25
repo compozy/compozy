@@ -231,10 +231,6 @@ func populateSimpleSectionEnvelope(envelope *SectionEnvelope, cfg *compozyconfig
 		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeWorkspace}
 		section := RolesSection{Config: compozyconfig.CloneRolesConfig(&cfg.Roles)}
 		envelope.Roles = &section
-	case SectionGateway:
-		envelope.Scope = ScopeUser
-		section := GatewaySection{Config: cfg.Gateway}
-		envelope.Gateway = &section
 	case SectionCmdPalette:
 		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeProfile, ScopeWorkspace}
 		section := buildCmdPaletteSection(cfg)

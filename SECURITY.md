@@ -23,7 +23,7 @@ fits your threat model.
 
 `compozy mcp serve` is a foreground relay to an already-running daemon. Every invocation requires a
 workspace and exposes an approved subset of the existing Host API as `compozy_host__*` MCP tools. The
-relay binds session, task, network, memory, and resource operations to that workspace and rejects
+relay binds session, task, and resource operations to that workspace and rejects
 conflicting caller-supplied workspace values. It does not mint or change native `compozy__*` tool IDs.
 
 The default stdio transport has no separate authentication step. The local process that spawns
@@ -47,6 +47,27 @@ HTTP transport:
 The bearer token protects the loopback MCP endpoint; it does not turn a shared host account into a
 tenant boundary. Use a dedicated high-entropy value, keep it out of shell history and logs, and
 stop the foreground relay when the client no longer needs it.
+
+## Remote computers and app tokens
+
+Remote access starts off on each computer. The daemon authenticates remote devices and checks their
+granted scopes on each operation. LAN and SSH routes connect devices directly. Desktop and CLI
+connections over a hosted route carry end-to-end encrypted traffic through Cloudflare. Browser
+connections over a hosted route terminate browser TLS at Cloudflare and use device-bound credentials.
+
+App tokens work on the local HTTP listener. For a browser integration, configure exact origins on
+that token. Webhook endpoints authenticate deliveries with the trigger's signing secret and require
+confirmation when their advertised address changes. [Remote Computers](https://compozy.com/docs/computers/remote-host)
+
+Compozy Cloud stores account, device, plan, and route metadata. Sessions, source files, prompts, and
+transcripts stay on the computer running the daemon. Cloud admin access is restricted to enrolled
+operators. Account suspension revokes active credentials, invalidates hosted access, and records an
+audit event.
+
+Before reopening traffic after a Cloud database restore, the operator advances every account’s
+security epoch, reapplies revocations from the external security log, and invalidates restored web
+sessions and device sessions or token instances issued after the restore point. The restore runbook
+also reconciles current Stripe entitlements and Cloudflare tunnels.
 
 ## Secret redaction
 

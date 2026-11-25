@@ -70,7 +70,7 @@ interface MarketplaceActionController {
   announcement: string;
   /**
    * Catalog row Add: install and enable in one call. Consent comes first for an unverified entry;
-   * the review dialog opens only when a required input or the gateway needs a decision.
+   * the review dialog opens only when a required input needs a decision.
    */
   install: (entry: MarketplaceCatalogListing) => void;
   /** The enable an Add could not finish, still on the row until Retry or Turn on succeeds. */
@@ -104,7 +104,7 @@ interface MarketplaceActionController {
 
 /**
  * Install/update/enable for the one-kind catalog. Every mutation keeps its daemon gates — install
- * preview, unverified consent, gateway confirmation — and rows report pending by origin or by the
+ * preview, unverified consent — and rows report pending by origin or by the
  * local installed name, never by display name.
  */
 function useMarketplaceActionController(
@@ -347,9 +347,6 @@ function useMarketplaceActionController(
         ...selected.request,
         ...extensionDependencyInstallFields(selected.preview),
         ...(Object.keys(prepared.inputs).length ? { inputs: prepared.inputs } : {}),
-        ...(selected.preview.gateway_requirement_digest
-          ? { confirm_gateway_digest: selected.preview.gateway_requirement_digest }
-          : {}),
       });
       const { enable_error: enableError, extension } = result;
       acquisition.preview.trigger.previewDismissed();

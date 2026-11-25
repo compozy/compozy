@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,7 +23,7 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 	if !ok {
 		return
 	}
-	projectionCtx, ok := h.requireGatewayIngressReadContext(c, "automation.triggers.list")
+	projectionCtx, ok := h.requireIngressReadContext(c, "automation.triggers.list")
 	if !ok {
 		return
 	}
@@ -48,7 +50,7 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 	}
 	payloads, err := h.triggerPayloads(projectionCtx, page.Triggers)
 	if err != nil {
-		h.respondGatewayError(c, err)
+		h.respondIngressError(c, err)
 		return
 	}
 	ids := make([]string, len(page.Triggers))
@@ -120,7 +122,7 @@ func (h *BaseHandlers) CreateAutomationTrigger(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
-	projectionCtx, ok := h.requireGatewayIngressReadContextForWorkspace(
+	projectionCtx, ok := h.requireIngressReadContextForWorkspace(
 		c,
 		"automation.triggers.create",
 		trigger.WorkspaceID,
@@ -148,7 +150,7 @@ func (h *BaseHandlers) GetAutomationTrigger(c *gin.Context) {
 	if !ok {
 		return
 	}
-	projectionCtx, ok := h.requireGatewayIngressReadContext(c, "automation.triggers.get")
+	projectionCtx, ok := h.requireIngressReadContext(c, "automation.triggers.get")
 	if !ok {
 		return
 	}
@@ -169,7 +171,7 @@ func (h *BaseHandlers) GetAutomationTrigger(c *gin.Context) {
 	}
 	payload, err := h.triggerPayload(projectionCtx, trigger)
 	if err != nil {
-		h.respondGatewayError(c, err)
+		h.respondIngressError(c, err)
 		return
 	}
 	latest, err := manager.LatestRunsByOwner(c.Request.Context(), automationpkg.RunOwnerTrigger, []string{trigger.ID})
@@ -228,7 +230,7 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 		h.respondError(c, http.StatusNotFound, automationpkg.ErrTriggerNotFound)
 		return
 	}
-	projectionCtx, ok := h.requireGatewayIngressReadContextForWorkspace(
+	projectionCtx, ok := h.requireIngressReadContextForWorkspace(
 		c,
 		"automation.triggers.update",
 		current.WorkspaceID,
@@ -292,7 +294,7 @@ func (h *BaseHandlers) DeleteAutomationTrigger(c *gin.Context) {
 		h.respondError(c, http.StatusNotFound, automationpkg.ErrTriggerNotFound)
 		return
 	}
-	if _, ok := h.requireGatewayIngressReadContextForWorkspace(
+	if _, ok := h.requireIngressReadContextForWorkspace(
 		c,
 		"automation.triggers.delete",
 		current.WorkspaceID,
@@ -355,15 +357,27 @@ func (h *BaseHandlers) AutomationTriggerRuns(c *gin.Context) {
 
 // DeliverGlobalWebhook handles external webhook delivery for global triggers.
 func (h *BaseHandlers) DeliverGlobalWebhook(c *gin.Context) {
-	h.deliverWebhook(c, automationpkg.AutomationScopeGlobal)
+	h.deliverWebhook(c, automationpkg.AutomationScopeGlobal, nil)
 }
 
 // DeliverWorkspaceWebhook handles external webhook delivery for workspace-scoped triggers.
 func (h *BaseHandlers) DeliverWorkspaceWebhook(c *gin.Context) {
-	h.deliverWebhook(c, automationpkg.AutomationScopeWorkspace)
+	h.deliverWebhook(c, automationpkg.AutomationScopeWorkspace, nil)
 }
 
-func (h *BaseHandlers) deliverWebhook(c *gin.Context, scope automationpkg.Scope) {
+func (h *BaseHandlers) RemoteWebhookHandler(
+	scope automationpkg.Scope, admit func(context.Context, automationpkg.Trigger) error,
+) gin.HandlerFunc {
+	return func(c *gin.Context) { h.deliverWebhook(c, scope, admit) }
+}
+
+func (h *BaseHandlers) deliverWebhook(
+	c *gin.Context, scope automationpkg.Scope, admit func(context.Context, automationpkg.Trigger) error,
+) {
+	if h.Account != nil && h.Account.AdmitNewWork() != nil {
+		refuseSignedOutWebhook(c)
+		return
+	}
 	manager, ok := h.requireAutomationManager(c)
 	if !ok {
 		return
@@ -375,12 +389,34 @@ func (h *BaseHandlers) deliverWebhook(c *gin.Context, scope automationpkg.Scope)
 		return
 	}
 
+	request.Admit = admit
 	result, err := manager.HandleWebhook(c.Request.Context(), request)
 	if err != nil {
-		h.respondError(c, StatusForAutomationError(err), err)
+		switch {
+		case errors.Is(err, account.ErrSignInRequired):
+			refuseSignedOutWebhook(c)
+		case errors.Is(err, ingress.ErrUnavailable):
+			c.JSON(http.StatusServiceUnavailable, contract.ErrorPayload{
+				Error: "Webhook ingress is unavailable.", Code: ingress.ErrUnavailable.Error(), Retryable: true,
+			})
+		case errors.Is(err, ingress.ErrNotConfirmed):
+			c.JSON(http.StatusConflict, contract.ErrorPayload{
+				Error: "Confirm this webhook's current endpoint before accepting deliveries.",
+				Code:  ingress.ErrNotConfirmed.Error(),
+			})
+		default:
+			h.respondError(c, StatusForAutomationError(err), err)
+		}
 		return
 	}
 	c.JSON(http.StatusOK, contract.WebhookDeliveryResponse{Result: WebhookDeliveryPayloadFromResult(result)})
+}
+
+func refuseSignedOutWebhook(c *gin.Context) {
+	c.Header("Retry-After", "60")
+	c.JSON(http.StatusServiceUnavailable, contract.ErrorPayload{
+		Error: account.ErrSignInRequired.Message, Code: account.ErrSignInRequired.Code, Retryable: true,
+	})
 }
 
 func (h *BaseHandlers) requireAutomationManager(c *gin.Context) (AutomationManager, bool) {

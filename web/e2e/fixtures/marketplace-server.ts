@@ -18,7 +18,7 @@ const VERIFIED_TAG = "v1.0.0";
 
 /**
  * A verified, gate-free curated entry: an `official` feed row whose archive the fake registry
- * serves under the listed digest, with no inputs, servers or gateway requirement. Add on it has
+ * serves under the listed digest, with no inputs or servers. Add on it has
  * nothing to decide, so it installs and enables inline (US-005.AC-1, E2E-003). Seed both halves:
  * `extensionRegistry` serves the archive and `marketplaceCatalog` lists the entry.
  */

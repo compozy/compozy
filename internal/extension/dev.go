@@ -9,32 +9,27 @@ import (
 	"time"
 
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
-	"github.com/compozy/compozy/internal/store"
 )
 
 // DevLinkRequest identifies one immutable workspace-local extension generation.
 type DevLinkRequest struct {
-	Name                     string
-	WorkspaceID              string
-	OriginPath               string
-	GenerationHash           string
-	GatewayRequirementDigest string
-	Format                   ExtensionFormat
-	IngestDiagnostics        []diagnosticcontract.DiagnosticItem
+	Name              string
+	WorkspaceID       string
+	OriginPath        string
+	GenerationHash    string
+	Format            ExtensionFormat
+	IngestDiagnostics []diagnosticcontract.DiagnosticItem
 }
 
 // DevLink is one workspace-local overlay row.
 type DevLink struct {
-	ExtensionName            string
-	WorkspaceID              string
-	OriginPath               string
-	BundleGeneration         string
-	LinkedAt                 time.Time
-	GatewayRequirementDigest string
-	Format                   ExtensionFormat
-	IngestDiagnostics        []diagnosticcontract.DiagnosticItem
-	GatewayConfirmedBy       string
-	GatewayConfirmedAt       time.Time
+	ExtensionName     string
+	WorkspaceID       string
+	OriginPath        string
+	BundleGeneration  string
+	LinkedAt          time.Time
+	Format            ExtensionFormat
+	IngestDiagnostics []diagnosticcontract.DiagnosticItem
 }
 
 // ActiveExtension is the registry resolution result for one instance key.
@@ -69,7 +64,6 @@ func (r *Registry) LinkDev(req DevLinkRequest) (*DevLink, error) {
 		)
 	}
 	linkedAt := r.now().UTC()
-	gatewayRequirementDigest := strings.TrimSpace(req.GatewayRequirementDigest)
 	diagnosticsJSON, err := json.Marshal(req.IngestDiagnostics)
 	if err != nil {
 		return nil, fmt.Errorf("extension: marshal development ingest diagnostics for %q: %w", name, err)
@@ -77,28 +71,16 @@ func (r *Registry) LinkDev(req DevLinkRequest) (*DevLink, error) {
 	_, err = r.execWrite(registryContext(), "link development extension", `
 		INSERT INTO extension_dev_links (
 			extension_name, workspace_id, origin_path, bundle_generation, linked_at,
-			format, ingest_diagnostics_json,
-			gateway_requirement_digest, gateway_confirmed_by, gateway_confirmed_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+			format, ingest_diagnostics_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(extension_name, workspace_id) DO UPDATE SET
 			origin_path = excluded.origin_path,
 			bundle_generation = excluded.bundle_generation,
 			linked_at = excluded.linked_at,
 			format = excluded.format,
-			ingest_diagnostics_json = excluded.ingest_diagnostics_json,
-			gateway_confirmed_by = CASE
-				WHEN extension_dev_links.gateway_requirement_digest = excluded.gateway_requirement_digest
-				THEN extension_dev_links.gateway_confirmed_by
-				ELSE NULL
-			END,
-			gateway_confirmed_at = CASE
-				WHEN extension_dev_links.gateway_requirement_digest = excluded.gateway_requirement_digest
-				THEN extension_dev_links.gateway_confirmed_at
-				ELSE NULL
-			END,
-			gateway_requirement_digest = excluded.gateway_requirement_digest
+			ingest_diagnostics_json = excluded.ingest_diagnostics_json
 	`, name, workspaceID, originPath, generation, linkedAt,
-		string(normalizeExtensionFormat(req.Format)), string(diagnosticsJSON), gatewayRequirementDigest)
+		string(normalizeExtensionFormat(req.Format)), string(diagnosticsJSON))
 	if err != nil {
 		return nil, fmt.Errorf("extension: link development extension %q: %w", name, err)
 	}
@@ -145,8 +127,7 @@ func (r *Registry) GetDevLink(name, workspaceID string) (*DevLink, error) {
 	}
 	row := r.db.QueryRowContext(registryContext(), `
 		SELECT extension_name, workspace_id, origin_path, bundle_generation, linked_at,
-		       format, ingest_diagnostics_json,
-		       gateway_requirement_digest, gateway_confirmed_by, gateway_confirmed_at
+		       format, ingest_diagnostics_json
 		FROM extension_dev_links
 		WHERE extension_name = ? AND workspace_id = ?
 	`, key.Name, key.WorkspaceID)
@@ -164,8 +145,7 @@ func (r *Registry) ListDevLinks() (links []DevLink, resultErr error) {
 	}
 	rows, err := r.db.QueryContext(registryContext(), `
 		SELECT extension_name, workspace_id, origin_path, bundle_generation, linked_at,
-		       format, ingest_diagnostics_json,
-		       gateway_requirement_digest, gateway_confirmed_by, gateway_confirmed_at
+		       format, ingest_diagnostics_json
 		FROM extension_dev_links
 		ORDER BY extension_name ASC, workspace_id ASC
 	`)
@@ -276,8 +256,6 @@ func normalizeDevInstanceKey(name, workspaceID string) (InstanceKey, error) {
 
 func scanDevLink(scanner interface{ Scan(dest ...any) error }) (*DevLink, error) {
 	var link DevLink
-	var confirmedBy sql.NullString
-	var confirmedAt sql.NullString
 	var formatText string
 	var diagnosticsRaw string
 	if err := scanner.Scan(
@@ -288,9 +266,6 @@ func scanDevLink(scanner interface{ Scan(dest ...any) error }) (*DevLink, error)
 		&link.LinkedAt,
 		&formatText,
 		&diagnosticsRaw,
-		&link.GatewayRequirementDigest,
-		&confirmedBy,
-		&confirmedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -298,15 +273,6 @@ func scanDevLink(scanner interface{ Scan(dest ...any) error }) (*DevLink, error)
 	link.Format = normalizeExtensionFormat(ExtensionFormat(strings.TrimSpace(formatText)))
 	if err := decodeRegistryJSONArray(diagnosticsRaw, &link.IngestDiagnostics); err != nil {
 		return nil, fmt.Errorf("extension: decode development ingest diagnostics for %q: %w", link.ExtensionName, err)
-	}
-	link.GatewayRequirementDigest = strings.TrimSpace(link.GatewayRequirementDigest)
-	link.GatewayConfirmedBy = strings.TrimSpace(confirmedBy.String)
-	if confirmedAt.Valid {
-		parsed, err := store.ParseTimestamp(confirmedAt.String)
-		if err != nil {
-			return nil, fmt.Errorf("extension: parse development gateway_confirmed_at: %w", err)
-		}
-		link.GatewayConfirmedAt = parsed
 	}
 	return &link, nil
 }

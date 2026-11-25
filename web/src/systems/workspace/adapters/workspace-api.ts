@@ -1,8 +1,9 @@
 import {
-  apiClient,
+  apiClientFor,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
+  type ComputerId,
 } from "@/lib/api-client";
 import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
@@ -27,9 +28,10 @@ export class WorkspaceApiError extends Error {
 
 export async function fetchWorkspaces(
   signal?: AbortSignal,
-  archived = false
+  archived = false,
+  computerId?: ComputerId
 ): Promise<WorkspacePayload[]> {
-  const { data, error, response } = await apiClient.GET("/api/workspaces", {
+  const { data, error, response } = await apiClientFor(computerId).GET("/api/workspaces", {
     signal,
     ...(archived ? { params: { query: { archived: true } } } : {}),
   });
@@ -45,9 +47,10 @@ export async function fetchWorkspaces(
 
 export async function fetchWorkspace(
   workspaceID: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorkspaceDetailPayload> {
-  const { data, error, response } = await apiClient.GET("/api/workspaces/{id}", {
+  const { data, error, response } = await apiClientFor(computerId).GET("/api/workspaces/{id}", {
     params: { path: { id: workspaceID } },
     signal,
   });
@@ -61,8 +64,12 @@ export async function fetchWorkspace(
   return requireResponseData(data, response, "Failed to fetch workspace");
 }
 
-export async function deleteWorkspace(workspaceID: string, signal?: AbortSignal): Promise<void> {
-  const { error, response } = await apiClient.DELETE("/api/workspaces/{id}", {
+export async function deleteWorkspace(
+  workspaceID: string,
+  signal?: AbortSignal,
+  computerId?: ComputerId
+): Promise<void> {
+  const { error, response } = await apiClientFor(computerId).DELETE("/api/workspaces/{id}", {
     params: { path: { id: workspaceID } },
     signal,
   });
@@ -82,9 +89,10 @@ export async function deleteWorkspace(workspaceID: string, signal?: AbortSignal)
  */
 export async function createWorkspace(
   params: CreateWorkspaceParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorkspacePayload> {
-  const { data, error, response } = await apiClient.POST("/api/workspaces", {
+  const { data, error, response } = await apiClientFor(computerId).POST("/api/workspaces", {
     body: params,
     signal,
   });
@@ -100,9 +108,10 @@ export async function createWorkspace(
 
 export async function resolveWorkspace(
   params: ResolveWorkspaceParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorkspacePayload> {
-  const { data, error, response } = await apiClient.POST("/api/workspaces/resolve", {
+  const { data, error, response } = await apiClientFor(computerId).POST("/api/workspaces/resolve", {
     body: params,
     signal,
   });
@@ -119,10 +128,11 @@ export async function resolveWorkspace(
 export async function setWorkspaceArchived(
   workspaceID: string,
   archived: boolean,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorkspacePayload> {
   const path = archived ? "/api/workspaces/{id}/archive" : "/api/workspaces/{id}/unarchive";
-  const { data, error, response } = await apiClient.POST(path, {
+  const { data, error, response } = await apiClientFor(computerId).POST(path, {
     signal,
     params: { path: { id: workspaceID } },
   });

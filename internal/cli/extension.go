@@ -19,29 +19,28 @@ const (
 )
 
 const (
-	extensionCapabilitiesValue      = "Capabilities"
-	extensionEnabledValue           = "Enabled"
-	extensionHealthValue            = "Health"
-	extensionCapabilitiesKey        = "capabilities"
-	extensionEnabledKey             = "enabled"
-	extensionExtensionKey           = "extension"
-	extensionHealthKey              = "health"
-	extensionMissingEnvKey          = "missing_env"
-	extensionListKey                = "list"
-	extensionSearchQueryValue       = "search <query>"
-	extensionUpdateValue            = "Update"
-	extensionUpdateAvailable        = "available"
-	extensionRuntimeUnknown         = "unknown"
-	extensionDevVerb                = "dev"
-	extensionReloadVerb             = "reload"
-	extensionConfirmGatewayFlagName = "confirm-gateway-requirement"
-	extensionAgentPluginValue       = "agent plugin"
-	extensionMCPKind                = "mcp"
-	extensionMCPServerKind          = "mcp_server"
-	extensionSkillKind              = "skill"
-	cliRemoveNameUse                = "remove <name>"
-	cliUseEnableName                = "enable <name>"
-	cliUseDisableName               = "disable <name>"
+	extensionCapabilitiesValue = "Capabilities"
+	extensionEnabledValue      = "Enabled"
+	extensionHealthValue       = "Health"
+	extensionCapabilitiesKey   = "capabilities"
+	extensionEnabledKey        = "enabled"
+	extensionExtensionKey      = "extension"
+	extensionHealthKey         = "health"
+	extensionMissingEnvKey     = "missing_env"
+	extensionListKey           = "list"
+	extensionSearchQueryValue  = "search <query>"
+	extensionUpdateValue       = "Update"
+	extensionUpdateAvailable   = "available"
+	extensionRuntimeUnknown    = "unknown"
+	extensionDevVerb           = "dev"
+	extensionReloadVerb        = "reload"
+	extensionAgentPluginValue  = "agent plugin"
+	extensionMCPKind           = "mcp"
+	extensionMCPServerKind     = "mcp_server"
+	extensionSkillKind         = "skill"
+	cliRemoveNameUse           = "remove <name>"
+	cliUseEnableName           = "enable <name>"
+	cliUseDisableName          = "disable <name>"
 )
 
 type preparedExtensionInstall struct {
@@ -319,7 +318,6 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 	var version string
 	var allowUnverified bool
 	var yes bool
-	var confirmGatewayDigest string
 
 	cmd := &cobra.Command{
 		Use:   "update [name]",
@@ -330,12 +328,6 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			}
 			if !updateAll && len(args) != 1 {
 				return errors.New("cli: update requires an extension name unless --all is set")
-			}
-			if updateAll && strings.TrimSpace(confirmGatewayDigest) != "" {
-				return fmt.Errorf(
-					"cli: --%s applies only to a single extension update",
-					extensionConfirmGatewayFlagName,
-				)
 			}
 			return nil
 		},
@@ -350,7 +342,7 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			items, err := updateMarketplaceExtensions(cmd.Context(), deps, extensionUpdateOptions{
 				Names: args, All: updateAll, CheckOnly: checkOnly, Version: version,
 				Scope: selected.scope, WorkspaceID: selected.workspaceID, Profile: selected.profile,
-				AllowUnverified: allowUnverified, ConfirmGatewayDigest: confirmGatewayDigest,
+				AllowUnverified: allowUnverified,
 			})
 			if err != nil {
 				return err
@@ -385,12 +377,6 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 		"Allow update when the extension checksum is not registry-verified",
 	)
 	cmd.Flags().BoolVar(&yes, yesFlagName, false, "Skip confirmation when using --allow-unverified")
-	cmd.Flags().StringVar(
-		&confirmGatewayDigest,
-		extensionConfirmGatewayFlagName,
-		"",
-		"Confirm the candidate extension gateway requirement digest",
-	)
 	return cmd
 }
 

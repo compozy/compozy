@@ -88,8 +88,6 @@ const (
 	SectionSkills SectionName = "skills"
 	// SectionAutomation exposes automation engine settings.
 	SectionAutomation SectionName = "automation"
-	// SectionGateway exposes remote gateway configuration.
-	SectionGateway SectionName = "gateway"
 	// SectionWindowManager exposes daemon-owned window behavior defaults.
 	SectionWindowManager SectionName = "window-manager"
 	// SectionCmdPalette exposes command-palette personalization controls.
@@ -213,7 +211,6 @@ type SectionUpdateRequest struct {
 	Skills                         *compozyconfig.SkillsConfig
 	SkillSourcesOverride           *SkillSourcesOverride
 	Automation                     *AutomationSettings
-	Gateway                        *compozyconfig.GatewayConfig
 	WindowManager                  *compozyconfig.WindowManagerConfig
 	WindowManagerPreserveShortcuts bool
 	WindowManagerShortcuts         *map[string]windowmanager.ShortcutBinding
@@ -291,7 +288,6 @@ type SectionEnvelope struct {
 	Roles           *RolesSection
 	Skills          *SkillsSection
 	Automation      *AutomationSection
-	Gateway         *GatewaySection
 	WindowManager   *WindowManagerSection
 	CmdPalette      *CmdPaletteSection
 	Attention       *AttentionSection

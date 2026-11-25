@@ -1,0 +1,42 @@
+---
+title: "compozy service"
+description: "Manage the persistent user daemon"
+---
+
+## compozy service
+
+Manage the persistent user daemon
+
+### Options
+
+```
+  -h, --help   help for service
+```
+
+### Options inherited from parent commands
+
+```
+      --computer string   Target a computer by name or ID
+      --json              Emit JSON output
+  -o, --output string     Output format: human, json, jsonl, or toon (default "human")
+      --profile string    Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                  | Description                        |
+| -------------------------------------------------------- | ---------------------------------- |
+| [compozy service install](/docs/cli/service/install)     | Install and start the user service |
+| [compozy service status](/docs/cli/service/status)       | Show user service status           |
+| [compozy service uninstall](/docs/cli/service/uninstall) | Stop and remove the user service   |

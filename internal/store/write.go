@@ -236,6 +236,13 @@ func executeWriteAttempt(
 	if err := validateMutationCommitFence(ctx); err != nil {
 		return fmt.Errorf("store: mutation commit fence: %w", err)
 	}
+	if guard, ok := ctx.Value(mutationCommitGuardContextKey{}).(MutationCommitGuard); ok && guard != nil {
+		release, guardErr := guard(ctx)
+		if guardErr != nil {
+			return fmt.Errorf("store: mutation commit guard: %w", guardErr)
+		}
+		defer release()
+	}
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("store: commit sqlite write: %w", err)
 	}

@@ -12,6 +12,7 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Start validates the runtime start contract. Trigger matching is synchronous so no background work begins here.
@@ -211,6 +212,18 @@ func (e *TriggerEngine) HandleWebhook(ctx context.Context, request WebhookReques
 	}
 	if !registration.Trigger.Enabled {
 		return TriggerResult{}, ErrWebhookTriggerDisabled
+	}
+	if e.localExecution != nil {
+		if err := e.localExecution(); err != nil {
+			return TriggerResult{}, err
+		}
+	}
+	if request.Admit != nil {
+		admit := func(ctx context.Context) error { return request.Admit(ctx, registration.Trigger) }
+		if err := admit(ctx); err != nil {
+			return TriggerResult{}, err
+		}
+		ctx = store.ContextWithMutationCommitFence(ctx, admit)
 	}
 	claim, err := e.claimWebhookDelivery(ctx, registration.Trigger, request.DeliveryID)
 	if err != nil {

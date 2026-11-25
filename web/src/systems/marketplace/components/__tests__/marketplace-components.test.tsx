@@ -1483,7 +1483,6 @@ describe("Extension source installation", () => {
       ],
       declared_profiles: [{ create: true, credentials: [], name: "operations" }],
       name: "gen-a1b2c3",
-      gateway_requirement_digest: "sha256:local-network",
       placements: [],
     });
     renderInstaller();
@@ -1525,7 +1524,6 @@ describe("Extension source installation", () => {
         enable: false,
         allow_unverified: true,
         expected_digest: "a".repeat(64),
-        confirm_gateway_digest: "sha256:local-network",
         inputs: { token: { value: "literal-secret" } },
         ref: "/srv/hello/dist/gen-a1b2c3",
         replace: false,
@@ -1722,7 +1720,7 @@ describe("Extension source installation", () => {
   describe("with dependencies", () => {
     const CORE_DIGEST = "c".repeat(64);
     const LOG_DIGEST = "d".repeat(64);
-    const NET_GATEWAY_DIGEST = "e".repeat(64);
+    const UTIL_DIGEST = "e".repeat(64);
     const dependencyPreview = (core: Record<string, unknown> = {}) => ({
       name: "kit",
       digest_sha256: "a".repeat(64),
@@ -1752,7 +1750,17 @@ describe("Extension source installation", () => {
           state: "disabled",
           installed_version: "1.0.0",
           registry_tier: "unverified",
-          gateway_requirement_digest: NET_GATEWAY_DIGEST,
+        },
+        {
+          name: "acme-util",
+          source: "github",
+          ref: "acme/util",
+          required_by: ["kit"],
+          depth: 1,
+          state: "missing",
+          version: "1.0.0",
+          digest_sha256: UTIL_DIGEST,
+          consent_required: true,
         },
         {
           name: "acme-log",
@@ -1815,10 +1823,10 @@ describe("Extension source installation", () => {
       );
       expect(screen.queryByTestId("extension-install-dialog")).toBeNull();
       await user.click(screen.getByTestId("extension-trust-confirm"));
-      expect(await screen.findByTestId("extension-gateway-confirm-dialog")).toHaveTextContent(
-        "Allow remote access for acme-net?"
+      expect(await screen.findByTestId("extension-trust-dialog")).toHaveTextContent(
+        "Install acme-util?"
       );
-      await user.click(screen.getByTestId("extension-gateway-confirm-accept"));
+      await user.click(screen.getByTestId("extension-trust-confirm"));
       // The root's own unverified opt-in is confirmed last, after every dependency gate.
       expect(await screen.findByTestId("extension-trust-dialog")).toHaveTextContent(
         "Install /srv/kit?"
@@ -1835,10 +1843,10 @@ describe("Extension source installation", () => {
         replace: false,
         source: "local_path",
         with_dependencies: true,
-        // No blanket consent: only acme-core, which passed its own gate, is unverified-allowed.
+        // Only the two dependencies that received consent can install unverified.
         dependencies: {
           "acme-core": { expected_digest: CORE_DIGEST, allow_unverified: true },
-          "acme-net": { confirm_gateway_digest: NET_GATEWAY_DIGEST },
+          "acme-util": { expected_digest: UTIL_DIGEST, allow_unverified: true },
           "acme-log": { expected_digest: LOG_DIGEST },
         },
       });
@@ -1861,7 +1869,7 @@ describe("Extension source installation", () => {
       await previewKit(user);
       await user.click(screen.getByTestId("extension-install-submit"));
       await user.click(await screen.findByTestId("extension-trust-confirm"));
-      await user.click(await screen.findByTestId("extension-gateway-confirm-accept"));
+      await user.click(await screen.findByTestId("extension-trust-confirm"));
       await waitFor(() => expect(screen.queryByTestId("extension-install-dialog")).toBeNull());
       expect(mocks.installExtension).toHaveBeenCalledOnce();
 
@@ -1873,7 +1881,6 @@ describe("Extension source installation", () => {
 
       await user.click(screen.getByTestId("extension-install-submit"));
       expect(screen.queryByTestId("extension-trust-dialog")).toBeNull();
-      expect(screen.queryByTestId("extension-gateway-confirm-dialog")).toBeNull();
       expect(mocks.installExtension).toHaveBeenCalledOnce();
     });
 
@@ -1888,7 +1895,6 @@ describe("Extension source installation", () => {
       await user.click(within(gate).getByRole("button", { name: "Cancel" }));
 
       await waitFor(() => expect(screen.queryByTestId("extension-trust-dialog")).toBeNull());
-      expect(screen.queryByTestId("extension-gateway-confirm-dialog")).toBeNull();
       expect(screen.queryByTestId("extension-install-dialog")).toBeNull();
       expect(mocks.installExtension).not.toHaveBeenCalled();
     });
@@ -1945,7 +1951,7 @@ describe("Extension source installation", () => {
       await previewKit(user);
       await user.click(screen.getByTestId("extension-install-submit"));
       await user.click(await screen.findByTestId("extension-trust-confirm"));
-      await user.click(await screen.findByTestId("extension-gateway-confirm-accept"));
+      await user.click(await screen.findByTestId("extension-trust-confirm"));
 
       expect(await screen.findByTestId("extension-install-error")).toHaveTextContent(
         "acme-log failed to install · Installed first: acme-core, acme-net"

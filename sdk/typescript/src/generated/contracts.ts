@@ -1071,7 +1071,7 @@ export interface AutomationTriggersParams {
   limit?: number;
 }
 
-export interface GatewayIngressPayload {
+export interface IngressPayload {
   subject_kind: string;
   subject_id: string;
   scope_kind: string;
@@ -1118,7 +1118,7 @@ export interface Trigger {
   endpoint_slug?: string;
   webhook_secret_present: boolean;
   webhook_secret_hash?: string;
-  ingress?: GatewayIngressPayload;
+  ingress?: IngressPayload;
   created_at: ISODateTime;
   updated_at: ISODateTime;
   last_run?: AutomationLastRunPayload;
@@ -1238,41 +1238,6 @@ export interface CommandFlag {
 
 export interface CompactionMatcher {
   compaction_trigger?: string;
-}
-
-export interface ConnectivityAdvertisedEndpoint {
-  url: string;
-  scheme: string;
-  scheme_policy?: string;
-  stability: string;
-  verification_address?: string;
-}
-
-export interface ConnectivityEstablishRequest {
-  tier: string;
-  forward_target: string;
-  challenge_path: string;
-  deadline: ISODateTime;
-}
-
-export interface ConnectivityReachability {
-  tier: string;
-  endpoints: ConnectivityAdvertisedEndpoint[];
-  health: string;
-  reason?: string;
-}
-
-export interface ConnectivityStatusRequest {
-  tier: string;
-}
-
-export interface ConnectivityTeardownRequest {
-  tier: string;
-  deadline: ISODateTime;
-}
-
-export interface ConnectivityTeardownResponse {
-  stopped: boolean;
 }
 
 export interface ConsentArea {
@@ -1522,10 +1487,6 @@ export interface CoordinatorStoppedPayload {
   error?: string;
 }
 
-export interface DescribeGatewayRequirement {
-  permissions: string[];
-}
-
 export interface DescribeInputBinding {
   type: string;
   name: string;
@@ -1644,7 +1605,6 @@ export interface DescribePayload {
   profiles?: DescribeProfile[];
   resources: DescribeResources;
   subprocess: DescribeSubprocess;
-  gateway?: DescribeGatewayRequirement;
   tools?: ExtensionToolRuntimeDescriptor[];
   hook_events?: DescribeHookEvent[];
   heartbeat_source_kinds?: HeartbeatSourceKind[];
@@ -6204,6 +6164,7 @@ export interface Tool {
   max_result_bytes?: number;
   idempotent?: boolean;
   input_error_code?: ErrorCode;
+  remote_scope?: Scope;
   description: string;
   input_schema: JSONValue;
   output_schema?: JSONValue;
@@ -6231,6 +6192,7 @@ export interface ToolCallPatch {
 }
 
 export interface ToolCallRef {
+  computer_id?: string;
   tool_call_id?: string;
   tool_id?: string;
   read_only?: boolean;
@@ -6258,6 +6220,7 @@ export interface ToolPostCallPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
+  computer_id?: string;
   tool_call_id?: string;
   tool_id?: string;
   read_only?: boolean;
@@ -6297,6 +6260,7 @@ export interface ToolPostErrorPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
+  computer_id?: string;
   tool_call_id?: string;
   tool_id?: string;
   read_only?: boolean;
@@ -6327,6 +6291,7 @@ export interface ToolPreCallPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
+  computer_id?: string;
   tool_call_id?: string;
   tool_id?: string;
   read_only?: boolean;
@@ -7447,11 +7412,6 @@ export interface HostAPIMethodMap {
 }
 
 export const REQUIRED_METHODS_BY_PROVIDE = {
-  "connectivity.provider": [
-    "connectivity/establish",
-    "connectivity/status",
-    "connectivity/teardown",
-  ],
   "forge.provider": ["forge/capabilities", "forge/pr_create", "forge/status"],
   "heartbeat.source": ["heartbeat/source_poll"],
   "loop.watch_source": ["watch/poll"],
@@ -7466,10 +7426,6 @@ export interface ProvideConformanceFixture {
 }
 
 export const PUBLIC_PROVIDE_CONFORMANCE_FIXTURES: readonly ProvideConformanceFixture[] = [
-  {
-    provide: "connectivity.provider",
-    required_methods: REQUIRED_METHODS_BY_PROVIDE["connectivity.provider"],
-  },
   { provide: "forge.provider", required_methods: REQUIRED_METHODS_BY_PROVIDE["forge.provider"] },
   {
     provide: "heartbeat.source",

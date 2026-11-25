@@ -4,81 +4,6 @@ package contracts
 
 import "time"
 
-type Trigger struct {
-	TargetInstanceScope  string                    `json:"target_instance_scope,omitempty"`
-	ID                   string                    `json:"id"`
-	ProfileID            string                    `json:"profile_id"`
-	ProfileName          string                    `json:"profile_name"`
-	ProfileColor         string                    `json:"profile_color,omitempty"`
-	ProfileIcon          string                    `json:"profile_icon,omitempty"`
-	Scope                Scope                     `json:"scope"`
-	Name                 string                    `json:"name"`
-	TargetKind           TargetKind                `json:"target_kind"`
-	AgentName            string                    `json:"agent_name"`
-	WorkspaceID          string                    `json:"workspace_id,omitempty"`
-	Prompt               string                    `json:"prompt"`
-	Event                string                    `json:"event"`
-	Filter               map[string]string         `json:"filter,omitempty"`
-	LoopTarget           *LoopTarget               `json:"loop_target,omitempty"`
-	Enabled              bool                      `json:"enabled"`
-	Retry                RetryConfig               `json:"retry"`
-	FireLimit            FireLimitConfig           `json:"fire_limit"`
-	Source               JobSource                 `json:"source"`
-	WebhookID            string                    `json:"webhook_id,omitempty"`
-	EndpointSlug         string                    `json:"endpoint_slug,omitempty"`
-	WebhookSecretPresent bool                      `json:"webhook_secret_present"`
-	WebhookSecretHash    string                    `json:"webhook_secret_hash,omitempty"`
-	Ingress              *GatewayIngressPayload    `json:"ingress,omitempty"`
-	CreatedAt            time.Time                 `json:"created_at"`
-	UpdatedAt            time.Time                 `json:"updated_at"`
-	LastRun              *AutomationLastRunPayload `json:"last_run,omitzero"`
-}
-
-type TriggerResult struct {
-	Matched int   `json:"matched"`
-	Runs    []Run `json:"runs,omitempty"`
-}
-
-type TurnContext struct {
-	TurnID string `json:"turn_id,omitempty"`
-}
-
-type TurnEndPatch struct {
-	Deny       bool              `json:"deny,omitempty"`
-	DenyReason string            `json:"deny_reason,omitempty"`
-	Labels     map[string]string `json:"labels,omitempty"`
-}
-
-type TurnEndPayload struct {
-	Event           HookEvent `json:"event"`
-	Timestamp       time.Time `json:"timestamp"`
-	LineageKind     string    `json:"lineage_kind,omitempty"`
-	ParentSessionID string    `json:"parent_session_id,omitempty"`
-	ProfileID       string    `json:"profile_id,omitempty"`
-	SessionID       string    `json:"session_id,omitempty"`
-	SessionName     string    `json:"session_name,omitempty"`
-	SessionType     string    `json:"session_type,omitempty"`
-	AgentName       string    `json:"agent_name,omitempty"`
-	WorkspaceID     string    `json:"workspace_id,omitempty"`
-	Workspace       string    `json:"workspace,omitempty"`
-	WorktreeID      string    `json:"worktree_id,omitempty"`
-	ACPSessionID    string    `json:"acp_session_id,omitempty"`
-	State           string    `json:"state,omitempty"`
-	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest      string    `json:"soul_digest,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-	TurnID          string    `json:"turn_id,omitempty"`
-	InputClass      string    `json:"input_class,omitempty"`
-	UserMessage     string    `json:"user_message,omitempty"`
-}
-
-type TurnPatch struct {
-	Deny       bool              `json:"deny,omitempty"`
-	DenyReason string            `json:"deny_reason,omitempty"`
-	Labels     map[string]string `json:"labels,omitempty"`
-}
-
 type TurnPayload struct {
 	Event           HookEvent `json:"event"`
 	Timestamp       time.Time `json:"timestamp"`
@@ -264,6 +189,63 @@ type WindowManagerDesktopDeletedPayload struct {
 }
 
 type WindowManagerLayoutAppliedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerObservationPatch struct{}
+
+type WindowManagerStackActivatedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerStackGroupedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerStackUngroupedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerTabActivatedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerTabSplitPayload struct {
 	Event       HookEvent            `json:"event"`
 	Timestamp   time.Time            `json:"timestamp"`
 	WorkspaceID string               `json:"workspace_id"`

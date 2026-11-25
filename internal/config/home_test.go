@@ -239,8 +239,6 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 		paths.RestartsDir,
 		paths.LogsDir,
 		paths.ExtensionDataRoot,
-		paths.GatewayDir,
-		paths.GatewayCredentialsDir,
 		paths.BinDir,
 	} {
 		info, err := os.Stat(dir)

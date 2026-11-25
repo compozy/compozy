@@ -119,29 +119,20 @@ func TestStaticRoutesCachePolicy(t *testing.T) {
 			"/assets/emojibase/en/data.json": "no-cache",
 			"/" + fingerprinted:              "public, max-age=31536000, immutable",
 		}
-		// Every surface that serves the Web; public ingress carries webhooks only.
-		for _, surfaceSet := range []SurfaceSet{
-			SurfaceSetLocal,
-			SurfaceSetPrivate,
-			SurfaceSetPublicOperator,
-			SurfaceSetPublicCombined,
-		} {
-			router := gin.New()
-			RegisterSurfaceRoutes(
-				router,
-				newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths),
-				surfaceSet,
-			)
-			for requestPath, cacheControl := range want {
-				resp := performRequestWithHeaders(t, router, http.MethodGet, requestPath, nil, map[string]string{
-					"Accept": "text/html,application/xhtml+xml",
-				})
-				if resp.Code != http.StatusOK {
-					t.Fatalf("%s GET %s status = %d; body=%s", surfaceSet, requestPath, resp.Code, resp.Body.String())
-				}
-				if got := resp.Header().Get("Cache-Control"); got != cacheControl {
-					t.Fatalf("%s GET %s Cache-Control = %q, want %q", surfaceSet, requestPath, got, cacheControl)
-				}
+		router := gin.New()
+		RegisterRoutes(
+			router,
+			newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths),
+		)
+		for requestPath, cacheControl := range want {
+			resp := performRequestWithHeaders(t, router, http.MethodGet, requestPath, nil, map[string]string{
+				"Accept": "text/html,application/xhtml+xml",
+			})
+			if resp.Code != http.StatusOK {
+				t.Fatalf("GET %s status = %d; body=%s", requestPath, resp.Code, resp.Body.String())
+			}
+			if got := resp.Header().Get("Cache-Control"); got != cacheControl {
+				t.Fatalf("GET %s Cache-Control = %q, want %q", requestPath, got, cacheControl)
 			}
 		}
 	})

@@ -16,7 +16,7 @@ import {
   type DownloadItem,
   type Platform,
 } from "@/lib/release/download-offer";
-import { STEPS, installMethods } from "./content";
+import { INSTALL_METHODS, STEPS } from "./content";
 
 export function FirstRun({ platform }: { platform: Platform }) {
   return (
@@ -45,8 +45,7 @@ export function FirstRun({ platform }: { platform: Platform }) {
 
 const TAB = "h-9 rounded-[10px] px-3.5 text-[14px]";
 
-export function FromTheTerminal({ tag }: { tag: string | null }) {
-  const methods = installMethods(tag);
+export function FromTheTerminal() {
   return (
     <section className={cn("border-t", HAIRLINE)}>
       <div
@@ -66,13 +65,13 @@ export function FromTheTerminal({ tag }: { tag: string | null }) {
           <div className="min-w-0 rounded-[22px] border border-site-light-120 bg-[#101010] p-2">
             <Tabs defaultValue="Installer" className="gap-0">
               <TabsList className="h-auto flex-wrap gap-1 border-b-0">
-                {methods.map(item => (
+                {INSTALL_METHODS.map(item => (
                   <TabsTrigger key={item.id} value={item.id} className={TAB}>
                     {item.id}
                   </TabsTrigger>
                 ))}
               </TabsList>
-              {methods.map(item => (
+              {INSTALL_METHODS.map(item => (
                 <TabsContent key={item.id} value={item.id} className="min-w-0 p-5 pt-6">
                   {/* Long commands scroll inside the box instead of breaking mid-URL. */}
                   <InstallCommand

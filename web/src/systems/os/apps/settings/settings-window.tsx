@@ -6,12 +6,14 @@ import {
   type ComponentType,
   type LazyExoticComponent,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { VIEW_TRANSITION_CLASS } from "@compozy/ui";
 
 import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
+import { isHostedOriginCandidate } from "@/lib/hosted-browser-auth";
+import { accountStatusOptions } from "@/systems/account";
 import { OsWindowErrorBoundary } from "../../components/os-window-error-boundary";
-import { useOsShell } from "../../hooks/use-os-shell";
 import { SettingsWindowNav } from "./settings-window-nav";
 import { useProfileFlowIntent } from "./use-profile-flow-intent";
 import { useSettingsWindowRoute } from "./use-settings-window-route";
@@ -78,9 +80,17 @@ const SECTION_LOADERS = {
     import("@/routes/_app/settings/-automation-settings-page").then(m => ({
       default: m.AutomationSettingsPage,
     })),
+  computers: () =>
+    import("@/routes/_app/settings/-computers-settings-page").then(m => ({
+      default: m.ComputersSettingsPage,
+    })),
+  account: () =>
+    import("@/routes/_app/settings/-account-settings-page").then(m => ({
+      default: m.AccountSettingsPage,
+    })),
   gateway: () =>
-    import("@/routes/_app/settings/-gateway-settings-page").then(m => ({
-      default: m.GatewaySettingsPage,
+    import("@/routes/_app/settings/-computers-settings-page").then(m => ({
+      default: m.ComputersSettingsPage,
     })),
   profiles: () =>
     import("@/routes/_app/settings/-profiles-settings-page").then(m => ({
@@ -186,13 +196,15 @@ function SettingsSectionOutlet({
  * keeps showing its own section (ADR-002 rule 6).
  */
 export function SettingsWindow({ windowId }: { windowId: string }) {
-  const { route, searchEnabled } = useSettingsWindowRoute(windowId);
+  const { coordinator, route, searchEnabled } = useSettingsWindowRoute(windowId);
   // Neutral content clicks focus the desktop ancestor, outside this window's
   // bubbling path. Reuse the document shortcut while this window owns focus.
   const searchInputRef = useListingSearchShortcut(searchEnabled);
   const connection = useDaemonConnectionStatus();
-  const { coordinator } = useOsShell();
   const activeSlug = settingsSectionSlugFromPathname(route.pathname);
+  const hosted = isHostedOriginCandidate();
+  const accountQuery = useQuery(accountStatusOptions(!hosted));
+  const recentSignInsCount = accountQuery.data?.recent_sign_ins?.length ?? 0;
   useProfileFlowIntent(windowId, activeSlug === "profiles" ? route : undefined);
 
   // The container declaration lives on the outer wrapper: an element cannot
@@ -210,6 +222,11 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
       >
         <SettingsWindowNav
           activeSlug={activeSlug}
+          badges={
+            recentSignInsCount > 0
+              ? { account: { count: recentSignInsCount, tone: "warning" } }
+              : undefined
+          }
           connection={connection}
           onNavigate={next => coordinator.userNavigate(next)}
           onPreload={preloadSettingsSection}

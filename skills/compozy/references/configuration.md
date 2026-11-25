@@ -6,7 +6,6 @@
 - Profile layers and credentials
 - Host update cadence
 - Editor command
-- Gateway
 - Marketplace catalog
 - Skill sources
 - Tool and Loop action result bounds
@@ -37,7 +36,7 @@
 
 Settings changes surface lifecycle status, not just file writes. The public contract names are:
 
-- `SettingsApplyTargetName`: `general`, `skills`, `automation`, `gateway`, `observability`, `hooks-extensions`, `window-manager`, `shell`, `providers`, `mcp-servers`, and `hooks`.
+- `SettingsApplyTargetName`: `general`, `skills`, `automation`, `observability`, `hooks-extensions`, `window-manager`, `shell`, `providers`, `mcp-servers`, and `hooks`.
 - `SettingsMutationBehavior`: `applied_now`, `restart_required`, or `action_trigger`.
 - `SettingsApplyLifecycle`: `live`, `live-add`, `live-remove-if-unused`, `restart-required`, or `session-rebind`.
 - `ConfigApplyStatus`: `pending_apply`, `applied`, `blocked`, or `failed`.
@@ -65,7 +64,7 @@ Read and write scalar keys with `compozy config show|list|get|set|unset|diff|pat
 repository layer `<workspace>/.compozy/profiles/<name>/config.toml` is read-only. A successful lower
 layer write may return `ok_overridden`; inspect `winning_layer` before claiming the value is active.
 
-Profile overlays reject `http`, `daemon`, `log`, `database`, `gateway`, `shell`, `marketplace`,
+Profile overlays reject `http`, `daemon`, `log`, `database`, `shell`, `marketplace`,
 `observability`, and `window_manager.global_shortcuts` with
 `profile_config_key_denied`; write machine-only keys with `--scope user`.
 
@@ -179,33 +178,6 @@ agent-mutable and restart-required; inspect or change them with `compozy config 
 or the typed `compozy__config_*` tools, then confirm the result through a structured read. The v1 store
 preserves image bytes, including EXIF metadata; support bundles exclude the attachment tree. Retention
 sweeps run at startup, during store access, and every hour while the daemon is running.
-
-## Gateway
-
-`[gateway]` is the operator-global ceiling and tuning section for remote access. It defaults to
-`enabled = false` with OS-assigned private and public ports (`0`), pairing TTL `5m` and pending cap
-`8`, stream-ticket TTL `30s`, auth failure window `60s` with cap `10`, verification timeout `10s`,
-and public DNS-over-TLS verification resolver `1.1.1.1:853`. `gateway.enabled`,
-`gateway.verify.public_dns_resolver`, and the bounded duration/count keys apply live; `private_port`
-and `public_port` require a daemon restart. Public endpoint proof uses that resolver so a host's
-MagicDNS answer cannot substitute the private tailnet route. Configuration can never enable a surface:
-`gateway.public_ui.enabled` is invalid, and durable provider/surface intent remains database-owned.
-
-Client-side remote profiles are global metadata under `gateway.active_connection` and
-`[[gateway.connections]]`. HTTPS entries require `name`, `scheme = "https"`, `host`, `port`, and
-`credential_file = "<name>.cred"`; `default_workspace` is optional. SSH entries use
-`scheme = "ssh"`, accept optional `remote_home`, and never reference a Gateway credential. Profile
-names contain only letters, digits, hyphens, or underscores and are unique. The active connection
-must name an existing profile. Manage these tables with `compozy connect add|list|use|remove|export|import|ssh`
-instead of editing them during an active connection lifecycle.
-
-The TOML stores no credential material. Direct HTTPS credentials are encrypted in
-`$COMPOZY_HOME/gateway/credentials/<name>.cred`, with the wrapping key held by the operating-system
-credential store. Transfer an identity with `compozy connect export <name> --passphrase-file <file>
---output-file <bundle>` and `compozy connect import <bundle> --passphrase-file <file>`; both the
-passphrase file and encrypted bundle must be private files. Copying `config.toml` alone does not copy
-an identity, and removing a profile removes both its metadata and credential. SSH uses the operator's OpenSSH configuration and agent;
-its profile stores only connection metadata.
 
 ## Marketplace Catalog
 

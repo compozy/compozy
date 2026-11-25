@@ -2,6 +2,9 @@ import { useSelector, useStore } from "@xstate/store-react";
 import { useEffect } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { computerApiPath } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import {
@@ -36,14 +39,22 @@ export type WorktreeExitEventHandler = (
 
 interface UseWorktreeStreamOptions {
   enabled?: boolean;
+  computerId?: ComputerId;
   onExitEvent?: WorktreeExitEventHandler;
   eventSourceFactory?: WorktreeEventSourceFactory;
 }
 
 export type { WorktreeStreamStatus } from "./worktree-stream-store";
 
-export function worktreeStreamURL(workspaceID: string, worktreeID: string): string {
-  return `/api/workspaces/${encodeURIComponent(workspaceID)}/worktrees/${encodeURIComponent(worktreeID)}/stream`;
+export function worktreeStreamURL(
+  workspaceID: string,
+  worktreeID: string,
+  computerId?: ComputerId
+): string {
+  return computerApiPath(
+    computerId,
+    `/api/workspaces/${encodeURIComponent(workspaceID)}/worktrees/${encodeURIComponent(worktreeID)}/stream`
+  );
 }
 
 function defaultEventSourceFactory(url: string): WorktreeEventSource {
@@ -54,6 +65,7 @@ interface WorktreeStreamBinding {
   queryClient: QueryClient;
   workspaceID: string;
   worktreeID: string;
+  computerId?: ComputerId;
   onExitEvent?: WorktreeExitEventHandler;
 }
 
@@ -72,10 +84,10 @@ function buildWorktreeListeners(
   binding: WorktreeStreamBinding,
   onStatusChange: (status: Exclude<WorktreeStreamStatus, "disabled">) => void
 ): WorktreeListenerSet {
-  const { queryClient, workspaceID, worktreeID, onExitEvent } = binding;
+  const { queryClient, workspaceID, worktreeID, computerId, onExitEvent } = binding;
   const reread = createCoalescedReread(
     () => {
-      void invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID);
+      void invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID, computerId);
     },
     WORKTREE_REREAD_COALESCE_MS,
     WORKTREE_REREAD_MAX_WAIT_MS
@@ -116,7 +128,9 @@ function openWorktreeStream(
   onStatusChange: (status: Exclude<WorktreeStreamStatus, "disabled">) => void
 ): () => void {
   const { listeners, dispose } = buildWorktreeListeners(binding, onStatusChange);
-  const source = eventSourceFactory(worktreeStreamURL(binding.workspaceID, binding.worktreeID));
+  const source = eventSourceFactory(
+    worktreeStreamURL(binding.workspaceID, binding.worktreeID, binding.computerId)
+  );
   const detach = () => {
     dispose();
     for (const [name, listener] of listeners) source.removeEventListener(name, listener);
@@ -150,9 +164,10 @@ export { WORKTREE_STREAM_EVENT_NAMES };
 export function useWorktreeStream(
   workspaceID: string,
   worktreeID: string,
-  { enabled = true, onExitEvent, eventSourceFactory }: UseWorktreeStreamOptions = {}
+  { enabled = true, computerId, onExitEvent, eventSourceFactory }: UseWorktreeStreamOptions = {}
 ) {
   const queryClient = useQueryClient();
+  const scopedComputerId = useCurrentComputerId(computerId);
   const scopedWorkspaceID = workspaceID.trim();
   const scopedWorktreeID = worktreeID.trim();
   const canConnect =
@@ -177,6 +192,7 @@ export function useWorktreeStream(
             queryClient,
             workspaceID: scopedWorkspaceID,
             worktreeID: scopedWorktreeID,
+            computerId: scopedComputerId,
             onExitEvent,
           },
           eventSourceFactory ?? defaultEventSourceFactory,
@@ -189,6 +205,7 @@ export function useWorktreeStream(
     eventSourceFactory,
     onExitEvent,
     queryClient,
+    scopedComputerId,
     scopedWorkspaceID,
     scopedWorktreeID,
     store,

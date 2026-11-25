@@ -2,8 +2,11 @@ package automation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/compozy/compozy/internal/account"
 )
 
 type scheduledJobClaimResult struct {
@@ -25,9 +28,26 @@ func (s *Scheduler) claimScheduledJob(
 	misfire := false
 	var skipReason SchedulerSkipReason
 	var nextRun *time.Time
+	if s.localExecution != nil {
+		if err := s.localExecution(); err != nil {
+			if !errors.Is(err, account.ErrSignInRequired) {
+				return scheduledJobClaimResult{}, err
+			}
+			if job.Schedule.Mode == ScheduleModeAt {
+				if holdErr := s.holdOneShotForSignIn(ctx, job.ID, state); holdErr != nil {
+					return scheduledJobClaimResult{}, holdErr
+				}
+				return scheduledJobClaimResult{}, err
+			}
+			skipReason = SchedulerSkipReasonSignInRequired
+			// Advance from the present, even when the configured policy replays missed fires.
+			nextRun = nextRunAfter(job, claimedAt, s.location)
+		}
+	}
 	if state.DeferredUntil != nil {
 		scheduledAt = *state.LastScheduledAt
-	} else if job.Schedule.Mode != ScheduleModeAt && claimedAt.Sub(scheduledAt) > schedulerCatchUpJitterGrace &&
+	} else if skipReason == "" && job.Schedule.Mode != ScheduleModeAt &&
+		claimedAt.Sub(scheduledAt) > schedulerCatchUpJitterGrace &&
 		(state.LastMisfireAt == nil || scheduledAt.After(*state.LastMisfireAt)) {
 		// A reconciled backlog keeps its original recovery boundary while replay drains it.
 		state, skipReason = reconcileMissedSchedulerCursor(job, state, claimedAt, s.location)
@@ -53,7 +73,7 @@ func (s *Scheduler) claimScheduledJob(
 		ScheduleHash:        registration.state.ScheduleHash,
 		CatchUpPolicy:       registration.state.CatchUpPolicy,
 		MisfireGraceSeconds: registration.state.MisfireGraceSeconds,
-		CatchUp:             scheduledFireIsCatchUp(scheduledAt, claimedAt, state),
+		CatchUp:             !state.HeldForSignIn && scheduledFireIsCatchUp(scheduledAt, claimedAt, state),
 		Misfire:             misfire,
 		SkipReason:          skipReason,
 	}
@@ -78,12 +98,37 @@ func (s *Scheduler) claimScheduledJob(
 	return scheduledJobClaimResult{claim: claim, state: state, skipped: skipReason != "", skipReason: skipReason}, nil
 }
 
+// Remember a job whose admission was held so startup does not discard it as a misfire.
+func (s *Scheduler) holdOneShotForSignIn(ctx context.Context, jobID string, observed SchedulerState) error {
+	if s.store == nil || observed.HeldForSignIn || observed.DeferredUntil != nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, ok := s.registrations[jobID]
+	if !ok || current.state.ScheduleHash != observed.ScheduleHash || current.state.NextRunAt == nil ||
+		!current.state.NextRunAt.Equal(*observed.NextRunAt) {
+		return nil
+	}
+	state := current.state
+	state.HeldForSignIn = true
+	state.UpdatedAt = s.now()
+	saved, err := s.store.SaveSchedulerState(ctx, state)
+	if err != nil {
+		return fmt.Errorf("automation: hold scheduled job %q for sign-in: %w", jobID, err)
+	}
+	current.state = saved
+	s.registrations[jobID] = current
+	return nil
+}
+
 func schedulerStateAfterInMemoryClaim(
 	current SchedulerState,
 	claim SchedulerClaim,
 	nextRun *time.Time,
 ) SchedulerState {
 	state := current
+	state.HeldForSignIn = false
 	state.NextRunAt = cloneTimePointer(nextRun)
 	if claim.SkipReason == "" {
 		state.LastRunAt = new(claim.ClaimedAt)

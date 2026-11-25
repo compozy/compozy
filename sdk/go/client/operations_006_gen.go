@@ -4,11 +4,175 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// DeleteAgent Durably delete one effective authored agent definition
+func (c *Client) DeleteAgent(ctx context.Context, params DeleteAgentParams) (*DeleteAgentResponse, error) {
+	path := "/api/agents/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out DeleteAgentResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteAgentHeartbeatParams carries the path, query, and header parameters.
+type DeleteAgentHeartbeatParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
+// DeleteAgentHeartbeat Delete HEARTBEAT.md through managed authoring
+func (c *Client) DeleteAgentHeartbeat(ctx context.Context, params DeleteAgentHeartbeatParams, body HeartbeatDeleteByPathRequest) (*HeartbeatMutationResponse, error) {
+	path := "/api/agents/{name}/heartbeat"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatMutationResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteAgentSoulParams carries the path, query, and header parameters.
+type DeleteAgentSoulParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
+// DeleteAgentSoul Delete SOUL.md through managed authoring
+func (c *Client) DeleteAgentSoul(ctx context.Context, params DeleteAgentSoulParams, body AgentSoulDeleteByPathRequest) (*AgentSoulMutationResponse, error) {
+	path := "/api/agents/{name}/soul"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSoulMutationResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteAutomationJobParams carries the path, query, and header parameters.
+type DeleteAutomationJobParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// DeleteAutomationJob Delete one automation job
+func (c *Client) DeleteAutomationJob(ctx context.Context, params DeleteAutomationJobParams) error {
+	path := "/api/automation/jobs/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteAutomationTriggerParams carries the path, query, and header parameters.
+type DeleteAutomationTriggerParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// DeleteAutomationTrigger Delete one automation trigger
+func (c *Client) DeleteAutomationTrigger(ctx context.Context, params DeleteAutomationTriggerParams) error {
+	path := "/api/automation/triggers/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteExtensionSecretParams carries the path, query, and header parameters.
+type DeleteExtensionSecretParams struct {
+	Name      string  `url:"name"`
+	EnvName   string  `url:"env_name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// DeleteExtensionSecret Remove one extension environment secret binding
+func (c *Client) DeleteExtensionSecret(ctx context.Context, params DeleteExtensionSecretParams) error {
+	path := "/api/extensions/{name}/secrets/{env_name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	path = strings.ReplaceAll(path, "{env_name}", url.PathEscape(params.EnvName))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteLoopParams carries the path, query, and header parameters.
+type DeleteLoopParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+}
+
+// DeleteLoop Delete one writable Loop definition
+func (c *Client) DeleteLoop(ctx context.Context, params DeleteLoopParams) error {
+	path := "/api/workspaces/{workspace_id}/loops/{name}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteLoopInputDefaultParams carries the path, query, and header parameters.
+type DeleteLoopInputDefaultParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	Name        string `url:"name"`
+	Key         string `url:"key"`
+	Scope       string `url:"scope"`
+}
 
 // DeleteLoopInputDefault Delete one scoped Loop input default
 func (c *Client) DeleteLoopInputDefault(ctx context.Context, params DeleteLoopInputDefaultParams) (*DeleteLoopInputDefaultResponse, error) {
@@ -280,169 +444,4 @@ func (c *Client) DeleteSubagent(ctx context.Context, params DeleteSubagentParams
 type DeleteTaskParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// DeleteTask Delete one task
-func (c *Client) DeleteTask(ctx context.Context, params DeleteTaskParams) error {
-	path := "/api/tasks/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteTaskExecutionProfileParams carries the path, query, and header parameters.
-type DeleteTaskExecutionProfileParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// DeleteTaskExecutionProfile Delete one task execution profile
-func (c *Client) DeleteTaskExecutionProfile(ctx context.Context, params DeleteTaskExecutionProfileParams) error {
-	path := "/api/tasks/{id}/execution-profile"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteTerminalParams carries the path, query, and header parameters.
-type DeleteTerminalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-}
-
-// DeleteTerminal Terminate one terminal
-func (c *Client) DeleteTerminal(ctx context.Context, params DeleteTerminalParams, body TerminalCloseRequest) (*TerminalExitResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalExitResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteVaultSecretParams carries the path, query, and header parameters.
-type DeleteVaultSecretParams struct {
-	Ref string `url:"ref"`
-}
-
-// DeleteVaultSecret Delete one vault secret
-func (c *Client) DeleteVaultSecret(ctx context.Context, params DeleteVaultSecretParams) error {
-	path := "/api/vault/secrets"
-	query := url.Values{}
-	query.Set("ref", params.Ref)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteWindowManagerLayoutProfileParams carries the path, query, and header parameters.
-type DeleteWindowManagerLayoutProfileParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ProfileID   string  `url:"profile_id"`
-	Profile     *string `url:"profile"`
-}
-
-// DeleteWindowManagerLayoutProfile Delete one workspace-visible layout profile
-func (c *Client) DeleteWindowManagerLayoutProfile(ctx context.Context, params DeleteWindowManagerLayoutProfileParams, body DeleteResourceRequest) error {
-	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{profile_id}", url.PathEscape(params.ProfileID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, body, nil, "", "")
-}
-
-// DeleteWorkspaceParams carries the path, query, and header parameters.
-type DeleteWorkspaceParams struct {
-	ID string `url:"id"`
-}
-
-// DeleteWorkspace Delete a registered workspace
-func (c *Client) DeleteWorkspace(ctx context.Context, params DeleteWorkspaceParams) error {
-	path := "/api/workspaces/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteWorkspaceFolderParams carries the path, query, and header parameters.
-type DeleteWorkspaceFolderParams struct {
-	FolderID string  `url:"folder_id"`
-	Profile  *string `url:"profile"`
-}
-
-// DeleteWorkspaceFolder Delete a workspace folder; its workspaces return to the root
-func (c *Client) DeleteWorkspaceFolder(ctx context.Context, params DeleteWorkspaceFolderParams) (*WorkspaceLayoutResponse, error) {
-	path := "/api/workspace-folders/{folder_id}"
-	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorkspaceLayoutResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeliverGlobalWebhookParams carries the path, query, and header parameters.
-type DeliverGlobalWebhookParams struct {
-	Endpoint                  string  `url:"endpoint"`
-	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
-	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
-	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
-	Profile                   *string `url:"profile"`
-}
-
-// DeliverGlobalWebhook Deliver one global automation webhook
-func (c *Client) DeliverGlobalWebhook(ctx context.Context, params DeliverGlobalWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
-	path := "/api/webhooks/global/{endpoint}"
-	path = strings.ReplaceAll(path, "{endpoint}", url.PathEscape(params.Endpoint))
-	headers := http.Header{}
-	headers.Set("X-Compozy-Webhook-Delivery-ID", params.XCompozyWebhookDeliveryID)
-	headers.Set("X-Compozy-Webhook-Timestamp", params.XCompozyWebhookTimestamp)
-	headers.Set("X-Compozy-Webhook-Signature", params.XCompozyWebhookSignature)
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WebhookDeliveryResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

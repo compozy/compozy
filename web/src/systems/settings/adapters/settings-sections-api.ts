@@ -1,9 +1,11 @@
 import {
   apiClient,
+  apiClientFor,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
 } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
 
 import type {
   SettingsAttentionSection,
@@ -196,9 +198,12 @@ export async function updateSettingsSkills(
 }
 
 export async function getSettingsAutomation(
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SettingsAutomationSection> {
-  const { data, error, response } = await apiClient.GET("/api/settings/automation", { signal });
+  const { data, error, response } = await apiClientFor(computerId).GET("/api/settings/automation", {
+    signal,
+  });
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to load automation settings", response, error),

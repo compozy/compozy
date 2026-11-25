@@ -10,6 +10,153 @@ import (
 	"strings"
 )
 
+// DownloadTerminalRecordingParams carries the path, query, and header parameters.
+type DownloadTerminalRecordingParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// DownloadTerminalRecording Download one terminal recording
+func (c *Client) DownloadTerminalRecording(ctx context.Context, params DownloadTerminalRecordingParams) (*[]byte, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/recordings/{id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "application/x-asciicast"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DraftAgentInstructionsParams carries the path, query, and header parameters.
+type DraftAgentInstructionsParams struct {
+	Profile *string `url:"profile"`
+}
+
+// DraftAgentInstructions Draft agent instructions without saving a definition
+func (c *Client) DraftAgentInstructions(ctx context.Context, params DraftAgentInstructionsParams, body DraftAgentInstructionsRequest) (*DraftAgentInstructionsResponse, error) {
+	path := "/api/agents/draft-instructions"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out DraftAgentInstructionsResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DrainDaemon Stop admitting new work
+func (c *Client) DrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
+	path := "/api/drain"
+	var out DrainStatusResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DrainScheduler Pause the scheduler and wait for active claims to drain
+func (c *Client) DrainScheduler(ctx context.Context, body SchedulerDrainRequest) (*SchedulerDrainResponse, error) {
+	path := "/api/scheduler/drain"
+	var out SchedulerDrainResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DuplicateAgentParams carries the path, query, and header parameters.
+type DuplicateAgentParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
+// DuplicateAgent Duplicate one effective authored agent definition server-side
+func (c *Client) DuplicateAgent(ctx context.Context, params DuplicateAgentParams, body DuplicateAgentRequest) (*AgentResponse, error) {
+	path := "/api/agents/{name}/duplicate"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// EnableSkillParams carries the path, query, and header parameters.
+type EnableSkillParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+	ForAgent  *string `url:"for_agent"`
+}
+
+// EnableSkill Enable one skill
+func (c *Client) EnableSkill(ctx context.Context, params EnableSkillParams) (*SkillActionResponse, error) {
+	path := "/api/skills/{name}/enable"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.ForAgent != nil {
+		query.Set("for_agent", *params.ForAgent)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SkillActionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// EndBrowserSessionParams carries the path, query, and header parameters.
+type EndBrowserSessionParams struct {
+	DPoP string `url:"DPoP"`
+}
+
+// EndBrowserSession Revoke the current browser session
+func (c *Client) EndBrowserSession(ctx context.Context, params EndBrowserSessionParams) error {
+	path := "/remote/v1/browser/session"
+	headers := http.Header{}
+	headers.Set("DPoP", params.DPoP)
+	return c.doContent(ctx, "DELETE", path, headers, nil, nil, "", "")
+}
+
+// EnqueueTaskRunParams carries the path, query, and header parameters.
+type EnqueueTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // EnqueueTaskRun Enqueue one task run
 func (c *Client) EnqueueTaskRun(ctx context.Context, params EnqueueTaskRunParams, body EnqueueTaskRunRequest) (*TaskRunResponse, error) {
 	path := "/api/tasks/{id}/runs"
@@ -291,147 +438,4 @@ func (c *Client) FindFiles(ctx context.Context, params FindFilesParams) (*FileFi
 		return nil, err
 	}
 	return &out, nil
-}
-
-// FindSessionFilesParams carries the path, query, and header parameters.
-type FindSessionFilesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Q           string  `url:"q"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// FindSessionFiles Find project files
-func (c *Client) FindSessionFiles(ctx context.Context, params FindSessionFilesParams) (*FileFindResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	query.Set("q", params.Q)
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FileFindResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ForceFailTaskRunParams carries the path, query, and header parameters.
-type ForceFailTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ForceFailTaskRun Force fail one queued or claimed task run
-func (c *Client) ForceFailTaskRun(ctx context.Context, params ForceFailTaskRunParams, body ForceFailTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/runs/{id}/fail"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ForceReleaseTaskRunParams carries the path, query, and header parameters.
-type ForceReleaseTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ForceReleaseTaskRun Force release one claimed task run
-func (c *Client) ForceReleaseTaskRun(ctx context.Context, params ForceReleaseTaskRunParams, body ForceReleaseTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/runs/{id}/release"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ForkLoopRunParams carries the path, query, and header parameters.
-type ForkLoopRunParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ForkLoopRun Fork a linked Loop run from history
-func (c *Client) ForkLoopRun(ctx context.Context, params ForkLoopRunParams, body ForkLoopRequest) (*ForkLoopResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/fork"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ForkLoopResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ForkSessionParams carries the path, query, and header parameters.
-type ForkSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ForkSession Fork a session with the same agent, whole or through one user message and its turn
-func (c *Client) ForkSession(ctx context.Context, params ForkSessionParams, body ForkSessionRequest) (*SessionDeriveResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/fork"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionDeriveResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ForkSessionToWorktreeParams carries the path, query, and header parameters.
-type ForkSessionToWorktreeParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

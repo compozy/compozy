@@ -408,7 +408,7 @@ func TestInstanceSkillApprovalIntegration(t *testing.T) {
 			proposed.Review.Lesson == nil || proposed.Review.Lesson.Confidence != "high" {
 			t.Fatalf("proposal: %+v", proposed)
 		}
-		uds := gatewayDaemonUDSClient(d.homePaths.DaemonSocket)
+		uds := daemonIntegrationUDSClient(d.homePaths.DaemonSocket)
 		t.Cleanup(uds.CloseIdleConnections)
 		var detailBodies []string
 		for _, transport := range []struct {
@@ -1759,7 +1759,7 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	uds := gatewayDaemonUDSClient(d.homePaths.DaemonSocket)
+	uds := daemonIntegrationUDSClient(d.homePaths.DaemonSocket)
 	t.Cleanup(uds.CloseIdleConnections)
 	for _, transport := range []struct {
 		name, base string

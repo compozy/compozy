@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/apptoken"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	"github.com/compozy/compozy/internal/agentidentity"
@@ -653,7 +653,7 @@ func TestRequestOperatorOriginAppTokens(t *testing.T) {
 		c.Request = c.Request.WithContext(
 			ContextWithAppToken(
 				c.Request.Context(),
-				gateway.AppToken{Session: gateway.DeviceSession{ID: "app-origin"}},
+				apptoken.Token{ID: "app-origin"},
 			),
 		)
 		origin := requestOperatorOrigin(c)

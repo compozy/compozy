@@ -100,11 +100,10 @@ func subagentDescriptor(
 		[]string{sessionsSessionsKey, "subagent"},
 		[]string{"delegate", "subagent"},
 	)
-	descriptor.ToolExecutionMetadata = toolspkg.NewToolExecutionMetadata(
-		id == toolspkg.ToolIDSubagentCapabilities || id == toolspkg.ToolIDSubagentStatus,
-		toolspkg.ErrorCodeInvalidRequest,
-		0,
-	)
+	metadata := descriptor.ExecutionMetadata()
+	metadata.Idempotent = id == toolspkg.ToolIDSubagentCapabilities || id == toolspkg.ToolIDSubagentStatus
+	metadata.InputErrorCode = toolspkg.ErrorCodeInvalidRequest
+	descriptor.ToolExecutionMetadata = &metadata
 	descriptor.OutputSchema = json.RawMessage(output)
 	return descriptor
 }

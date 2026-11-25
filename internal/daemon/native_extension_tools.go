@@ -43,20 +43,19 @@ type extensionNameInput struct {
 }
 
 type extensionInstallInput struct {
-	Enable               bool                            `json:"enable"`
-	Scope                string                          `json:"scope"`
-	Workspace            string                          `json:"workspace"`
-	Profile              string                          `json:"profile"`
-	Inputs               map[string]extensioninput.Value `json:"inputs"`
-	ExpectedDigest       string                          `json:"expected_digest"`
-	Source               contract.InstallExtensionSource `json:"source"`
-	Ref                  string                          `json:"ref"`
-	Version              string                          `json:"version"`
-	Asset                string                          `json:"asset"`
-	AllowUnverified      bool                            `json:"allow_unverified"`
-	Replace              bool                            `json:"replace"`
-	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest"`
-	WithDependencies     bool                            `json:"with_dependencies"`
+	Enable           bool                            `json:"enable"`
+	Scope            string                          `json:"scope"`
+	Workspace        string                          `json:"workspace"`
+	Profile          string                          `json:"profile"`
+	Inputs           map[string]extensioninput.Value `json:"inputs"`
+	ExpectedDigest   string                          `json:"expected_digest"`
+	Source           contract.InstallExtensionSource `json:"source"`
+	Ref              string                          `json:"ref"`
+	Version          string                          `json:"version"`
+	Asset            string                          `json:"asset"`
+	AllowUnverified  bool                            `json:"allow_unverified"`
+	Replace          bool                            `json:"replace"`
+	WithDependencies bool                            `json:"with_dependencies"`
 	// Dependencies carries per-dependency consent; there is no blanket consent (A1).
 	Dependencies map[string]contract.ExtensionDependencyConsent `json:"dependencies"`
 }
@@ -67,23 +66,21 @@ func (i extensionInstallInput) request() contract.InstallExtensionRequest {
 		Inputs: i.Inputs, ExpectedDigest: i.ExpectedDigest,
 		Source: i.Source, Ref: i.Ref, Version: i.Version, Asset: i.Asset,
 		AllowUnverified: i.AllowUnverified, Replace: i.Replace,
-		ConfirmGatewayDigest: i.ConfirmGatewayDigest,
-		WithDependencies:     i.WithDependencies, Dependencies: i.Dependencies,
+		WithDependencies: i.WithDependencies, Dependencies: i.Dependencies,
 	}
 }
 
 type extensionUpdateInput struct {
-	Scope                string                          `json:"scope,omitempty"`
-	Workspace            string                          `json:"workspace,omitempty"`
-	Profile              string                          `json:"profile,omitempty"`
-	Owner                string                          `json:"owner,omitempty"`
-	Inputs               map[string]extensioninput.Value `json:"inputs,omitempty"`
-	Name                 string                          `json:"name,omitempty"`
-	All                  bool                            `json:"all,omitzero"`
-	CheckOnly            bool                            `json:"check_only,omitzero"`
-	Version              string                          `json:"version,omitempty"`
-	AllowUnverified      bool                            `json:"allow_unverified,omitzero"`
-	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest,omitempty"`
+	Scope           string                          `json:"scope,omitempty"`
+	Workspace       string                          `json:"workspace,omitempty"`
+	Profile         string                          `json:"profile,omitempty"`
+	Owner           string                          `json:"owner,omitempty"`
+	Inputs          map[string]extensioninput.Value `json:"inputs,omitempty"`
+	Name            string                          `json:"name,omitempty"`
+	All             bool                            `json:"all,omitzero"`
+	CheckOnly       bool                            `json:"check_only,omitzero"`
+	Version         string                          `json:"version,omitempty"`
+	AllowUnverified bool                            `json:"allow_unverified,omitzero"`
 }
 
 func (n *daemonNativeTools) extensionToolBindings(
@@ -218,12 +215,6 @@ func (n *daemonNativeTools) extensionUpdate(
 			errors.New("inputs apply only to a single extension update"),
 		)
 	}
-	if input.All && strings.TrimSpace(input.ConfirmGatewayDigest) != "" {
-		return toolspkg.ToolResult{}, nativeExtensionValidationError(
-			req.ToolID,
-			errors.New("confirm_gateway_digest applies only to a single extension update"),
-		)
-	}
 	actor, err := nativeExtensionScopedActorContext(scope, req)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
@@ -232,11 +223,10 @@ func (n *daemonNativeTools) extensionUpdate(
 	if name != "" {
 		item, updateErr := n.extensionService().Update(ctx, name, contract.UpdateExtensionRequest{
 			Scope: input.Scope, WorkspaceID: input.Workspace, Profile: input.Profile,
-			Version:              input.Version,
-			CheckOnly:            input.CheckOnly,
-			AllowUnverified:      input.AllowUnverified,
-			Inputs:               input.Inputs,
-			ConfirmGatewayDigest: strings.TrimSpace(input.ConfirmGatewayDigest),
+			Version:         input.Version,
+			CheckOnly:       input.CheckOnly,
+			AllowUnverified: input.AllowUnverified,
+			Inputs:          input.Inputs,
 		}, actor)
 		if updateErr != nil {
 			return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, updateErr)

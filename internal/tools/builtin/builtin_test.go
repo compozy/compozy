@@ -1117,7 +1117,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should publish closed extension inspection schemas and gateway digest inputs", func(t *testing.T) {
+	t.Run("Should publish closed extension inspection schemas", func(t *testing.T) {
 		t.Parallel()
 
 		inventory := descriptors[toolspkg.ToolIDExtensionsInventory]
@@ -1143,23 +1143,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"extension":"kit","enabled":true,
 			"items":[{"kind":"skill","id":"review","name":"Review","live":true,"extra":1}]
 		}`)
-		for _, id := range []toolspkg.ToolID{
-			toolspkg.ToolIDExtensionsInstall,
-			toolspkg.ToolIDExtensionsUpdate,
-		} {
-			var schema struct {
-				Properties map[string]struct {
-					Pattern string `json:"pattern"`
-				} `json:"properties"`
-			}
-			if err := json.Unmarshal(descriptors[id].InputSchema, &schema); err != nil {
-				t.Fatalf("%s input schema unmarshal error = %v", id, err)
-			}
-			if got, want := schema.Properties["confirm_gateway_digest"].Pattern,
-				"^[a-f0-9]{64}$"; got != want {
-				t.Fatalf("%s confirm_gateway_digest pattern = %q, want %q", id, got, want)
-			}
-		}
 	})
 
 	t.Run("Should publish native schema digests and capability roster", func(t *testing.T) {
@@ -1346,30 +1329,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 		if len(second[0].InputSchema) == 0 || second[0].InputSchema[0] == '[' {
 			t.Fatal("NativeDescriptors() reused input schema bytes")
-		}
-	})
-
-	t.Run("Should expose the closed gateway action contract", func(t *testing.T) {
-		t.Parallel()
-
-		descriptor := descriptors[toolspkg.ToolIDGateway]
-		var input struct {
-			Properties map[string]struct {
-				Enum []string `json:"enum"`
-			} `json:"properties"`
-		}
-		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
-			t.Fatalf("gateway input schema unmarshal error = %v", err)
-		}
-		wantActions := []string{
-			"status", "audit", "device_list", "surface_set", "provider_enable", "provider_disable",
-			"device_rename", "device_revoke", "device_remove", "ingress_bind", "ingress_unbind",
-		}
-		if got := input.Properties["action"].Enum; !slices.Equal(got, wantActions) {
-			t.Fatalf("gateway action enum = %#v, want %#v", got, wantActions)
-		}
-		if len(descriptor.OutputSchema) == 0 || !json.Valid(descriptor.OutputSchema) {
-			t.Fatal("gateway output schema is missing or invalid")
 		}
 	})
 }
@@ -1599,8 +1558,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__extensions_validate", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__gateway", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__goal_control", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__goal_get", risk: toolspkg.RiskRead,
@@ -1744,6 +1701,15 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__profile_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: toolspkg.ToolIDRemoteStatus, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDComputerSetupCancel, risk: toolspkg.RiskDestructive, destructive: true},
+		{id: toolspkg.ToolIDComputerList, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDComputerStatus, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDComputerAdd, risk: toolspkg.RiskOpenWorld, openWorld: true},
+		{id: toolspkg.ToolIDComputerRemove, risk: toolspkg.RiskDestructive, destructive: true},
+		{id: toolspkg.ToolIDComputerSetupStatus, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDComputerSetupAnswer, risk: toolspkg.RiskOpenWorld, openWorld: true},
+		{id: toolspkg.ToolIDAccountStatus, risk: toolspkg.RiskRead, readOnly: true},
 		{id: "compozy__resources_info", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__resources_list", risk: toolspkg.RiskRead,
@@ -3754,14 +3720,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPAuthStatus}; !slices.Equal(mcpAuth, want) {
 			t.Fatalf("mcp auth expansion = %#v, want %#v", mcpAuth, want)
 		}
-
-		gatewayTools, err := catalog.Expand(toolspkg.ToolsetIDGateway, universe)
-		if err != nil {
-			t.Fatalf("Expand(gateway) error = %v", err)
-		}
-		if want := []toolspkg.ToolID{toolspkg.ToolIDGateway}; !slices.Equal(gatewayTools, want) {
-			t.Fatalf("gateway expansion = %#v, want %#v", gatewayTools, want)
-		}
 	})
 }
 
@@ -4138,6 +4096,10 @@ func TestCheckInWritableInventory(t *testing.T) {
 			"compozy__automation_triggers_enable":     false,
 			"compozy__automation_triggers_update":     false,
 			"compozy__cmd_palette_invoke":             false,
+			"compozy__computer_add":                   false,
+			"compozy__computer_remove":                false,
+			"compozy__computer_setup_answer":          false,
+			"compozy__computer_setup_cancel":          false,
 			"compozy__config_set":                     false,
 			"compozy__config_unset":                   false,
 			"compozy__desktop_create":                 false,

@@ -27,9 +27,15 @@ vi.mock("../../adapters/profiles-api", () => ({
 
 describe("profile query identities", () => {
   it("Should key the single Global selection under the selection family", () => {
-    expect(profileKeys.selection()).toEqual(["profiles", "selection", "global"]);
-    expect(profileKeys.selection().slice(0, 2)).toEqual(profileKeys.selections());
-    expect(profileKeys.operations()).toEqual(["profiles", "operations"]);
+    expect(profileKeys.selection()).toEqual([
+      "computer",
+      "local",
+      "profiles",
+      "selection",
+      "global",
+    ]);
+    expect(profileKeys.selection().slice(0, 4)).toEqual(profileKeys.selections());
+    expect(profileKeys.operations()).toEqual(["computer", "local", "profiles", "operations"]);
   });
 
   it("Should normalize detail and lifecycle targets before keying or requesting", async () => {
@@ -44,10 +50,32 @@ describe("profile query identities", () => {
     const archive = archivePlanOptions(" marketing ");
     const remove = deletePlanOptions(" marketing ");
 
-    expect(detail.queryKey).toEqual(["profiles", "detail", "marketing"]);
-    expect(rename.queryKey).toEqual(["profiles", "plan", "rename", "marketing", "growth"]);
-    expect(archive.queryKey).toEqual(["profiles", "plan", "archive", "marketing"]);
-    expect(remove.queryKey).toEqual(["profiles", "plan", "delete", "marketing"]);
+    expect(detail.queryKey).toEqual(["computer", "local", "profiles", "detail", "marketing"]);
+    expect(rename.queryKey).toEqual([
+      "computer",
+      "local",
+      "profiles",
+      "plan",
+      "rename",
+      "marketing",
+      "growth",
+    ]);
+    expect(archive.queryKey).toEqual([
+      "computer",
+      "local",
+      "profiles",
+      "plan",
+      "archive",
+      "marketing",
+    ]);
+    expect(remove.queryKey).toEqual([
+      "computer",
+      "local",
+      "profiles",
+      "plan",
+      "delete",
+      "marketing",
+    ]);
 
     await detail.queryFn?.({ signal } as never);
     await rename.queryFn?.({ signal } as never);

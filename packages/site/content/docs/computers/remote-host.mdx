@@ -1,0 +1,82 @@
+---
+title: Remote access to this computer
+description: Link this computer, check reachability, and manage the devices that can connect.
+---
+
+Run `compozy remote link` on the computer you want to reach. If the computer needs to sign in, open the activation page and enter the code printed by the command. After you finish sign-in, the computer joins your account and opens its remote listener.
+
+```sh
+compozy remote status --json
+compozy remote devices list
+compozy remote devices scopes dev_5k1p9z --set sessions:operate,files:read
+```
+
+Use `compozy remote disable` to close the listeners and free the remote computer slot while keeping the account link. `compozy remote enable` reopens remote access. To remove the computer from the account directory, sign in to that account and run `compozy remote unlink`.
+
+## Listeners
+
+The SSH forward targets the loopback listener at `127.0.0.1:47823` by default. To also accept connections on your local network or tailnet, set `remote.direct.enabled = true`. You can restrict it to individual addresses in `remote.direct.addresses`. The computer verifies device grants and proof of possession inside the encrypted tunnel on both routes.
+
+Local HTTP and UDS share the same remote routes, including `GET /api/remote`, for status, link settings, and devices. `compozy__remote_status` gives agents the same status that the CLI prints as JSON.
+
+Use local HTTP or UDS on the computer to call `POST /api/remote/link` or `DELETE /api/remote/link`. You can also remove the computer's link from its account in Compozy Cloud.
+
+## Operator scopes
+
+| Scope              | Access on this computer                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `sessions:operate` | Sessions, prompts, approvals, Automations, profile and workspace lists, provider sign-in state, model catalogs, and Vault entry names |
+| `terminal:operate` | Open, attach to, write to, signal, and close terminals                                                                                |
+| `files:read`       | Browse workspace files, read Changes, and inspect worktrees                                                                           |
+| `files:write`      | Write files and create or remove worktrees                                                                                            |
+| `tasks:operate`    | Manage Tasks, enqueue runs, and operate the task scheduler                                                                            |
+| `settings:write`   | Manage configuration, providers, extensions, MCP, Vault entries, hooks, and agents                                                    |
+| `remote:admin`     | Manage remote access, devices, ingress bindings, and app tokens                                                                       |
+
+A device with terminal access can run commands as the daemon's OS user. Across a connection drop, a live terminal replays retained output from the client's last received byte cursor. The shell and the provider sign-in command run on this computer.
+
+## Hosted route
+
+On a linked computer with Compozy Pro, run `compozy remote cloud-route enable`. Compozy Cloud assigns a hostname under `compozy.run`, and the daemon downloads and verifies the connector on first use. The connector makes an outbound connection to Cloudflare and forwards requests to the hosted listener on `127.0.0.1:47824` by default.
+
+Read the assigned hostname and connector state with `compozy remote status --json`. If it reports **Hosted route can't reach Cloudflare (port 7844 blocked)**, allow the outbound connection on port 7844. The daemon retries with backoff. Run `compozy remote cloud-route disable` to remove the hosted route and its tunnel. Unlinking the computer also deletes its tunnel.
+
+### Browser access
+
+The hosted listener serves the installable CompozyOS web app. It serves a standalone web app manifest at `/manifest.webmanifest`. The service worker handles versioned app assets. Session data and API responses always come from the computer.
+
+Browser sign-in starts on Compozy Cloud. The browser sends its one-time code and PKCE verifier to `POST /remote/v1/browser/session` with a `DPoP` proof from its origin's key. A successful response sets the secure, HTTP-only `__Host-compozy_rs` session cookie. Each browser API call includes a fresh `DPoP` proof. `DELETE /remote/v1/browser/session` ends that session.
+
+For `EventSource` or WebSocket connections, call `POST /remote/v1/stream-tickets` with the cookie, a fresh `DPoP` proof, and the stream's path. Open that path with the returned ticket in the `remote_ticket` query parameter within 30 seconds. For terminal streams, also include the independent terminal attach `ticket`.
+
+`GET /remote/v1/browser/peers` lists the account's other computers with active hosted routes. Open another computer at its own hosted address. The `/c/` bridge is unavailable to hosted browsers. Revoking the browser device closes its sessions and streams across all its hosted origins. If the computer's plan expires while its hosted route is retained, `GET /remote/v1/browser/status` returns `plan_required` and the app shell remains available.
+
+## Webhook ingress
+
+An active hosted route supplies the public base URL for incoming webhooks. On a linked computer with remote access enabled, you can also run your own HTTPS endpoint. Set `remote.ingress.public_url` and forward webhook requests to the loopback tunnel listener. The advertised URL keeps the trigger's existing path.
+
+- Global trigger path is `/api/webhooks/global/{slug}--{webhook_id}`.
+- Workspace trigger path is `/api/webhooks/workspaces/{workspace_id}/{slug}--{webhook_id}`.
+
+Read the trigger to get its full URL. Confirm it with `POST /api/ingress/bindings` over local HTTP or UDS, sending `subject_kind: "webhook_trigger"`, the trigger ID as `subject_id`, and `confirmed: true`. Send deliveries with the trigger's existing signature, timestamp, and delivery ID headers. If the public base changes, the trigger shows **Needs confirmation**. Confirm the new URL before retrying deliveries.
+
+## Upgrade notices
+
+After upgrading from Remote Gateway, use `GET /api/migration-notices` on the local HTTP or UDS
+listener to read outstanding notices. The `gateway_removed` payload includes counts for removed
+devices, providers, and connection profiles, and for webhook bindings that need confirmation.
+`POST /api/migration-notices/gateway_removed/dismiss` records dismissal on this installation.
+
+## Device approvals and revocation
+
+The device list shows devices that opened a session or requested approval on this computer. The last seen time reflects the most recent session opened here.
+
+Set `remote.require_device_approval = true` to approve new device keys on this computer. Run `compozy remote devices list --json` to see pending requests and their key fingerprints. Use `compozy remote devices approve <device>` or `compozy remote devices deny <device>`. Add `--approval-id` to select a key if the device has multiple pending requests.
+
+An account admin whose device key is already approved on the target computer can decide through `POST /api/account/approvals/{id}/decision` on their own installation over local HTTP or UDS. Its daemon signs the decision with that device key and returns `202` when Compozy Cloud accepts it for delivery. Follow `GET /api/account/stream` or read `GET /api/account/approvals/{id}` to confirm the outcome applied by the target computer.
+
+A browser that receives `device_pending_approval` can poll `GET /remote/v1/browser/approvals/{id}` with a `DPoP` proof from the requesting key. Once approved, it needs a fresh authorization code and PKCE verifier for that same key.
+
+An authenticated `remote:admin` device can set a device's scopes on this computer with `PATCH /api/remote/devices/{id}` or revoke the device across the account with `DELETE /api/remote/devices/{id}`. A computer linked through SSH setup can handle these requests using the requesting admin's device proof.
+
+Revocation and scope narrowing end affected remote streams. If the computer loses contact with Compozy Cloud, it can honor a valid lease for up to fifteen minutes. After restart it waits for a newer lease before admitting remote connections.

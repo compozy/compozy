@@ -36,7 +36,6 @@ export type {
   UpdateExtensionVariables,
 } from "./hooks/use-extension-actions";
 export { useExtensionDetailState } from "./hooks/use-extension-detail-state";
-export type { ExtensionGatewayConfirm } from "./hooks/use-extension-detail-state";
 export {
   EXTENSION_LOG_EVENT_NAME,
   EXTENSION_LOG_RESET_EVENT_NAME,
@@ -48,7 +47,6 @@ export type {
   ExtensionLogStreamStatus,
 } from "./hooks/use-extension-logs";
 export {
-  ExtensionGatewayConfirmDialog,
   ExtensionProvenanceDialog,
   RemoveExtensionDialog,
   VerifiedMark,
@@ -71,10 +69,6 @@ export {
   EXTENSION_OVERRIDES_PUBLISHED_LABEL,
 } from "./components/extension-trust-badge-constants";
 export { ExtensionFormatBadge, ExtensionTrustBadges } from "./components/extension-trust-badges";
-export {
-  EXTENSION_GATEWAY_CONFIRMATION_CODE,
-  extensionGatewayConfirmation,
-} from "./lib/extension-gateway-confirmation";
 export {
   appendExtensionLogEntries,
   buildExtensionLogsStreamUrl,

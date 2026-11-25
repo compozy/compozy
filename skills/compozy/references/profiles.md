@@ -137,7 +137,7 @@ Choose an available profile to reach Settings; the status detail retains the ope
 HTTP and UDS share `/api/profiles`, including selection, plan, and operation routes. Remote reads are
 allowed on an enabled tier, but every remote profile-state write returns
 `profile_remote_management_forbidden`. Move the mutation to a local CLI, desktop, HTTP, or UDS surface;
-do not weaken the Gateway tier.
+follow the connected device’s granted scopes.
 
 Stable palette actions are `profile.use`, `profile.create`, `profile.update`, `profile.rename`,
 `profile.archive`, `profile.unarchive`, and `profile.delete`. They delegate to the same selection and

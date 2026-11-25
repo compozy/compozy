@@ -87,13 +87,20 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 			toolspkg.ReasonExtensionValidationFailed,
 		)
+	case errors.Is(err, extensionpkg.ErrExtensionKindRemoved):
+		return toolspkg.NewToolError(
+			"extension_kind_removed",
+			id,
+			err.Error(),
+			err,
+			toolspkg.ReasonExtensionValidationFailed,
+		)
 	case isExtensionValidationError(err):
 		return nativeExtensionValidationError(id, err)
 	case errors.Is(err, extensionmcp.ErrNameTaken):
 		return toolspkg.NewToolError("mcp_server_name_taken", id, err.Error(),
 			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err), toolspkg.ReasonExtensionValidationFailed)
-	case errors.Is(err, extensionpkg.ErrExtensionGatewayConfirmationRequired),
-		errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
+	case errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
 		return nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
 	case errors.Is(err, extensionpkg.ErrExtensionEnvBindingInvalid),
 		errors.Is(err, extensionpkg.ErrExtensionEnvBindingUndeclared),

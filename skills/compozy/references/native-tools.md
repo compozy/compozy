@@ -768,16 +768,7 @@ in `references/runtime-operations.md#provider-usage-experimental`.
 Vault catalog tool: `compozy__vault_list`. It returns global reference names and redacted metadata,
 optionally filtered by prefix. It never returns secret values.
 
-Gateway tool: `compozy__gateway`, in toolset `compozy__gateway`. Resolve its live descriptor before
-calling it. `status`, `audit`, and `device_list` are read actions and remain callable in every
-session permission mode while the Gateway service is available. Management actions are
-`surface_set`, `provider_enable`, `provider_disable`, `device_rename`, `device_revoke`,
-`device_remove`, `ingress_bind`, and `ingress_unbind`. A local operator may call them directly; an
-agent session must
-have effective permission mode `approve-all`. Lower modes return `tool_denied` with
-`policy_denied`. The tool returns only redacted projections and intentionally has no pairing,
-credential, or stream-ticket issuance action. Use the local CLI or private management API when a
-one-time secret must be issued.
+Use [Computers](computers.md) to inspect routes and device access.
 
 `compozy__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `compozy provider models list` and `compozy provider models list --all`. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, `default_effort`, and `default_speed`. Speed accepts `normal` or `fast`; explicit model configurations that omit Fast reject it with `speed_rejected`. Its CLI fallback is `compozy provider models set`. Treat `model_not_found`, `reasoning_effort_unsupported`, and `speed_rejected` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
@@ -852,7 +843,7 @@ Denied native calls return `workspace_access_denied`. The message names the axis
 
     access could not be authorized for the caller workspace and profile; ask the operator to inspect the session identity and workspace access policy
 
-When a native call is allowed outside the caller's own workspace and profile, the dispatch boundary redacts the result before hooks, events, and the agent see it. Every string in the result (session names, messages, tool inputs and outputs, previews, metadata) passes the shared secret redactor with its heuristics always on: known credential shapes (`Authorization`/`Bearer` values, `key=value` and `--flag value` pairs whose key names a secret, URL userinfo, `env:`/`vault:` references, CompozyOS claim and gateway tokens, registered runtime secrets), well-known provider token prefixes (`sk-`, `ghp_`, `github_pat_`, `xox*-`, `AKIA`, and others), and high-entropy mixed-case tokens of 28 or more characters become `[REDACTED]`. Fields named `*_id`, hashes, digests, and cursors stay readable. This is pattern-based: a secret with no recognizable shape or key, a short or low-entropy secret, or a secret split across fields can still pass, and errors and binary artifacts are not rewritten. Own-scope reads are unchanged. Redaction applies to native tool results; HTTP/UDS responses to agent-credentialed requests are not rewritten, because a process in the session can drop the agent headers and read as the operator (the soft boundary in `references/agent-definitions.md`).
+When a native call is allowed outside the caller's own workspace and profile, the dispatch boundary redacts the result before hooks, events, and the agent see it. Every string in the result (session names, messages, tool inputs and outputs, previews, metadata) passes the shared secret redactor with its heuristics always on: known credential shapes (`Authorization`/`Bearer` values, `key=value` and `--flag value` pairs whose key names a secret, URL userinfo, `env:`/`vault:` references, CompozyOS claim tokens and app credentials, registered runtime secrets), well-known provider token prefixes (`sk-`, `ghp_`, `github_pat_`, `xox*-`, `AKIA`, and others), and high-entropy mixed-case tokens of 28 or more characters become `[REDACTED]`. Fields named `*_id`, hashes, digests, and cursors stay readable. This is pattern-based: a secret with no recognizable shape or key, a short or low-entropy secret, or a secret split across fields can still pass, and errors and binary artifacts are not rewritten. Own-scope reads are unchanged. Redaction applies to native tool results; HTTP/UDS responses to agent-credentialed requests are not rewritten, because a process in the session can drop the agent headers and read as the operator (the soft boundary in `references/agent-definitions.md`).
 
 Under `approve-reads`, a call that crosses two axes, such as `all_profiles` on another workspace, asks once per axis: first `Access workspace <id>`, then `Read all profiles` or `Read profile <id>`.
 
@@ -1213,7 +1204,7 @@ Route specifics:
   Unknown runs are excluded by any `workspace_ids` filter and read as "Unknown project", never User.
 - **Worktrees** read cached store state with no Git discovery or refresh; `--refresh` cannot
   accompany `--all-workspaces`.
-- **Terminals** aggregate only on local listeners (gateway tiers return 404). The stream's
+- **Terminals** aggregate only on the local computer. The stream's
   `Last-Event-ID` is `<sequence>.<selection-fingerprint>`; a profile or filter change, or a replay
   older than retention, yields a fresh `terminal.snapshot` with `reset: true`. Workspace-path
   streams keep numeric cursors.

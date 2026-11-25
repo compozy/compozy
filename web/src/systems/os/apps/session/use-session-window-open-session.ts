@@ -1,3 +1,4 @@
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import {
   SESSION_BOARD_DRAWER_OPEN,
   SESSION_BOARD_DRAWER_SEARCH_KEY,
@@ -9,6 +10,7 @@ import {
   sameDataScope,
   useDataScope,
   useWindowDataWorkspace,
+  windowBindingValue,
 } from "@/systems/workspace";
 
 import { useAttentionJump } from "../../hooks/use-attention-jump";
@@ -21,6 +23,7 @@ export interface SessionWindowSidebarTarget {
   agentName: string;
   workspaceId: string;
   subagentId?: string;
+  computerId?: ComputerId;
 }
 
 export interface SessionWindowOpenOptions {
@@ -60,6 +63,24 @@ export function useSessionWindowOpenSession({
     const drawerOpen = sessionBoardDrawerOpen(manager.getState().windows[windowId]?.route.search);
     const drawer = options.drawer ?? drawerOpen;
     if (sessionId !== undefined && target.sessionId === sessionId && drawer === drawerOpen) return;
+    if (isRemoteComputerId(target.computerId)) {
+      const remoteRoute = {
+        pathname: `/agents/${encodeURIComponent(target.agentName || "general")}/sessions/${encodeURIComponent(target.sessionId)}`,
+        search: {
+          computer: target.computerId,
+          ...(drawer ? { [SESSION_BOARD_DRAWER_SEARCH_KEY]: SESSION_BOARD_DRAWER_OPEN } : {}),
+          ...(target.workspaceId
+            ? { workspace: windowBindingValue(ownerDataScope(target.workspaceId)) }
+            : {}),
+        },
+      };
+      void coordinator.userRetarget(windowId, {
+        app: "session",
+        instanceKey: target.sessionId,
+        route: remoteRoute,
+      });
+      return;
+    }
     const targetScope = ownerDataScope(target.workspaceId);
     const allProjects = scope?.kind === "all";
     const sameScope = windowScope !== null && sameDataScope(windowScope, targetScope);

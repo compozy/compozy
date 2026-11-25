@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import {
@@ -92,7 +93,7 @@ export function useSessionById(id: string, workspace: string) {
 
 export function useSessionGoal(workspaceId: string, sessionId: string, enabled = true) {
   return useQuery({
-    ...sessionGoalOptions(workspaceId, sessionId),
+    ...sessionGoalOptions(workspaceId, sessionId, useCurrentComputerId()),
     enabled: enabled && workspaceId !== "" && sessionId !== "",
   });
 }
@@ -112,7 +113,7 @@ export function useSessionUsage(
   const { runtimeWorkspaceId } = useActiveWorkspace();
   const workspaceId = workspace ?? runtimeWorkspaceId ?? "";
   return useQuery({
-    ...sessionUsageOptions(workspaceId, id, sessionState),
+    ...sessionUsageOptions(workspaceId, id, sessionState, useCurrentComputerId()),
     enabled: Boolean(workspaceId) && Boolean(id) && (options?.enabled ?? true),
   });
 }

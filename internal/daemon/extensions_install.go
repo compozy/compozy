@@ -69,7 +69,6 @@ func (s *daemonExtensionService) prepareExtensionInstall(
 ) (preparedDaemonExtensionInstall, error) {
 	req.Source = normalizedInstallSource(req.Source)
 	req.Ref = strings.TrimSpace(req.Ref)
-	req.ConfirmGatewayDigest = strings.TrimSpace(req.ConfirmGatewayDigest)
 	if req.Ref == "" {
 		return preparedDaemonExtensionInstall{}, errors.New("daemon: extension install ref is required")
 	}
@@ -119,13 +118,7 @@ func (s *daemonExtensionService) installPrepared(
 				return readErr
 			}
 		}
-		confirmation, confirmErr := s.prepareInstallGatewayConfirmation(
-			prepared.manifest, strings.TrimSpace(req.ConfirmGatewayDigest), actor,
-		)
-		if confirmErr != nil {
-			return confirmErr
-		}
-		return s.commitPreparedInstallWithInputs(ctx, prepared, req, confirmation, actor, event, &item)
+		return s.commitPreparedInstallWithInputs(ctx, prepared, req, actor, event, &item)
 	}
 	// The direct dependencies are locked with the package so a concurrent remove or disable of one either runs
 	// before the commit's dependency check or sees this package as its dependent.

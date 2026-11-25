@@ -59,6 +59,7 @@ func darwinArguments(p *ScannedProcess, raw []byte) {
 	if end < 0 || argc < 1 {
 		return
 	}
+	executable := string(raw[:end])
 	raw = bytes.TrimLeft(raw[end+1:], "\x00")
 	args := make([]string, 0, argc)
 	for range argc {
@@ -71,6 +72,9 @@ func darwinArguments(p *ScannedProcess, raw []byte) {
 	}
 	processArguments(p, args)
 	processMarkers(p, raw)
+	if p.RemoteConnector {
+		p.ConnectorExecutable = executable
+	}
 }
 
 func scanProcessIdentity(pid int) (ScannedProcess, error) {

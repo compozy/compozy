@@ -1,4 +1,5 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
+import { apiClient, apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
 import type { components } from "@compozy/client";
 
@@ -18,9 +19,10 @@ export async function archiveSession(
   profile: string,
   signal?: AbortSignal,
   stop = false,
-  processes?: SessionProcessPolicy
+  processes?: SessionProcessPolicy,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
     {
       params: {

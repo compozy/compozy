@@ -44,6 +44,8 @@ describe("agent-catalog-query", () => {
         ...normalized,
       });
       expect(agentKeys.catalog(" ws_alpha ", filters)).toEqual([
+        "computer",
+        "local",
         "agents",
         "catalog",
         "ws_alpha",

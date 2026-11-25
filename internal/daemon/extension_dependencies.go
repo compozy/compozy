@@ -297,14 +297,6 @@ func (r *dependencyResolver) inspect(
 	}
 	// The recorded tier, not past consent, says whether the installed package is registry-verified.
 	node.payload.RegistryTier = cmp.Or(info.Provenance.RegistryTier, extensionpkg.ExtensionRegistryTierUnverified)
-	// Enabling repeats the gateway gate only when the installed confirmation does not cover the requirement.
-	digest, required, err := candidateGatewayConfirmationRequirement(info, manifest)
-	if err != nil {
-		return fmt.Errorf("daemon: read installed dependency %q gateway requirement: %w", name, err)
-	}
-	if required {
-		node.payload.GatewayRequirementDigest = digest
-	}
 	return nil
 }
 
@@ -372,12 +364,8 @@ func (r *dependencyResolver) acquire(ctx context.Context, node *dependencyNode) 
 			"%w: %s resolves to extension %q", extensionpkg.ErrManifestInvalid, node.payload.Ref, prepared.name,
 		)}
 	}
-	digest, err := extensionpkg.GatewayRequirementDigest(prepared.manifest.Gateway)
-	if err != nil {
-		return &extensionpkg.DependencyGateError{Dependency: name, Err: err}
-	}
 	node.payload.Version, node.payload.DigestSHA256 = prepared.manifest.Version, prepared.digest
-	node.payload.GatewayRequirementDigest, node.payload.RegistryTier = digest, prepared.registryTier
+	node.payload.RegistryTier = prepared.registryTier
 	node.children, node.sourceDir = prepared.manifest.Requires.Extensions, prepared.sourceDir
 	return r.checkInstalledElsewhere(ctx, node)
 }

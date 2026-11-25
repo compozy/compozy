@@ -50,7 +50,6 @@ func (d *manifestDocument) toManifest() (Manifest, error) {
 		MinCompozyVersion:   minVersion,
 		RequiresEnv:         manifestRequiredEnv(requiresEnv, inputs),
 		DeclaredRequiresEnv: normalizeStrings(requiresEnv),
-		Gateway:             d.Gateway.Normalize(),
 		Resources:           normalizeResourcesConfig(d.Resources),
 		Capabilities:        normalizeCapabilitiesConfig(d.Capabilities),
 		Permissions:         normalizePermissionsConfig(d.Permissions),

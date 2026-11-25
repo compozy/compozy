@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -380,6 +381,125 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 			t.Fatalf("event kinds = %#v, want %#v", got, want)
 		}
 	})
+}
+
+type recordingComputerForwarder struct {
+	resolve func(CallRequest) (remoteproto.ComputerID, error)
+	call    func(remoteproto.ComputerID, CallRequest) (ToolResult, error)
+}
+
+func (f recordingComputerForwarder) ResolveComputer(
+	_ context.Context, _ Scope, _ Descriptor, req CallRequest,
+) (remoteproto.ComputerID, error) {
+	return f.resolve(req)
+}
+
+func (f recordingComputerForwarder) CallComputer(
+	_ context.Context, id remoteproto.ComputerID, req CallRequest,
+) (ToolResult, error) {
+	return f.call(id, req)
+}
+
+func TestRuntimeRegistryComputerForwarding(t *testing.T) {
+	t.Parallel()
+	const computer remoteproto.ComputerID = "cmp_7f3k2q9x"
+	list := validDispatchDescriptor()
+	list.ID, list.Backend.NativeName = ToolIDSessionList, "session_list"
+	list.InputSchema = []byte(`{"type":"object","additionalProperties":false}`)
+	list.ToolExecutionMetadata = &ToolExecutionMetadata{RemoteScope: remoteproto.ScopeSessions}
+	complete := validDispatchDescriptor()
+	complete.ID, complete.Backend.NativeName = ToolIDTaskRunComplete, "task_run_complete"
+	newRegistry := func(t *testing.T, descriptor Descriptor, opts ...RegistryOption) *RuntimeRegistry {
+		t.Helper()
+		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
+			Descriptor: descriptor,
+			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
+				t.Fatal("a forwarded call ran the local handler")
+				return ToolResult{}, nil
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, err := NewRegistry(append([]RegistryOption{WithProviders(provider)}, opts...)...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return registry
+	}
+	// Safety Invariants 5 and 11. The projected selector uses only the computer's
+	// declared forwarding route, while the target sees the original tool shape.
+	t.Run("Should project the selector and preserve the remote result [UT-105]", func(t *testing.T) {
+		t.Parallel()
+		returned := json.RawMessage(`{"sessions":[{"id":"remote-session"}]}`)
+		registry := newRegistry(t, list, WithComputerForwarder(recordingComputerForwarder{
+			resolve: func(req CallRequest) (remoteproto.ComputerID, error) {
+				if req.ForwardComputer != "devbox" {
+					t.Fatalf("source computer = %q, want devbox", req.ForwardComputer)
+				}
+				return computer, nil
+			},
+			call: func(id remoteproto.ComputerID, req CallRequest) (ToolResult, error) {
+				if id != computer || req.ToolID != ToolIDSessionList || string(req.Input) != "{}" {
+					t.Fatalf("forwarded call = %q %+v, want session_list on %s without selector", id, req, computer)
+				}
+				return ToolResult{Structured: returned}, nil
+			},
+		}))
+		scope := Scope{ProfileID: "profile-a", SessionID: "source-session"}
+		input := json.RawMessage(`{"computer":"devbox"}`)
+		view, err := registry.Get(t.Context(), scope, ToolIDSessionList)
+		if err != nil || validateCallInput(view.Descriptor, input) != nil {
+			t.Fatalf("projected tool does not accept computer: %s, %v", view.Descriptor.InputSchema, err)
+		}
+		digest, err := SchemaDigest(view.Descriptor.InputSchema)
+		if err != nil || digest != view.Descriptor.InputSchemaDigest {
+			t.Fatalf("projected input digest = %q, want %q", view.Descriptor.InputSchemaDigest, digest)
+		}
+		result, err := registry.Call(t.Context(), scope, CallRequest{ToolID: ToolIDSessionList, Input: input})
+		if err != nil || result.ComputerID != computer || !bytes.Equal(result.Structured, returned) {
+			t.Fatalf("forwarded result = %+v, %v", result, err)
+		}
+		view, err = newRegistry(t, complete).Get(t.Context(), scope, ToolIDTaskRunComplete)
+		if err != nil || bytes.Contains(view.Descriptor.InputSchema, []byte(`"computer"`)) {
+			t.Fatalf("lease tool projection advertises a computer: %s, %v", view.Descriptor.InputSchema, err)
+		}
+	})
+
+	// Safety Invariants 11 and 13. Lease tools and calls denied at the source never cross the bridge.
+	t.Run(
+		"Should refuse nonforwardable and locally denied calls before resolving a destination [UT-107]",
+		func(t *testing.T) {
+			t.Parallel()
+			scope := Scope{ProfileID: "profile-a", SessionID: "source-session"}
+			input := json.RawMessage(`{"computer":"devbox"}`)
+			forwarder := WithComputerForwarder(recordingComputerForwarder{
+				resolve: func(CallRequest) (remoteproto.ComputerID, error) {
+					t.Fatal("denied call resolved a remote computer")
+					return "", nil
+				},
+			})
+			assertDenial := func(registry *RuntimeRegistry, id ToolID, code ErrorCode) {
+				t.Helper()
+				_, err := registry.Call(t.Context(), scope, CallRequest{ToolID: id, Input: input})
+				failure, ok := errors.AsType[*ToolError](err)
+				if !ok || failure.Code != code {
+					t.Fatalf("Call(%s) = %v, want %s", id, err, code)
+				}
+			}
+			assertDenial(newRegistry(t, complete, forwarder), ToolIDTaskRunComplete, "tool_not_forwardable")
+			create := cloneDescriptor(list)
+			create.ID, create.Backend.NativeName = ToolIDSessionCreate, "session_create"
+			denied, err := ParseToolPattern(create.ID.String())
+			if err != nil {
+				t.Fatal(err)
+			}
+			policy := DefaultPolicyInputs()
+			policy.DenyTools = []ToolPattern{denied}
+			assertDenial(newRegistry(t, create, forwarder, WithPolicyInputs(policy, ToolsetCatalog{})),
+				ToolIDSessionCreate, ErrorCodeDenied)
+		},
+	)
 }
 
 func TestPolicyDenyAll(t *testing.T) {

@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useQuery } from "@tanstack/react-query";
 
 import type { SessionCommandPayload } from "../types";
@@ -141,7 +142,7 @@ export function useSessionCommands(
   options: { enabled?: boolean } = {}
 ) {
   const query = useQuery({
-    ...sessionCommandsOptions(workspaceId, sessionId, options.enabled),
+    ...sessionCommandsOptions(workspaceId, sessionId, options.enabled, useCurrentComputerId()),
     select: response => sessionCommandMenuCatalog(response.commands),
   });
   return {

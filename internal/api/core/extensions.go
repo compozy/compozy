@@ -423,7 +423,6 @@ func normalizeInstallExtensionRequest(req *contract.InstallExtensionRequest) {
 	req.Ref = strings.TrimSpace(req.Ref)
 	req.Version = strings.TrimSpace(req.Version)
 	req.Asset = strings.TrimSpace(req.Asset)
-	req.ConfirmGatewayDigest = strings.TrimSpace(req.ConfirmGatewayDigest)
 }
 
 func validateInstallExtensionRequest(req contract.InstallExtensionRequest) error {

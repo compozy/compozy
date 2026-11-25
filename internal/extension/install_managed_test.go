@@ -188,10 +188,6 @@ func (s managedInstallRegistryStub) Disable(string) error { return nil }
 
 func (s managedInstallRegistryStub) Uninstall(string) error { return nil }
 
-func (s managedInstallRegistryStub) RestoreGatewayConfirmation(InstanceKey, GatewayConfirmation) error {
-	return nil
-}
-
 func (s managedInstallRegistryStub) Install(
 	manifest *Manifest,
 	path string,
@@ -1665,10 +1661,6 @@ func (r *replaceManagedInstallRegistry) Disable(string) error { return nil }
 
 func (r *replaceManagedInstallRegistry) Uninstall(string) error { return nil }
 
-func (r *replaceManagedInstallRegistry) RestoreGatewayConfirmation(InstanceKey, GatewayConfirmation) error {
-	return nil
-}
-
 func (r *replaceManagedInstallRegistry) Install(
 	manifest *Manifest,
 	path string,
@@ -1807,10 +1799,6 @@ func (*recordingManagedInstallRegistry) List() ([]ExtensionInfo, error) { return
 func (*recordingManagedInstallRegistry) Disable(string) error { return nil }
 
 func (*recordingManagedInstallRegistry) Uninstall(string) error { return nil }
-
-func (*recordingManagedInstallRegistry) RestoreGatewayConfirmation(InstanceKey, GatewayConfirmation) error {
-	return nil
-}
 
 func (r *recordingManagedInstallRegistry) Install(
 	_ *Manifest,

@@ -29,14 +29,9 @@ const (
 
 var errExtensionDependenciesDeclined = errors.New("cli: dependency install declined; nothing was installed")
 
-// extensionDependencyFlags carries the experimental dependency consent of one install (D8). Gateway
-// confirmations come from the repeatable --confirm-gateway-requirement flag: a bare digest confirms the
-// requested extension, the last one winning as before the flag was repeatable, and <name>=<digest> confirms one
-// dependency.
 type extensionDependencyFlags struct {
 	withDependencies bool
 	allowUnverified  []string
-	confirmGateway   []string
 }
 
 func (f *extensionDependencyFlags) register(cmd *cobra.Command) {
@@ -45,29 +40,10 @@ func (f *extensionDependencyFlags) register(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVar(&f.allowUnverified, extensionAllowUnverifiedDepFlagName, nil,
 		"Experimental. Allow one unverified dependency by name (repeatable); --allow-unverified covers only "+
 			"the requested extension")
-	cmd.Flags().StringArrayVar(&f.confirmGateway, extensionConfirmGatewayFlagName, nil,
-		"Confirm the candidate gateway requirement digest; use <name>=<digest> for a dependency (experimental, "+
-			"repeatable)")
 }
 
-// apply sets the root gateway digest and per-dependency consent on every attempt of the plan.
 func (f *extensionDependencyFlags) apply(plan extensionInstallPlan) error {
-	root := ""
 	consent := make(map[string]contract.ExtensionDependencyConsent)
-	for _, raw := range f.confirmGateway {
-		name, digest, scoped := strings.Cut(strings.TrimSpace(raw), "=")
-		if !scoped {
-			root = name
-			continue
-		}
-		name = strings.TrimSpace(name)
-		if name == "" || strings.TrimSpace(digest) == "" {
-			return fmt.Errorf("cli: --%s dependency form is <name>=<digest>", extensionConfirmGatewayFlagName)
-		}
-		item := consent[name]
-		item.ConfirmGatewayDigest = strings.TrimSpace(digest)
-		consent[name] = item
-	}
 	for _, raw := range f.allowUnverified {
 		name := strings.TrimSpace(raw)
 		if name == "" {
@@ -78,7 +54,6 @@ func (f *extensionDependencyFlags) apply(plan extensionInstallPlan) error {
 		consent[name] = item
 	}
 	for index := range plan.Attempts {
-		plan.Attempts[index].ConfirmGatewayDigest = root
 		plan.Attempts[index].WithDependencies = f.withDependencies
 		if len(consent) > 0 {
 			plan.Attempts[index].Dependencies = maps.Clone(consent)
@@ -186,7 +161,7 @@ func promptExtensionInstallDependencies(
 	return retry, true, nil
 }
 
-// dependencyGates runs one dependency artifact's own trust gates: unverified consent, then gateway digest.
+// dependencyGates pins the reviewed artifact and prompts for its unverified checksum when required.
 func (p *extensionInputPrompter) dependencyGates(
 	ctx context.Context, dependency contract.ExtensionDependencyPayload, item contract.ExtensionDependencyConsent,
 ) (contract.ExtensionDependencyConsent, error) {
@@ -197,12 +172,6 @@ func (p *extensionInputPrompter) dependencyGates(
 			return item, err
 		}
 		item.AllowUnverified = true
-	}
-	if digest := dependency.GatewayRequirementDigest; digest != "" && item.ConfirmGatewayDigest == "" {
-		if err := p.confirm(ctx, "Confirm "+name+" gateway requirement "+digest); err != nil {
-			return item, err
-		}
-		item.ConfirmGatewayDigest = digest
 	}
 	return item, nil
 }
@@ -229,9 +198,6 @@ func writeExtensionDependencyPreview(cmd *cobra.Command, dependencies []contract
 		version := cmp.Or(dependency.Version, dependency.InstalledVersion, "?")
 		fmt.Fprintf(&output, "  • %s %s from %s %s — %s, %s", safeLoopPromptText(dependency.Name),
 			safeLoopPromptText(version), dependency.Source, safeLoopPromptText(dependency.Ref), dependency.State, trust)
-		if dependency.GatewayRequirementDigest != "" {
-			fmt.Fprintf(&output, ", gateway %s", dependency.GatewayRequirementDigest)
-		}
 		fmt.Fprintf(&output, ", required by %s\n", safeLoopPromptText(strings.Join(dependency.RequiredBy, ", ")))
 	}
 	if _, err := fmt.Fprint(cmd.ErrOrStderr(), output.String()); err != nil {
@@ -331,11 +297,8 @@ func extensionDependencyBlocked(dependency contract.ExtensionDependencyPayload) 
 }
 
 func extensionDependencyGateHint(payload contract.ExtensionOperationErrorPayload) string {
-	switch payload.Code {
-	case diagnosticcontract.CodeExtensionChecksumUnverified:
+	if payload.Code == diagnosticcontract.CodeExtensionChecksumUnverified {
 		return "; pass --" + extensionAllowUnverifiedDepFlagName + " " + payload.Dependency
-	case diagnosticcontract.CodeExtensionGatewayConfirmRequired:
-		return "; pass --" + extensionConfirmGatewayFlagName + " " + payload.Dependency + "=" + payload.CurrentDigest
 	}
 	return ""
 }

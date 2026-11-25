@@ -17,7 +17,6 @@ compozy extension install <source> [flags]
       --allow-unverified                          Allow install when the extension checksum is not registry-verified
       --allow-unverified-dependency stringArray   Experimental. Allow one unverified dependency by name (repeatable); --allow-unverified covers only the requested extension
       --asset string                              Select a specific registry asset when multiple archives exist
-      --confirm-gateway-requirement stringArray   Confirm the candidate gateway requirement digest; use <name>=<digest> for a dependency (experimental, repeatable)
       --enable                                    Enable after install; activation failures retain the package
       --expected-digest string                    Pin the SHA-256 digest of the reviewed extension
   -h, --help                                      help for install
@@ -34,9 +33,10 @@ compozy extension install <source> [flags]
 ### Options inherited from parent commands
 
 ```
-      --json             Emit JSON output
-  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
-      --profile string   Act as a profile for this command
+      --computer string   Target a computer by name or ID
+      --json              Emit JSON output
+  -o, --output string     Output format: human, json, jsonl, or toon (default "human")
+      --profile string    Act as a profile for this command
 ```
 
 ## Output Formats

@@ -41,13 +41,8 @@ func (s *daemonExtensionService) installDependencies(
 	if err := graph.gate(req.WithDependencies); err != nil {
 		return nil, err
 	}
-	// Root trust and digest consent were checked at acquisition; settle its gateway consent and every
-	// dependency's own consent too, so a missing consent installs nothing. The commits re-check them.
-	if err := s.precheckGatewayConfirmation(prepared, req.ConfirmGatewayDigest, actor); err != nil {
-		return nil, err
-	}
 	for _, node := range graph.order {
-		err := s.precheckDependencyConsent(node, req.Dependencies[node.payload.Name], prepared.target, actor)
+		err := precheckDependencyConsent(node, req.Dependencies[node.payload.Name])
 		if err != nil {
 			return nil, &extensionpkg.DependencyGateError{Dependency: node.payload.Name, Err: err}
 		}
@@ -60,7 +55,7 @@ func (s *daemonExtensionService) installDependencies(
 		case dependencyStateMissing:
 			committed, err = s.installDependencyNode(ctx, node, consent, actor)
 		case dependencyStateDisabled:
-			err = s.enableDependency(ctx, name, consent, prepared.target, actor)
+			err = s.enableDependency(ctx, name, prepared.target, actor)
 			committed = err == nil
 		default:
 			continue
@@ -82,54 +77,18 @@ func (s *daemonExtensionService) installDependencies(
 	return installed, nil
 }
 
-// precheckDependencyConsent mirrors one node's own consent gates without side effects (rule 13): a missing node's
-// unverified and digest consent and its install gateway gate, or a disabled node's enable gateway gate, which only
-// the default profile's enable path applies.
-func (s *daemonExtensionService) precheckDependencyConsent(
-	node *dependencyNode, consent contract.ExtensionDependencyConsent, target extensionMutationTarget,
-	actor taskpkg.ActorContext,
-) error {
-	switch node.payload.State {
-	case dependencyStateMissing:
-		if node.payload.ConsentRequired && !consent.AllowUnverified {
-			return node.unverifiedErr
-		}
-		if err := checkDependencyDigestConsent(node.payload, consent); err != nil {
-			return err
-		}
-		if node.candidate == nil {
-			return fmt.Errorf("daemon: dependency %q has no acquired package", node.payload.Name)
-		}
-		return s.precheckGatewayConfirmation(*node.candidate, consent.ConfirmGatewayDigest, actor)
-	case dependencyStateDisabled:
-		digest := node.payload.GatewayRequirementDigest
-		if target.profile.ID == extensionDefaultProfileLens().ID && digest != "" &&
-			strings.TrimSpace(consent.ConfirmGatewayDigest) != digest {
-			return &extensionpkg.GatewayConfirmationRequiredError{CurrentDigest: digest}
-		}
+// Settle every missing dependency's trust and digest consent before the first mutation.
+func precheckDependencyConsent(node *dependencyNode, consent contract.ExtensionDependencyConsent) error {
+	if node.payload.State != dependencyStateMissing {
+		return nil
 	}
-	return nil
-}
-
-// precheckGatewayConfirmation mirrors the install commit's gateway gate without side effects: a new package
-// needs the confirmed digest, and a reinstall needs it only when the installed confirmation does not cover it.
-func (s *daemonExtensionService) precheckGatewayConfirmation(
-	prepared preparedDaemonExtensionInstall, confirmDigest string, actor taskpkg.ActorContext,
-) error {
-	confirmed := strings.TrimSpace(confirmDigest)
-	installed, err := s.registry.Get(prepared.name)
-	if prepared.published == nil || errors.Is(err, extensionpkg.ErrExtensionNotFound) {
-		_, err = s.prepareInstallGatewayConfirmation(prepared.manifest, confirmed, actor)
-		return err
+	if node.payload.ConsentRequired && !consent.AllowUnverified {
+		return node.unverifiedErr
 	}
-	if err != nil {
-		return err
+	if node.candidate == nil {
+		return fmt.Errorf("daemon: dependency %q has no acquired package", node.payload.Name)
 	}
-	digest, required, err := candidateGatewayConfirmationRequirement(installed, prepared.manifest)
-	if err != nil || !required || confirmed == digest {
-		return err
-	}
-	return &extensionpkg.GatewayConfirmationRequiredError{CurrentDigest: digest}
+	return checkDependencyDigestConsent(node.payload, consent)
 }
 
 // installDependencyNode commits the acquired candidate with its own per-dependency consent, which
@@ -149,7 +108,6 @@ func (s *daemonExtensionService) installDependencyNode(
 	req := contract.InstallExtensionRequest{
 		Enable: true, Source: contract.InstallExtensionSource(node.payload.Source), Ref: node.payload.Ref,
 		ExpectedDigest: consent.ExpectedDigest, AllowUnverified: consent.AllowUnverified,
-		ConfirmGatewayDigest: consent.ConfirmGatewayDigest,
 	}
 	item, err := s.installPrepared(ctx, prepared, req, actor, extensionpkg.LifecycleEvent{
 		Type: eventspkg.ExtensionInstallFailed, ExtensionName: prepared.name, SourceKind: node.payload.Source,
@@ -248,14 +206,12 @@ func dependencyReplacementRefused(
 
 // enableDependency enables a disabled dependency for the dependent's profile through the enable paths.
 func (s *daemonExtensionService) enableDependency(
-	ctx context.Context, name string, consent contract.ExtensionDependencyConsent, target extensionMutationTarget,
+	ctx context.Context, name string, target extensionMutationTarget,
 	actor taskpkg.ActorContext,
 ) error {
 	err := s.lifecycle.withName(ctx, name, func() error {
 		if target.profile.ID == extensionDefaultProfileLens().ID {
-			_, err := s.enableTargetUnlocked(ctx, name, contract.EnableExtensionRequest{
-				ConfirmGatewayDigest: consent.ConfirmGatewayDigest,
-			}, actor, target)
+			_, err := s.enableTargetUnlocked(ctx, name, actor, target)
 			return err
 		}
 		return s.applyProfileEnablement(ctx, name, target.profile.ID, target.profile.Name, true, actor)

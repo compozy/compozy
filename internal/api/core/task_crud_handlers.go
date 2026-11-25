@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
@@ -183,6 +184,10 @@ func (h *BaseHandlers) BlockTask(c *gin.Context) {
 		return
 	}
 
+	if _, remote := remotehost.PrincipalFromContext(c.Request.Context()); remote && strings.TrimSpace(req.RunID) != "" {
+		RespondRemoteError(c, remotehost.ErrRouteNotRemote)
+		return
+	}
 	actor, err := h.taskActorContext(c, taskActionBlock)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)

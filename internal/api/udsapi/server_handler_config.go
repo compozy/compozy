@@ -1,7 +1,16 @@
 package udsapi
 
 func (s *Server) handlerConfig() *handlerConfig {
-	return s.withChangesConfig(&handlerConfig{
+	config := s.handlerDependencies()
+	config.sessionChanges = s.sessionChanges
+	config.telemetryStatus = s.telemetryStatus
+	config.ingress = s.ingress
+	config.migrationNotices = s.migrationNotices
+	return config
+}
+
+func (s *Server) handlerDependencies() *handlerConfig {
+	return &handlerConfig{
 		sessions:              s.sessions,
 		drainController:       s.drainController,
 		subagents:             s.subagents,
@@ -44,6 +53,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		agentSync:             s.agentSync,
 		contextWindowResolver: s.contextWindowResolver,
 		modelCatalog:          s.modelCatalog,
+		account:               s.account, remote: s.remote, computers: s.computers,
 		providerUsage:         s.providerUsage,
 		marketplaceCatalog:    s.marketplaceCatalog,
 		agentContext:          s.agentContext,
@@ -67,7 +77,6 @@ func (s *Server) handlerConfig() *handlerConfig {
 		deadEntities:          s.deadEntities,
 		appTokens:             s.appTokens,
 		openAPI:               s.openAPI,
-		gateway:               s.gateway,
 		homePaths:             s.homePaths,
 		config:                s.config,
 		logger:                s.logger,
@@ -80,11 +89,5 @@ func (s *Server) handlerConfig() *handlerConfig {
 		mcpHostAPI:            s.mcpHostAPI,
 		onProviderAuthSuccess: s.onProviderAuthSuccess,
 		providerAuthVerdicts:  s.providerAuthVerdicts,
-	})
-}
-
-func (s *Server) withChangesConfig(cfg *handlerConfig) *handlerConfig {
-	cfg.sessionChanges = s.sessionChanges
-	cfg.telemetryStatus = s.telemetryStatus
-	return cfg
+	}
 }

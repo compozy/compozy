@@ -2,7 +2,6 @@ package core
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -37,19 +36,8 @@ func extensionOperationErrorPayload(
 		extensionErrorDependencyGraphInvalid,
 		extensionErrorDependencyInUse:
 		payload, _ = ExtensionAcquisitionErrorPayload(err)
-	case extensionErrorGatewayConfirmationRequired:
-		confirmationErr, ok := errors.AsType[*extensionpkg.GatewayConfirmationRequiredError](err)
-		if ok && confirmationErr != nil {
-			payload.CurrentDigest = strings.TrimSpace(confirmationErr.CurrentDigest)
-		}
-		payload.Code = diagnosticcontract.CodeExtensionGatewayConfirmRequired
-		payload.Diagnostic = extensionOperationDiagnostic(
-			"extension.gateway_confirmation_required",
-			payload.Code,
-			"Gateway confirmation is required",
-			message,
-			extensionGatewayRetryCommand(name, payload.CurrentDigest),
-		)
+	case extensionErrorKindRemoved:
+		payload.Code = diagnosticcontract.CodeExtensionKindRemoved
 	case extensionErrorAgentConflict:
 		if conflictErr, ok := errors.AsType[*extensionpkg.AgentConflictError](err); ok && conflictErr != nil {
 			payload.Agents = slices.Clone(conflictErr.Agents)
@@ -233,15 +221,6 @@ func extensionRestoreCommandFor(name string) string {
 	return "compozy extension restore " + name
 }
 
-func extensionGatewayRetryCommand(name, digest string) string {
-	name = strings.TrimSpace(name)
-	digest = strings.TrimSpace(digest)
-	if name == "" || digest == "" {
-		return ""
-	}
-	return fmt.Sprintf("compozy extension enable %s --confirm-gateway-requirement %s", name, digest)
-}
-
 func extensionEnvBindingErrorCode(kind extensionErrorKind) string {
 	switch kind {
 	case extensionErrorEnvBindingUndeclared:
@@ -288,7 +267,7 @@ func dependencyErrorFields(err error) (dependency string, installed []string) {
 	return dependency, installed
 }
 
-// extensionDependencyGatePayload maps the trust, gateway and package conflicts a dependency artifact can fail.
+// extensionDependencyGatePayload maps trust refusals and package conflicts to API errors.
 func extensionDependencyGatePayload(err error) contract.ExtensionOperationErrorPayload {
 	payload := contract.ExtensionOperationErrorPayload{Error: err.Error()}
 	switch {
@@ -298,11 +277,6 @@ func extensionDependencyGatePayload(err error) contract.ExtensionOperationErrorP
 		payload.Code = diagnosticcontract.CodeExtensionAgentConflict
 		if conflict, ok := errors.AsType[*extensionpkg.AgentConflictError](err); ok && conflict != nil {
 			payload.Agents = slices.Sorted(slices.Values(conflict.Agents))
-		}
-	case errors.Is(err, extensionpkg.ErrExtensionGatewayConfirmationRequired):
-		payload.Code = diagnosticcontract.CodeExtensionGatewayConfirmRequired
-		if confirmation, ok := errors.AsType[*extensionpkg.GatewayConfirmationRequiredError](err); ok {
-			payload.CurrentDigest = strings.TrimSpace(confirmation.CurrentDigest)
 		}
 	case errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked):
 		payload.Code = diagnosticcontract.CodeExtensionUnverifiedPolicyBlocked

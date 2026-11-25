@@ -16,12 +16,11 @@ const (
 
 // DevelopmentGeneration is the verified, mutation-free identity of one dev artifact.
 type DevelopmentGeneration struct {
-	Name                     string
-	OriginPath               string
-	GenerationHash           string
-	GatewayRequirementDigest string
-	Format                   ExtensionFormat
-	IngestDiagnostics        []diagnosticcontract.DiagnosticItem
+	Name              string
+	OriginPath        string
+	GenerationHash    string
+	Format            ExtensionFormat
+	IngestDiagnostics []diagnosticcontract.DiagnosticItem
 }
 
 // InspectDevelopmentGeneration verifies a dev artifact without linking or starting it.
@@ -56,12 +55,11 @@ func (m *Manager) InspectDevelopmentGeneration(
 		return DevelopmentGeneration{}, err
 	}
 	return DevelopmentGeneration{
-		Name:                     strings.TrimSpace(verified.Manifest.Name),
-		OriginPath:               verified.OriginPath,
-		GenerationHash:           verified.GenerationHash,
-		GatewayRequirementDigest: verified.GatewayRequirementDigest,
-		Format:                   verified.Manifest.Format,
-		IngestDiagnostics:        cloneDiagnosticItems(verified.Manifest.IngestDiagnostics),
+		Name:              strings.TrimSpace(verified.Manifest.Name),
+		OriginPath:        verified.OriginPath,
+		GenerationHash:    verified.GenerationHash,
+		Format:            verified.Manifest.Format,
+		IngestDiagnostics: cloneDiagnosticItems(verified.Manifest.IngestDiagnostics),
 	}, nil
 }
 
@@ -117,10 +115,6 @@ func (m *Manager) LinkDevelopment(
 	if err != nil {
 		return nil, err
 	}
-	if developmentLinkRequiresConfirmation(link, verified.GatewayRequirementDigest) {
-		confirmationErr := &GatewayConfirmationRequiredError{CurrentDigest: verified.GatewayRequirementDigest}
-		return nil, errors.Join(confirmationErr, m.restoreDevelopmentLinkSnapshot(key, previous))
-	}
 	extension, err := m.activateDevelopmentLinkLocked(ctx, key, link, verified)
 	if err != nil {
 		restoreErr := m.restoreDevelopmentLinkSnapshot(key, previous)
@@ -161,9 +155,6 @@ func (m *Manager) ReloadExtension(
 	if err != nil {
 		return nil, err
 	}
-	if developmentLinkRequiresConfirmation(link, verified.GatewayRequirementDigest) {
-		return nil, &GatewayConfirmationRequiredError{CurrentDigest: verified.GatewayRequirementDigest}
-	}
 	candidate, activationErr := m.startVerifiedDevCandidate(ctx, key, verified)
 	if activationErr != nil {
 		if operationErr := operation.ensureActive(); operationErr != nil {
@@ -176,13 +167,12 @@ func (m *Manager) ReloadExtension(
 		return nil, err
 	}
 	updatedLink, err := m.registry.LinkDev(DevLinkRequest{
-		Name:                     key.Name,
-		WorkspaceID:              key.WorkspaceID,
-		OriginPath:               verified.OriginPath,
-		GenerationHash:           verified.GenerationHash,
-		GatewayRequirementDigest: verified.GatewayRequirementDigest,
-		Format:                   verified.Manifest.Format,
-		IngestDiagnostics:        cloneDiagnosticItems(verified.Manifest.IngestDiagnostics),
+		Name:              key.Name,
+		WorkspaceID:       key.WorkspaceID,
+		OriginPath:        verified.OriginPath,
+		GenerationHash:    verified.GenerationHash,
+		Format:            verified.Manifest.Format,
+		IngestDiagnostics: cloneDiagnosticItems(verified.Manifest.IngestDiagnostics),
 	})
 	if err != nil {
 		m.discardDevCandidate(ctx, candidate)
@@ -351,13 +341,12 @@ func (m *Manager) restoreDevLink(key InstanceKey, prior *DevLink) error {
 		return nil
 	}
 	if _, err := m.registry.LinkDev(DevLinkRequest{
-		Name:                     prior.ExtensionName,
-		WorkspaceID:              prior.WorkspaceID,
-		OriginPath:               prior.OriginPath,
-		GenerationHash:           prior.BundleGeneration,
-		GatewayRequirementDigest: prior.GatewayRequirementDigest,
-		Format:                   prior.Format,
-		IngestDiagnostics:        prior.IngestDiagnostics,
+		Name:              prior.ExtensionName,
+		WorkspaceID:       prior.WorkspaceID,
+		OriginPath:        prior.OriginPath,
+		GenerationHash:    prior.BundleGeneration,
+		Format:            prior.Format,
+		IngestDiagnostics: prior.IngestDiagnostics,
 	}); err != nil {
 		return fmt.Errorf("extension: restore development link %q: %w", key.runtimeID(), err)
 	}

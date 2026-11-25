@@ -7,64 +7,6 @@ import (
 	"time"
 )
 
-type DescribeGatewayRequirement struct {
-	Permissions []string `json:"permissions"`
-}
-
-type DescribeHookEvent struct {
-	Event   HookEvent `json:"event"`
-	Profile string    `json:"profile,omitempty"`
-}
-
-type DescribeInput struct {
-	ID       string               `json:"id"`
-	Prompt   string               `json:"prompt"`
-	Type     string               `json:"type"`
-	Required bool                 `json:"required"`
-	Binding  DescribeInputBinding `json:"binding"`
-	Default  json.RawMessage      `json:"default,omitempty"`
-}
-
-type DescribeInputBinding struct {
-	Type string `json:"type"`
-	Name string `json:"name"`
-}
-
-type DescribePayload struct {
-	Name                 string                           `json:"name"`
-	Version              string                           `json:"version"`
-	Description          string                           `json:"description,omitempty"`
-	Provides             []string                         `json:"provides"`
-	Permissions          []string                         `json:"permissions"`
-	RequiresEnv          []string                         `json:"requires_env,omitempty"`
-	Inputs               []DescribeInput                  `json:"inputs,omitempty"`
-	Profiles             []DescribeProfile                `json:"profiles,omitempty"`
-	Resources            DescribeResources                `json:"resources"`
-	Subprocess           DescribeSubprocess               `json:"subprocess"`
-	Gateway              *DescribeGatewayRequirement      `json:"gateway,omitempty"`
-	Tools                []ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
-	HookEvents           []DescribeHookEvent              `json:"hook_events,omitempty"`
-	HeartbeatSourceKinds []HeartbeatSourceKind            `json:"heartbeat_source_kinds,omitempty"`
-	WatchSourceKinds     []string                         `json:"watch_source_kinds,omitempty"`
-	CmdPaletteViews      []string                         `json:"cmd_palette_views,omitempty"`
-	CommandGroups        []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
-	SDK                  DescribeSDKInfo                  `json:"sdk"`
-}
-
-type DescribeProfile struct {
-	Name        string                      `json:"name"`
-	Color       string                      `json:"color,omitempty"`
-	Icon        string                      `json:"icon,omitempty"`
-	Emoji       string                      `json:"emoji,omitempty"`
-	Defaults    DescribeProfileDefaults     `json:"defaults,omitzero"`
-	Credentials []DescribeProfileCredential `json:"credentials,omitempty"`
-}
-
-type DescribeProfileCredential struct {
-	Provider string `json:"provider"`
-	Slot     string `json:"slot"`
-}
-
 type DescribeProfileDefaults struct {
 	Agent    string `json:"agent,omitempty"`
 	Provider string `json:"provider,omitempty"`
@@ -184,4 +126,84 @@ type EventPostRecordPayload struct {
 
 type EventPreRecordPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type EventPreRecordPayload struct {
+	Event           HookEvent       `json:"event"`
+	Timestamp       time.Time       `json:"timestamp"`
+	LineageKind     string          `json:"lineage_kind,omitempty"`
+	ParentSessionID string          `json:"parent_session_id,omitempty"`
+	ProfileID       string          `json:"profile_id,omitempty"`
+	SessionID       string          `json:"session_id,omitempty"`
+	SessionName     string          `json:"session_name,omitempty"`
+	SessionType     string          `json:"session_type,omitempty"`
+	AgentName       string          `json:"agent_name,omitempty"`
+	WorkspaceID     string          `json:"workspace_id,omitempty"`
+	Workspace       string          `json:"workspace,omitempty"`
+	WorktreeID      string          `json:"worktree_id,omitempty"`
+	ACPSessionID    string          `json:"acp_session_id,omitempty"`
+	State           string          `json:"state,omitempty"`
+	SoulSnapshotID  string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest      string          `json:"soul_digest,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	TurnID          string          `json:"turn_id,omitempty"`
+	RecordType      string          `json:"record_type,omitempty"`
+	Sequence        int64           `json:"sequence,omitempty"`
+	Content         json.RawMessage `json:"content,omitempty"`
+}
+
+type EventRecordPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type EventRecordPayload struct {
+	Event           HookEvent       `json:"event"`
+	Timestamp       time.Time       `json:"timestamp"`
+	LineageKind     string          `json:"lineage_kind,omitempty"`
+	ParentSessionID string          `json:"parent_session_id,omitempty"`
+	ProfileID       string          `json:"profile_id,omitempty"`
+	SessionID       string          `json:"session_id,omitempty"`
+	SessionName     string          `json:"session_name,omitempty"`
+	SessionType     string          `json:"session_type,omitempty"`
+	AgentName       string          `json:"agent_name,omitempty"`
+	WorkspaceID     string          `json:"workspace_id,omitempty"`
+	Workspace       string          `json:"workspace,omitempty"`
+	WorktreeID      string          `json:"worktree_id,omitempty"`
+	ACPSessionID    string          `json:"acp_session_id,omitempty"`
+	State           string          `json:"state,omitempty"`
+	SoulSnapshotID  string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest      string          `json:"soul_digest,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	TurnID          string          `json:"turn_id,omitempty"`
+	RecordType      string          `json:"record_type,omitempty"`
+	Sequence        int64           `json:"sequence,omitempty"`
+	Content         json.RawMessage `json:"content,omitempty"`
+}
+
+type ExtensionCommandGroupSpec struct {
+	Path    string `json:"path"`
+	Summary string `json:"summary"`
+	Profile string `json:"profile,omitempty"`
+}
+
+type ExtensionCommandSpec struct {
+	Verb    string            `json:"verb"`
+	Summary string            `json:"summary"`
+	Example string            `json:"example,omitempty"`
+	Flags   map[string]string `json:"flags,omitempty"`
+}
+
+type ExtensionManifestSummary struct {
+	Name              string   `json:"name"`
+	Version           string   `json:"version"`
+	Description       string   `json:"description,omitempty"`
+	MinCompozyVersion string   `json:"min_compozy_version"`
+	Provides          []string `json:"provides"`
+	Permissions       []string `json:"permissions"`
+}
+
+type ExtensionProvideToolsResponse struct {
+	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
 }

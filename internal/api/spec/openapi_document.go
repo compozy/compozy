@@ -18,12 +18,12 @@ func openAPIDocumentOperation() OperationSpec {
 		Parameters: []ParameterSpec{
 			{
 				Name:        "If-None-Match",
-				In:          "header",
+				In:          specParameterInHeader,
 				Kind:        specStringKey,
 				Description: "Previously returned document ETag",
 			},
 			{
-				Name: "Accept-Encoding", In: "header", Kind: specStringKey,
+				Name: "Accept-Encoding", In: specParameterInHeader, Kind: specStringKey,
 				Description: "Use gzip to request compressed document bytes",
 			},
 		},

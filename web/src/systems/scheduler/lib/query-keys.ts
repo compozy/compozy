@@ -1,3 +1,5 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+
 import type { SchedulerBacklogQuery } from "../types";
 
 function normalizeText(value?: string | null): string {
@@ -13,7 +15,7 @@ function normalizeFlag(value?: boolean): string {
 }
 
 export const schedulerKeys = {
-  all: ["scheduler"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "scheduler"),
   status: () => [...schedulerKeys.all, "status"] as const,
   backlog: (query: SchedulerBacklogQuery = {}) =>
     [

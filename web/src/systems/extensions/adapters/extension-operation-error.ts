@@ -6,7 +6,6 @@ import type { ExtensionEntry, ExtensionInstallPreview } from "../types";
 export interface ExtensionOperationErrorMetadata {
   readonly installedOrigin?: NonNullable<ExtensionEntry["origin"]>;
   readonly code?: string;
-  readonly currentDigest?: string;
   readonly listedDigest?: string;
   readonly fetchedDigest?: string;
   readonly inputId?: string;
@@ -35,7 +34,6 @@ export function extensionOperationErrorMetadata(error: unknown): ExtensionOperat
     dependenciesInstalled: errorStrings(error, "dependencies_installed"),
     inputDefinitions: inputDefinitions(error),
     installedOrigin: installedOrigin(error),
-    currentDigest: errorString(error, "current_digest"),
     listedDigest: errorString(error, "listed_digest"),
     fetchedDigest: errorString(error, "fetched_digest"),
     inputId: errorString(error, "input_id"),

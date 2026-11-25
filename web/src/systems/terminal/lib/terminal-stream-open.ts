@@ -6,6 +6,8 @@
  * what to *do* about a connection rather than how to obtain one.
  */
 
+import type { ComputerId } from "@/lib/computer-scope";
+
 import { mintTerminalAttachTicket, terminalStreamPath } from "../adapters/terminal-api";
 import { createTerminalSocket, type TerminalSocketFactory } from "../adapters/terminal-socket";
 import type { TerminalSocket } from "../adapters/terminal-socket";
@@ -18,6 +20,7 @@ import type {
 export interface OpenTerminalStreamOptions {
   workspaceId: string;
   terminalId: string;
+  computerId?: ComputerId;
   scope: TerminalProfileScopeParams;
   mode: TerminalAttachMode;
   viewer?: TerminalViewerIdentity | null;
@@ -46,16 +49,22 @@ export async function openTerminalStream(
     options.mode,
     options.scope,
     options.viewer,
-    options.signal
+    options.signal,
+    options.computerId
   );
-  const path = terminalStreamPath(options.workspaceId, options.terminalId, {
-    ticket: minted.ticket,
-    mode: options.mode,
-    flow: options.flow,
-    afterSeq: options.afterSeq,
-    cols: options.proposed?.cols,
-    rows: options.proposed?.rows,
-  });
+  const path = terminalStreamPath(
+    options.workspaceId,
+    options.terminalId,
+    {
+      ticket: minted.ticket,
+      mode: options.mode,
+      flow: options.flow,
+      afterSeq: options.afterSeq,
+      cols: options.proposed?.cols,
+      rows: options.proposed?.rows,
+    },
+    options.computerId
+  );
   return (options.socketFactory ?? createTerminalSocket)(path);
 }
 

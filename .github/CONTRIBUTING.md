@@ -17,6 +17,22 @@ make test       # Go unit tests (race detector on)
 make web-dev    # run the web UI locally
 ```
 
+### Building from source
+
+To compile a local `compozy` binary directly from a checkout:
+
+```bash
+git clone https://github.com/compozy/compozy
+cd compozy
+go build -o ./bin/compozy .
+export PATH="$PWD/bin:$PATH"
+```
+
+Source builds are **development builds**: they run without the mandatory sign-in gate and without
+Compozy Cloud features (`version.SignInRequired` is stamped only on official release builds). Official
+end-user install methods (desktop app, verified installer, Homebrew, npm, and Linux packages) are
+documented at [compozy.com/download](https://compozy.com/download).
+
 ## Quality gates
 
 - `make gate` — runs the checks affected by your diff. Run it before every push.
@@ -43,6 +59,24 @@ passing a later run does not automatically close that investigation.
 The 500 ms restore assertion and functional assertions still apply to every sample.
 It also stays outside Release publishing dependencies. Run its focused local equivalent
 with `COMPOZY_E2E_PERF=1 make test-e2e-web` when local E2E execution is authorized.
+
+### Remote Computers browser scenarios
+
+`make test-e2e-web` builds the `remotetest` harness in `magefiles/e2e.go`.
+Each Remote Computers Playwright test selects a scenario by name. The fixture starts
+the binary, reads its JSON manifest, uses the controller's web URL as Playwright's
+base URL, and sends SIGTERM after the test. CI provides Postgres and uses the Ubuntu
+runner's Docker and OpenSSH for the systemd container shared with the Go SSH suite.
+For a local run, set `COMPOZY_CLOUD_TEST_POSTGRES` to a disposable Postgres URL whose
+user can create schemas. The SSH scenario requires Linux with a Docker bridge.
+
+To add a scenario, extend `prepareScenario` in
+`internal/testutil/remotetest/cmd/remotetest/scenarios.go`. Use the shared cloud,
+identity provider, and daemon startup, and arrange the prerequisite state through
+the CLI or HTTP/UDS APIs. Publish the controller, computer and device references
+the scenario needs in the manifest. Add the scenario name to the Playwright fixture
+and select it with `test.use({ scenario: "…" })`. Interact with the public UI or CLI
+in the test. The harness owns the isolated homes, sockets, schema and containers.
 
 ### Merge latency and revisit policy
 
@@ -156,3 +190,7 @@ Use the bug report form. `compozy version` prints the version line, and `compozy
 ## Security
 
 Report vulnerabilities privately — see [SECURITY.md](../SECURITY.md).
+
+## Cloud source license
+
+`cmd/compozy-cloud/`, `internal/cloud/` and `infra/cloud-edge/` use FSL-1.1-MIT. Add its SPDX identifier to new source files in those directories. Keep released migrations byte-for-byte intact. SQLC stamps the generated Postgres Go code during `make codegen`. The daemon, app, shared protocol and integration harness use MIT. Cloud runtime imports stay within the cloud binary and its integration harness. [Repository license](../LICENSE) · [Cloud license](../internal/cloud/LICENSE)

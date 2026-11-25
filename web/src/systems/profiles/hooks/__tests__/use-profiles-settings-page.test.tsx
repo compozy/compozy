@@ -2,13 +2,8 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = {
-  tier: undefined as "local" | "remote" | undefined,
   profiles: { data: [], isLoading: false, error: null as Error | null, refetch: vi.fn() },
 };
-
-vi.mock("@/systems/gateway", () => ({
-  useGatewayAccessTier: () => state.tier,
-}));
 
 vi.mock("../use-profile-selection", () => ({
   useActiveProfileView: () => ({ kind: "profile", profile: "default" }),
@@ -22,7 +17,6 @@ import { useProfilesSettingsPage } from "../use-profiles-settings-page";
 
 describe("useProfilesSettingsPage", () => {
   beforeEach(() => {
-    state.tier = undefined;
     for (const query of [state.profiles]) {
       query.isLoading = false;
       query.error = null;
@@ -30,21 +24,9 @@ describe("useProfilesSettingsPage", () => {
     }
   });
 
-  it("Should hide management controls until the gateway is known to be local", () => {
-    const { result } = renderHook(() => useProfilesSettingsPage());
-    expect(result.current.manageable).toBe(false);
-  });
-
-  it("Should expose management controls for the local gateway", () => {
-    state.tier = "local";
+  it("Should expose profile management controls", () => {
     const { result } = renderHook(() => useProfilesSettingsPage());
     expect(result.current.manageable).toBe(true);
-  });
-
-  it("Should keep an explicitly remote gateway read-only", () => {
-    state.tier = "remote";
-    const { result } = renderHook(() => useProfilesSettingsPage());
-    expect(result.current.manageable).toBe(false);
   });
 
   it("Should surface the profile list loading and error state", () => {

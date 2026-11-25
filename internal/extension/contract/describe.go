@@ -20,7 +20,6 @@ type DescribePayload struct {
 	Profiles             []DescribeProfile                         `json:"profiles,omitempty"`
 	Resources            DescribeResources                         `json:"resources"`
 	Subprocess           DescribeSubprocess                        `json:"subprocess"`
-	Gateway              *DescribeGatewayRequirement               `json:"gateway,omitempty"`
 	Tools                []toolspkg.ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
 	HookEvents           []DescribeHookEvent                       `json:"hook_events,omitempty"`
 	HeartbeatSourceKinds []extensionprotocol.HeartbeatSourceKind   `json:"heartbeat_source_kinds,omitempty"`
@@ -78,11 +77,6 @@ type DescribeResourcePath struct {
 type DescribeHookEvent struct {
 	Event   hookspkg.HookEvent `json:"event"`
 	Profile string             `json:"profile,omitempty"`
-}
-
-// DescribeGatewayRequirement declares the reachability control included in consent digests.
-type DescribeGatewayRequirement struct {
-	Permissions []string `json:"permissions"`
 }
 
 // DescribeResources declares source-relative static resource paths copied into a generation.

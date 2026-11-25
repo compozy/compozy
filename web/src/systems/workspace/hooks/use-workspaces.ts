@@ -5,6 +5,7 @@ import {
   type NotifyOnChangeProps,
 } from "@tanstack/react-query";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import {
   createWorkspace,
   setWorkspaceArchived,
@@ -25,6 +26,7 @@ import { reconcileWorkspaceList } from "../lib/workspace-list-reconciliation";
 
 interface UseWorkspaceOptions {
   enabled?: boolean;
+  computerId?: ComputerId;
 }
 
 interface UseWorkspacesOptions extends UseWorkspaceOptions {
@@ -39,14 +41,14 @@ interface UseWorkspacesOptions extends UseWorkspaceOptions {
 /** The registered workspace catalog, polled every 10 s while observed. */
 export function useWorkspaces(options: UseWorkspacesOptions = {}) {
   return useQuery({
-    ...workspacesListOptions(options.enabled ?? true),
+    ...workspacesListOptions(options.enabled ?? true, false, options.computerId),
     notifyOnChangeProps: options.notifyOnChangeProps,
   });
 }
 
 export function useWorkspace(workspaceID: string, options?: UseWorkspaceOptions) {
   return useQuery({
-    ...workspaceDetailOptions(workspaceID),
+    ...workspaceDetailOptions(workspaceID, options?.computerId),
     enabled: options?.enabled ?? Boolean(workspaceID),
   });
 }
@@ -97,8 +99,8 @@ export function useDeleteWorkspace() {
   });
 }
 
-export function useArchivedWorkspaces() {
-  return useQuery(workspacesListOptions(true, true));
+export function useArchivedWorkspaces(options: UseWorkspaceOptions = {}) {
+  return useQuery(workspacesListOptions(options.enabled ?? true, true, options.computerId));
 }
 
 export function useSetWorkspaceArchived() {

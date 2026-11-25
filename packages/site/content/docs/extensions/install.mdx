@@ -171,7 +171,7 @@ and workspace instances are preserved.
 A [profile](/docs/profiles) is a named working context that decides which extensions are on for it.
 Install preview acquires and validates the package without changing state. It names every profile the
 manifest will create or bind, its credential requirements, resource placements, and the exact Live
-Gateway digest when one needs confirmation. The web install flow shows this summary before the final
+required inputs. The web install flow shows this summary before the final
 action. HTTP and UDS use `POST /api/extensions/preview-install` with the same install-source request.
 
 When the install succeeds, declared profiles are created without becoming active. Existing names are
@@ -343,7 +343,6 @@ workspace, or through `compozy extension logs <name>`. See
 | `dev`, `overrides_published`, `origin_path`, `generation_hash`, `workspace_id` | Dev-overlay identity when one is active.                                                                 |
 | `update_available`, `remote_version`                                           | Passive update projection.                                                                               |
 | `requires_env`, `missing_env`, `bound_env_keys`                                | Declared names, currently missing names, and names bound through Vault.                                  |
-| `gateway_requirement_digest`, `gateway_confirmation_required`                  | The exact gateway permission digest and whether lifecycle consent is pending.                            |
 | `provenance`, `trust`                                                          | Install source, checksums, registry tier, `allow_unverified`, installer identity, decision, diagnostics. |
 | `diagnostics`                                                                  | Deterministically ordered ingest and runtime issues; portable component skips remain visible here.       |
 
@@ -405,10 +404,6 @@ Enable and disable require the daemon and change only the selected profile. An a
 means enabled. Disable stores one exception and removes extension resources from that profile;
 enable deletes the exception and republishes resources whose placement matches the profile. Each
 change writes `extension.enablement_changed`.
-
-When the manifest declares gateway permissions, install or update returns
-`extension_gateway_confirmation_required` before changing package state. Review the exact digest,
-then retry with `--confirm-gateway-requirement <digest>`.
 
 Inside a workspace, `remove` unlinks a dev overlay and lets the published installation resume;
 `--global` removes the published installation. Removal deletes the managed install directory and
@@ -757,17 +752,16 @@ Host API methods in `permissions.requires`, such as `resources/list`, `resources
 
 ## Troubleshooting
 
-| Symptom                                         | Cause                                                                             | Fix                                                                         |
-| ----------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `extension_unverified_policy_blocked`           | Live policy is off.                                                               | Review the source, then set `extensions.trust.allow_unverified` and reload. |
-| `extension_checksum_unverified`                 | Consent missing on the request.                                                   | Add `--allow-unverified` (`--yes` for structured output).                   |
-| `extension_archive_digest_mismatch`             | Curated archive differs from the pinned bytes.                                    | Stop; refresh the catalog or wait for the entry to be corrected.            |
-| `extension_git_unavailable`                     | No `git` binary on the daemon host.                                               | Install `git` or install from another source.                               |
-| `extension_git_version_unsupported`             | The daemon host has Git older than 2.37.                                          | Install Git 2.37 or newer, then retry.                                      |
-| `extension_agent_plugin_schema_unsupported`     | The package declares an unsupported Agent Plugins schema.                         | Publish a package using schema `1.0.0`.                                     |
-| Extension is `enabled` but not `active`         | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
-| Install or update asks for Gateway confirmation | The candidate declares an unconfirmed or changed gateway requirement digest.      | Review the exact digest, then retry with `--confirm-gateway-requirement`.   |
-| Daemon-required error on a marketplace verb     | Search, install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry.                                                 |
+| Symptom                                     | Cause                                                                             | Fix                                                                         |
+| ------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `extension_unverified_policy_blocked`       | Live policy is off.                                                               | Review the source, then set `extensions.trust.allow_unverified` and reload. |
+| `extension_checksum_unverified`             | Consent missing on the request.                                                   | Add `--allow-unverified` (`--yes` for structured output).                   |
+| `extension_archive_digest_mismatch`         | Curated archive differs from the pinned bytes.                                    | Stop; refresh the catalog or wait for the entry to be corrected.            |
+| `extension_git_unavailable`                 | No `git` binary on the daemon host.                                               | Install `git` or install from another source.                               |
+| `extension_git_version_unsupported`         | The daemon host has Git older than 2.37.                                          | Install Git 2.37 or newer, then retry.                                      |
+| `extension_agent_plugin_schema_unsupported` | The package declares an unsupported Agent Plugins schema.                         | Publish a package using schema `1.0.0`.                                     |
+| Extension is `enabled` but not `active`     | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
+| Daemon-required error on a marketplace verb | Search, install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry.                                                 |
 
 Related references:
 

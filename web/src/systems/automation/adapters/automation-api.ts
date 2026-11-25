@@ -1,8 +1,10 @@
 import {
   apiClient,
+  apiClientFor,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
+  type ComputerId,
 } from "@/lib/api-client";
 
 import type {
@@ -62,9 +64,10 @@ function normalizeRunFilters(filters: AutomationRunHistoryFilter = {}): Automati
 
 export async function listAutomationJobs(
   filters: AutomationJobListFilter = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<AutomationJobsListResponse> {
-  const { data, error, response } = await apiClient.GET("/api/automation/jobs", {
+  const { data, error, response } = await apiClientFor(computerId).GET("/api/automation/jobs", {
     params: {
       query: {
         scope: filters.scope,
@@ -98,12 +101,16 @@ export async function listAutomationJobs(
 export async function getAutomationJob(
   id: string,
   scope: ProfileScopeParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<AutomationJob> {
-  const { data, error, response } = await apiClient.GET("/api/automation/jobs/{id}", {
-    params: { path: { id }, query: scope },
-    signal,
-  });
+  const { data, error, response } = await apiClientFor(computerId).GET(
+    "/api/automation/jobs/{id}",
+    {
+      params: { path: { id }, query: scope },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
@@ -123,9 +130,10 @@ export async function createAutomationJob(
   body: CreateAutomationJobRequest,
   /** The profile that will own the job. Omitting it files into `default`. */
   profile?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<AutomationJob> {
-  const { data, error, response } = await apiClient.POST("/api/automation/jobs", {
+  const { data, error, response } = await apiClientFor(computerId).POST("/api/automation/jobs", {
     body,
     params: { query: { profile: normalizeOptionalText(profile) } },
     signal,
@@ -145,13 +153,17 @@ export async function updateAutomationJob(
   id: string,
   body: UpdateAutomationJobRequest,
   profile: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<AutomationJob> {
-  const { data, error, response } = await apiClient.PATCH("/api/automation/jobs/{id}", {
-    params: { path: { id }, query: { profile: requireProfileName(profile) } },
-    body,
-    signal,
-  });
+  const { data, error, response } = await apiClientFor(computerId).PATCH(
+    "/api/automation/jobs/{id}",
+    {
+      params: { path: { id }, query: { profile: requireProfileName(profile) } },
+      body,
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
@@ -170,9 +182,10 @@ export async function updateAutomationJob(
 export async function deleteAutomationJob(
   id: string,
   profile: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<void> {
-  const { error, response } = await apiClient.DELETE("/api/automation/jobs/{id}", {
+  const { error, response } = await apiClientFor(computerId).DELETE("/api/automation/jobs/{id}", {
     params: { path: { id }, query: { profile: requireProfileName(profile) } },
     signal,
   });
@@ -192,12 +205,16 @@ export async function deleteAutomationJob(
 export async function triggerAutomationJob(
   id: string,
   profile: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<AutomationRun> {
-  const { data, error, response } = await apiClient.POST("/api/automation/jobs/{id}/trigger", {
-    params: { path: { id }, query: { profile: requireProfileName(profile) } },
-    signal,
-  });
+  const { data, error, response } = await apiClientFor(computerId).POST(
+    "/api/automation/jobs/{id}/trigger",
+    {
+      params: { path: { id }, query: { profile: requireProfileName(profile) } },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
@@ -216,15 +233,19 @@ export async function triggerAutomationJob(
 export async function listAutomationJobRuns(
   id: string,
   filters: AutomationRunHistoryFilter = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<AutomationRun[]> {
-  const { data, error, response } = await apiClient.GET("/api/automation/jobs/{id}/runs", {
-    params: {
-      path: { id },
-      query: normalizeRunFilters(filters),
-    },
-    signal,
-  });
+  const { data, error, response } = await apiClientFor(computerId).GET(
+    "/api/automation/jobs/{id}/runs",
+    {
+      params: {
+        path: { id },
+        query: normalizeRunFilters(filters),
+      },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {

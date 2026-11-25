@@ -184,10 +184,6 @@ var builtinToolsets = []toolspkg.Toolset{
 		},
 	},
 	{
-		ID:    toolspkg.ToolsetIDGateway,
-		Tools: []string{toolspkg.ToolIDGateway.String()},
-	},
-	{
 		ID: toolspkg.ToolsetIDTasks,
 		Tools: []string{
 			toolspkg.ToolIDTaskList.String(),

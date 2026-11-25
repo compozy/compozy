@@ -1,3 +1,5 @@
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import { answerTerminalInputRequest } from "../adapters/terminal-api";
 import type { TerminalInputRequest } from "../types";
 
@@ -14,19 +16,29 @@ export interface AnswerTerminalInputArgs {
 export function useTerminalInputAnswer(
   workspaceId: string,
   options: {
+    computerId?: ComputerId;
     onSuccess: () => void | Promise<void>;
     onError: (error: Error) => void;
   }
 ) {
   return {
     mutate: ({ request, value }: AnswerTerminalInputArgs) => {
-      void answerTerminalInputRequest(workspaceId, request.terminal_id, request.id, value, {
-        profile: request.profile_name,
-      })
-        .then(options.onSuccess)
-        .catch(error => {
-          options.onError(error instanceof Error ? error : new Error("Failed to answer"));
-        });
+      const delivery = isRemoteComputerId(options.computerId)
+        ? answerTerminalInputRequest(
+            workspaceId,
+            request.terminal_id,
+            request.id,
+            value,
+            { profile: request.profile_name },
+            undefined,
+            options.computerId
+          )
+        : answerTerminalInputRequest(workspaceId, request.terminal_id, request.id, value, {
+            profile: request.profile_name,
+          });
+      void delivery.then(options.onSuccess).catch(error => {
+        options.onError(error instanceof Error ? error : new Error("Failed to answer"));
+      });
     },
   };
 }

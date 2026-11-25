@@ -120,7 +120,8 @@ const (
 	// SchedulerSkipReasonGraceExceeded reports a missed fire outside its grace window.
 	SchedulerSkipReasonGraceExceeded SchedulerSkipReason = "misfire_grace_exceeded"
 	// SchedulerSkipReasonSelfOverlap reports that the same job still has an active prior run.
-	SchedulerSkipReasonSelfOverlap SchedulerSkipReason = "self_overlap"
+	SchedulerSkipReasonSelfOverlap    SchedulerSkipReason = "self_overlap"
+	SchedulerSkipReasonSignInRequired SchedulerSkipReason = "sign_in_required"
 	// SchedulerSkipReasonMetadataKey is the automation-run metadata key for durable skip evidence.
 	SchedulerSkipReasonMetadataKey = "reason"
 )
@@ -267,6 +268,7 @@ type ActivationEnvelope struct {
 
 // SchedulerState stores the durable scheduling cursor for one automation job.
 type SchedulerState struct {
+	HeldForSignIn             bool                   `json:"-"`
 	DeferredUntil             *time.Time             `json:"deferred_until,omitempty"`
 	JobID                     string                 `json:"job_id"`
 	NextRunAt                 *time.Time             `json:"next_run_at,omitempty"`
