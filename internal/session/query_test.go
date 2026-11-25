@@ -380,8 +380,8 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		})
 	}
 
-	// Invariant (#1926): the page's working count joins durable and live rows under the
-	// total's scope, and is absent where the total is skipped or counts pins.
+	// Invariant (#1926): the page's working and needs-you counts join durable and live rows
+	// under the total's scope, and are absent where the total is skipped or counts pins.
 	t.Run("Should count live running sessions with the page total", func(t *testing.T) {
 		t.Parallel()
 		manager := newWorkspaceSessionReadFixture(t, 4, 2)
@@ -397,16 +397,17 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 		query := ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "ws-read-00"}
 		page, err := manager.ListPage(t.Context(), query)
-		if err != nil || page.Total != 3 || page.Working == nil || *page.Working != 1 {
-			t.Fatalf("page total = %d, working = %v, err = %v; want 3 and 1", page.Total, page.Working, err)
+		if err != nil || page.Total != 3 || page.Working == nil || *page.Working != 1 || page.NeedsYou == nil {
+			t.Fatalf("page total = %d, working = %v, needs-you = %v, err = %v; want 3, 1 and a count",
+				page.Total, page.Working, page.NeedsYou, err)
 		}
 		query.SkipTotal = true
-		if page, err = manager.ListPage(t.Context(), query); err != nil || page.Working != nil {
-			t.Fatalf("skipped-total working = %v, %v; want nil", page.Working, err)
+		if page, err = manager.ListPage(t.Context(), query); err != nil || page.Working != nil || page.NeedsYou != nil {
+			t.Fatalf("skipped-total working/needs-you = %v/%v, %v; want nil", page.Working, page.NeedsYou, err)
 		}
 		query.SkipTotal, query.Sort, query.Pinned = false, ListSortPinned, store.SessionPinnedOnly
-		if page, err = manager.ListPage(t.Context(), query); err != nil || page.Working != nil {
-			t.Fatalf("pinned working = %v, %v; want nil", page.Working, err)
+		if page, err = manager.ListPage(t.Context(), query); err != nil || page.Working != nil || page.NeedsYou != nil {
+			t.Fatalf("pinned working/needs-you = %v/%v, %v; want nil", page.Working, page.NeedsYou, err)
 		}
 	})
 

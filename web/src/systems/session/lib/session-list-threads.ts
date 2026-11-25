@@ -6,6 +6,7 @@ import {
   filterThreadSessions,
   isSubagentSession,
 } from "./session-hierarchy";
+import { isNeedsYouBadge, sessionBadgeOf } from "./session-badge";
 import { isSessionWorkRunning } from "./session-running";
 import type { SessionFoldSet } from "./session-sidebar-scope";
 
@@ -78,6 +79,16 @@ export function countRunningThreadSessions(threads: readonly SessionThreadModel[
     for (const child of thread.childSessions) if (isSessionWorkRunning(child)) running += 1;
   }
   return running;
+}
+
+/** Rows whose own badge needs you: a collapsed folder's leading signal, outranking running. */
+export function countNeedsYouThreadSessions(threads: readonly SessionThreadModel[]): number {
+  let needsYou = 0;
+  for (const thread of threads) {
+    if (isNeedsYouBadge(sessionBadgeOf(thread.session))) needsYou += 1;
+    for (const child of thread.childSessions) if (isNeedsYouBadge(sessionBadgeOf(child))) needsYou += 1;
+  }
+  return needsYou;
 }
 
 /** The ids of the rows on screen in order: a collapsed thread keeps only its root and a revealed subagent. */

@@ -67,6 +67,8 @@ export function sessionCatalogPageView(
     total: page.data?.pages[0]?.page.total ?? undefined,
     /** Running sessions under the same scope and filters as `total` (#1926). */
     working: page.data?.pages[0]?.page.working ?? undefined,
+    /** Sessions needing you under the same scope and filters as `total`. */
+    needsYou: page.data?.pages[0]?.page.needs_you ?? undefined,
     loading: page.isLoading,
     /** The page shown belongs to a previous search while the current one loads. */
     placeholder: page.isPlaceholderData,

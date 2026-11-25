@@ -113,6 +113,11 @@ func (g *SessionRepo) sessionCatalogLaterCount(ctx context.Context, query store.
 	return count, nil
 }
 
+// sessionCatalogNeedsYouBadges lists, as SQL literals, the catalog badges addCatalogBadgeCount
+// counts as needs-you.
+const sessionCatalogNeedsYouBadges = "'waiting-for-auth', 'waiting-for-input', '" + loopNodeOutputFailed +
+	"', 'needs-attention'"
+
 func addCatalogBadgeCount(facets *store.SessionCatalogFacets, badge string, count int) {
 	facets.All += count
 	switch badge {

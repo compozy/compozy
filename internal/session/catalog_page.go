@@ -104,7 +104,10 @@ type ListPage struct {
 	// notion: durable rows by their catalog badge, live rows by their live badge. It is nil
 	// when Total is skipped or counts pins (pinned sort).
 	Working *int
-	Limit   int
+	// NeedsYou counts the sessions in Total whose badge needs the operator, with the facets'
+	// needs-you notion and the same presence rule as Working.
+	NeedsYou *int
+	Limit    int
 	// Placements carries folder membership for page sessions that have one.
 	Placements map[string]store.SessionPlacement
 }
@@ -211,7 +214,9 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		candidates, normalized, durable, activeMatches, position,
 	)
 	if !normalized.SkipTotal && normalized.Sort != ListSortPinned {
-		page.Working = new(durable.Working + workingSessionCatalogMatches(activeMatches, activeByID))
+		working, needsYou := signalSessionCatalogMatches(activeMatches, activeByID)
+		page.Working = new(durable.Working + working)
+		page.NeedsYou = new(durable.NeedsYou + needsYou)
 	}
 	page.Sessions = projectSessionCatalogPage(candidates, activeByID)
 	m.decorateMCPAuthorities(ctx, page.Sessions, nil)
@@ -238,20 +243,26 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	return page, nil
 }
 
-// workingSessionCatalogMatches counts the live matches whose live badge is running, as
-// CatalogFacets counts its active overlay.
-func workingSessionCatalogMatches(activeMatches []store.SessionInfo, activeByID map[string]*Info) int {
-	working := 0
+// signalSessionCatalogMatches counts the live matches whose live badge is running or needs
+// the operator, as CatalogFacets counts its active overlay.
+func signalSessionCatalogMatches(
+	activeMatches []store.SessionInfo,
+	activeByID map[string]*Info,
+) (working, needsYou int) {
 	for index := range activeMatches {
 		info := sessionInfoFromCatalog(&activeMatches[index])
 		if active := activeByID[info.ID]; active != nil {
 			info = active
 		}
-		if BadgeForInfo(info) == BadgeRunning {
+		badge := BadgeForInfo(info)
+		if badge == BadgeRunning {
 			working++
 		}
+		if ClassForBadge(badge) == AttentionNeedsYou {
+			needsYou++
+		}
 	}
-	return working
+	return working, needsYou
 }
 
 func mergeSessionCatalogCandidates(

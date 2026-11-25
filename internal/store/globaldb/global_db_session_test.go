@@ -1977,9 +1977,9 @@ func TestGlobalDBSessionWorkspaceSelection(t *testing.T) {
 		}
 	})
 
-	// Invariant (#1926): a count-only folder read reports its running rows under the
-	// total's own scope and filters, with the facets' working notion.
-	t.Run("Should count running rows with the page total under the same filters", func(t *testing.T) {
+	// Invariant (#1926): a count-only folder read reports its running and needs-you rows
+	// under the total's own scope and filters, with the facets' working and needs-you notions.
+	t.Run("Should count running and needs-you rows with the page total under the same filters", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
 		ws := registerWorkspaceForGlobalTests(t, db, "working", filepath.Join(t.TempDir(), "w"))
@@ -1998,6 +1998,11 @@ func TestGlobalDBSessionWorkspaceSelection(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
+		if _, err := db.db.ExecContext(
+			t.Context(), `UPDATE sessions SET stop_verification_failed=1 WHERE id='work-2'`,
+		); err != nil {
+			t.Fatal(err)
+		}
 		query := store.SessionCatalogPageQuery{
 			ReadScope:    store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceIDs: []string{ws},
@@ -2005,18 +2010,21 @@ func TestGlobalDBSessionWorkspaceSelection(t *testing.T) {
 			Limit:        1,
 		}
 		page, err := db.PageSessions(t.Context(), query)
-		if err != nil || page.Total != 3 || page.Working != 2 {
-			t.Fatalf("page total/working = %d/%d, %v; want 3/2", page.Total, page.Working, err)
+		if err != nil || page.Total != 3 || page.Working != 2 || page.NeedsYou != 1 {
+			t.Fatalf("page total/working/needs-you = %d/%d/%d, %v; want 3/2/1",
+				page.Total, page.Working, page.NeedsYou, err)
 		}
 		query.Search = "work-1"
 		page, err = db.PageSessions(t.Context(), query)
-		if err != nil || page.Total != 1 || page.Working != 1 {
-			t.Fatalf("searched total/working = %d/%d, %v; want 1/1", page.Total, page.Working, err)
+		if err != nil || page.Total != 1 || page.Working != 1 || page.NeedsYou != 0 {
+			t.Fatalf("searched total/working/needs-you = %d/%d/%d, %v; want 1/1/0",
+				page.Total, page.Working, page.NeedsYou, err)
 		}
 		query.Search, query.SkipTotal = "", true
 		page, err = db.PageSessions(t.Context(), query)
-		if err != nil || page.Total != 0 || page.Working != 0 {
-			t.Fatalf("skipped total/working = %d/%d, %v; want 0/0", page.Total, page.Working, err)
+		if err != nil || page.Total != 0 || page.Working != 0 || page.NeedsYou != 0 {
+			t.Fatalf("skipped total/working/needs-you = %d/%d/%d, %v; want 0/0/0",
+				page.Total, page.Working, page.NeedsYou, err)
 		}
 	})
 }

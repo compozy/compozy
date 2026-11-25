@@ -409,6 +409,7 @@ type SessionCatalogPagePayload struct {
 	HasMore    bool   `json:"has_more"`
 	Total      *int   `json:"total,omitzero"`
 	Working    *int   `json:"working,omitzero"`
+	NeedsYou   *int   `json:"needs_you,omitzero"`
 	Limit      int    `json:"limit"`
 }
 
