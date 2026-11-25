@@ -86,7 +86,8 @@ export function countNeedsYouThreadSessions(threads: readonly SessionThreadModel
   let needsYou = 0;
   for (const thread of threads) {
     if (isNeedsYouBadge(sessionBadgeOf(thread.session))) needsYou += 1;
-    for (const child of thread.childSessions) if (isNeedsYouBadge(sessionBadgeOf(child))) needsYou += 1;
+    for (const child of thread.childSessions)
+      if (isNeedsYouBadge(sessionBadgeOf(child))) needsYou += 1;
   }
   return needsYou;
 }
