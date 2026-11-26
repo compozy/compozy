@@ -172,6 +172,16 @@ func requestErrorIndicatesSessionLoss(reqErr *acpsdk.RequestError) bool {
 	}
 }
 
+func requestErrorIndicatesDeadline(err error) bool {
+	reqErr, ok := errors.AsType[*acpsdk.RequestError](err)
+	if !ok || reqErr == nil {
+		return false
+	}
+	text := strings.ToLower(strings.TrimSpace(requestErrorDiagnosticText(reqErr)))
+	return strings.Contains(text, "context deadline exceeded") ||
+		strings.Contains(text, "deadline exceeded")
+}
+
 // IsLoadSessionProviderMismatch reports whether session/load was refused because the stored
 // provider thread belongs to a different provider account or backend than the one the agent
 // process runs under now. codex-acp answers this way after `model_provider` changes:
@@ -195,9 +205,18 @@ func IsLoadSessionProviderMismatch(err error) bool {
 // Only these failures may clear the stored id and fall back to a fresh provider thread with
 // replayed context; every other load failure keeps the id and stays retryable.
 func LoadSessionRequiresFreshThread(err error) bool {
+	if IsLoadSessionTimeout(err) {
+		return false
+	}
 	return errors.Is(err, ErrAgentDoesNotSupportSession) ||
 		IsLoadSessionResourceMissing(err) ||
 		IsLoadSessionProviderMismatch(err)
+}
+
+// IsLoadSessionTimeout reports a transient session/load or session/resume deadline
+// classified while the caller's context was still alive.
+func IsLoadSessionTimeout(err error) bool {
+	return errors.Is(err, ErrLoadSessionTimeout)
 }
 
 // requestErrorIndicatesProviderMismatch is the single matcher for the provider's

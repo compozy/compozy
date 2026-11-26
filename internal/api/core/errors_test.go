@@ -334,6 +334,38 @@ func TestRespondErrorDiagnosticPayload(t *testing.T) {
 	})
 }
 
+func TestSessionRebindTimeoutErrorContract(t *testing.T) {
+	t.Parallel()
+	const secret = "sk-live-0123456789abcdefghijklmnopqrstuv"
+	refusal := &session.SessionRebindTimeoutError{
+		LoadTimeout: fmt.Errorf("session/load: %w", context.DeadlineExceeded),
+		Fallback:    fmt.Errorf("hosted proxy bind failed: Authorization: Bearer %s", secret),
+	}
+	err := fmt.Errorf("prompt runtime rebind: %w", refusal)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	RespondError(ctx, http.StatusInternalServerError, err, true)
+
+	var payload contract.ErrorPayload
+	if decodeErr := json.Unmarshal(recorder.Body.Bytes(), &payload); decodeErr != nil {
+		t.Fatal(decodeErr)
+	}
+	if recorder.Code != http.StatusGatewayTimeout || StatusForSessionError(err) != http.StatusGatewayTimeout {
+		t.Fatalf("HTTP status = %d, mapped status = %d; want 504; payload = %+v",
+			recorder.Code, StatusForSessionError(err), payload)
+	}
+	if payload.Code != session.SessionRebindTimeoutCode || !payload.Retryable ||
+		!strings.Contains(payload.Error, "Retry") ||
+		!strings.Contains(payload.Error, "Continue/Fork") ||
+		!strings.HasSuffix(payload.Error, "("+session.SessionRebindTimeoutCode+")") {
+		t.Fatalf("rebind timeout payload = %+v, want actionable retryable guidance and code", payload)
+	}
+	if payload.ProviderError == "" || !strings.Contains(payload.ProviderError, "hosted proxy bind failed") ||
+		strings.Contains(payload.ProviderError, secret) || len(payload.ProviderError) > 2048 {
+		t.Fatalf("provider_error = %q, want redacted, bounded load/replay diagnostics", payload.ProviderError)
+	}
+}
+
 func TestRespondOpenAIErrorRedaction(t *testing.T) {
 	t.Run("Should redact secret-shaped OpenAI error messages", func(t *testing.T) {
 		// not parallel: gin.SetMode mutates process-global state.

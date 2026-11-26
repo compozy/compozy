@@ -2830,6 +2830,88 @@ func TestLoadSessionRequiresFreshThread(t *testing.T) {
 	}
 }
 
+// Invariant: only control deadlines and provider-reported deadline text on session/load or
+// session/resume are transient load timeouts; caller cancellation and permanent refusals retain
+// their existing classifications.
+func TestLoadSessionTimeoutClassification(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		method       string
+		requestErr   *acpsdk.RequestError
+		cancelCaller bool
+		wantTimeout  bool
+	}{
+		{
+			name:   "Should classify provider context deadline text as transient",
+			method: acpsdk.AgentMethodSessionLoad, requestErr: &acpsdk.RequestError{
+				Code: -32603, Message: "Internal error", Data: map[string]any{"error": "context deadline exceeded"},
+			},
+			wantTimeout: true,
+		},
+		{
+			name:   "Should classify provider deadline wording on session resume as transient",
+			method: acpsdk.AgentMethodSessionResume, requestErr: &acpsdk.RequestError{
+				Code: -32603, Message: "Deadline exceeded while reading session",
+			},
+			wantTimeout: true,
+		},
+		{
+			name:   "Should keep permanent provider load failures unclassified",
+			method: acpsdk.AgentMethodSessionLoad, requestErr: &acpsdk.RequestError{
+				Code: -32603, Message: "The stored session cannot be loaded",
+			},
+		},
+		{
+			name:   "Should not reclassify a caller deadline",
+			method: acpsdk.AgentMethodSessionLoad, requestErr: &acpsdk.RequestError{
+				Code: -32603, Message: "context deadline exceeded",
+			},
+			cancelCaller: true,
+		},
+		{
+			name:   "Should ignore provider deadline wording outside load or resume",
+			method: acpsdk.AgentMethodSessionNew, requestErr: &acpsdk.RequestError{
+				Code: -32603, Message: "context deadline exceeded",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			callerCtx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if tc.cancelCaller {
+				cancel()
+			}
+			classified := classifyLoadSessionTimeout(
+				callerCtx,
+				context.Background(),
+				tc.method,
+				tc.requestErr,
+			)
+			loadErr := fmt.Errorf("%w: %w", ErrLoadSessionFailed, classified)
+			if got := IsLoadSessionTimeout(loadErr); got != tc.wantTimeout {
+				t.Fatalf("IsLoadSessionTimeout() = %v, want %v; error = %v", got, tc.wantTimeout, loadErr)
+			}
+			if got := LoadSessionRequiresFreshThread(loadErr); got {
+				t.Fatalf("LoadSessionRequiresFreshThread() = true for timeout/permanent transient error %v", loadErr)
+			}
+		})
+	}
+
+	t.Run("Should classify an internal control deadline while the caller remains live", func(t *testing.T) {
+		t.Parallel()
+		requestCtx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+		defer cancel()
+		classified := classifyLoadSessionTimeout(
+			t.Context(), requestCtx, acpsdk.AgentMethodSessionLoad, errors.New("RPC stopped"),
+		)
+		if !IsLoadSessionTimeout(classified) {
+			t.Fatalf("classified control error = %v, want a session load timeout", classified)
+		}
+	})
+}
+
 func TestCleanupFailedStartReturnsJoinedErrorWhenStopFails(t *testing.T) {
 	t.Parallel()
 

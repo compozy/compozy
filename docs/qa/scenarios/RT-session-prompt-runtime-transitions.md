@@ -4,12 +4,12 @@ area: RT
 title: Transition runtime at a prompt boundary
 persona: Théo
 journey: J-13
-expected: A prompt captures provider, logical model, Reasoning, Fast, and typed ACP options; Compozy applies or compiles them in deterministic order, replaces a launch-bound process when required before dispatch, persists the public logical selection, and restores the prior runtime if the transition fails.
+expected: A prompt captures provider, logical model, Reasoning, Fast, and typed ACP options; Compozy applies or compiles them in deterministic order, replaces a launch-bound process when required before dispatch, persists the public logical selection, and restores the prior runtime if the transition fails. A released runtime's session/load or session/resume gets a 90-second control budget; if a load timeout and its transcript-replay fallback both fail, HTTP returns retryable 504 `session_rebind_timeout`, the web keeps the draft and suggests retry or Continue/Fork.
 entry_points: web session composer; POST /api/sessions/:sid/prompt over HTTP+UDS; CLI compozy session prompt
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260827-cursor-launch-model-negotiation; BUG-20260827-unbound-session-fast-inheritance
 fix_status: fixed-pending-commit
-retest_status: pass
+retest_status: pending
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-alias-prompt.json;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-exact-retry.json;docs/qa/reports/2026-08-13-issue-389-cursor-model.md;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/cursor-grok-runtime-after-fix.json;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-first-prompt-grok45-fast-pass.png
 last_report: docs/qa/reports/2026-08-27-acp-runtime-catalog.md
@@ -59,3 +59,8 @@ The canonical session transition and verified-release suites cover both stop out
 QA idle-release follow-up #914 (2026-10-23): revoke Fast and reduce confirmed effort before the
 automatic idle timeout. After release, readback must retain the latest normal/rejected speed and
 reduced effort, while durable intent remains unchanged. The supervision suite owns this regression.
+
+QA impact 2026-11-26 (#2021): released-session load timeouts now get a 90-second control budget, and a
+failed transcript-replay fallback returns a retryable 504 with Continue/Fork guidance instead of a
+generic server error. Re-walk the provider-backed idle-release and retained-draft flow; this change's
+automated regressions do not verify the live provider scenario.

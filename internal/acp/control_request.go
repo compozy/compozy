@@ -19,6 +19,7 @@ func (process *AgentProcess) sendControlRequest[T any](ctx context.Context, meth
 	endRPCSpan(ctx, span, err)
 	if err != nil {
 		cause := errors.Join(requestCtx.Err(), err)
+		cause = classifyLoadSessionTimeout(ctx, requestCtx, method, cause)
 		if method == acpsdk.AgentMethodInitialize && isNPX(process.Command) &&
 			errors.Is(requestCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil && !IsAuthRequiredError(cause) {
 			cause = npxDiagnostic("initialize", cause)
@@ -41,12 +42,37 @@ func (process *AgentProcess) sendControlRequest[T any](ctx context.Context, meth
 // Session creation loads provider plugins, hooks and MCP servers before replying.
 const defaultSessionNewTimeout = 90 * time.Second
 
+// Loading a stored transcript can take as long as creating a provider session.
+const defaultSessionLoadTimeout = 90 * time.Second
+
+func classifyLoadSessionTimeout(
+	callerCtx context.Context,
+	requestCtx context.Context,
+	method string,
+	err error,
+) error {
+	if method != acpsdk.AgentMethodSessionLoad && method != acpsdk.AgentMethodSessionResume {
+		return err
+	}
+	if callerCtx.Err() != nil {
+		return err
+	}
+	if !errors.Is(requestCtx.Err(), context.DeadlineExceeded) && !requestErrorIndicatesDeadline(err) {
+		return err
+	}
+	return errors.Join(ErrLoadSessionTimeout, err)
+}
+
 func (process *AgentProcess) controlRequestTimeout(method string) time.Duration {
 	if process.controlTimeout > 0 {
 		return process.controlTimeout
 	}
-	if method == acpsdk.AgentMethodSessionNew {
+	switch method {
+	case acpsdk.AgentMethodSessionNew:
 		return defaultSessionNewTimeout
+	case acpsdk.AgentMethodSessionLoad, acpsdk.AgentMethodSessionResume:
+		return defaultSessionLoadTimeout
+	default:
+		return defaultControlTimeout
 	}
-	return defaultControlTimeout
 }

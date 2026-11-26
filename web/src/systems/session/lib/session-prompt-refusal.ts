@@ -9,6 +9,7 @@ const MAX_REFUSAL_REASON_LENGTH = 400;
  * again retries the reload; there is no separate retry action.
  */
 export const MCP_RELOAD_FAILED_CODE = "session_mcp_reload_failed";
+export const SESSION_REBIND_TIMEOUT_CODE = "session_rebind_timeout";
 
 /**
  * The daemon's reason for refusing a prompt, read from the body of its error
@@ -23,7 +24,10 @@ export function sessionPromptRefusalReason(body: string): string | null {
       const reason = payload.error;
       if (typeof reason === "string" && reason.trim().length > 0) {
         if ("code" in payload && payload.code === MCP_RELOAD_FAILED_CODE) {
-          return mcpReloadReason(reason.trim());
+          return codedRefusalReason(reason.trim(), MCP_RELOAD_FAILED_CODE);
+        }
+        if ("code" in payload && payload.code === SESSION_REBIND_TIMEOUT_CODE) {
+          return codedRefusalReason(reason.trim(), SESSION_REBIND_TIMEOUT_CODE);
         }
         return readableReason(reason.trim());
       }
@@ -58,10 +62,10 @@ function bounded(reason: string): string {
 
 // The daemon's sentence ends by saying the message wasn't sent, then names its error code in
 // parentheses. The notice says "not sent" once and never shows the code (it is in `code`).
-function mcpReloadReason(reason: string): string {
+function codedRefusalReason(reason: string, code: string): string {
   return bounded(
     reason
-      .replace(/\s*\(session_mcp_reload_failed\)\.?$/, "")
+      .replace(new RegExp(`\\s*\\(${code}\\)\\.?$`), "")
       .replace(/\.?\s*Your message wasn't sent\.?$/i, "")
   );
 }

@@ -553,9 +553,15 @@ func TestACPControlRequestDeadlines(t *testing.T) {
 		want    time.Duration
 	}{
 		{name: "Should budget cold session creation separately", method: acpsdk.AgentMethodSessionNew, want: 90 * time.Second},
+		{name: "Should budget session loading separately", method: acpsdk.AgentMethodSessionLoad, want: 90 * time.Second},
+		{name: "Should budget session resume separately", method: acpsdk.AgentMethodSessionResume, want: 90 * time.Second},
 		{name: "Should retain the ordinary control budget", method: acpsdk.AgentMethodInitialize, want: 30 * time.Second},
 		{name: "Should preserve an explicitly configured thirty second budget", options: []Option{WithControlTimeout(30 * time.Second)}, method: acpsdk.AgentMethodSessionNew, want: 30 * time.Second},
+		{name: "Should preserve an explicit load override", options: []Option{WithControlTimeout(45 * time.Second)}, method: acpsdk.AgentMethodSessionLoad, want: 45 * time.Second},
+		{name: "Should preserve an explicit resume override", options: []Option{WithControlTimeout(45 * time.Second)}, method: acpsdk.AgentMethodSessionResume, want: 45 * time.Second},
 		{name: "Should resolve nonpositive overrides to method defaults", options: []Option{WithControlTimeout(-time.Second)}, method: acpsdk.AgentMethodSessionNew, want: 90 * time.Second},
+		{name: "Should resolve nonpositive load overrides to method defaults", options: []Option{WithControlTimeout(-time.Second)}, method: acpsdk.AgentMethodSessionLoad, want: 90 * time.Second},
+		{name: "Should resolve nonpositive resume overrides to method defaults", options: []Option{WithControlTimeout(-time.Second)}, method: acpsdk.AgentMethodSessionResume, want: 90 * time.Second},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -566,12 +572,17 @@ func TestACPControlRequestDeadlines(t *testing.T) {
 			}
 		})
 	}
-	for _, tc := range []struct{ name, scenario, method, resume, model string }{
-		{"Should bound initialize", "stall_initialize", acpsdk.AgentMethodInitialize, "", ""},
-		{"Should bound session creation", "stall_new", acpsdk.AgentMethodSessionNew, "", ""},
-		{"Should bound session loading", "stall_load", acpsdk.AgentMethodSessionLoad, "existing", ""},
-		{"Should bound session mode negotiation", "stall_mode", acpsdk.AgentMethodSessionSetMode, "", ""},
-		{"Should bound session option negotiation", "stall_config", acpsdk.AgentMethodSessionSetConfigOption, "", "other-model"},
+	for _, tc := range []struct {
+		name, scenario, method, resume, model string
+		wantLoadTimeout                       bool
+	}{
+		{name: "Should bound initialize", scenario: "stall_initialize", method: acpsdk.AgentMethodInitialize},
+		{name: "Should bound session creation", scenario: "stall_new", method: acpsdk.AgentMethodSessionNew},
+		{name: "Should bound session loading", scenario: "stall_load", method: acpsdk.AgentMethodSessionLoad,
+			resume: "existing", wantLoadTimeout: true},
+		{name: "Should bound session mode negotiation", scenario: "stall_mode", method: acpsdk.AgentMethodSessionSetMode},
+		{name: "Should bound session option negotiation", scenario: "stall_config", method: acpsdk.AgentMethodSessionSetConfigOption,
+			model: "other-model"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -590,6 +601,9 @@ func TestACPControlRequestDeadlines(t *testing.T) {
 			)
 			if proc != nil || !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), tc.method) {
 				t.Fatalf("Start() = %v, %v, want stage deadline", proc, err)
+			}
+			if got := IsLoadSessionTimeout(err); got != tc.wantLoadTimeout {
+				t.Fatalf("IsLoadSessionTimeout() = %v, want %v; error = %v", got, tc.wantLoadTimeout, err)
 			}
 		})
 	}

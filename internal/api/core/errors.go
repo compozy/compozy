@@ -140,6 +140,9 @@ func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normal
 	if errors.Is(err, context.Canceled) {
 		return normalizedErrorStatus{status: statusClientClosedRequest, err: err}
 	}
+	if _, ok := errors.AsType[*session.SessionRebindTimeoutError](err); ok {
+		return normalizedErrorStatus{status: http.StatusGatewayTimeout, err: err, maskInternalErrors: false}
+	}
 	if _, ok := errors.AsType[*session.MCPReloadError](err); ok {
 		return normalizedErrorStatus{status: http.StatusConflict, err: err}
 	}

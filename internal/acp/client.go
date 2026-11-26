@@ -42,6 +42,9 @@ var (
 	ErrAgentDoesNotSupportSession = errors.New("acp: agent does not support session/load")
 	// ErrLoadSessionFailed reports that ACP session/load failed during resume.
 	ErrLoadSessionFailed = errors.New("acp: load session failed")
+	// ErrLoadSessionTimeout reports that ACP session/load or session/resume timed out
+	// while the caller's context was still live.
+	ErrLoadSessionTimeout = errors.New("acp: load session timed out")
 	// errModelConfigOptionRequired reports that a requested model needs an advertised ACP model option.
 	errModelConfigOptionRequired = errors.New("acp: model config option required")
 	// errModelConfigOptionReadOnly reports that model discovery has no writable

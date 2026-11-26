@@ -158,6 +158,9 @@ func statusForSessionError(err error) int {
 	if errors.Is(err, context.Canceled) {
 		return statusClientClosedRequest
 	}
+	if _, ok := errors.AsType[*session.SessionRebindTimeoutError](err); ok {
+		return http.StatusGatewayTimeout
+	}
 	if _, ok := errors.AsType[*session.MCPReloadError](err); ok {
 		return http.StatusConflict
 	}

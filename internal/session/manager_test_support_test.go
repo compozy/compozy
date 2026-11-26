@@ -994,6 +994,7 @@ type recordingHostedMCPLauncher struct {
 	bindErr           error
 	waits             []string
 	server            compozyconfig.MCPServer
+	serverForLaunch   func(HostedMCPLaunchRequest, int) compozyconfig.MCPServer
 	requests          []HostedMCPLaunchRequest
 	arms              []string
 	cancels           []string
@@ -1028,6 +1029,9 @@ func (l *recordingHostedMCPLauncher) Launch(
 	defer l.mu.Unlock()
 	l.requests = append(l.requests, req)
 	l.initialToolDigest = l.toolDigest
+	if l.serverForLaunch != nil {
+		return l.serverForLaunch(req, len(l.requests)), nil
+	}
 	return l.server, nil
 }
 
