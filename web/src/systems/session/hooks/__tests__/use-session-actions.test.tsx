@@ -1774,11 +1774,13 @@ describe("session actions", () => {
     client.clear();
   });
 
-  // Invariant: dismissal or replacement revokes an in-flight delete confirmation.
+  // Invariant: dismissal cancels the current read, duplicate confirms share one read, and a
+  // replacement target can still confirm.
   // Owning layer/canonical suite: lifecycle actions; only detail adapter I/O is deferred.
   it.each([false, true])(
-    "Should discard a pending delete read after dismissal with replacement=%s",
+    "Should cancel a pre-read, deduplicate confirmation, and handle replacement=%s",
     async replace => {
+      vi.mocked(deleteSession).mockResolvedValue(undefined);
       let resolveConfirm!: (session: SessionPayload) => void;
       const confirmationRead = new Promise<SessionPayload>(resolve => {
         resolveConfirm = resolve;
@@ -1793,19 +1795,30 @@ describe("session actions", () => {
       });
       act(() => result.current.actions.onDelete(createdSession));
       await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
-      act(() => result.current.deleteDialog.onConfirm());
+      act(() => {
+        result.current.deleteDialog.onConfirm();
+        result.current.deleteDialog.onConfirm();
+      });
       await waitFor(() => expect(fetchSessionById).toHaveBeenCalledTimes(2));
+      // A second click while the detail reread is pending must not schedule another reread.
+      expect(fetchSessionById).toHaveBeenCalledTimes(2);
       act(() => result.current.deleteDialog.onOpenChange(false));
       if (replace)
         act(() => result.current.actions.onDelete({ ...createdSession, id: "replacement" }));
+      if (replace) await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
       await act(async () => {
         resolveConfirm(createdSession);
         await confirmationRead;
       });
       expect(deleteSession).not.toHaveBeenCalled();
-      if (replace) await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+      await waitFor(() => expect(fetchSessionById).toHaveBeenCalledTimes(replace ? 3 : 2));
       expect(result.current.deleteDialog.open).toBe(replace);
       if (replace) expect(result.current.deleteDialog.session?.id).toBe("replacement");
+      if (replace) {
+        act(() => result.current.deleteDialog.onConfirm());
+        await waitFor(() => expect(deleteSession).toHaveBeenCalledOnce());
+        expect(vi.mocked(deleteSession).mock.calls[0]?.[1]).toBe("replacement");
+      }
       unmount();
       client.clear();
     }
@@ -2428,6 +2441,7 @@ describe("session lifecycle batches", () => {
     });
     await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
     act(() => result.current.deleteDialog.onConfirm());
+    await waitFor(() => expect(deleteSession).toHaveBeenCalledOnce());
     await waitFor(() => expect(result.current.deleteDialog.isDeleting).toBe(false));
     expect(onDeleteSuccess).not.toHaveBeenCalled();
     vi.mocked(deleteSession).mockResolvedValue(undefined);
@@ -2643,11 +2657,12 @@ describe("session lifecycle batches", () => {
       );
       await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
       act(() => result.current.deleteDialog.onConfirm());
-      await waitFor(() => expect(result.current.deleteDialog.isDeleting).toBe(false));
-      expect(result.current.deleteDialog.results).toEqual([
-        ...deleted.map(session => ({ id: session.id, status: "done" })),
-        { id: "failed", status: "failed", error: "Busy" },
-      ]);
+      await waitFor(() =>
+        expect(result.current.deleteDialog.results).toEqual([
+          ...deleted.map(session => ({ id: session.id, status: "done" })),
+          { id: "failed", status: "failed", error: "Busy" },
+        ])
+      );
       expect(result.current.deleteDialog.open).toBe(true);
       expect(toast.success).not.toHaveBeenCalled();
       expect(toast.error).not.toHaveBeenCalled();
