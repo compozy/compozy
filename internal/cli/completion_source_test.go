@@ -443,3 +443,62 @@ func TestMapWorkspaceCandidatesTreatsWSNameAsID(t *testing.T) {
 		t.Fatalf("workspace candidates = %#v, want value ws_real", got)
 	}
 }
+
+func TestCompletionProfileContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should ignore an explicit false --all-profiles", func(t *testing.T) {
+		t.Parallel()
+
+		root := newRootCommand(commandDeps{})
+		cmd, _, err := root.Find([]string{"session", "list"})
+		if err != nil {
+			t.Fatalf("Find(session list) error = %v", err)
+		}
+		if cmd.Flag(allProfilesFlagName) == nil {
+			t.Fatalf("session list has no --%s flag", allProfilesFlagName)
+		}
+		if err := cmd.Flags().Set(allProfilesFlagName, "false"); err != nil {
+			t.Fatalf("Set(--all-profiles) error = %v", err)
+		}
+		ctx := completionProfileContext(context.Background(), cmd)
+		if selection, ok := ctx.Value(profileReadSelectionContextKey{}).(profileReadSelection); ok {
+			t.Fatalf("selection = %#v, want none", selection)
+		}
+	})
+
+	t.Run("Should honor a profile payload opt-out", func(t *testing.T) {
+		t.Parallel()
+
+		root := newRootCommand(commandDeps{})
+		cmd, _, err := root.Find([]string{"task", "profile", "update"})
+		if err != nil {
+			t.Fatalf("Find(task profile update) error = %v", err)
+		}
+		if err := root.PersistentFlags().Set(profileFlagName, `{"model":"x"}`); err != nil {
+			t.Fatalf("Set(--profile) error = %v", err)
+		}
+		ctx := completionProfileContext(context.Background(), cmd)
+		if selection, ok := ctx.Value(profileReadSelectionContextKey{}).(profileReadSelection); ok {
+			t.Fatalf("selection = %#v, want none", selection)
+		}
+	})
+
+	t.Run("Should apply --profile for a selector command", func(t *testing.T) {
+		t.Parallel()
+
+		root := newRootCommand(commandDeps{})
+		cmd, _, err := root.Find([]string{"session", "inspect"})
+		if err != nil {
+			t.Fatalf("Find(session inspect) error = %v", err)
+		}
+		if err := root.PersistentFlags().Set(profileFlagName, "work"); err != nil {
+			t.Fatalf("Set(--profile) error = %v", err)
+		}
+		ctx := completionProfileContext(context.Background(), cmd)
+		selection, ok := ctx.Value(profileReadSelectionContextKey{}).(profileReadSelection)
+		if !ok || selection.Profile != "work" {
+			t.Fatalf("selection = %#v, want profile work", selection)
+		}
+	})
+}

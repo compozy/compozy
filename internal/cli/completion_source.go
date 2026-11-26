@@ -74,7 +74,10 @@ func completionProfileContext(ctx context.Context, cmd *cobra.Command) context.C
 	if cmd == nil {
 		return ctx
 	}
-	if flag := cmd.Flag(allProfilesFlagName); flag != nil && flag.Changed {
+	if _, ok := completionFlagKind(completionCommandPath(cmd), profileFlagName); !ok {
+		return ctx
+	}
+	if flag := cmd.Flag(allProfilesFlagName); flag != nil && flag.Changed && flag.Value.String() == "true" {
 		return context.WithValue(ctx, profileReadSelectionContextKey{}, profileReadSelection{AllProfiles: true})
 	}
 	if flag := cmd.Flag(profileFlagName); flag != nil {
