@@ -475,7 +475,7 @@ func TestCompletionProfileContext(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Find(task profile update) error = %v", err)
 		}
-		if err := root.PersistentFlags().Set(profileFlagName, `{"model":"x"}`); err != nil {
+		if err := cmd.Flags().Set(profileFlagName, `{"model":"x"}`); err != nil {
 			t.Fatalf("Set(--profile) error = %v", err)
 		}
 		ctx := completionProfileContext(context.Background(), cmd)
