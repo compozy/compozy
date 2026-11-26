@@ -14,6 +14,8 @@ import (
 )
 
 type activePromptState struct {
+	promptContext         context.Context
+	promptContext         context.Context
 	steerMu               sync.Mutex
 	steerContext          context.Context
 	steerWG               sync.WaitGroup

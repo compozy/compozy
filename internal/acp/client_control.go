@@ -53,6 +53,7 @@ func (d *Driver) Prompt(ctx context.Context, proc *AgentProcess, req PromptReque
 		proc.finishChildTask(run)
 		return nil, err
 	}
+	active.promptContext = promptCtx
 
 	active.steerMu.Lock()
 	active.steerContext = promptCtx
