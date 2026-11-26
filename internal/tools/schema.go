@@ -155,33 +155,6 @@ func (v schemaValidator) validateSchemaStringNode(path string, schema map[string
 	return nil
 }
 
-func (v schemaValidator) validateSchemaArrayNode(path string, schema map[string]json.RawMessage, value any) error {
-	arrayValue, ok := value.([]any)
-	if !ok {
-		return nil
-	}
-	minItems, ok, err := schemaNonNegativeInteger(schema["minItems"])
-	if err != nil {
-		return fmt.Errorf("%s.minItems: %w", path, err)
-	}
-	if ok && len(arrayValue) < minItems {
-		return schemaViolation(path, "array length %d is less than minItems %d", len(arrayValue), minItems)
-	}
-	items, ok, err := schemaNode(schema["items"])
-	if err != nil {
-		return fmt.Errorf("%s.items: %w", path, err)
-	}
-	if !ok {
-		return nil
-	}
-	for idx, item := range arrayValue {
-		if err := v.validateSchemaNode(fmt.Sprintf("%s[%d]", path, idx), items, item); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (v schemaValidator) validateSchemaObjectNode(path string, schema map[string]json.RawMessage, value any) error {
 	objectValue, ok := value.(map[string]any)
 	if !ok {
@@ -246,14 +219,8 @@ func (v schemaValidator) validateJSONSchemaDocument(path string, schema map[stri
 	if _, _, err := schemaNonNegativeInteger(schema["minItems"]); err != nil {
 		return fmt.Errorf("%s.minItems: %w", path, err)
 	}
-	items, ok, err := schemaNode(schema["items"])
-	if err != nil {
-		return fmt.Errorf("%s.items: %w", path, err)
-	}
-	if ok {
-		if err := v.validateJSONSchemaDocument(path+".items", items); err != nil {
-			return err
-		}
+	if err := v.validateJSONSchemaDocumentItems(path, schema); err != nil {
+		return err
 	}
 
 	if err := v.validateJSONSchemaDocumentArray(path+".allOf", schema["allOf"]); err != nil {

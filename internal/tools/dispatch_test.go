@@ -224,17 +224,24 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		d.InputSchema = json.RawMessage(`{"type":"object","properties":{` +
 			`"hooks":{"type":"array","items":true},` +
 			`"line":{"anyOf":[{"type":"object","properties":{"words":{"type":"array","items":true}}},true]},` +
-			`"legacy":false,"tags":{"type":"array","items":{"not":false}}}}`)
+			`"legacy":false,"tags":{"type":"array","items":{"not":false}},` +
+			`"range":{"type":"array","prefixItems":[{"type":"integer"},{"type":"integer"}],"items":false},` +
+			`"pair":{"type":"array","items":[{"type":"string"},{"type":"integer"}],"additionalItems":false}}}`)
 		if err := d.Validate(); err != nil {
 			t.Fatalf("Validate = %v", err)
 		}
-		accepted := `{"hooks":[1,"two",{"three":3}],"line":{"words":[null,true]},"tags":["a"]}`
+		accepted := `{"hooks":[1,"two",{"three":3}],"line":{"words":[null,true]},"tags":["a"],` +
+			`"range":[10,50],"pair":["a",1]}`
 		if err := validateCallInput(d, json.RawMessage(accepted)); err != nil {
 			t.Fatalf("validateCallInput(%s) = %v", accepted, err)
 		}
-		err := validateCallInput(d, json.RawMessage(`{"legacy":"anything"}`))
-		if !errors.Is(err, ErrToolInvalidInput) {
-			t.Fatalf("validateCallInput(false subschema) = %v, want ErrToolInvalidInput", err)
+		for _, rejected := range []string{
+			`{"legacy":"anything"}`, `{"range":[10,50,90]}`, `{"range":["ten",50]}`,
+			`{"pair":["a",1,2]}`, `{"pair":[1,"a"]}`,
+		} {
+			if err := validateCallInput(d, json.RawMessage(rejected)); !errors.Is(err, ErrToolInvalidInput) {
+				t.Fatalf("validateCallInput(%s) = %v, want ErrToolInvalidInput", rejected, err)
+			}
 		}
 	})
 
