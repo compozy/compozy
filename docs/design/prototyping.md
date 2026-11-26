@@ -263,7 +263,7 @@ journeys by flow id (`/p/<label>/?flow=board-to-pull-request`). A UI spec that a
 also adds or updates the flows its UI/UX contract describes. Existing `docs/design/opendesign/`
 boards stay as historical references; production (`packages/ui` + `web/`) wins on any conflict.
 
-Verified 2026-10-31 on `refactor/migrate-to-compozy-proto`: `proto check` (0 problems),
+During the gallery migration on 2026-10-31, verification covered `proto check` (0 problems),
 `proto list --json`, `proto dev` (both origins; sessions prototypes, the review-digest draft and
 the flow canvas rendered in Chromium), `proto url --bare`, `proto screenshot`, `proto evidence`,
 `proto build`, the SPA `vite build`, Storybook build, the web Vitest suite and typecheck.
