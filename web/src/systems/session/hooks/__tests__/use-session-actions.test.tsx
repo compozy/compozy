@@ -1803,9 +1803,13 @@ describe("session actions", () => {
       // A second click while the detail reread is pending must not schedule another reread.
       expect(fetchSessionById).toHaveBeenCalledTimes(2);
       act(() => result.current.deleteDialog.onOpenChange(false));
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
       if (replace)
         act(() => result.current.actions.onDelete({ ...createdSession, id: "replacement" }));
-      if (replace) await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+      if (replace) {
+        await waitFor(() => expect(fetchSessionById).toHaveBeenCalledTimes(3));
+        await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+      }
       await act(async () => {
         resolveConfirm(createdSession);
         await confirmationRead;

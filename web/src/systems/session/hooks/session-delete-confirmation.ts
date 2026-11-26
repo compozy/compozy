@@ -5,7 +5,6 @@ import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import { readCurrentSessions, type SessionBatchResult } from "../lib/session-batch";
 import { sessionsRunningProcesses } from "../lib/session-processes";
 import { sessionChildrenScope } from "../lib/session-tree";
-import type { SessionPayload } from "../types";
 import { reportActionError, reportDeletedSessions } from "./session-lifecycle-helpers";
 import type { SessionDeleteTarget } from "./use-session-delete-target";
 
