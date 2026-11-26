@@ -21,7 +21,7 @@ type instanceRepositoryProvider interface {
 	SkillReviews() *globaldb.SkillReviewRepo
 }
 
-func (d *Daemon) bootAgentInstances(_ context.Context, state *bootState) error {
+func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error {
 	manager, ok := state.sessions.(*session.Manager)
 	if !ok {
 		return nil
@@ -90,6 +90,8 @@ func (d *Daemon) bootAgentInstances(_ context.Context, state *bootState) error {
 		Profiles:  instanceProfileOwners(state.profiles),
 	}
 	d.bindInstanceSkillReviews(state, provider, definitions)
+	// Interrupted skill installs are recovered from disk before any API route serves.
+	reconcileSkillInstalls(ctx, state, definitions)
 	state.deps.AgentInstances = state.agentInstances
 	return nil
 }

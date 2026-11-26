@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+// CreateWorktreeRequest is a daemon API value.
+type CreateWorktreeRequest struct {
+	Name           string `json:"name,omitempty"`
+	Branch         string `json:"branch,omitempty"`
+	BaseRef        string `json:"base_ref,omitempty"`
+	ExistingBranch string `json:"existing_branch,omitempty"`
+	Path           string `json:"path,omitempty"`
+}
+
+// CriterionType is a daemon API value.
+type CriterionType string
+
+// CursorPagePayload is a daemon API value.
+type CursorPagePayload struct {
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore    bool   `json:"has_more"`
+	Limit      int    `json:"limit"`
+}
+
+// DaemonIdentityPayload is a daemon API value.
+type DaemonIdentityPayload struct {
+	PID         int                     `json:"pid"`
+	StartedAt   time.Time               `json:"started_at"`
+	HTTPHost    string                  `json:"http_host"`
+	HTTPPort    int                     `json:"http_port"`
+	UserHomeDir string                  `json:"user_home_dir"`
+	Version     string                  `json:"version"`
+	Readiness   *DaemonReadinessPayload `json:"readiness,omitzero"`
+}
+
 // DaemonReadinessPayload is a daemon API value.
 type DaemonReadinessPayload struct {
 	Phase DaemonReadinessPhase `json:"phase"`
@@ -415,27 +445,4 @@ type ExtensionDeclaredProfilePayload struct {
 type ExtensionDependencyConsent struct {
 	ExpectedDigest  string `json:"expected_digest,omitempty"`
 	AllowUnverified bool   `json:"allow_unverified,omitzero"`
-}
-
-// ExtensionDependencyPayload is a daemon API value.
-type ExtensionDependencyPayload struct {
-	Name             string   `json:"name"`
-	Source           string   `json:"source"`
-	Ref              string   `json:"ref"`
-	MinVersion       string   `json:"min_version,omitempty"`
-	RequiredBy       []string `json:"required_by"`
-	Depth            int      `json:"depth"`
-	State            string   `json:"state"`
-	InstalledVersion string   `json:"installed_version,omitempty"`
-	Version          string   `json:"version,omitempty"`
-	DigestSHA256     string   `json:"digest_sha256,omitempty"`
-	RegistryTier     string   `json:"registry_tier,omitempty"`
-	ConsentRequired  bool     `json:"consent_required,omitzero"`
-	RetryCommand     string   `json:"retry_command,omitempty"`
-}
-
-// ExtensionEnableError is a daemon API value.
-type ExtensionEnableError struct {
-	Error string `json:"error"`
-	Code  string `json:"code"`
 }

@@ -1,6 +1,6 @@
 //go:build windows
 
-package registry
+package fileutil
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func tryLockInstallStagingLease(file *os.File) (bool, error) {
+func tryLockFile(file *os.File) (bool, error) {
 	overlapped := new(windows.Overlapped)
 	err := windows.LockFileEx(
 		windows.Handle(file.Fd()),
@@ -28,7 +28,7 @@ func tryLockInstallStagingLease(file *os.File) (bool, error) {
 	return false, err
 }
 
-func unlockInstallStagingLease(file *os.File) error {
+func unlockFile(file *os.File) error {
 	overlapped := new(windows.Overlapped)
 	return windows.UnlockFileEx(windows.Handle(file.Fd()), 0, 1, 0, overlapped)
 }

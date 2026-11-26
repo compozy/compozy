@@ -2,10 +2,34 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// AppTokenPayload is a daemon API value.
+type AppTokenPayload struct {
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Origins    []string   `json:"origins"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	RevokedAt  *time.Time `json:"revoked_at"`
+}
+
+// AppTokenResponse is a daemon API value.
+type AppTokenResponse struct {
+	AppToken AppTokenPayload `json:"app_token"`
+}
+
+// AppTokenRevokeResponse is a daemon API value.
+type AppTokenRevokeResponse struct {
+	AppToken AppTokenPayload `json:"app_token"`
+	Changed  bool            `json:"changed"`
+	Canceled int             `json:"canceled"`
+}
+
+// AppTokensResponse is a daemon API value.
+type AppTokensResponse struct {
+	AppTokens []AppTokenPayload `json:"app_tokens"`
+}
 
 // Approval is a daemon API value.
 type Approval struct {
@@ -416,35 +440,4 @@ type BulkForceTaskRunItemPayload struct {
 	OK    bool            `json:"ok"`
 	Run   *TaskRunPayload `json:"run,omitzero"`
 	Error *ErrorPayload   `json:"error,omitzero"`
-}
-
-// BulkForceTaskRunRequest is a daemon API value.
-type BulkForceTaskRunRequest struct {
-	RunIDs   []string        `json:"run_ids"`
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// BulkForceTaskRunResponse is a daemon API value.
-type BulkForceTaskRunResponse struct {
-	Results []BulkForceTaskRunItemPayload `json:"results"`
-}
-
-// BusyInputState is a daemon API value.
-type BusyInputState struct {
-	DefaultMode     string            `json:"default_mode"`
-	SteerCapability SteerCapability   `json:"steer_capability"`
-	SteerDelivery   SteerDeliveryMode `json:"steer_delivery,omitempty"`
-}
-
-// CancelTaskRequest is a daemon API value.
-type CancelTaskRequest struct {
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// CancelTaskRunRequest is a daemon API value.
-type CancelTaskRunRequest struct {
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
 }

@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+// ExtensionDependencyPayload is a daemon API value.
+type ExtensionDependencyPayload struct {
+	Name             string   `json:"name"`
+	Source           string   `json:"source"`
+	Ref              string   `json:"ref"`
+	MinVersion       string   `json:"min_version,omitempty"`
+	RequiredBy       []string `json:"required_by"`
+	Depth            int      `json:"depth"`
+	State            string   `json:"state"`
+	InstalledVersion string   `json:"installed_version,omitempty"`
+	Version          string   `json:"version,omitempty"`
+	DigestSHA256     string   `json:"digest_sha256,omitempty"`
+	RegistryTier     string   `json:"registry_tier,omitempty"`
+	ConsentRequired  bool     `json:"consent_required,omitzero"`
+	RetryCommand     string   `json:"retry_command,omitempty"`
+}
+
+// ExtensionEnableError is a daemon API value.
+type ExtensionEnableError struct {
+	Error string `json:"error"`
+	Code  string `json:"code"`
+}
+
 // ExtensionEnablePreviewPayload is a daemon API value.
 type ExtensionEnablePreviewPayload struct {
 	MissingInputs      []string                    `json:"missing_inputs"`
@@ -423,23 +446,4 @@ type FileSearchFile struct {
 	Path             string            `json:"path"`
 	Matches          []FileSearchMatch `json:"matches"`
 	TruncatedMatches bool              `json:"truncated_matches,omitzero"`
-}
-
-// FileSearchMatch is a daemon API value.
-type FileSearchMatch struct {
-	Line       int     `json:"line"`
-	Column     int     `json:"column"`
-	Text       string  `json:"text"`
-	Ranges     [][]int `json:"ranges"`
-	TextOffset int     `json:"text_offset"`
-}
-
-// FileSearchQuery is a daemon API value.
-type FileSearchQuery struct {
-	Pattern       string   `json:"pattern"`
-	Regex         bool     `json:"regex"`
-	CaseSensitive bool     `json:"case_sensitive"`
-	WholeWord     bool     `json:"whole_word"`
-	Include       []string `json:"include"`
-	Exclude       []string `json:"exclude"`
 }

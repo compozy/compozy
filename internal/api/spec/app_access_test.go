@@ -308,6 +308,9 @@ func TestAppAccessPolicy(t *testing.T) {
 			"getAgentSkillReview",
 			"approveAgentSkillReview",
 			"rejectAgentSkillReview",
+			// Install conflicts: listing and resolving retained conflicts is operator-only.
+			"listAgentSkillInstallConflicts",
+			"resolveAgentSkillInstallConflict",
 			"searchSessionWorkCandidates",
 			"draftAgentInstructions",
 			"getPermissionRollup",

@@ -33,7 +33,7 @@ func acquireInstallStagingLease(directory *fileutil.Directory) (_ *installStagin
 		}
 	}()
 
-	locked, err := tryLockInstallStagingLease(file)
+	locked, err := fileutil.TryLockFile(file)
 	if err != nil {
 		return nil, fmt.Errorf("registry: lock install staging lease: %w", err)
 	}
@@ -55,7 +55,7 @@ func (l *installStagingLease) Close() error {
 
 	var unlockErr error
 	if locked {
-		if err := unlockInstallStagingLease(file); err != nil {
+		if err := fileutil.UnlockFile(file); err != nil {
 			unlockErr = fmt.Errorf("registry: unlock install staging lease: %w", err)
 		}
 	}
@@ -74,7 +74,7 @@ func stagingLeaseIsActive(directory *fileutil.Directory) (_ bool, err error) {
 	if err != nil {
 		return false, fmt.Errorf("registry: open install staging lease: %w", err)
 	}
-	locked, lockErr := tryLockInstallStagingLease(file)
+	locked, lockErr := fileutil.TryLockFile(file)
 	if lockErr != nil {
 		if closeErr := file.Close(); closeErr != nil {
 			lockErr = errors.Join(
@@ -91,7 +91,7 @@ func stagingLeaseIsActive(directory *fileutil.Directory) (_ bool, err error) {
 		return true, nil
 	}
 
-	unlockErr := unlockInstallStagingLease(file)
+	unlockErr := fileutil.UnlockFile(file)
 	closeErr := file.Close()
 	if unlockErr != nil || closeErr != nil {
 		return false, errors.Join(

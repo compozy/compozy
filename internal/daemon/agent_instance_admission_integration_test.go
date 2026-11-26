@@ -27,6 +27,8 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/dirpublish"
+	"github.com/compozy/compozy/internal/fileutil"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/goal"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
@@ -572,6 +574,110 @@ func TestInstanceSkillApprovalIntegration(t *testing.T) {
 			t.Fatalf("native reproposal of an installed skill: %v (status %d)", taken, core.StatusForToolError(taken))
 		}
 	})
+}
+
+// Invariant (IT-014): an install interrupted by a crash is rolled back from its on-disk journal by
+// daemon startup, before the API serves. Owning layer: daemon boot composition, real SQLite and disk.
+func TestInstanceSkillInstallStartupReconcileIntegration(t *testing.T) {
+	cases := []struct {
+		name        string
+		removeAgent bool
+	}{
+		{name: "Should roll back a crashed skill install at startup before serving"},
+		{
+			name:        "Should roll back a workspace install whose agent definition was removed before restart",
+			removeAgent: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			runSkillInstallStartupReconcile(t, tc.removeAgent)
+		})
+	}
+}
+
+func runSkillInstallStartupReconcile(t *testing.T, removeAgent bool) {
+	t.Helper()
+	d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
+		path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = []byte(
+			strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: always_on\n", 1),
+		)
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	})
+	main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := d.registry.(*globaldb.GlobalDB)
+	if _, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+		ProfileID: store.DefaultProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+		PermissionCeiling: "{}", CreatedByKind: "human",
+	}, main.ID, 10); err != nil {
+		t.Fatal(err)
+	}
+	var rootDir string
+	if err := db.DB().QueryRowContext(t.Context(), "SELECT root_dir FROM workspaces WHERE id = ?", workspace).
+		Scan(&rootDir); err != nil {
+		t.Fatal(err)
+	}
+	skillsRoot := filepath.Join(rootDir, compozyconfig.DirName, compozyconfig.SkillsDirName)
+	// The crash left a staged `new` skill at the target with its journal at backup_staged.
+	target := filepath.Join(skillsRoot, "crashed-skill")
+	if err := os.MkdirAll(target, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	skillBody := []byte("---\nname: crashed-skill\ndescription: Crashed\n---\n\nBody")
+	if err := os.WriteFile(filepath.Join(target, "SKILL.md"), skillBody, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	staged, err := agentinstance.SkillTreeDigest(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(agentinstance.SkillInstallPayload{
+		OpID: "sop_crashed", ReviewID: "skr_crashed", Action: "install", StagedDigest: staged, State: "active",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	journal, err := dirpublish.NewJournal("crashed-skill", payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	journal.Phase = dirpublish.PhaseBackup
+	parent, err := fileutil.OpenDirectoryForMutation(skillsRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeErr := dirpublish.WriteJournal(parent, journal, false)
+	if err := errors.Join(writeErr, parent.Close()); err != nil {
+		t.Fatal(err)
+	}
+	home, cfg := d.homePaths, d.config
+	requestDaemonIntegrationRestart(t, d)
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatal(err)
+	}
+	if removeAgent {
+		if err := os.RemoveAll(filepath.Join(home.AgentsDir, "subagent-test")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reopenSubagentIntegrationDaemon(t, home, &cfg)
+	if _, err := os.Stat(target); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("staged skill survived startup reconcile: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(skillsRoot, dirpublish.JournalName("crashed-skill"))); !errors.Is(
+		err, os.ErrNotExist) {
+		t.Fatalf("journal survived startup reconcile: %v", err)
+	}
 }
 
 // Invariant (IT-023): signed events reach only a read-only check, producing attributable proposals.

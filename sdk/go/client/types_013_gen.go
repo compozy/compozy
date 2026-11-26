@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+// LoopResolvedRuntime is a daemon API value.
+type LoopResolvedRuntime struct {
+	Provider        string                    `json:"provider,omitempty"`
+	Model           string                    `json:"model,omitempty"`
+	Reasoning       string                    `json:"reasoning,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	SpeedResolution *Resolution               `json:"speed_resolution,omitzero"`
+	Source          LoopRuntimeProvenance     `json:"source"`
+}
+
+// LoopResponse is a daemon API value.
+type LoopResponse struct {
+	Loop LoopDefinitionPayload `json:"loop"`
+}
+
+// LoopRouteCausePayload is a daemon API value.
+type LoopRouteCausePayload struct {
+	NodeID      string    `json:"node_id"`
+	ItemIndex   int       `json:"item_index"`
+	Route       string    `json:"route"`
+	Cause       string    `json:"cause"`
+	MatchedWhen string    `json:"matched_when,omitempty"`
+	Default     bool      `json:"default,omitzero"`
+	At          time.Time `json:"at"`
+}
+
 // LoopRunAttention is a daemon API value.
 type LoopRunAttention struct {
 	Kind  string    `json:"kind"`
@@ -417,32 +444,4 @@ type MarketplaceOriginPayload struct {
 // MarketplaceRefreshResponse is a daemon API value.
 type MarketplaceRefreshResponse struct {
 	Sources []MarketplaceRefreshSourcePayload `json:"sources"`
-}
-
-// MarketplaceRefreshSourcePayload is a daemon API value.
-type MarketplaceRefreshSourcePayload struct {
-	Source     string `json:"source"`
-	Outcome    string `json:"outcome"`
-	EntryCount int    `json:"entry_count"`
-	Stale      bool   `json:"stale"`
-	ErrorClass string `json:"error_class,omitempty"`
-}
-
-// MarketplaceSection is a daemon API value.
-type MarketplaceSection struct {
-	ID    string                      `json:"id"`
-	Label string                      `json:"label"`
-	Total int                         `json:"total"`
-	Items []MarketplaceListingPayload `json:"items"`
-}
-
-// MarketplaceSectionsResponse is a daemon API value.
-type MarketplaceSectionsResponse struct {
-	Sections   []MarketplaceSection       `json:"sections"`
-	Revision   string                     `json:"revision"`
-	Stale      bool                       `json:"stale"`
-	Refreshing bool                       `json:"refreshing,omitzero"`
-	ErrorClass string                     `json:"error_class,omitempty"`
-	Error      string                     `json:"error,omitempty"`
-	Sources    []MarketplaceSourceSummary `json:"sources"`
 }

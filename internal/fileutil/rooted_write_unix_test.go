@@ -1160,3 +1160,64 @@ func assertRootedSentinelUnchanged(t *testing.T, path string, want []byte) {
 		t.Fatalf("external sentinel = %q, want %q", got, want)
 	}
 }
+
+// Invariant: a symlink child is renamed itself, never followed and never over an existing name.
+// Canonical suite: fileutil rooted-write filesystem unit tests.
+func TestDirectoryMoveSymlinkNoReplace(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("atomic no-replace moves require a supported platform primitive")
+	}
+	setup := func(t *testing.T) (string, string, *Directory) {
+		t.Helper()
+		rootPath, outside := t.TempDir(), t.TempDir()
+		if err := os.WriteFile(filepath.Join(outside, "file"), []byte("outside"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, filepath.Join(rootPath, "link")); err != nil {
+			t.Fatal(err)
+		}
+		root, err := OpenDirectory(rootPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := root.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		return rootPath, outside, root
+	}
+	t.Run("Should rename the link itself and leave its referent alone", func(t *testing.T) {
+		t.Parallel()
+		rootPath, outside, root := setup(t)
+		if err := root.MoveSymlinkNoReplace("link", "moved"); err != nil {
+			t.Fatalf("MoveSymlinkNoReplace() = %v", err)
+		}
+		if link, err := os.Readlink(filepath.Join(rootPath, "moved")); err != nil || link != outside {
+			t.Fatalf("moved link = %q, %v; want %q", link, err, outside)
+		}
+		if _, err := os.Lstat(filepath.Join(rootPath, "link")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("source after move: %v", err)
+		}
+		if content, err := os.ReadFile(filepath.Join(outside, "file")); err != nil || string(content) != "outside" {
+			t.Fatalf("referent = %q, %v", content, err)
+		}
+	})
+	t.Run("Should refuse an existing target and a source that is not a symlink", func(t *testing.T) {
+		t.Parallel()
+		rootPath, _, root := setup(t)
+		if err := os.Mkdir(filepath.Join(rootPath, "taken"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := root.MoveSymlinkNoReplace("link", "taken"); !errors.Is(err, ErrTargetExists) {
+			t.Fatalf("move over an existing name = %v, want %v", err, ErrTargetExists)
+		}
+		if err := root.MoveSymlinkNoReplace("taken", "other"); !errors.Is(err, ErrInvalidPath) {
+			t.Fatalf("move of a directory = %v, want %v", err, ErrInvalidPath)
+		}
+		if info, err := os.Lstat(filepath.Join(rootPath, "link")); err != nil || info.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("refused move changed the link: %v, %v", info, err)
+		}
+	})
+}

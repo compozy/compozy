@@ -1,12 +1,14 @@
 package globaldb
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
@@ -88,7 +90,10 @@ func TestSkillReviewRepo(t *testing.T) {
 			len(legacy.EvidenceSessionIDs) != 0 {
 			t.Fatalf("legacy review = %+v, %v", legacy, err)
 		}
-		if err := repo.DecideReview(ctx, "skr-pending", "sha256:p", "approved", "operator:prof"); err != nil {
+		marker := agentinstance.SkillInstallMarker{
+			ReviewID: "skr-pending", DecidedVia: "operator", DecidedBy: "operator:prof", InstalledDigest: "sha256:t",
+		}
+		if err := repo.ProjectApproval(ctx, marker, "sha256:t", nil, time.Now()); err != nil {
 			t.Fatalf("approve legacy review: %v", err)
 		}
 		approved, err := repo.GetReview(ctx, "skr-pending")
@@ -203,6 +208,62 @@ func TestSkillReviewRepo(t *testing.T) {
 			agentinstance.ErrSkillProposeEvidenceNotFound,
 		) {
 			t.Fatalf("missing session: %v", err)
+		}
+	})
+
+	t.Run("Should project committed installs idempotently with the commit time", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances
+ (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
+ VALUES ('projection-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`,
+			store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		repo := db.SkillReviews()
+		report := agentinstance.ReportInput{
+			SourceKey: "skill_review:skr-projected", Kind: "proposal",
+			Payload: []byte(`{"skill_review_id":"skr-projected","proposals":[{"title":"Review","body":"Inspect"}]}`),
+		}
+		created, _, err := repo.CreateReview(ctx, agentinstance.SkillReview{
+			ID: "skr-projected", InstanceID: "projection-instance", ProfileID: store.DefaultProfileID,
+			SkillName: "projected", Digest: "sha256:d", DraftPath: "/drafts/projected",
+			SkillKey: "workspace:ws/projected",
+		}, report)
+		if err != nil || created.SkillKey != "workspace:ws/projected" {
+			t.Fatalf("create = %+v, %v", created, err)
+		}
+		committedAt := time.Date(2026, 11, 22, 23, 59, 0, 0, time.UTC)
+		marker := agentinstance.SkillInstallMarker{
+			ReviewID: "skr-projected", InstanceID: "projection-instance", DecidedVia: "operator",
+			DecidedBy: "operator:prof", InstalledDigest: "sha256:tree", OpID: "sop_1",
+		}
+		previous := []byte(`{"review_id":"skr-older"}`)
+		for range 2 {
+			if err := repo.ProjectApproval(ctx, marker, "sha256:tree", previous, committedAt); err != nil {
+				t.Fatalf("ProjectApproval() = %v", err)
+			}
+		}
+		approved, err := repo.GetReview(ctx, "skr-projected")
+		if err != nil || approved.State != "approved" || approved.InstalledDigest != "sha256:tree" ||
+			!bytes.Equal(approved.PrevInstallMarker, previous) || approved.DecidedBy != "operator:prof" ||
+			approved.DecidedAt == nil || !approved.DecidedAt.Equal(committedAt) {
+			t.Fatalf("projected review = %+v, %v", approved, err)
+		}
+		later := marker
+		later.DecidedBy = "someone-else"
+		if err := repo.ProjectApproval(ctx, later, "sha256:other", nil, committedAt.Add(time.Hour)); err != nil {
+			t.Fatalf("repeat projection: %v", err)
+		}
+		unchanged, err := repo.GetReview(ctx, "skr-projected")
+		if err != nil || unchanged.InstalledDigest != "sha256:tree" || unchanged.DecidedBy != "operator:prof" {
+			t.Fatalf("a decided review changed on a later projection: %+v, %v", unchanged, err)
+		}
+		if err := repo.DecideReject(ctx, "skr-projected", "sha256:d", "operator"); !errors.Is(
+			err, agentinstance.ErrSkillReviewStale) {
+			t.Fatalf("reject after approval = %v, want stale", err)
 		}
 	})
 }

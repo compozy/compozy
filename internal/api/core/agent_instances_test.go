@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1945,11 +1946,16 @@ func TestAgentSkillReviews(t *testing.T) {
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
+		// targetErr makes SkillTarget fail while set.
+		var targetErr atomic.Pointer[error]
 		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
 			Store:          repo,
 			Authority:      authority,
 			SkillProposals: service,
 			SkillTarget: func(context.Context, agentinstance.Instance) (string, []string, error) {
+				if err := targetErr.Load(); err != nil {
+					return "", nil, *err
+				}
 				return scanRoot, []string{scanRoot}, nil
 			},
 		}
@@ -2072,9 +2078,45 @@ func TestAgentSkillReviews(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(scanRoot, "expected")); !os.IsNotExist(err) {
 			t.Fatalf("uninstallable draft installed: %v", err)
 		}
+		// A target lookup failure refuses the rejection: without the install log a committed approval
+		// whose projection is pending cannot be told apart. An instance with no target still rejects.
+		lookupFailure := fmt.Errorf("resolve skill target: %w", store.ErrWorkspaceArchived)
+		targetErr.Store(&lookupFailure)
+		unresolved := request("POST", "/reviews/"+invalid.ID+"/reject", `{"digest":"`+invalid.Digest+`"}`, false)
+		var unresolvedFailure contract.ErrorPayload
+		decodeJSON(t, unresolved.Body.Bytes(), &unresolvedFailure)
+		if unresolved.Code != http.StatusConflict || unresolvedFailure.Code != "workspace_archived" {
+			t.Fatalf("reject without a resolvable target: %d %s", unresolved.Code, unresolved.Body.String())
+		}
+		if pending, err := db.SkillReviews().GetReview(t.Context(), invalid.ID); err != nil ||
+			pending.State != agentinstance.SkillReviewPending {
+			t.Fatalf("review after a refused rejection = %+v, %v", pending, err)
+		}
+		noTarget := agentinstance.ErrSkillReviewNoTarget
+		targetErr.Store(&noTarget)
 		rejected := request("POST", "/reviews/"+invalid.ID+"/reject", `{"digest":"`+invalid.Digest+`"}`, false)
 		if rejected.Code != 200 {
 			t.Fatalf("reject uninstallable: %d %s", rejected.Code, rejected.Body.String())
+		}
+		targetErr.Store(nil)
+
+		// UT-081 over HTTP: a `new` review whose name was created meanwhile is refused unchanged.
+		existing := filepath.Join(scanRoot, "second")
+		if err := os.MkdirAll(existing, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(existing, "SKILL.md"), []byte("operator skill"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		taken := request("POST", "/reviews/"+reviews[1].ID+"/approve", `{"digest":"`+reviews[1].Digest+`"}`, false)
+		var takenFailure contract.ErrorPayload
+		decodeJSON(t, taken.Body.Bytes(), &takenFailure)
+		if taken.Code != 409 || takenFailure.Code != "skill_review_target_exists" {
+			t.Fatalf("approval over an existing skill: %d %+v", taken.Code, takenFailure)
+		}
+		kept, err := os.ReadFile(filepath.Join(existing, "SKILL.md"))
+		if err != nil || string(kept) != "operator skill" {
+			t.Fatalf("existing skill changed: %q %v", kept, err)
 		}
 
 		// Stored draft bytes that no longer verify still read as a review, marked invalid, and reject.

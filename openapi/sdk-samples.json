@@ -2157,6 +2157,13 @@
             "resource": "agents",
             "app_access": "denied"
         },
+        "listAgentSkillInstallConflicts": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.listAgentSkillInstallConflicts();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListAgentSkillInstallConflicts(ctx, client.ListAgentSkillInstallConflictsParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "agents",
+            "app_access": "denied"
+        },
         "listAgentSkillReviews": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.listAgentSkillReviews();",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListAgentSkillReviews(ctx, client.ListAgentSkillReviewsParams{})\nif err != nil { return err }\nfmt.Println(result)",
@@ -3590,6 +3597,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ResetOnboarding(ctx)\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "onboarding",
+            "app_access": "denied"
+        },
+        "resolveAgentSkillInstallConflict": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.resolveAgentSkillInstallConflict({ path: { \"op_id\": \"op_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ResolveAgentSkillInstallConflict(ctx, client.ResolveAgentSkillInstallConflictParams{OpID: \"op_id\"}, client.AgentSkillInstallConflictResolveRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "agents",
             "app_access": "denied"
         },
         "resolvePendingToolApproval": {

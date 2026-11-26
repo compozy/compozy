@@ -10,6 +10,42 @@ import (
 	"strings"
 )
 
+// ListAutomationJobRuns List run history for one automation job
+func (c *Client) ListAutomationJobRuns(ctx context.Context, params ListAutomationJobRunsParams) (*RunsResponse, error) {
+	path := "/api/automation/jobs/{id}/runs"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Until != nil {
+		query.Set("until", *params.Until)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RunsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListAutomationJobsParams carries the path, query, and header parameters.
 type ListAutomationJobsParams struct {
 	Scope         *string   `url:"scope"`
@@ -389,58 +425,6 @@ func (c *Client) ListCmdPaletteClients(ctx context.Context, params ListCmdPalett
 type ListCmdPaletteCommandsParams struct {
 	Workspace   string  `url:"workspace"`
 	Client      *string `url:"client"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListCmdPaletteCommands List command palette commands
-func (c *Client) ListCmdPaletteCommands(ctx context.Context, params ListCmdPaletteCommandsParams) (*CmdPaletteCommandsResponse, error) {
-	path := "/api/cmd-palette/commands"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Client != nil {
-		query.Set("client", *params.Client)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPaletteCommandsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListComputerSSHHosts Discover SSH hosts on the controller
-func (c *Client) ListComputerSSHHosts(ctx context.Context) (*ComputerSSHHostsResponse, error) {
-	path := "/api/computers/ssh-hosts"
-	var out ComputerSSHHostsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListComputers List computers added to this controller
-func (c *Client) ListComputers(ctx context.Context) (*ComputerListResponse, error) {
-	path := "/api/computers"
-	var out ComputerListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListExtensionCommandsParams carries the path, query, and header parameters.
-type ListExtensionCommandsParams struct {
-	Extension   *string `url:"extension"`
-	Workspace   *string `url:"workspace"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }

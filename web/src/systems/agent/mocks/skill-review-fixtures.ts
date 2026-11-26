@@ -140,6 +140,7 @@ export function skillReviewViewFixture(
     invalid: false,
     unreadable: false,
     decideError: null,
+    installConflictOp: null,
     decide: () => undefined,
     ...overrides,
   };

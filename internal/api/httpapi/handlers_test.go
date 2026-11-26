@@ -294,6 +294,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/agent-skill-reviews/:id",
 		"POST /api/agent-skill-reviews/:id/approve",
 		"POST /api/agent-skill-reviews/:id/reject",
+		"GET /api/agent-skill-install-conflicts",
+		"POST /api/agent-skill-install-conflicts/:op_id/resolve",
 		"GET /api/agent-instances/:id",
 		"GET /api/agent-instances/:id/away",
 		"GET /api/agent-instances/:id/check-ins",

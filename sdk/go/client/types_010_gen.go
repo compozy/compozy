@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// HeartbeatHistoryResponse is a daemon API value.
+type HeartbeatHistoryResponse struct {
+	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
+	NextCursor string                     `json:"next_cursor,omitempty"`
+}
+
+// HeartbeatMutationResponse is a daemon API value.
+type HeartbeatMutationResponse struct {
+	Heartbeat HeartbeatPolicyPayload   `json:"heartbeat"`
+	Revision  HeartbeatRevisionPayload `json:"revision"`
+}
+
 // HeartbeatPolicyPayload is a daemon API value.
 type HeartbeatPolicyPayload struct {
 	Actions          []ActionDecl                       `json:"actions"`
@@ -434,15 +446,3 @@ type InstallExtensionResponse struct {
 	Extension             ExtensionPayload      `json:"extension"`
 	DependenciesInstalled []string              `json:"dependencies_installed,omitempty"`
 }
-
-// InstallExtensionSource is a daemon API value.
-type InstallExtensionSource string
-
-// Inventory is a daemon API value.
-type Inventory struct {
-	Runtimes    []Snapshot `json:"runtimes"`
-	GeneratedAt time.Time  `json:"generated_at"`
-}
-
-// InvokeStatus is a daemon API value.
-type InvokeStatus string

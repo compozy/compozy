@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// FileSearchMatch is a daemon API value.
+type FileSearchMatch struct {
+	Line       int     `json:"line"`
+	Column     int     `json:"column"`
+	Text       string  `json:"text"`
+	Ranges     [][]int `json:"ranges"`
+	TextOffset int     `json:"text_offset"`
+}
+
+// FileSearchQuery is a daemon API value.
+type FileSearchQuery struct {
+	Pattern       string   `json:"pattern"`
+	Regex         bool     `json:"regex"`
+	CaseSensitive bool     `json:"case_sensitive"`
+	WholeWord     bool     `json:"whole_word"`
+	Include       []string `json:"include"`
+	Exclude       []string `json:"exclude"`
+}
+
 // FileSearchResponse is a daemon API value.
 type FileSearchResponse struct {
 	Root              FileRootPayload  `json:"root"`
@@ -427,16 +446,4 @@ type HeartbeatFrontmatterPreferencesPayload struct {
 	MinInterval  string                       `json:"min_interval,omitempty"`
 	ActiveHours  []HeartbeatTimeWindowPayload `json:"active_hours,omitempty"`
 	QuietWindows []HeartbeatTimeWindowPayload `json:"quiet_windows,omitempty"`
-}
-
-// HeartbeatHistoryResponse is a daemon API value.
-type HeartbeatHistoryResponse struct {
-	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
-	NextCursor string                     `json:"next_cursor,omitempty"`
-}
-
-// HeartbeatMutationResponse is a daemon API value.
-type HeartbeatMutationResponse struct {
-	Heartbeat HeartbeatPolicyPayload   `json:"heartbeat"`
-	Revision  HeartbeatRevisionPayload `json:"revision"`
 }

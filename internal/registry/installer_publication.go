@@ -4,21 +4,17 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/compozy/compozy/internal/dirpublish"
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
 // ErrInstallTargetExists reports an atomic no-replace publication collision.
 var ErrInstallTargetExists = errors.New("registry: install target already exists")
 
-// ErrInstallPublicationRecoveryRequired reports an interrupted replacement
-// whose filesystem state cannot be resolved without operator inspection.
-var ErrInstallPublicationRecoveryRequired = errors.New("registry: install publication recovery required")
-
-// ErrInstallPublicationBusy reports another live publisher for the same target.
-var ErrInstallPublicationBusy = errors.New("registry: install publication is busy")
-
 // MoveInstalledDir moves an extracted package directory into its final location.
-// It never creates the target parent. A committed publication remains success
+// It never creates the target parent. Another live publisher of the same target
+// returns dirpublish.ErrBusy; an unresolvable interrupted publication returns
+// dirpublish.ErrRecoveryRequired. A committed publication remains success
 // even when a subsequent durability or cleanup step reports a diagnostic.
 func MoveInstalledDir(
 	extractedDir string,
@@ -110,7 +106,7 @@ func moveInstalledPackage(
 	targetName string,
 	replaceExisting bool,
 ) (diagnostics []CleanupDiagnostic, err error) {
-	publicationLock, err := acquireInstallPublicationLock(targetParent, targetName)
+	publicationLock, err := dirpublish.AcquireLock(targetParent, targetName)
 	if err != nil {
 		return nil, err
 	}

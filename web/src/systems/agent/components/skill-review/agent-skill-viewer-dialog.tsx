@@ -116,6 +116,7 @@ export function AgentSkillViewerDialog({
   deciding = false,
   approveDisabled = false,
   error,
+  installConflictOp = null,
   onApprove,
   onReject,
   initialPath,
@@ -140,6 +141,8 @@ export function AgentSkillViewerDialog({
   /** This version can't be approved; Reject stays available. */
   approveDisabled?: boolean;
   error?: string;
+  /** Approve was refused because the skill changed while it was being replaced: the op to resolve. */
+  installConflictOp?: string | null;
   onApprove: () => void;
   onReject: () => void;
 }) {
@@ -176,6 +179,17 @@ export function AgentSkillViewerDialog({
               <Alert data-testid="skill-review-stale" variant="warning">
                 <AlertDescription>
                   This is the latest version. It changed after you first opened it.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {installConflictOp !== null ? (
+              <Alert data-testid="skill-review-install-conflict" variant="warning">
+                <AlertDescription>
+                  This skill changed while it was being replaced. Resolve it with{" "}
+                  <code className="font-mono">
+                    compozy agent skill install-conflict resolve {installConflictOp || "<op>"}
+                  </code>
+                  .
                 </AlertDescription>
               </Alert>
             ) : null}
