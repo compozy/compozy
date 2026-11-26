@@ -1,14 +1,16 @@
 import type { ProfileOwner, ProfileScopeParams } from "@/systems/profiles";
 import {
   ownerDataScope,
-  workspaceBadgeIdentity,
   workspaceSelectorForScope,
   workspaceSelectorOrAll,
-  workspaceWorkingLabel,
   type DataScope,
   type FocusedDataScope,
+} from "@/systems/workspace/lib/destination";
+import {
+  workspaceBadgeIdentity,
   type WorkspaceBadgeIdentity,
-} from "@/systems/workspace";
+} from "@/systems/workspace/lib/workspace-badge-identity";
+import { workspaceWorkingLabel } from "@/systems/workspace/lib/workspace-working-label";
 
 import type { fetchSessionFacets } from "../adapters/session-catalog-api";
 import type { SessionListFilters } from "../types";

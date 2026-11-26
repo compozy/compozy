@@ -15,10 +15,11 @@ jobs:
       - uses: ./.github/actions/setup-bun
       - name: Check prototypes, flows and story roots
         working-directory: web
+        shell: bash
         run: |
           bunx --no-install proto --version
           if ! bunx --no-install proto check --json > "$RUNNER_TEMP/proto-check.json"; then
-            cat "$RUNNER_TEMP/proto-check.json"
+            jq '{problems, error}' "$RUNNER_TEMP/proto-check.json"
             exit 1
           fi
           jq -e '{problems: (.problems | length), warnings: (.warnings | length)} | select(.problems == 0)' "$RUNNER_TEMP/proto-check.json"
