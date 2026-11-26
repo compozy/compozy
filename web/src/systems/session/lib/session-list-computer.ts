@@ -1,6 +1,6 @@
 import { createContext } from "react";
 
-import { mergeSessionPages, type MergedSessionRow } from "@/systems/computers";
+import { mergeSessionPages, type MergedSessionRow } from "@/systems/computers/lib/merge-sessions";
 import type {
   ComputerIconKind,
   ComputerPlatform,

@@ -2,7 +2,7 @@
  * Sign-in (U0) and `cloud.compozy.com` browser page fixtures for Remote Computers.
  *
  * Agrees with `remote-computers-fixtures.ts` (`OWNER_EMAIL`, `LOCAL_COMPUTER`).
- * Pure data and types only; safe under `@compozy/proto` network guards.
+ * Pure data and types only; safe under `@protohq/cli` network guards.
  */
 import { LOCAL_COMPUTER, OWNER_EMAIL } from "./remote-computers-fixtures";
 

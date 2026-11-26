@@ -23,7 +23,7 @@ name a configured spec. The check is skipped only when the `specs` function retu
 replace the generated title and add the real states:
 
 ```tsx
-import { definePrototype, setParam, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, setParam, type PrototypeProps } from "@protohq/cli";
 import { InvoiceList } from "./invoice-list";
 import { invoices } from "./invoice-list.fixtures";
 
@@ -114,7 +114,7 @@ key.
 
 The query string is the prototype's state. The render host reads `state`, `theme` and `role` from
 it. Comments record the state the reviewer saw, and every state has a shareable link.
-Runtime helpers from `@compozy/proto`:
+Runtime helpers from `@protohq/cli`:
 
 - `useSearch()` returns the current query string and re-renders when it changes.
 - `setParam(name, value | null)` and `setParams({ ... }, { push? })` update the query; `push`
@@ -127,7 +127,7 @@ Runtime helpers from `@compozy/proto`:
 
 ```tsx
 import "./src/styles.css"; // app CSS loads on the render origin only
-import type { CanvasProps, FrameProps } from "@compozy/proto";
+import type { CanvasProps, FrameProps } from "@protohq/cli";
 
 /** Providers around every rendered state. */
 export function Canvas({ children, theme, role }: CanvasProps) {
@@ -171,7 +171,7 @@ This writes `flows/checkout.flow.ts` (the `flows` directory is configurable). Th
 file name, and its review key is `flow-checkout`.
 
 ```ts
-import { defineFlow } from "@compozy/proto/flow";
+import { defineFlow } from "@protohq/cli/flow";
 
 export const flow = defineFlow({
   title: "Checkout",

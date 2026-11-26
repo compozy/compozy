@@ -1,4 +1,4 @@
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import { COMPUTERS_PRO } from "@/systems/computers/mocks/remote-computers-fixtures";
 import {

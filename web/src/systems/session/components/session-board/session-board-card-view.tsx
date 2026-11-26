@@ -25,7 +25,7 @@ import {
 } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
-import { ComputerMetaLabel } from "@/systems/computers";
+import { ComputerMetaLabel } from "@/systems/computers/components/computer-chip";
 import {
   SessionListComputerContext,
   type SessionRowComputerInfo,

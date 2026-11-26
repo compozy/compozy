@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 import { ChevronLeft, ChevronRight, Lock } from "@compozy/ui/icons";
 
 import { toast } from "@compozy/ui";

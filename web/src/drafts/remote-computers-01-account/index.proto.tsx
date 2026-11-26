@@ -1,4 +1,4 @@
-import { definePrototype, useSearch, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, useSearch, type PrototypeProps } from "@protohq/cli";
 
 import type { UpgradeSheetPhase } from "@/systems/account/components/account-upgrade-sheet";
 import {

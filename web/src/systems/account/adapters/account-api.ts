@@ -8,6 +8,10 @@ import {
   requireResponseData,
 } from "@/lib/api-client";
 
+import { AccountApiError } from "./account-api-error";
+
+export { AccountApiError } from "./account-api-error";
+
 export type AccountStatusPayload = components["schemas"]["AccountStatusResponse"];
 export type AccountGracePayload = components["schemas"]["AccountGrace"];
 export type AccountSignInNoticePayload = components["schemas"]["AccountSignInNotice"];
@@ -40,18 +44,6 @@ export type AccountChangedEventData = Omit<components["schemas"]["Change"], "app
   state?: string;
   approval?: Partial<components["schemas"]["ApprovalResult"]>;
 };
-
-export class AccountApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-    public readonly retryAfterSeconds?: number
-  ) {
-    super(message);
-    this.name = "AccountApiError";
-  }
-}
 
 function parseRetryAfterSeconds(response: Response): number | undefined {
   const raw = response.headers.get("Retry-After")?.trim();

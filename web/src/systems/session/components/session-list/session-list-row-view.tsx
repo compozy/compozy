@@ -47,7 +47,7 @@ import {
   SessionListComputerContext,
   type SessionRowComputerInfo,
 } from "../../lib/session-list-computer";
-import { ComputerMetaLabel } from "@/systems/computers";
+import { ComputerMetaLabel } from "@/systems/computers/components/computer-chip";
 import {
   sessionCheckboxGesture,
   sessionSelectionGesture,

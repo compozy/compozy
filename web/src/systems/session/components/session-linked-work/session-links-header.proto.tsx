@@ -1,4 +1,4 @@
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import { SessionLinksHeaderStage } from "@/drafts/always-on-agents-shared/session-links-stage";
 

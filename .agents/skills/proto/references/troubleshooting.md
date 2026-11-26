@@ -2,6 +2,12 @@
 
 Find the symptom, then fix the cause. Never "fix" a guard failure by loosening the guard.
 
+## Command resolves to moonrepo
+
+Run `bun run proto`, `bunx proto` or `npx proto` from the project with `@protohq/cli`
+installed. These resolve the local `proto` binary; a bare global `proto` may instead run
+moonrepo's toolchain manager.
+
 ## `proto check` problems
 
 - **`markup`**: a component prototype contains lowercase JSX. Move it into the view, or add a
@@ -94,9 +100,49 @@ Find the symptom, then fix the cause. Never "fix" a guard failure by loosening t
   provider (router, i18n, toasts) gets it from `Canvas`; a view that needs data gets props.
 - **`host_not_allowed`**: open the gallery at `127.0.0.1`, or add the hostname (without the port)
   to `dev.allowedHosts`.
-- **`port_in_use`**: both `port` and `port + 1` must be free. Use `--port <n>` or `PROTO_PORT`.
 - **"Proto shell is not built"**: only in a source checkout of proto. The published package
   ships the prebuilt shell, so run the package's `build:shell` in that checkout.
+
+## Local serving and connection
+
+Run `proto status --json` first; it starts nothing. Inspect
+`~/.config/protohq/daemon/daemon.log` for startup details.
+
+- **`port_in_use`**: another program or another user's Proto holds the address. Stop your own
+  Proto first if necessary, then set `PROTOHQ_PORT=4500 proto start`. The default is 4400; the
+  last port is remembered. For preview exhaustion, reservations are freed when project folders
+  disappear or have not run for 30 days; for occupied previews, read the reported port list.
+- **`daemon_unavailable`**: Proto did not start within 10 seconds (read the log), or its PID does
+  not answer (run `proto stop`, then `proto start`, as the error directs).
+- **`daemon_version_mismatch`**: upgrade `@protohq/cli` in this project; the running Proto needs a
+  newer protocol. Ordinary version skew warns on stderr; newer project packages upgrade Proto
+  and running projects reconnect. `status` marks older project versions as `behind`.
+- **`state_unavailable`**: Proto cannot use `~/.config/protohq/daemon`. Read the reason (permissions,
+  unreadable data or a held state lock); preserve state and fix that cause before retrying.
+- **`project_busy`**: another capture is serving the project or `proto dev` is still starting
+  after 60 seconds. Wait for that command, or keep `proto dev` running to share a ready server.
+- **`plan_required` / `seat_required` on agent operations**: stop the paid step and show the
+  error message and action URL from `next`. Continue with Free commands such as `proto check`
+  or `proto url`.
+- **`network_unavailable` on agent operations**: restore connectivity to Proto Cloud and try
+  again. The operation needs an online decision before it runs.
+- **`rate_limited` on agent operations**: honor `retryAfter` (seconds). Each retry needs a new
+  online check.
+- **`cli_outdated`**: install `@protohq/cli@latest` (0.3.0 or later) and rerun
+  `proto init --skills` to refresh the agent instructions.
+- **`project_offline`**: start this project with the `cd <folder> && proto dev` command in the
+  message. For `proto url <slug> --bare`, start it once to reserve its first preview address.
+- **`project_not_found`**: open home at `http://127.0.0.1:4400/` and select a known project.
+- **A connection overlay or stopped project page**: Ctrl-C stops only that project's terminal.
+  Restart it with `proto dev`. `proto stop` instead leaves projects alive and waiting for
+  `proto start`. Captures can still use their previews. An unexpected Proto stop triggers
+  automatic recovery; if it fails, project terminals retry and print the error.
+
+Discover gallery links with `proto url <slug>` (under `/p/<label>/`) and separate previews with
+`proto url <slug> --bare`. These commands never start anything. Preview and story addresses are
+reserved per project; use `proto status --json` for running root addresses. `dev.allowedHosts`
+applies only to project URLs; the home remains on 127.0.0.1. Lifecycle commands have `--json`
+forms; `dev` emits one stdout JSON line and sends subsequent updates to stderr.
 
 ## Storybook and Vitest
 
@@ -112,14 +158,14 @@ Find the symptom, then fix the cause. Never "fix" a guard failure by loosening t
 ## Installing and upgrading
 
 - **`playwright_missing`** (exit 3): `playwright` cannot be imported or Chromium cannot launch.
-  Install the peer and run `bunx playwright install chromium`. Each Playwright version needs its
+  Use the printed commands to install the peer and Chromium. Each Playwright version needs its
   own browser build, so run it again after changing versions.
 - **An unmet peer warning for `playwright`**: the peer range is `^1.64.0`, but capture only uses
   long-stable Playwright APIs, and projects run it on `1.63.0`. The warning alone is not a
   failure. Upgrade when you can instead of pinning proto down.
-- **A new `@compozy/proto` release is not installable yet**: package-manager policies with a
+- **A new `@protohq/cli` release is not installable yet**: package-manager policies with a
   minimum release age reject versions published within the window. Exempt this package for the
-  install, for example `bun add -d @compozy/proto@<version> --minimum-release-age-excludes=@compozy/proto`.
+  install, for example `bun add -d @protohq/cli@<version> --minimum-release-age-excludes=@protohq/cli`.
   With Bun, that flag replaces the `bunfig.toml` exclusion list for the run. Do not turn the
   policy off globally.
 - **Two copies of the comment skill load, or old instructions mention `author-prototype` or
@@ -127,4 +173,5 @@ Find the symptom, then fix the cause. Never "fix" a guard failure by loosening t
   current ones and lists the legacy directories under `legacySkills`; delete them, and their
   `.claude/skills/` links.
 - **`not_a_vite_app`**: run `init` in the app directory, or pass `--app <dir>`.
+- **`not_initialized`**: run `proto init` in the app, or pass `--app <dir>` to select an initialized app.
 - **`app_required`**: several `apps/*/proto.config.ts` exist; pass `--app <dir>`.

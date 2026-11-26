@@ -1,6 +1,6 @@
 # PR #1161 backend remediation
 
-Checkout: `/Users/pedronauck/.compozy/worktrees/compozy/proto-session-links`; branch: `proto/session-links`. All seven requested fixes are implemented and focused checks pass. No push. Backend commits remain blocked by automatic approval review (see below).
+Checkout: worktree `proto-session-links`; branch: `proto/session-links`. All seven requested fixes are implemented and focused checks pass. No push. Backend commits remain blocked by automatic approval review (see below).
 
 ## Findings and owning evidence
 
