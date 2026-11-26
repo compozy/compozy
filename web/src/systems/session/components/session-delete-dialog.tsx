@@ -94,7 +94,7 @@ export function SessionDeleteDialog({
             {sideChats ? ` ${SIDE_CHAT_COPY.deleteLine}` : null}
           </DialogDescription>
         </DialogHeader>
-        {childSessions ? (
+        {childSessions && (childSessions.count > 0 || !childSessions.pending) ? (
           <SessionChildrenCheckbox action="delete" choice={childSessions} disabled={isDeleting} />
         ) : null}
         {retrying ? (

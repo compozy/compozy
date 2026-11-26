@@ -123,7 +123,7 @@ export function SessionDeleteDialogSet({
           </ul>
           <SessionDeleteOverflowErrors sessions={sessions.slice(5)} resultsById={resultsById} />
         </div>
-        {childSessions ? (
+        {childSessions && (childSessions.count > 0 || !childSessions.pending) ? (
           <SessionChildrenCheckbox action="delete" choice={childSessions} disabled={isDeleting} />
         ) : null}
         <DialogFooter className="shrink-0 flex-wrap gap-2">

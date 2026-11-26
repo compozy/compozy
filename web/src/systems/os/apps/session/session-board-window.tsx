@@ -1,5 +1,5 @@
 import { Plus, SquareKanban } from "@compozy/ui/icons";
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, useRef, type ReactNode } from "react";
 
 import { Button, type TopbarSlotValue } from "@compozy/ui";
 
@@ -11,6 +11,7 @@ import {
   SessionViewOptionsMenu,
   SessionViewToggle,
   sessionBoardSort,
+  type SessionPayload,
 } from "@/systems/session";
 import { useDataScope } from "@/systems/workspace";
 
@@ -121,6 +122,14 @@ export function SessionBoardWindow({
   };
 
   const { deleteDialog, processDialog, renameDialog, laterDialog } = lifecycle;
+  const lastDeleteSessions = useRef<readonly SessionPayload[]>([]);
+  if (deleteDialog.sessions?.length) {
+    lastDeleteSessions.current = deleteDialog.sessions;
+  } else if (deleteDialog.session) {
+    lastDeleteSessions.current = [deleteDialog.session];
+  }
+  const retainedDeleteSessions = deleteDialog.sessions ?? lastDeleteSessions.current;
+  const retainedDeleteSession = deleteDialog.session ?? retainedDeleteSessions[0] ?? null;
   return (
     <OsSessionsDeriveHost workspaceId={scope?.kind === "project" ? scope.workspaceId : null}>
       {() => (
@@ -158,7 +167,7 @@ export function SessionBoardWindow({
               </div>
             </SessionsBoardSelection>
           </SessionBoardDrawer>
-          {deleteDialog.open && deleteDialog.session ? (
+          {retainedDeleteSession ? (
             <Suspense fallback={null}>
               <SessionDeleteDialog
                 isDeleting={deleteDialog.isDeleting}
@@ -167,10 +176,10 @@ export function SessionBoardWindow({
                 onConfirm={deleteDialog.onConfirm}
                 onOpenChange={deleteDialog.onOpenChange}
                 onRetry={deleteDialog.onRetry}
-                open
+                open={deleteDialog.open}
                 results={deleteDialog.results}
-                session={deleteDialog.session}
-                sessions={deleteDialog.sessions}
+                session={retainedDeleteSession}
+                sessions={retainedDeleteSessions}
               />
             </Suspense>
           ) : null}

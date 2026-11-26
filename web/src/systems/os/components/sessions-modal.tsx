@@ -1,4 +1,5 @@
 import { X } from "@compozy/ui/icons";
+import { useRef } from "react";
 
 import {
   Button,
@@ -57,6 +58,14 @@ export function OsSessionsDialogHost({
   currentWorkspaceId?: string | null;
   lifecycle: ReturnType<typeof useSessionLifecycleActions>;
 }) {
+  const lastDeleteSessions = useRef<readonly SessionPayload[]>([]);
+  if (lifecycle.deleteDialog.sessions?.length) {
+    lastDeleteSessions.current = lifecycle.deleteDialog.sessions;
+  } else if (lifecycle.deleteDialog.session) {
+    lastDeleteSessions.current = [lifecycle.deleteDialog.session];
+  }
+  const deleteSessions = lifecycle.deleteDialog.sessions ?? lastDeleteSessions.current;
+  const deleteSession = lifecycle.deleteDialog.session ?? deleteSessions[0] ?? null;
   return (
     <>
       <OsSessionsDeriveHost
@@ -82,12 +91,12 @@ export function OsSessionsDialogHost({
           />
         )}
       </OsSessionsDeriveHost>
-      {lifecycle.deleteDialog.session ? (
+      {deleteSession ? (
         <SessionDeleteDialog
           open={lifecycle.deleteDialog.open}
           onOpenChange={lifecycle.deleteDialog.onOpenChange}
-          session={lifecycle.deleteDialog.session}
-          sessions={lifecycle.deleteDialog.sessions}
+          session={deleteSession}
+          sessions={deleteSessions}
           results={lifecycle.deleteDialog.results}
           onRetry={lifecycle.deleteDialog.onRetry}
           isDeleting={lifecycle.deleteDialog.isDeleting}
