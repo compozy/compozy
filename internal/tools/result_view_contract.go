@@ -107,7 +107,7 @@ func validateClosedResultChildren(path string, node map[string]json.RawMessage) 
 		schemaKeyItems, schemaKeyAdditionalItems, "additionalProperties", "not", "if", "then", "else",
 	} {
 		raw := bytes.TrimSpace(node[key])
-		if len(raw) == 0 || raw[0] != '{' {
+		if len(raw) == 0 || (raw[0] != '{' && !isBooleanItemsSchema(key, raw)) {
 			continue
 		}
 		child, _, err := schemaNode(raw)
@@ -168,4 +168,13 @@ func populateResultViewDigests(d *Descriptor) error {
 func isFalseSchemaNode(node map[string]json.RawMessage) bool {
 	not, ok := node["not"]
 	return ok && len(node) == 1 && bytes.Equal(bytes.TrimSpace(not), []byte("{}"))
+}
+
+// isBooleanItemsSchema reports a boolean element schema, which must meet the same closure rule:
+// true admits open objects and false admits nothing.
+func isBooleanItemsSchema(key string, raw []byte) bool {
+	if key != schemaKeyItems && key != schemaKeyAdditionalItems {
+		return false
+	}
+	return bytes.Equal(raw, []byte("true")) || bytes.Equal(raw, []byte("false"))
 }

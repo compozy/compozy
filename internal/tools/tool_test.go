@@ -989,6 +989,12 @@ func TestResultViewDescriptorContract(t *testing.T) {
 			`{"type":"array","items":[{"type":"object","additionalProperties":false}]}`, "",
 		},
 		{"Should allow a false subschema inside a draft-07 tuple", `{"type":"array","items":[false]}`, ""},
+		{"Should reject boolean true array items", `{"type":"array","items":true}`, ".properties.pair.items"},
+		{
+			"Should reject boolean true tuple additionalItems",
+			`{"type":"array","items":[],"additionalItems":true}`, ".properties.pair.additionalItems",
+		},
+		{"Should allow boolean false array items", `{"type":"array","items":false}`, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
