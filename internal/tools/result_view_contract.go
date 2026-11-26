@@ -106,6 +106,9 @@ func validateClosedResultChildren(path string, node map[string]json.RawMessage) 
 	for _, key := range []string{
 		schemaKeyItems, schemaKeyAdditionalItems, "additionalProperties", "not", "if", "then", "else",
 	} {
+		if key == schemaKeyAdditionalItems && !isTupleItems(node[schemaKeyItems]) {
+			continue
+		}
 		raw := bytes.TrimSpace(node[key])
 		if len(raw) == 0 || (raw[0] != '{' && !isBooleanItemsSchema(key, raw)) {
 			continue

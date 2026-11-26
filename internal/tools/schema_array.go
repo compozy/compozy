@@ -26,7 +26,7 @@ type schemaArrayItems struct {
 
 func decodeSchemaArrayItems(schema map[string]json.RawMessage) (schemaArrayItems, error) {
 	items := schemaArrayItems{prefixKey: schemaKeyPrefixItems, restKey: schemaKeyItems}
-	if trimmed := bytes.TrimSpace(schema[schemaKeyItems]); len(trimmed) > 0 && trimmed[0] == '[' {
+	if isTupleItems(schema[schemaKeyItems]) {
 		items.prefixKey, items.restKey = schemaKeyItems, schemaKeyAdditionalItems
 	}
 	prefix, err := schemaNodeArray(schema[items.prefixKey])
@@ -39,6 +39,12 @@ func decodeSchemaArrayItems(schema map[string]json.RawMessage) (schemaArrayItems
 	}
 	items.prefix, items.rest, items.hasRest = prefix, rest, hasRest
 	return items, nil
+}
+
+// isTupleItems reports the draft-07 tuple form of items, the only form additionalItems constrains.
+func isTupleItems(raw json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+	return len(trimmed) > 0 && trimmed[0] == '['
 }
 
 // at returns the schema that governs the array element at idx.

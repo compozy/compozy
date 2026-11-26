@@ -995,6 +995,10 @@ func TestResultViewDescriptorContract(t *testing.T) {
 			`{"type":"array","items":[],"additionalItems":true}`, ".properties.pair.additionalItems",
 		},
 		{"Should allow boolean false array items", `{"type":"array","items":false}`, ""},
+		{
+			"Should ignore additionalItems beside a single items schema",
+			`{"type":"array","items":{"type":"string"},"additionalItems":true}`, "",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
