@@ -221,6 +221,9 @@ jobs:
       - name: Verify cloud source SPDX headers
         run: bash .github/scripts/cloud-license.sh
 
+      - name: Verify the cloud image build context
+        run: bash .github/scripts/cloud-build-context.sh
+
       - name: Verify generated artifacts
         run: make codegen-check
 
