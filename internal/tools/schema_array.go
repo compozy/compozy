@@ -6,6 +6,13 @@ import (
 	"fmt"
 )
 
+// JSON Schema keywords that describe array elements.
+const (
+	schemaKeyItems           = "items"
+	schemaKeyPrefixItems     = "prefixItems"
+	schemaKeyAdditionalItems = "additionalItems"
+)
+
 // schemaArrayItems holds the positional and trailing item schemas of an array schema.
 // JSON Schema 2020-12 spells a tuple as prefixItems plus items for the rest; draft-07
 // spells it as an items array plus additionalItems.
@@ -18,9 +25,9 @@ type schemaArrayItems struct {
 }
 
 func decodeSchemaArrayItems(schema map[string]json.RawMessage) (schemaArrayItems, error) {
-	items := schemaArrayItems{prefixKey: "prefixItems", restKey: "items"}
-	if trimmed := bytes.TrimSpace(schema["items"]); len(trimmed) > 0 && trimmed[0] == '[' {
-		items.prefixKey, items.restKey = "items", "additionalItems"
+	items := schemaArrayItems{prefixKey: schemaKeyPrefixItems, restKey: schemaKeyItems}
+	if trimmed := bytes.TrimSpace(schema[schemaKeyItems]); len(trimmed) > 0 && trimmed[0] == '[' {
+		items.prefixKey, items.restKey = schemaKeyItems, schemaKeyAdditionalItems
 	}
 	prefix, err := schemaNodeArray(schema[items.prefixKey])
 	if err != nil {
