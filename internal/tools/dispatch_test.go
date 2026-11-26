@@ -235,13 +235,19 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		if err := validateCallInput(d, json.RawMessage(accepted)); err != nil {
 			t.Fatalf("validateCallInput(%s) = %v", accepted, err)
 		}
-		for _, rejected := range []string{
-			`{"legacy":"anything"}`, `{"range":[10,50,90]}`, `{"range":["ten",50]}`,
-			`{"pair":["a",1,2]}`, `{"pair":[1,"a"]}`,
+		for _, tc := range []struct{ name, input string }{
+			{"Should reject a value for a false subschema", `{"legacy":"anything"}`},
+			{"Should reject an element past a closed prefixItems tuple", `{"range":[10,50,90]}`},
+			{"Should reject a wrong positional type in a prefixItems tuple", `{"range":["ten",50]}`},
+			{"Should reject an element past a closed draft-07 tuple", `{"pair":["a",1,2]}`},
+			{"Should reject a wrong positional type in a draft-07 tuple", `{"pair":[1,"a"]}`},
 		} {
-			if err := validateCallInput(d, json.RawMessage(rejected)); !errors.Is(err, ErrToolInvalidInput) {
-				t.Fatalf("validateCallInput(%s) = %v, want ErrToolInvalidInput", rejected, err)
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				if err := validateCallInput(d, json.RawMessage(tc.input)); !errors.Is(err, ErrToolInvalidInput) {
+					t.Fatalf("validateCallInput(%s) = %v, want ErrToolInvalidInput", tc.input, err)
+				}
+			})
 		}
 	})
 

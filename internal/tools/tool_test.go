@@ -945,6 +945,14 @@ func TestResultViewDescriptorContract(t *testing.T) {
 			d.OutputViews.Compact.Schema = json.RawMessage(`{"type":"object","properties":{"nested":{"type":"object"}},"additionalProperties":false}`)
 			d.OutputSchema = d.OutputViews.Compact.Schema
 		}},
+		{"Should reject an open object inside a draft-07 tuple", func(d *Descriptor) {
+			d.OutputViews.Compact.Schema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"pair":{"type":"array","items":[{"type":"object"}]}}}`)
+			d.OutputSchema = d.OutputViews.Compact.Schema
+		}},
+		{"Should reject an open object in tuple additionalItems", func(d *Descriptor) {
+			d.OutputViews.Compact.Schema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"pair":{"type":"array","items":[],"additionalItems":{"type":"object"}}}}`)
+			d.OutputSchema = d.OutputViews.Compact.Schema
+		}},
 		{"Should reject a mismatched default schema", func(d *Descriptor) { d.OutputSchema = json.RawMessage(`{"type":"object"}`) }},
 		{"Should reject views on a non-native backend", func(d *Descriptor) {
 			other := extensionDenyAllDescriptor()
@@ -970,6 +978,15 @@ func TestResultViewDescriptorContract(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should allow closed objects inside a draft-07 tuple", func(t *testing.T) {
+		t.Parallel()
+		d := resultViewDispatchDescriptor()
+		d.OutputViews.Compact.Schema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"pair":{"type":"array","items":[{"type":"object","additionalProperties":false}]}}}`)
+		d.OutputSchema = d.OutputViews.Compact.Schema
+		if err := d.Validate(); err != nil {
+			t.Fatal(err)
+		}
+	})
 	t.Run("Should allow explicitly free-form content maps", func(t *testing.T) {
 		t.Parallel()
 		d := resultViewDispatchDescriptor()

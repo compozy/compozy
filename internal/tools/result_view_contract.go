@@ -100,7 +100,9 @@ func validateClosedResultChildren(path string, node map[string]json.RawMessage) 
 			}
 		}
 	}
-	for _, key := range []string{schemaKeyItems, "additionalProperties", "not", "if", "then", "else"} {
+	for _, key := range []string{
+		schemaKeyItems, schemaKeyAdditionalItems, "additionalProperties", "not", "if", "then", "else",
+	} {
 		raw := bytes.TrimSpace(node[key])
 		if len(raw) == 0 || raw[0] != '{' {
 			continue
@@ -113,8 +115,12 @@ func validateClosedResultChildren(path string, node map[string]json.RawMessage) 
 			return err
 		}
 	}
-	for _, key := range []string{"anyOf", "oneOf", "allOf", schemaKeyPrefixItems} {
-		children, err := schemaNodeArray(node[key])
+	for _, key := range []string{"anyOf", "oneOf", "allOf", schemaKeyPrefixItems, schemaKeyItems} {
+		raw := bytes.TrimSpace(node[key])
+		if key == schemaKeyItems && (len(raw) == 0 || raw[0] != '[') {
+			continue // Object-valued items were checked above; an items array is a draft-07 tuple.
+		}
+		children, err := schemaNodeArray(raw)
 		if err != nil {
 			return err
 		}

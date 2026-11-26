@@ -322,7 +322,7 @@ func schemaProperties(raw json.RawMessage) (map[string]map[string]json.RawMessag
 	for key, rawValue := range rawValues {
 		value, err := decodeSchemaNode(rawValue)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s: %w", key, err)
 		}
 		values[key] = value
 	}
@@ -349,10 +349,10 @@ func schemaNodeArray(raw json.RawMessage) ([]map[string]json.RawMessage, error) 
 		return nil, err
 	}
 	values := make([]map[string]json.RawMessage, 0, len(rawValues))
-	for _, rawValue := range rawValues {
+	for idx, rawValue := range rawValues {
 		value, err := decodeSchemaNode(rawValue)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("[%d]: %w", idx, err)
 		}
 		values = append(values, value)
 	}
@@ -370,7 +370,7 @@ func decodeSchemaNode(raw json.RawMessage) (map[string]json.RawMessage, error) {
 	}
 	var value map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &value); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("schema must be an object or boolean: %w", err)
 	}
 	return value, nil
 }
