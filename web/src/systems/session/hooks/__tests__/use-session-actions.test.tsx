@@ -1781,7 +1781,7 @@ describe("session actions", () => {
 
     await act(async () => resolveDelete());
     await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
-    expect(result.current.deleteDialog.session).toBeNull();
+    expect(result.current.deleteDialog.session).toEqual(createdSession);
   });
 
   it("keeps the rename dialog open until the durable rename succeeds", async () => {
