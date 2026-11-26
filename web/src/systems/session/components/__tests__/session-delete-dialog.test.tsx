@@ -381,9 +381,10 @@ describe("SessionDeleteDialog child sessions", () => {
     );
 
     expect(screen.getByTestId("delete-dialog-keep-processes-placeholder")).toHaveClass("invisible");
-    expect(screen.getByText(" Associated side chats will also be deleted.")).toHaveClass(
+    expect(screen.getByTestId("delete-dialog-process-description-placeholder")).toHaveClass(
       "invisible"
     );
+    expect(screen.getByTestId("delete-dialog-side-chat-placeholder")).toHaveClass("invisible");
   });
 
   it("asks about the processes included children left running", () => {

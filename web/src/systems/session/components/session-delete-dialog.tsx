@@ -95,6 +95,7 @@ export function SessionDeleteDialog({
             This permanently removes <strong>{session.name?.trim() || session.id}</strong>,
             including its transcript and history, and removes it from the session list.
             <span
+              data-testid="delete-dialog-process-description-placeholder"
               className={!processChoice && metadataPending ? "invisible" : undefined}
               aria-hidden={!processChoice && metadataPending}
             >
@@ -105,6 +106,7 @@ export function SessionDeleteDialog({
                   : null}
             </span>
             <span
+              data-testid="delete-dialog-side-chat-placeholder"
               className={!sideChats && metadataPending ? "invisible" : undefined}
               aria-hidden={!sideChats && metadataPending}
             >

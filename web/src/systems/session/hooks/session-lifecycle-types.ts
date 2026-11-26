@@ -76,6 +76,8 @@ export interface SessionDeleteConfirmation {
   childSessions?: SessionChildrenChoice;
   /** A single target has side chats (open or closed), which are deleted with it. */
   sideChats?: boolean;
+  /** Side-chat and live-process metadata is pending; confirmation layout is reserved. */
+  metadataPending?: boolean;
   onOpenChange: (open: boolean) => void;
   /** `processes` answers what happens to running processes; absent when none run. */
   onConfirm: (processes?: SessionProcessPolicy) => void;
