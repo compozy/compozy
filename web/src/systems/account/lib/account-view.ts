@@ -11,13 +11,13 @@ import type {
   RemoteScope,
 } from "@/systems/computers/mocks/remote-computers-types";
 
-import {
-  AccountApiError,
-  type AccountApprovalPayload,
-  type AccountDevicePayload,
-  type AccountSignInNoticePayload,
-  type AccountStatusPayload,
-  type AccountTokenPayload,
+import { AccountApiError } from "../adapters/account-api-error";
+import type {
+  AccountApprovalPayload,
+  AccountDevicePayload,
+  AccountSignInNoticePayload,
+  AccountStatusPayload,
+  AccountTokenPayload,
 } from "../adapters/account-api";
 
 export function formatRelativeTimeLabel(iso: string | null | undefined): string {
