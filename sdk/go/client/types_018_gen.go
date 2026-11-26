@@ -7,6 +7,34 @@ import (
 	"time"
 )
 
+// RetryStrategy is a daemon API value.
+type RetryStrategy string
+
+// RetryTaskRunRequest is a daemon API value.
+type RetryTaskRunRequest struct {
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// RetryTaskRunResponse is a daemon API value.
+type RetryTaskRunResponse struct {
+	PreviousRun TaskRunPayload `json:"previous_run"`
+	Run         TaskRunPayload `json:"run"`
+}
+
+// ReviewContinuation is a daemon API value.
+type ReviewContinuation struct {
+	ReviewID          string   `json:"review_id"`
+	ReviewedRunID     string   `json:"reviewed_run_id"`
+	ReviewRound       int      `json:"review_round"`
+	Outcome           string   `json:"outcome"`
+	Reason            string   `json:"reason"`
+	MissingWork       []string `json:"missing_work"`
+	NextRoundGuidance string   `json:"next_round_guidance"`
+}
+
+// ReviewDecision is a daemon API value.
+type ReviewDecision string
+
 // ReviewPolicy is a daemon API value.
 type ReviewPolicy string
 
@@ -419,28 +447,4 @@ type RuntimeMatch struct {
 	ID         string `json:"id,omitempty"`
 	Type       string `json:"type,omitempty"`
 	Complexity string `json:"complexity,omitempty"`
-}
-
-// RuntimeMode is a daemon API value.
-type RuntimeMode string
-
-// RuntimePolicy is a daemon API value.
-type RuntimePolicy struct {
-	Mode RuntimeMode `json:"mode"`
-}
-
-// RuntimeRule is a daemon API value.
-type RuntimeRule struct {
-	Match   RuntimeMatch `json:"match"`
-	Runtime RuntimeSpec  `json:"runtime"`
-}
-
-// RuntimeSelectionPayload is a daemon API value.
-type RuntimeSelectionPayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-	SpeedResolution *Resolution               `json:"speed_resolution,omitempty"`
 }

@@ -9,6 +9,44 @@ import (
 	"strings"
 )
 
+// ListPermissionEntries List the newest permission decisions with their initiators
+func (c *Client) ListPermissionEntries(ctx context.Context, params ListPermissionEntriesParams) (*PermissionEntriesResponse, error) {
+	path := "/api/permissions"
+	query := url.Values{}
+	if params.Days != nil {
+		query.Set("days", *params.Days)
+	}
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
+	}
+	if params.Unattended != nil {
+		query.Set("unattended", strconv.FormatBool(*params.Unattended))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out PermissionEntriesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProcessesParams carries the path, query, and header parameters.
+type ListProcessesParams struct {
+	WorkspaceID   *string `url:"workspace_id"`
+	AllWorkspaces *bool   `url:"all_workspaces"`
+	Orphaned      *bool   `url:"orphaned"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // ListProcesses List processes grouped by session, including left-running processes
 func (c *Client) ListProcesses(ctx context.Context, params ListProcessesParams) (*ProcessesResponse, error) {
 	path := "/api/processes"
@@ -400,36 +438,6 @@ func (c *Client) ListSessionClarifications(ctx context.Context, params ListSessi
 		path += "?" + query.Encode()
 	}
 	var out ClarificationsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionDescendantsParams carries the path, query, and header parameters.
-type ListSessionDescendantsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListSessionDescendants List a session's child sessions, recursively
-func (c *Client) ListSessionDescendants(ctx context.Context, params ListSessionDescendantsParams) (*SessionsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/descendants"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionsResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

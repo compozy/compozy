@@ -9,6 +9,62 @@ import (
 	"strings"
 )
 
+// ListLoopRequestsParams carries the path, query, and header parameters.
+type ListLoopRequestsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       *string `url:"run_id"`
+	State       *string `url:"state"`
+	Cursor      *string `url:"cursor"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListLoopRequests List Loop human requests
+func (c *Client) ListLoopRequests(ctx context.Context, params ListLoopRequestsParams) (*LoopRequestsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loop-requests"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.RunID != nil {
+		query.Set("run_id", *params.RunID)
+	}
+	if params.State != nil {
+		query.Set("state", *params.State)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopRequestsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListLoopRequestsAggregateParams carries the path, query, and header parameters.
+type ListLoopRequestsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	RunID         *string   `url:"run_id"`
+	State         *string   `url:"state"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
 // ListLoopRequestsAggregate List Loop human requests
 func (c *Client) ListLoopRequestsAggregate(ctx context.Context, params ListLoopRequestsAggregateParams) (*LoopRequestsResponse, error) {
 	path := "/api/loop-requests"
@@ -388,42 +444,4 @@ type ListPermissionEntriesParams struct {
 	Unattended  *bool   `url:"unattended"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListPermissionEntries List the newest permission decisions with their initiators
-func (c *Client) ListPermissionEntries(ctx context.Context, params ListPermissionEntriesParams) (*PermissionEntriesResponse, error) {
-	path := "/api/permissions"
-	query := url.Values{}
-	if params.Days != nil {
-		query.Set("days", *params.Days)
-	}
-	if params.Agent != nil {
-		query.Set("agent", *params.Agent)
-	}
-	if params.Unattended != nil {
-		query.Set("unattended", strconv.FormatBool(*params.Unattended))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out PermissionEntriesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListProcessesParams carries the path, query, and header parameters.
-type ListProcessesParams struct {
-	WorkspaceID   *string `url:"workspace_id"`
-	AllWorkspaces *bool   `url:"all_workspaces"`
-	Orphaned      *bool   `url:"orphaned"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
 }

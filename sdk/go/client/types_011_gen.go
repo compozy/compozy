@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// InstallExtensionSource is a daemon API value.
+type InstallExtensionSource string
+
+// Inventory is a daemon API value.
+type Inventory struct {
+	Runtimes    []Snapshot `json:"runtimes"`
+	GeneratedAt time.Time  `json:"generated_at"`
+}
+
+// InvokeStatus is a daemon API value.
+type InvokeStatus string
+
 // JobPayload is a daemon API value.
 type JobPayload struct {
 	ID           string                           `json:"id"`
@@ -429,22 +441,4 @@ type LoopGateCriterion struct {
 	Tool     string          `json:"tool,omitempty"`
 	Inputs   map[string]any  `json:"inputs,omitempty"`
 	Metric   *LoopMetricSpec `json:"metric,omitzero"`
-}
-
-// LoopGateCriterionDetailPayload is a daemon API value.
-type LoopGateCriterionDetailPayload struct {
-	ID             string                         `json:"id"`
-	Type           string                         `json:"type"`
-	Prompt         string                         `json:"prompt,omitempty"`
-	Outcome        LoopGateVerdictOutcome         `json:"outcome"`
-	Passed         bool                           `json:"passed"`
-	Broken         bool                           `json:"broken,omitzero"`
-	ExitCode       *int                           `json:"exit_code,omitzero"`
-	Stdout         string                         `json:"stdout,omitempty"`
-	Stderr         string                         `json:"stderr,omitempty"`
-	Score          *float64                       `json:"score,omitzero"`
-	Evidence       json.RawMessage                `json:"evidence,omitempty"`
-	BlockingIssues []LoopGateBlockingIssuePayload `json:"blocking_issues,omitempty"`
-	Warnings       []LoopGateDiagnosticWarning    `json:"warnings,omitempty"`
-	Payload        json.RawMessage                `json:"payload,omitempty"`
 }

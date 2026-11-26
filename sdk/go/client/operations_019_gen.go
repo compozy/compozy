@@ -158,6 +158,32 @@ func (c *Client) ListAgentMemoryHistory(ctx context.Context, params ListAgentMem
 	return &out, nil
 }
 
+// ListAgentSkillInstallConflictsParams carries the path, query, and header parameters.
+type ListAgentSkillInstallConflictsParams struct {
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// ListAgentSkillInstallConflicts List skills left with two versions by an external edit (experimental)
+func (c *Client) ListAgentSkillInstallConflicts(ctx context.Context, params ListAgentSkillInstallConflictsParams) (*AgentSkillInstallConflictsResponse, error) {
+	path := "/api/agent-skill-install-conflicts"
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSkillInstallConflictsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListAgentSkillReviewsParams carries the path, query, and header parameters.
 type ListAgentSkillReviewsParams struct {
 	InstanceID *string `url:"instance_id"`
@@ -400,40 +426,4 @@ type ListAutomationJobRunsParams struct {
 	Limit       *int    `url:"limit"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListAutomationJobRuns List run history for one automation job
-func (c *Client) ListAutomationJobRuns(ctx context.Context, params ListAutomationJobRunsParams) (*RunsResponse, error) {
-	path := "/api/automation/jobs/{id}/runs"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Until != nil {
-		query.Set("until", *params.Until)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RunsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

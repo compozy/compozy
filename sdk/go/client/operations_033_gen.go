@@ -9,6 +9,35 @@ import (
 	"strings"
 )
 
+// RemoveWorktreesParams carries the path, query, and header parameters.
+type RemoveWorktreesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RemoveWorktrees Remove multiple worktrees or preview per-target removal risk
+func (c *Client) RemoveWorktrees(ctx context.Context, params RemoveWorktreesParams, body RemoveWorktreesRequest) (*RemoveWorktreesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/remove"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RemoveWorktreesResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RenameProfileParams carries the path, query, and header parameters.
+type RenameProfileParams struct {
+	Name string `url:"name"`
+}
+
 // RenameProfile Rename a profile
 func (c *Client) RenameProfile(ctx context.Context, params RenameProfileParams, body RenameProfileRequest) (*RenameProfileResponse, error) {
 	path := "/api/profiles/{name}/rename"
@@ -409,40 +438,6 @@ func (c *Client) ResetOnboarding(ctx context.Context) (*OnboardingStatusResponse
 	path := "/api/onboarding"
 	var out OnboardingStatusResponse
 	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResolvePendingToolApprovalParams carries the path, query, and header parameters.
-type ResolvePendingToolApprovalParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ResolvePendingToolApproval Approve or deny one pending tool approval
-func (c *Client) ResolvePendingToolApproval(ctx context.Context, params ResolvePendingToolApprovalParams, body ResolveToolApprovalRequest) (*ToolApprovalStatusResponse, error) {
-	path := "/api/tools/approvals/{id}/resolve"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolApprovalStatusResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResolveWorkspace Resolve or register a workspace from a path
-func (c *Client) ResolveWorkspace(ctx context.Context, body ResolveWorkspaceRequest) (*WorkspaceResponse, error) {
-	path := "/api/workspaces/resolve"
-	var out WorkspaceResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

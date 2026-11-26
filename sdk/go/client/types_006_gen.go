@@ -7,6 +7,35 @@ import (
 	"time"
 )
 
+// ComputerListResponse is a daemon API value.
+type ComputerListResponse struct {
+	Computers []Computer    `json:"computers"`
+	Local     LocalComputer `json:"local"`
+}
+
+// ComputerPlacementRequest is a daemon API value.
+type ComputerPlacementRequest struct {
+	Workspace         string     `json:"workspace"`
+	ProjectComputerID ComputerID `json:"project_computer_id,omitempty"`
+}
+
+// ComputerPlacementResponse is a daemon API value.
+type ComputerPlacementResponse struct {
+	ComputerID  ComputerID `json:"computer_id"`
+	Name        string     `json:"name"`
+	WorkspaceID string     `json:"workspace_id"`
+}
+
+// ComputerRoute is a daemon API value.
+type ComputerRoute struct {
+	ID        string    `json:"id"`
+	Kind      RouteKind `json:"kind"`
+	Address   string    `json:"address"`
+	InUse     bool      `json:"in_use"`
+	Learned   bool      `json:"learned"`
+	LastError *string   `json:"last_error"`
+}
+
 // ComputerRouteInUse is a daemon API value.
 type ComputerRouteInUse struct {
 	ID    string    `json:"id"`
@@ -413,34 +442,4 @@ type CreateWorkspaceRequest struct {
 	Name         string   `json:"name,omitempty"`
 	AddDirs      []string `json:"add_dirs,omitempty"`
 	DefaultAgent string   `json:"default_agent,omitempty"`
-}
-
-// CreateWorktreeRequest is a daemon API value.
-type CreateWorktreeRequest struct {
-	Name           string `json:"name,omitempty"`
-	Branch         string `json:"branch,omitempty"`
-	BaseRef        string `json:"base_ref,omitempty"`
-	ExistingBranch string `json:"existing_branch,omitempty"`
-	Path           string `json:"path,omitempty"`
-}
-
-// CriterionType is a daemon API value.
-type CriterionType string
-
-// CursorPagePayload is a daemon API value.
-type CursorPagePayload struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-	Limit      int    `json:"limit"`
-}
-
-// DaemonIdentityPayload is a daemon API value.
-type DaemonIdentityPayload struct {
-	PID         int                     `json:"pid"`
-	StartedAt   time.Time               `json:"started_at"`
-	HTTPHost    string                  `json:"http_host"`
-	HTTPPort    int                     `json:"http_port"`
-	UserHomeDir string                  `json:"user_home_dir"`
-	Version     string                  `json:"version"`
-	Readiness   *DaemonReadinessPayload `json:"readiness,omitzero"`
 }

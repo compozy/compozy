@@ -7,6 +7,37 @@ import (
 	"time"
 )
 
+// BulkForceTaskRunRequest is a daemon API value.
+type BulkForceTaskRunRequest struct {
+	RunIDs   []string        `json:"run_ids"`
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// BulkForceTaskRunResponse is a daemon API value.
+type BulkForceTaskRunResponse struct {
+	Results []BulkForceTaskRunItemPayload `json:"results"`
+}
+
+// BusyInputState is a daemon API value.
+type BusyInputState struct {
+	DefaultMode     string            `json:"default_mode"`
+	SteerCapability SteerCapability   `json:"steer_capability"`
+	SteerDelivery   SteerDeliveryMode `json:"steer_delivery,omitempty"`
+}
+
+// CancelTaskRequest is a daemon API value.
+type CancelTaskRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// CancelTaskRunRequest is a daemon API value.
+type CancelTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
 // CancelWorktreeExitActionRequest is a daemon API value.
 type CancelWorktreeExitActionRequest struct {
 	OperationID string `json:"op_id"`
@@ -416,32 +447,3 @@ type ComputerEvent struct {
 
 // ComputerID is a daemon API value.
 type ComputerID string
-
-// ComputerListResponse is a daemon API value.
-type ComputerListResponse struct {
-	Computers []Computer    `json:"computers"`
-	Local     LocalComputer `json:"local"`
-}
-
-// ComputerPlacementRequest is a daemon API value.
-type ComputerPlacementRequest struct {
-	Workspace         string     `json:"workspace"`
-	ProjectComputerID ComputerID `json:"project_computer_id,omitempty"`
-}
-
-// ComputerPlacementResponse is a daemon API value.
-type ComputerPlacementResponse struct {
-	ComputerID  ComputerID `json:"computer_id"`
-	Name        string     `json:"name"`
-	WorkspaceID string     `json:"workspace_id"`
-}
-
-// ComputerRoute is a daemon API value.
-type ComputerRoute struct {
-	ID        string    `json:"id"`
-	Kind      RouteKind `json:"kind"`
-	Address   string    `json:"address"`
-	InUse     bool      `json:"in_use"`
-	Learned   bool      `json:"learned"`
-	LastError *string   `json:"last_error"`
-}

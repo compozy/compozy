@@ -4,11 +4,42 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// ListVaultSecretsParams carries the path, query, and header parameters.
+type ListVaultSecretsParams struct {
+	Prefix    *string `url:"prefix"`
+	Namespace *string `url:"namespace"`
+}
+
+// ListVaultSecrets List redacted vault secret metadata
+func (c *Client) ListVaultSecrets(ctx context.Context, params ListVaultSecretsParams) (*VaultSecretsResponse, error) {
+	path := "/api/vault/secrets"
+	query := url.Values{}
+	if params.Prefix != nil {
+		query.Set("prefix", *params.Prefix)
+	}
+	if params.Namespace != nil {
+		query.Set("namespace", *params.Namespace)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out VaultSecretsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWindowManagerClientsParams carries the path, query, and header parameters.
+type ListWindowManagerClientsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
 
 // ListWindowManagerClients List connected window-manager clients
 func (c *Client) ListWindowManagerClients(ctx context.Context, params ListWindowManagerClientsParams) (*WindowManagerClientsResponse, error) {
@@ -408,25 +439,4 @@ func (c *Client) MarkTaskRead(ctx context.Context, params MarkTaskReadParams) (*
 // MintBrowserStreamTicketParams carries the path, query, and header parameters.
 type MintBrowserStreamTicketParams struct {
 	DPoP string `url:"DPoP"`
-}
-
-// MintBrowserStreamTicket Mint a single-use ticket for one stream path
-func (c *Client) MintBrowserStreamTicket(ctx context.Context, params MintBrowserStreamTicketParams, body BrowserStreamTicketRequest) (*BrowserStreamTicketResponse, error) {
-	path := "/remote/v1/stream-tickets"
-	headers := http.Header{}
-	headers.Set("DPoP", params.DPoP)
-	var out BrowserStreamTicketResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MintTerminalAttachTicketParams carries the path, query, and header parameters.
-type MintTerminalAttachTicketParams struct {
-	WorkspaceID             string  `url:"workspace_id"`
-	ID                      string  `url:"id"`
-	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
-	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
-	Profile                 *string `url:"profile"`
 }

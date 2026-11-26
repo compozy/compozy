@@ -10,6 +10,39 @@ import (
 	"strings"
 )
 
+// RefreshSessionSoulParams carries the path, query, and header parameters.
+type RefreshSessionSoulParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RefreshSessionSoul Refresh an idle session's Soul snapshot through body-level CAS
+func (c *Client) RefreshSessionSoul(ctx context.Context, params RefreshSessionSoulParams, body SessionSoulRefreshRequest) (*AgentSoulPayload, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/soul/refresh"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSoulPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RefreshSessionWorkLinkParams carries the path, query, and header parameters.
+type RefreshSessionWorkLinkParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
 // RefreshSessionWorkLink Ask the forge again about one linked item
 func (c *Client) RefreshSessionWorkLink(ctx context.Context, params RefreshSessionWorkLinkParams, body SessionWorkLinkRequest) (*SessionLinkedWorkResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/links/refresh"
@@ -410,33 +443,4 @@ func (c *Client) RemoveWorktree(ctx context.Context, params RemoveWorktreeParams
 		return nil, err
 	}
 	return &out, nil
-}
-
-// RemoveWorktreesParams carries the path, query, and header parameters.
-type RemoveWorktreesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RemoveWorktrees Remove multiple worktrees or preview per-target removal risk
-func (c *Client) RemoveWorktrees(ctx context.Context, params RemoveWorktreesParams, body RemoveWorktreesRequest) (*RemoveWorktreesResponse, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees/remove"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RemoveWorktreesResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RenameProfileParams carries the path, query, and header parameters.
-type RenameProfileParams struct {
-	Name string `url:"name"`
 }

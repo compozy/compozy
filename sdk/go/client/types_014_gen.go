@@ -4,6 +4,34 @@ package client
 
 import "time"
 
+// MarketplaceRefreshSourcePayload is a daemon API value.
+type MarketplaceRefreshSourcePayload struct {
+	Source     string `json:"source"`
+	Outcome    string `json:"outcome"`
+	EntryCount int    `json:"entry_count"`
+	Stale      bool   `json:"stale"`
+	ErrorClass string `json:"error_class,omitempty"`
+}
+
+// MarketplaceSection is a daemon API value.
+type MarketplaceSection struct {
+	ID    string                      `json:"id"`
+	Label string                      `json:"label"`
+	Total int                         `json:"total"`
+	Items []MarketplaceListingPayload `json:"items"`
+}
+
+// MarketplaceSectionsResponse is a daemon API value.
+type MarketplaceSectionsResponse struct {
+	Sections   []MarketplaceSection       `json:"sections"`
+	Revision   string                     `json:"revision"`
+	Stale      bool                       `json:"stale"`
+	Refreshing bool                       `json:"refreshing,omitzero"`
+	ErrorClass string                     `json:"error_class,omitempty"`
+	Error      string                     `json:"error,omitempty"`
+	Sources    []MarketplaceSourceSummary `json:"sources"`
+}
+
 // MarketplaceServerPayload is a daemon API value.
 type MarketplaceServerPayload struct {
 	Name        string          `json:"name"`
@@ -416,30 +444,4 @@ type OpenAIModelCompozyPayload struct {
 type OpenAIModelListResponse struct {
 	Object string               `json:"object"`
 	Data   []OpenAIModelPayload `json:"data"`
-}
-
-// OpenAIModelPayload is a daemon API value.
-type OpenAIModelPayload struct {
-	ID      string                    `json:"id"`
-	Object  string                    `json:"object"`
-	Created int64                     `json:"created"`
-	OwnedBy string                    `json:"owned_by"`
-	Compozy OpenAIModelCompozyPayload `json:"compozy"`
-}
-
-// OpenAppEffect is a daemon API value.
-type OpenAppEffect struct {
-	App string `json:"app"`
-}
-
-// OpenSessionSideRequest is a daemon API value.
-type OpenSessionSideRequest struct {
-	Message        string `json:"message"`
-	Name           string `json:"name,omitempty"`
-	IdempotencyKey string `json:"idempotency_key"`
-}
-
-// OpenURLEffect is a daemon API value.
-type OpenURLEffect struct {
-	URL string `json:"url"`
 }

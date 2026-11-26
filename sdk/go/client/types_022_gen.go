@@ -4,6 +4,27 @@ package client
 
 import "time"
 
+// SessionProcessesResponse is a daemon API value.
+type SessionProcessesResponse struct {
+	Supported bool                        `json:"supported"`
+	ScannedAt time.Time                   `json:"scanned_at"`
+	Items     []SessionProcessPayload     `json:"items"`
+	Trees     []SessionProcessTreePayload `json:"trees,omitempty"`
+}
+
+// SessionProfileFacetsPayload is a daemon API value.
+type SessionProfileFacetsPayload struct {
+	ProfileID string                      `json:"profile_id"`
+	Facets    SessionCatalogFacetsPayload `json:"facets"`
+}
+
+// SessionPromptCancelResponse is a daemon API value.
+type SessionPromptCancelResponse struct {
+	SessionID string `json:"session_id"`
+	Outcome   string `json:"outcome"`
+	TurnID    string `json:"turn_id,omitempty"`
+}
+
 // SessionProviderOptionPayload is a daemon API value.
 type SessionProviderOptionPayload struct {
 	Name             string                   `json:"name"`
@@ -426,21 +447,3 @@ type SettingsApplyResponse struct {
 
 // SettingsApplyTargetName is a daemon API value.
 type SettingsApplyTargetName string
-
-// SettingsAttentionPayload is a daemon API value.
-type SettingsAttentionPayload struct {
-	Toasts          bool     `json:"toasts"`
-	Sound           bool     `json:"sound"`
-	System          bool     `json:"system"`
-	MutedWorkspaces []string `json:"muted_workspaces"`
-}
-
-// SettingsAttentionResponse is a daemon API value.
-type SettingsAttentionResponse struct {
-	Section         SettingsSectionName        `json:"section"`
-	Scope           SettingsLayeredScopeKind   `json:"scope"`
-	WorkspaceID     string                     `json:"workspace_id,omitempty"`
-	Profile         string                     `json:"profile,omitempty"`
-	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
-	Config          SettingsAttentionPayload   `json:"config"`
-}

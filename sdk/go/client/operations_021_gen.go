@@ -9,6 +9,58 @@ import (
 	"strings"
 )
 
+// ListCmdPaletteCommands List command palette commands
+func (c *Client) ListCmdPaletteCommands(ctx context.Context, params ListCmdPaletteCommandsParams) (*CmdPaletteCommandsResponse, error) {
+	path := "/api/cmd-palette/commands"
+	query := url.Values{}
+	query.Set("workspace", params.Workspace)
+	if params.Client != nil {
+		query.Set("client", *params.Client)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out CmdPaletteCommandsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListComputerSSHHosts Discover SSH hosts on the controller
+func (c *Client) ListComputerSSHHosts(ctx context.Context) (*ComputerSSHHostsResponse, error) {
+	path := "/api/computers/ssh-hosts"
+	var out ComputerSSHHostsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListComputers List computers added to this controller
+func (c *Client) ListComputers(ctx context.Context) (*ComputerListResponse, error) {
+	path := "/api/computers"
+	var out ComputerListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListExtensionCommandsParams carries the path, query, and header parameters.
+type ListExtensionCommandsParams struct {
+	Extension   *string `url:"extension"`
+	Workspace   *string `url:"workspace"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ListExtensionCommands List active extension-contributed commands
 func (c *Client) ListExtensionCommands(ctx context.Context, params ListExtensionCommandsParams) (*ExtensionCommandsResponse, error) {
 	path := "/api/extensions/commands"
@@ -385,60 +437,4 @@ func (c *Client) ListLoopNodes(ctx context.Context, params ListLoopNodesParams) 
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListLoopRequestsParams carries the path, query, and header parameters.
-type ListLoopRequestsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       *string `url:"run_id"`
-	State       *string `url:"state"`
-	Cursor      *string `url:"cursor"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListLoopRequests List Loop human requests
-func (c *Client) ListLoopRequests(ctx context.Context, params ListLoopRequestsParams) (*LoopRequestsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-requests"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.RunID != nil {
-		query.Set("run_id", *params.RunID)
-	}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopRequestsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListLoopRequestsAggregateParams carries the path, query, and header parameters.
-type ListLoopRequestsAggregateParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	RunID         *string   `url:"run_id"`
-	State         *string   `url:"state"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
 }

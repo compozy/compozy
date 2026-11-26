@@ -9,6 +9,36 @@ import (
 	"strings"
 )
 
+// ListSessionDescendantsParams carries the path, query, and header parameters.
+type ListSessionDescendantsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListSessionDescendants List a session's child sessions, recursively
+func (c *Client) ListSessionDescendants(ctx context.Context, params ListSessionDescendantsParams) (*SessionsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/descendants"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionEventsParams carries the path, query, and header parameters.
 type ListSessionEventsParams struct {
 	WorkspaceID   string  `url:"workspace_id"`
@@ -405,34 +435,4 @@ type ListSessionProcessesParams struct {
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListSessionProcesses List attributed session processes
-func (c *Client) ListSessionProcesses(ctx context.Context, params ListSessionProcessesParams) (*SessionProcessesResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/processes"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionProcessesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionSidesParams carries the path, query, and header parameters.
-type ListSessionSidesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Archived    *string `url:"archived"`
-	Profile     *string `url:"profile"`
 }

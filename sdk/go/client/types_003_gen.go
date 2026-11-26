@@ -130,6 +130,38 @@ type AgentSkillDraftFile struct {
 	Content string `json:"content"`
 }
 
+// AgentSkillInstallConflictPayload is a daemon API value.
+type AgentSkillInstallConflictPayload struct {
+	OpID         string     `json:"op_id"`
+	Skill        string     `json:"skill"`
+	ReviewID     string     `json:"review_id,omitempty"`
+	Action       string     `json:"action"`
+	State        string     `json:"state"`
+	Keep         string     `json:"keep,omitempty"`
+	RetainedCopy string     `json:"retained_copy,omitempty"`
+	Since        *time.Time `json:"since,omitempty"`
+}
+
+// AgentSkillInstallConflictResolveRequest is a daemon API value.
+type AgentSkillInstallConflictResolveRequest struct {
+	Keep string `json:"keep"`
+}
+
+// AgentSkillInstallConflictResolveResponse is a daemon API value.
+type AgentSkillInstallConflictResolveResponse struct {
+	OpID            string `json:"op_id"`
+	Skill           string `json:"skill"`
+	Keep            string `json:"keep"`
+	KeptCopy        string `json:"kept_copy,omitempty"`
+	RetainedCopy    string `json:"retained_copy,omitempty"`
+	AlreadyResolved bool   `json:"already_resolved,omitempty"`
+}
+
+// AgentSkillInstallConflictsResponse is a daemon API value.
+type AgentSkillInstallConflictsResponse struct {
+	Conflicts []AgentSkillInstallConflictPayload `json:"conflicts"`
+}
+
 // AgentSkillLesson is a daemon API value.
 type AgentSkillLesson struct {
 	Cue        string `json:"cue"`
@@ -414,31 +446,4 @@ type AgentsResponse struct {
 type AppTokenIssuedResponse struct {
 	AppToken AppTokenPayload `json:"app_token"`
 	Token    string          `json:"token"`
-}
-
-// AppTokenPayload is a daemon API value.
-type AppTokenPayload struct {
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	Origins    []string   `json:"origins"`
-	CreatedAt  time.Time  `json:"created_at"`
-	LastUsedAt *time.Time `json:"last_used_at"`
-	RevokedAt  *time.Time `json:"revoked_at"`
-}
-
-// AppTokenResponse is a daemon API value.
-type AppTokenResponse struct {
-	AppToken AppTokenPayload `json:"app_token"`
-}
-
-// AppTokenRevokeResponse is a daemon API value.
-type AppTokenRevokeResponse struct {
-	AppToken AppTokenPayload `json:"app_token"`
-	Changed  bool            `json:"changed"`
-	Canceled int             `json:"canceled"`
-}
-
-// AppTokensResponse is a daemon API value.
-type AppTokensResponse struct {
-	AppTokens []AppTokenPayload `json:"app_tokens"`
 }

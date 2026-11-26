@@ -4,6 +4,23 @@ package client
 
 import "time"
 
+// SettingsMCPSecretPreservationPayload is a daemon API value.
+type SettingsMCPSecretPreservationPayload struct {
+	SecretEnv         []string `json:"secret_env,omitempty"`
+	OAuthClientSecret bool     `json:"oauth_client_secret,omitzero"`
+}
+
+// SettingsMCPSecretValuesPayload is a daemon API value.
+type SettingsMCPSecretValuesPayload struct {
+	SecretEnv         map[string]string `json:"secret_env,omitempty"`
+	OAuthClientSecret *string           `json:"oauth_client_secret,omitzero"`
+}
+
+// SettingsMCPServerEnabledRequest is a daemon API value.
+type SettingsMCPServerEnabledRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
 // SettingsMCPServerItemPayload is a daemon API value.
 type SettingsMCPServerItemPayload struct {
 	Disabled           bool                                   `json:"disabled,omitzero"`
@@ -414,33 +431,3 @@ type SettingsShellLegacyScopePayload struct {
 
 // SettingsShellLetterSpacing is a daemon API value.
 type SettingsShellLetterSpacing string
-
-// SettingsShellMutationResponse is a daemon API value.
-type SettingsShellMutationResponse struct {
-	Section          SettingsApplyTargetName         `json:"section,omitempty"`
-	Scope            SettingsScopeKind               `json:"scope,omitempty"`
-	WriteTarget      SettingsWriteTargetKind         `json:"write_target,omitempty"`
-	WorkspaceID      string                          `json:"workspace_id,omitempty"`
-	Profile          string                          `json:"profile,omitempty"`
-	AgentName        string                          `json:"agent_name,omitempty"`
-	Applied          bool                            `json:"applied"`
-	Lifecycle        SettingsApplyLifecycle          `json:"lifecycle"`
-	ApplyRecordID    string                          `json:"apply_record_id"`
-	ActiveGeneration int64                           `json:"active_generation"`
-	ActiveConfigHash string                          `json:"active_config_hash"`
-	NextAction       SettingsApplyNextAction         `json:"next_action"`
-	RestartRequired  bool                            `json:"restart_required,omitzero"`
-	RestartScope     string                          `json:"restart_scope,omitempty"`
-	Warnings         []string                        `json:"warnings,omitempty"`
-	PartialFailures  []SettingsApplyFailurePayload   `json:"partial_failures,omitempty"`
-	Skipped          bool                            `json:"skipped,omitzero"`
-	SkippedReason    string                          `json:"skipped_reason,omitempty"`
-	Config           SettingsShellPayload            `json:"config"`
-	LegacyScope      SettingsShellLegacyScopePayload `json:"legacy_scope"`
-}
-
-// SettingsShellPayload is a daemon API value.
-type SettingsShellPayload struct {
-	Sessions   SettingsShellSessionsPayload    `json:"sessions"`
-	Appearance *SettingsShellAppearancePayload `json:"appearance,omitempty"`
-}

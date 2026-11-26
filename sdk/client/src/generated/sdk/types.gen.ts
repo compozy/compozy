@@ -904,6 +904,34 @@ export type AgentSkillDraftFile = {
   path: string;
 };
 
+export type AgentSkillInstallConflictPayload = {
+  action: string;
+  keep?: string;
+  op_id: string;
+  retained_copy?: string;
+  review_id?: string;
+  since?: string | null;
+  skill: string;
+  state: string;
+};
+
+export type AgentSkillInstallConflictResolveRequest = {
+  keep: string;
+};
+
+export type AgentSkillInstallConflictResolveResponse = {
+  already_resolved?: boolean;
+  keep: string;
+  kept_copy?: string;
+  op_id: string;
+  retained_copy?: string;
+  skill: string;
+};
+
+export type AgentSkillInstallConflictsResponse = {
+  conflicts: Array<AgentSkillInstallConflictPayload>;
+};
+
 export type AgentSkillLesson = {
   confidence?: string;
   cue: string;
@@ -16761,6 +16789,142 @@ export type ResumeAgentInstanceResponses = {
 
 export type ResumeAgentInstanceResponse =
   ResumeAgentInstanceResponses[keyof ResumeAgentInstanceResponses];
+
+export type ListAgentSkillInstallConflictsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Workspace reference; omitted lists every workspace of the profile
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-skill-install-conflicts";
+};
+
+export type ListAgentSkillInstallConflictsErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentSkillInstallConflictsError =
+  ListAgentSkillInstallConflictsErrors[keyof ListAgentSkillInstallConflictsErrors];
+
+export type ListAgentSkillInstallConflictsResponses = {
+  /**
+   * Install conflicts
+   */
+  200: AgentSkillInstallConflictsResponse;
+};
+
+export type ListAgentSkillInstallConflictsResponse =
+  ListAgentSkillInstallConflictsResponses[keyof ListAgentSkillInstallConflictsResponses];
+
+export type ResolveAgentSkillInstallConflictData = {
+  /**
+   * JSON request body
+   */
+  body: AgentSkillInstallConflictResolveRequest;
+  path: {
+    /**
+     * Conflicted operation ID
+     */
+    op_id: string;
+  };
+  query?: {
+    /**
+     * Workspace reference; omitted searches every workspace of the profile
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-skill-install-conflicts/{op_id}/resolve";
+};
+
+export type ResolveAgentSkillInstallConflictErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ResolveAgentSkillInstallConflictError =
+  ResolveAgentSkillInstallConflictErrors[keyof ResolveAgentSkillInstallConflictErrors];
+
+export type ResolveAgentSkillInstallConflictResponses = {
+  /**
+   * Resolved conflict
+   */
+  200: AgentSkillInstallConflictResolveResponse;
+};
+
+export type ResolveAgentSkillInstallConflictResponse =
+  ResolveAgentSkillInstallConflictResponses[keyof ResolveAgentSkillInstallConflictResponses];
 
 export type ListAgentSkillReviewsData = {
   body?: never;
