@@ -367,13 +367,13 @@ jobs:
       - name: Prepare contract test receipts
         run: mkdir -p /tmp/gotest-json
 
-      - name: Verify integration selection and census contracts
+      - name: Verify boundary, integration selection and census contracts
         env:
           CGO_ENABLED: "1"
         run: >-
           gotestsum --rerun-fails=1 --rerun-fails-max-failures=5
           --jsonfile /tmp/gotest-json/gotest-mage.json --packages ./magefiles -- -race -tags=mage
-          -run '^Test(Integration|GlobalDBIntegration|GoTest|LoadGoTestCensus|Census|Partition|MissingPackage|Flake|Perf)'
+          -run '^Test(DependencyClosureBoundaries|Integration|GlobalDBIntegration|GoTest|LoadGoTestCensus|Census|Partition|MissingPackage|Flake|Perf)'
           -count=1 -timeout=5m
 
       - uses: ./.github/actions/report-flakes
