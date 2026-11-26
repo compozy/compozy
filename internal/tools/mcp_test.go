@@ -1829,25 +1829,34 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 	// Owner: MCP registry projection; canonical suite: bounded discovery.
 	t.Run("Should isolate a failing source from healthy sources", func(t *testing.T) {
 		t.Parallel()
+		tools := []MCPToolDescriptor{{RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}}
 		for _, tc := range []struct {
-			name    string
+			name     string
+			executor interface {
+				MCPCallExecutor
+				MCPAuthStatusProvider
+			}
 			consent func(context.Context, SourceRef, string) (bool, error)
 		}{
-			{name: "Should drop a source that publishes an invalid tool schema"},
-			{name: "Should drop a source whose admission check fails", consent: func(
-				_ context.Context, source SourceRef, _ string,
-			) (bool, error) {
-				if source.RawServerName == "broken" {
-					return false, errors.New("consent store unavailable")
-				}
-				return true, nil
-			}},
+			{
+				name:     "Should drop a source that publishes an invalid tool schema",
+				executor: &invalidSchemaMCPExecutor{fakeMCPExecutor: newFakeMCPExecutor(tools)},
+			},
+			{
+				// Both sources publish valid tools, so the failed admission check is the only cause.
+				name:     "Should drop a source whose admission check fails",
+				executor: newFakeMCPExecutor(tools),
+				consent: func(_ context.Context, source SourceRef, _ string) (bool, error) {
+					if source.RawServerName == "broken" {
+						return false, errors.New("consent store unavailable")
+					}
+					return true, nil
+				},
+			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				executor := &invalidSchemaMCPExecutor{fakeMCPExecutor: newFakeMCPExecutor(
-					[]MCPToolDescriptor{{RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}},
-				)}
+				executor := tc.executor
 				var opts []MCPProviderOption
 				if tc.consent != nil {
 					opts = append(opts, WithMCPConsent(tc.consent))

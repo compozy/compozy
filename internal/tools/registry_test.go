@@ -207,8 +207,9 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 			cancel()
 			return context.Canceled
 		}
-		if _, err := registry.SessionProjection(ctx, Scope{}); err == nil {
-			t.Fatal("SessionProjection after caller cancellation succeeded, want an error")
+		if _, err := registry.SessionProjection(ctx, Scope{}); !errors.Is(err, context.Canceled) &&
+			!errors.Is(err, ErrToolCanceled) {
+			t.Fatalf("SessionProjection after caller cancellation error = %v, want the caller cancellation", err)
 		}
 	})
 
@@ -570,6 +571,32 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		visible, err := registry.SessionProjection(ctx, Scope{})
 		if err != nil || len(visible) != 0 {
 			t.Fatalf("conflicted session projection = %+v, %v", visible, err)
+		}
+	})
+	// Invariant: a policy projection built from a partial provider listing never enters the shared memo.
+	// Owner: registry projection memoization; canonical suite: TestRuntimeRegistryProjections.
+	t.Run("Should not memoize a policy projection built from a partial listing", func(t *testing.T) {
+		t.Parallel()
+		valid := descriptorWithID(ToolIDTaskRead, "Read Task")
+		invalid := descriptorWithID(ToolIDToolList, "List Tools")
+		invalid.InputSchema = json.RawMessage(`{"type":"not-a-schema-type"}`)
+		provider := &scopedListingTestProvider{registryTestProvider: providerWithDescriptors(valid.Source, valid, invalid)}
+		registry, err := NewRegistry(WithProviders(provider))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := WithCachedMCPProjection(WithProjectionListings(t.Context(), NewProjectionListings()))
+		scope := Scope{SessionID: "sess-a", WorkspaceID: "ws-1"}
+		before := provider.calls.Load()
+		for range 2 {
+			views, err := registry.PolicyProjection(ctx, scope, DefaultPolicyInputs())
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireToolIDs(t, views, valid.ID)
+		}
+		if calls := provider.calls.Load() - before; calls != 2 {
+			t.Fatalf("partial projection listed %d times across two passes, want 2", calls)
 		}
 	})
 	t.Run("Should reject changed schemas after a valid catalog was cached", func(t *testing.T) {

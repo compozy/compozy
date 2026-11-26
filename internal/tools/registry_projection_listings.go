@@ -202,13 +202,14 @@ func (r *RuntimeRegistry) ProjectionRedactionRevision() [sha256.Size]byte {
 	return [sha256.Size]byte{}
 }
 
-// listProvider returns sorted, validated descriptors that callers must clone before mutating.
+// listProvider returns sorted, validated descriptors that callers must clone before mutating,
+// and whether the listing is complete.
 func (r *RuntimeRegistry) listProvider(
 	ctx context.Context,
 	provider Provider,
 	providerIndex int,
 	scope Scope,
-) ([]Descriptor, error) {
+) ([]Descriptor, bool, error) {
 	listings, shared := ctx.Value(projectionListingsKey{}).(*ProjectionListings)
 	scoped, declared := provider.(ProjectionScopeProvider)
 	providerScope := scope
@@ -217,11 +218,10 @@ func (r *RuntimeRegistry) listProvider(
 	}
 	key := projectionListingKey{registry: r, providerIndex: providerIndex, scope: providerScope}
 	if inputs, ok := pinnedProviderInputs(ctx, key); ok {
-		return inputs.descriptors, nil
+		return inputs.descriptors, inputs.complete, nil
 	}
 	if !shared || !declared {
-		descriptors, _, err := r.listValidatedProvider(ctx, provider, key, scope)
-		return descriptors, err
+		return r.listValidatedProvider(ctx, provider, key, scope)
 	}
 	var redaction [sha256.Size]byte
 	// MCP descriptor normalization uses the live secret registry.
@@ -240,7 +240,7 @@ func (l *ProjectionListings) load(
 	key projectionListingKey,
 	redaction [sha256.Size]byte,
 	list func() ([]Descriptor, bool, error),
-) ([]Descriptor, error) {
+) ([]Descriptor, bool, error) {
 	l.mu.Lock()
 	entry, joined := l.entries[key]
 	if !joined || entry.redaction != redaction {
@@ -254,21 +254,20 @@ func (l *ProjectionListings) load(
 	}
 	select {
 	case <-ctx.Done():
-		return nil, contextErr(ctx, "")
+		return nil, false, contextErr(ctx, "")
 	case <-entry.done:
 	}
 	if entry.err != nil || !entry.complete {
-		descriptors, _, err := list()
-		return descriptors, err
+		return list()
 	}
-	return entry.descriptors, nil
+	return entry.descriptors, true, nil
 }
 
 func (l *ProjectionListings) lead(
 	key projectionListingKey,
 	entry *projectionListing,
 	list func() ([]Descriptor, bool, error),
-) ([]Descriptor, error) {
+) ([]Descriptor, bool, error) {
 	entry.err = errProjectionListingAbandoned
 	defer func() {
 		if entry.err != nil || !entry.complete {
@@ -281,7 +280,7 @@ func (l *ProjectionListings) lead(
 		close(entry.done)
 	}()
 	entry.descriptors, entry.complete, entry.err = list()
-	return entry.descriptors, entry.err
+	return entry.descriptors, entry.complete, entry.err
 }
 
 var errProjectionListingAbandoned = errors.New("tools: projection listing abandoned")
