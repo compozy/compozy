@@ -168,7 +168,7 @@ func (d *Driver) applySessionConfiguration(
 	}
 
 	stageStartedAt = time.Now()
-	applied, err = d.applySessionReasoningEffort(ctx, process, normalized.ReasoningEffort)
+	applied, err = d.applySessionReasoningEffort(ctx, process, normalized.ReasoningEffort, true)
 	d.logStartStage(normalized, process, "set_reasoning", stageOutcome(err, !applied), stageStartedAt)
 	if err != nil {
 		return WrapFailure(

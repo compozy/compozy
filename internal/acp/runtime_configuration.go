@@ -74,10 +74,11 @@ func (d *Driver) ConfigureRuntime(ctx context.Context, process *AgentProcess, co
 	if err := validateDedicatedConfigOptionConflicts(process.CapsSnapshot().ConfigOptions, normalized); err != nil {
 		return err
 	}
-	if _, err := d.applySessionModel(ctx, process, normalized.Model, false); err != nil {
+	modelApplied, err := d.applySessionModel(ctx, process, normalized.Model, false)
+	if err != nil {
 		return fmt.Errorf("acp: configure runtime model: %w", err)
 	}
-	if _, err := d.applySessionReasoningEffort(ctx, process, normalized.ReasoningEffort); err != nil {
+	if _, err := d.applySessionReasoningEffort(ctx, process, normalized.ReasoningEffort, modelApplied); err != nil {
 		return fmt.Errorf("acp: configure runtime reasoning effort: %w", err)
 	}
 	if _, err := d.applySessionSpeed(ctx, process, normalized.Speed); err != nil {

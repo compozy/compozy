@@ -226,12 +226,13 @@ func ValidateModelConfigValue(options []SessionConfigOption, modelID string) err
 	)
 }
 
-// applySessionReasoningEffort rejects unadvertised intent before requesting provider
-// acknowledgement; the shared confirmation wait covers a late config_option_update.
+// applySessionReasoningEffort waits for a late config_option_update when requested
+// and rejects unadvertised intent before requesting provider acknowledgement.
 func (d *Driver) applySessionReasoningEffort(
 	ctx context.Context,
 	process *AgentProcess,
 	effort string,
+	waitForCatalog bool,
 ) (bool, error) {
 	if ctx == nil || process == nil || process.conn == nil {
 		return false, nil
@@ -241,26 +242,9 @@ func (d *Driver) applySessionReasoningEffort(
 		return false, nil
 	}
 
-	option, ok := findReasoningConfigOption(process.CapsSnapshot().ConfigOptions)
-	if !ok {
-		return false, newNegotiationError(
-			NegotiationCodeReasoningOptionMissing,
-			"reasoning effort",
-			effortID,
-			"",
-			nil,
-			nil,
-		)
-	}
-	if !configOptionAllowsValue(option, effortID) {
-		return false, newNegotiationError(
-			NegotiationCodeReasoningEffortUnsupported,
-			"reasoning effort",
-			effortID,
-			option.ID,
-			configOptionChoices(option),
-			nil,
-		)
+	option, err := d.awaitSessionReasoningOption(ctx, process, effortID, waitForCatalog)
+	if err != nil {
+		return false, err
 	}
 	if strings.TrimSpace(option.CurrentValueID) == effortID {
 		return false, nil
@@ -291,6 +275,71 @@ func (d *Driver) applySessionReasoningEffort(
 		)
 	}
 	return true, nil
+}
+
+// awaitSessionReasoningOption reads the reasoning option from the current snapshot,
+// optionally waiting up to configSettleBudget for a late config_option_update after
+// session startup or a model switch.
+func (d *Driver) awaitSessionReasoningOption(
+	ctx context.Context,
+	process *AgentProcess,
+	effortID string,
+	waitForCatalog bool,
+) (SessionConfigOption, error) {
+	options := process.CapsSnapshot().ConfigOptions
+	option, ok := findReasoningConfigOption(options)
+	if ok && configOptionAllowsValue(option, effortID) {
+		return option, nil
+	}
+	if waitForCatalog && (!ok || !option.ReadOnly) {
+		budget := defaultConfigSettleBudget
+		if d != nil && d.configSettleBudget > 0 {
+			budget = d.configSettleBudget
+		}
+		deadline := time.Now().Add(budget)
+		for {
+			remaining := time.Until(deadline)
+			if remaining <= 0 {
+				break
+			}
+			since, _ := process.configRevisionAndChange()
+			options = process.CapsSnapshot().ConfigOptions
+			if announced, found := findReasoningConfigOption(options); found &&
+				configOptionAllowsValue(announced, effortID) {
+				return announced, nil
+			}
+			if err := waitForConfigRevision(ctx, process, since, remaining); err != nil {
+				if errors.Is(err, errConfigSettleTimeout) {
+					break
+				}
+				return SessionConfigOption{}, err
+			}
+		}
+	}
+
+	options = process.CapsSnapshot().ConfigOptions
+	option, ok = findReasoningConfigOption(options)
+	if !ok {
+		return SessionConfigOption{}, newNegotiationError(
+			NegotiationCodeReasoningOptionMissing,
+			"reasoning effort",
+			effortID,
+			"",
+			nil,
+			nil,
+		)
+	}
+	if !configOptionAllowsValue(option, effortID) {
+		return SessionConfigOption{}, newNegotiationError(
+			NegotiationCodeReasoningEffortUnsupported,
+			"reasoning effort",
+			effortID,
+			option.ID,
+			configOptionChoices(option),
+			nil,
+		)
+	}
+	return option, nil
 }
 
 // applySessionConfigOption applies one selection and confirms it through the shared
