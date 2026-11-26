@@ -4,14 +4,12 @@ package main
 
 import (
 	"cmp"
-	"context"
 	"errors"
 	"fmt"
 	"go/parser"
 	"go/token"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -444,17 +442,6 @@ func dependencyForbiddenByClosureRule(dependency string, rule dependencyClosureR
 		}
 	}
 	return false
-}
-
-func listPackageDependencies(root string) ([]string, error) {
-	command := exec.CommandContext(context.Background(), "go", "list", "-deps", root)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("go list -deps %s: %w: %s", root, err, strings.TrimSpace(string(output)))
-	}
-	dependencies := strings.Fields(string(output))
-	slices.Sort(dependencies)
-	return dependencies, nil
 }
 
 func filesImporting(root string, target string) ([]string, error) {
