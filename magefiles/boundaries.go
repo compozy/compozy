@@ -4,6 +4,7 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"go/parser"
@@ -141,7 +142,7 @@ func directImportBoundaries() []directImportBoundary {
 }
 
 // Boundaries verifies direct package rules, strict leaf imports, and dependency closures.
-func Boundaries() error {
+func Boundaries(ctx context.Context) error {
 	forbidden := directImportBoundaries()
 
 	violations := 0
@@ -315,6 +316,7 @@ func Boundaries() error {
 	}
 
 	closureViolations, err := inspectDependencyClosures(
+		ctx,
 		subprocessDependencyClosureRules,
 		listPackageDependencies,
 	)
@@ -399,12 +401,13 @@ func isStandardLibraryImport(importPath string) bool {
 }
 
 func inspectDependencyClosures(
+	ctx context.Context,
 	rules []dependencyClosureRule,
-	listDependencies func(string) ([]string, error),
+	listDependencies func(context.Context, string) ([]string, error),
 ) ([]dependencyClosureViolation, error) {
 	violations := make([]dependencyClosureViolation, 0)
 	for _, rule := range rules {
-		dependencies, err := listDependencies(rule.root)
+		dependencies, err := listDependencies(ctx, rule.root)
 		if err != nil {
 			return nil, fmt.Errorf("list dependencies for %q: %w", rule.root, err)
 		}

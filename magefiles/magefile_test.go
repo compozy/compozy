@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"maps"
 	"os"
@@ -273,7 +274,7 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 				compozyModulePath + "internal/extension",
 			},
 		}}
-		violations, err := inspectDependencyClosures(rules, func(root string) ([]string, error) {
+		listDependencies := func(_ context.Context, root string) ([]string, error) {
 			if root != "./fixture" {
 				t.Fatalf("dependency root = %q, want ./fixture", root)
 			}
@@ -286,7 +287,8 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 				compozyModulePath + "internal/remotehost",
 				compozyModulePath + "internal/remotehost/experimental",
 			}, nil
-		})
+		}
+		violations, err := inspectDependencyClosures(t.Context(), rules, listDependencies)
 		if err != nil {
 			t.Fatalf("inspectDependencyClosures() error = %v", err)
 		}
@@ -305,8 +307,9 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 		t.Parallel()
 
 		_, err := inspectDependencyClosures(
+			t.Context(),
 			[]dependencyClosureRule{{root: "./fixture"}},
-			func(string) ([]string, error) { return nil, errors.New("go list failed") },
+			func(context.Context, string) ([]string, error) { return nil, errors.New("go list failed") },
 		)
 		if err == nil || !strings.Contains(err.Error(), "go list failed") {
 			t.Fatalf("inspectDependencyClosures() error = %v, want go list failure", err)

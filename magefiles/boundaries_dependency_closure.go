@@ -38,8 +38,8 @@ var subprocessDependencyClosureRules = []dependencyClosureRule{
 	},
 }
 
-func listPackageDependencies(root string) ([]string, error) {
-	command := exec.CommandContext(context.Background(), "go", "list", "-deps", root)
+func listPackageDependencies(ctx context.Context, root string) ([]string, error) {
+	command := exec.CommandContext(ctx, "go", "list", "-deps", root)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("go list -deps %s: %w: %s", root, err, strings.TrimSpace(string(output)))
