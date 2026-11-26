@@ -110,6 +110,16 @@ func renderCompozyRuntimeEnvelope(startup session.StartupPromptContext) string {
 				"CLI/API commands, and `tool_id` inputs.\n\n",
 		)
 		builder.WriteString(
+			"When the operator asks you to use subagents, delegate, spawn agents, or parallelize work, " +
+				"use `compozy__subagent_capabilities` to pick a target and `compozy__subagent_delegate` to delegate, " +
+				"or use CompozyOS child sessions (`compozy__session_create` or `compozy__session_spawn`) " +
+				"when workspace instructions call for them. Provider-native helpers run outside CompozyOS supervision " +
+				"and lack its provider, model, and effort overrides, worktree isolation, and monitor wakes. " +
+				"Use provider-native delegation, such as Claude `Task`/`Agent` or Codex agent spawning, only if the " +
+				"operator explicitly asks for the provider's own tool or the CompozyOS subagent tools " +
+				"are withheld or unavailable.\n\n",
+		)
+		builder.WriteString(
 			"Never wait on external work from a shell or a provider-internal task, inside or outside your turn. " +
 				"This covers CI, deploys, builds, release workflows, polling remote state, and any delay: " +
 				"`gh pr checks --watch`, `gh run watch`, `sleep`, and `while`, `until`, or `for` polling loops keep the " +

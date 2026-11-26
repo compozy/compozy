@@ -423,9 +423,14 @@ does not replay that result through the automatic path.
 Subagent tools, also in the `sessions` toolset: `compozy__subagent_capabilities`,
 `compozy__subagent_delegate`, `compozy__subagent_status`, `compozy__subagent_cancel`. A subagent is a
 delegated child session owned by the caller's current turn. Every subagent tool requires the caller to
-have an active turn and otherwise returns `parent_not_active`. Use them instead of chaining
-`session_spawn` → `session_prompt` → `session_wait` → `session_history` when you want one task answered
-by another agent, provider, or model while you keep working:
+have an active turn and otherwise returns `parent_not_active`.
+
+Use the workflow below when the operator asks to use subagents, delegate, spawn agents, or parallelize
+work. CompozyOS manages the child's runtime selection, worktree isolation, and monitor wakes. When
+workspace instructions require long-lived child sessions, use `compozy__session_create` or
+`compozy__session_spawn`. Use tools such as Claude `Task`/`Agent` or Codex agent spawning only when
+the operator explicitly requests the provider's own tool or CompozyOS subagent tools are withheld
+or unavailable.
 
 1. `compozy__subagent_capabilities {"result_view":"full"}` returns the caller's inherited runtime, permission mode, depth,
    live subagent count, and per-agent and per-provider `can_delegate` with `constraints` and advertised

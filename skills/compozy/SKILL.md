@@ -43,6 +43,15 @@ Command palette operations use `references/native-tools.md`. Tool/skill discover
 
 Read **references/tasks-and-orchestration.md in full** before exercising daemon Task authority or submitting a review verdict. A delegated assignment or role label alone grants no Task claim, lease or review authority.
 
+## Delegation
+
+When the operator asks to use subagents, delegate, spawn agents, or parallelize work, follow the
+[native subagent workflow](references/native-tools.md#runtime-and-workspace-tools). Pick a target with
+`compozy__subagent_capabilities` and delegate with `compozy__subagent_delegate`. Use
+`compozy__session_create` or `compozy__session_spawn` when workspace instructions require long-lived
+child sessions. Use provider-native delegation only at the operator's explicit request for that
+provider's tool or when CompozyOS subagent tools are withheld or unavailable.
+
 ## Waiting and authority
 
 Use `compozy__monitor_create` for external waits: `kind: "pull_request"` for PR checks/reviews (armed across wakes until the PR ends), `kind: "timer"` for delays. For other commands, call `compozy__terminal_exec` with executable in `command` and arguments in `args`; on `still_running`, register `kind: "terminal"` with the returned `terminal_id`. Never substitute shell polling or provider-internal background tasks/wakeups: they cannot start a CompozyOS turn. If policy withholds the terminal/monitor tools, shell waits remain allowed. Keep doing independent work; end the turn only after delivery or when every remaining step depends on a registered monitor or subagent.
