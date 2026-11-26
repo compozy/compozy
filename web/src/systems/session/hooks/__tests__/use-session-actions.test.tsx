@@ -2586,6 +2586,42 @@ describe("session lifecycle batches", () => {
     expect(toast.success).toHaveBeenCalledTimes(1);
   });
 
+  it("recounts processes from the remaining targets after a partial delete", async () => {
+    const withProcesses = { ...createdSession, id: "processful" };
+    const withoutProcesses = {
+      ...createdSession,
+      id: "processless",
+      process_summary: {
+        supported: true,
+        background: 0,
+        terminals: 0,
+        total: 0,
+        ports: [],
+      },
+    };
+    vi.mocked(fetchSessionById).mockImplementation(async id =>
+      id === withProcesses.id ? withSessionProcessSummary(withProcesses) : withoutProcesses
+    );
+    vi.mocked(deleteSession).mockImplementation(async (_workspaceId, id) => {
+      if (id === withoutProcesses.id) throw new Error("Session is locked");
+    });
+    const { result } = lifecycle();
+
+    act(() => result.current.actions.onDeleteMany?.([withProcesses, withoutProcesses]));
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+    expect(result.current.deleteDialog.processCount).toBe(3);
+
+    act(() => result.current.deleteDialog.onConfirm("keep"));
+
+    await waitFor(() =>
+      expect(result.current.deleteDialog.results).toEqual([
+        { id: withProcesses.id, status: "done" },
+        { id: withoutProcesses.id, status: "failed", error: "Session is locked" },
+      ])
+    );
+    expect(result.current.deleteDialog.processCount).toBe(0);
+  });
+
   // Feedback invariant: one lifetime-total toast on Close; row errors remain in the dialog.
   // Owner: lifecycle batch coordinator, this existing suite at the adapter I/O boundary.
   it.each([0, 1, 2])(

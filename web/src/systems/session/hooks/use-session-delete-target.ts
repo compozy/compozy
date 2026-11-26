@@ -8,6 +8,7 @@ import {
   prepareSessionDeleteTarget,
   type PreparedSessionDeleteTarget,
 } from "./session-delete-preparation";
+import { sessionsRunningProcesses } from "../lib/session-processes";
 import { readSessionTrees, sessionChildrenChoice, sessionChildrenScope } from "../lib/session-tree";
 import type { SessionPayload } from "../types";
 
@@ -110,7 +111,11 @@ export function useSessionDeleteTarget(queryClient: QueryClient, computerId: Com
   const updateChildrenScope = (sessions: readonly SessionPayload[]) =>
     setTarget(value =>
       value
-        ? { ...value, childrenScope: sessionChildrenScope("delete", sessions, value.trees) }
+        ? {
+            ...value,
+            childrenScope: sessionChildrenScope("delete", sessions, value.trees),
+            processCount: sessionsRunningProcesses(sessions),
+          }
         : value
     );
   const childSessions = target
