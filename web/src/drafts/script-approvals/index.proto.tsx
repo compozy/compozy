@@ -1,4 +1,4 @@
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import { ScriptApprovalBadges } from "./agent-badges";
 import { ScriptApprovalBell, type BellVariant } from "./bell-variations";

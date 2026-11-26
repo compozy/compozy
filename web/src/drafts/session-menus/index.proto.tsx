@@ -5,7 +5,7 @@
  * tree minus the verbs that only mean something for one session. Right-click any row or card in
  * any state to try it; each state pins one menu open for review.
  */
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import { ParityMatrix } from "./session-menu-parity";
 import { COORDINATOR_FIRST_LINK } from "./session-menus-fixtures";

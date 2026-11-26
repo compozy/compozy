@@ -238,8 +238,8 @@
                                     "**/*.proto",
                                     "**/*.proto.*",
                                     "**/drafts/**",
-                                    "@compozy/proto",
-                                    "@compozy/proto/**"
+                                    "@protohq/cli",
+                                    "@protohq/cli/**"
                                 ],
                                 "message": "Production web code cannot import prototypes, drafts or the prototype gallery."
                             }

@@ -12,7 +12,7 @@ prototypes: web/src/drafts
 entry: "{slug}/index.proto.tsx"
 providers: web/proto.canvas.tsx
 dev: bun run proto dev
-preview: "http://127.0.0.1:4401/__proto/render/{slug}?chrome=0"
+preview: "bun run proto url {slug} --bare"
 typecheck: bun run --cwd web typecheck
 evidence: "bun run proto evidence {slug} --state <id>"
 output: "web/docs/design/{slug}/"
@@ -24,7 +24,7 @@ verified: 2026-10-31
 Compozy prototypes render the product's own components. A prototype is a `*.proto.tsx` file that
 composes real `@compozy/ui` primitives and `web/src/systems/**` views with typed fixtures. The
 gallery, review loop, guards and CLI come from the published
-[`@compozy/proto`](https://github.com/compozy/proto) package (experimental 0.x, a `web`
+[`@protohq/cli`](https://github.com/proto-hq/proto) package (experimental 0.x, a `web`
 devDependency pinned exactly). Prototypes typecheck, follow the tokens, and cannot drift from
 production because they are production views.
 
@@ -40,15 +40,20 @@ Run every command from the repository root: `bun run proto <command>` runs the p
 | `web/vite.config.ts`     | `proto()`: the production boundary of the SPA build                       |
 | `web/vite.presentation.ts` | Rendering config shared by the app, Storybook and the render origin     |
 
-`bun run proto dev` serves the gallery shell at `http://127.0.0.1:4400` and the render origin at
-`http://127.0.0.1:4401`, which compiles prototypes with the web app's own Vite config (React
-Compiler, Tailwind, `@` alias). The first render after a cold start waits for Vite's dependency
-optimizer. `bun run proto build` writes a static, read-only gallery to `web/dist-proto/`; the SPA
-build in `web/dist` never includes prototype or gallery code. Prototypes never talk to a daemon.
+Sign in with `bun run proto login` to use interactive commands such as `dev`. CI skips the
+startup sign-in check. Headless `check` and `build` run without a Proto account.
+
+`bun run proto dev` prints this project's gallery URL at `http://127.0.0.1:4400/p/<label>/`.
+The root URL lists projects. `PROTOHQ_PORT` selects Proto's shared port. Ctrl-C stops the current
+project, while `bun run proto stop` stops the shared server. Proto allocates a separate preview
+origin per project. It compiles prototypes with the web app's Vite config (React Compiler,
+Tailwind, `@` alias), and the first cold render waits for Vite's dependency optimizer.
+`bun run proto build` writes a static, read-only gallery to `web/dist-proto/`. The SPA build
+in `web/dist` excludes prototype and gallery code. Prototypes never talk to the CompozyOS daemon.
 
 ## Component stories
 
-The Components area (`/?components`) hosts the existing Web and shared UI stories. The `web`
+The Components area (`/p/<label>/?components`) hosts the existing Web and shared UI stories. The `web`
 root uses `web/vite.presentation.ts` and its Storybook preview; the `ui` root uses
 `packages/ui/vite.stories.ts`, its own preview, and an Emojibase static mount. Each root requires
 Storybook and `@storybook/react-vite` at `~10.6` in its package directory. Storybook module mocks
@@ -58,7 +63,7 @@ Run `bun run proto stories list --json` to inspect the index and
 `bun run proto stories run --root web --theme dark --json` to render it and execute interactions.
 Repeat with `--root ui` and `--theme light` for the other root and theme. The default runner uses
 six concurrent stories and a 30-second deadline per story. Reports name each failure's stage
-(`import`, `load`, `render`, or `play`). Existing prototypes and flows retain their URLs.
+(`import`, `load`, `render`, or `play`). Prototypes and flows use the same project URL prefix.
 
 ## Two kinds of prototype
 
@@ -74,7 +79,7 @@ six concurrent stories and a 30-second deadline per story. Reports name each fai
 Both export a literal `meta` and a default component:
 
 ```tsx
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 export const meta = definePrototype({
   title: "Sessions board",
@@ -94,7 +99,7 @@ export default function SessionsBoardPrototype({ state }: PrototypeProps) {
 
 `meta` is read statically and never executed. The slug is the file stem, or the parent directory
 for `index.proto.tsx`; it is unique and cannot start with `flow-`. `useSearch`, `setParam(s)` and
-`protoHref` from `@compozy/proto` keep extra prototype state in the URL. `spec` is checked against
+`protoHref` from `@protohq/cli` keep extra prototype state in the URL. `spec` is checked against
 `.compozy/tasks/<id>/` (the gallery title is the `_spec.md` H1); that directory is local workflow
 state Git ignores, so in CI and fresh worktrees the specs function returns `null` and spec checks
 are skipped (`specs_unavailable`). Scaffold with:
@@ -138,7 +143,7 @@ Storybook documents components in isolation; the gallery reviews screens, states
   Vitest do not load `protoPresentation()`: the package guard also covers `*.stories.tsx`, and
   CompozyOS route stories deliberately exercise containers against MSW.
 - **Production boundary.** `proto()` in `web/vite.config.ts` fails the SPA build when a
-  `*.proto.*` file, a draft, a flow, the canvas or `@compozy/proto` reaches it, and an oxlint
+  `*.proto.*` file, a draft, a flow, the canvas or `@protohq/cli` reaches it, and an oxlint
   `no-restricted-imports` rule rejects those imports in `web/src/**`. Storybook builds from
   `web/vite.presentation.ts`, because the boundary also treats stories as prototype-only.
 - **Providers.** Every canvas gets a fresh stack (`web/proto.canvas.tsx`): `UIProvider` with the
@@ -161,17 +166,17 @@ Storybook documents components in isolation; the gallery reviews screens, states
 
 ## URLs
 
-`bun run proto url <slug> [--state <id>] [--bare]` prints the gallery URL, or with `--bare` the
-render URL (`http://127.0.0.1:4401/__proto/render/<slug>?chrome=0&state=<id>`), which is the
-preview and capture contract. The gallery keeps the whole view in its URL (`?p=<slug>&state=<id>`,
-`?flow=<id>`, `&theme=light|dark`), so every screen, state and flow step has a shareable link.
+`bun run proto url <slug> [--state <id>] [--bare]` prints the gallery URL, or with `--bare`
+the current preview URL for the running project. The gallery keeps the whole view in its URL
+(`?p=<slug>&state=<id>`, `?flow=<id>`, `&theme=light|dark`), so every screen, state and flow
+step has a shareable link.
 
 ## Flows
 
 Journeys live in `web/flows/<id>.flow.ts` (the file name is the id):
 
 ```ts
-import { defineFlow } from "@compozy/proto/flow";
+import { defineFlow } from "@protohq/cli/flow";
 
 export const flow = defineFlow({
   title: "Board to pull request",
@@ -210,8 +215,14 @@ Reviewers press C in the gallery, click an element or drag a region, and write; 
 records the selector, text, rects and the JSX source chain of what was clicked, plus the commit,
 state, theme, role and viewport. Review files live in `web/proto/review/<key>.json` (flow keys are
 `flow-<id>`), written under a per-key lock by the dev server and the CLI. Agents apply comments
-with the shipped `proto-apply-comments` skill (`.agents/skills/proto-apply-comments/`) and
-author prototypes with `proto`:
+with the shipped `proto-apply-comments` skill (`.agents/skills/proto-apply-comments/`). Refresh
+both Proto skills after upgrading with `bun run proto init --skills`.
+
+Local `comments *`, `screenshot`, `evidence` and each local MCP call require an online
+Proto Cloud check, including in CI. An Editor seat in a Pro workspace covers these operations.
+Accounts without a seat get 100 free operations once. Human review in the gallery stays Free.
+
+Common review commands:
 
 ```sh
 bun run proto comments list [--status open|resolved|all] [--json]
@@ -233,9 +244,8 @@ and `bun run proto evidence <slug> [--state <id>]` a script-free HTML snapshot, 
 need a running `proto dev`. Capture both themes for visual changes and inspect the images.
 `eng-ui-screenshot` covers visual contract bundles.
 
-Known gap: `@compozy/proto` 0.1.1 confines `evidence.dir` to the app root (`web/`), while the
-open-design `lint_artifact` tool only reads workspace `docs/design/`. Until the package accepts a
-workspace-relative evidence directory, copy the evidence HTML into `docs/design/<slug>/` for lint.
+Proto confines `evidence.dir` to the app root (`web/`). Copy the evidence HTML into
+`docs/design/<slug>/` when using the open-design `lint_artifact` tool.
 
 ## Checks
 
@@ -248,10 +258,10 @@ workspace-relative evidence directory, copy the evidence HTML into `docs/design/
 ## Citing prototypes in specs
 
 Specs and visual contracts cite a prototype by slug and state, with its gallery URL:
-`session-board-card` · `needs-you` (`/?p=session-board-card&state=needs-you`), and journeys by flow
-id (`/?flow=board-to-pull-request`). A UI spec that adds prototypes also adds or updates the flows
-its UI/UX contract describes. Existing `docs/design/opendesign/` boards stay as historical
-references; production (`packages/ui` + `web/`) wins on any conflict.
+`session-board-card` · `needs-you` (`/p/<label>/?p=session-board-card&state=needs-you`), and
+journeys by flow id (`/p/<label>/?flow=board-to-pull-request`). A UI spec that adds prototypes
+also adds or updates the flows its UI/UX contract describes. Existing `docs/design/opendesign/`
+boards stay as historical references; production (`packages/ui` + `web/`) wins on any conflict.
 
 Verified 2026-10-31 on `refactor/migrate-to-compozy-proto`: `proto check` (0 problems),
 `proto list --json`, `proto dev` (both origins; sessions prototypes, the review-digest draft and

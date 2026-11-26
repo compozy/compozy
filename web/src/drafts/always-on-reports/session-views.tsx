@@ -1,5 +1,5 @@
 /** The main session window, with every report, relayed approval and rotation state. */
-import { protoHref } from "@compozy/proto";
+import { protoHref } from "@protohq/cli";
 import {
   Archive,
   Bot,

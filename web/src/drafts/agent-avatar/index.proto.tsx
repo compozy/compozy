@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { Eyebrow, cn } from "@compozy/ui";
 
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import { AgentAvatar } from "../always-on-agents-shared/agent-avatar";
 import { AGENT_STATE_LABEL, type AgentState } from "../always-on-agents-shared/agent-state";

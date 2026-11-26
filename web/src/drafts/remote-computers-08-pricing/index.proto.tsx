@@ -1,7 +1,7 @@
 import "../landing/landing.css";
 import "./site-dark-pin.css";
 
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 import { LazyMotion, MotionConfig, domMax } from "motion/react";
 import { useLayoutEffect, useState } from "react";
 

@@ -1,4 +1,4 @@
-import { defineProtoConfig } from "@compozy/proto/config";
+import { defineProtoConfig } from "@protohq/cli/config";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 

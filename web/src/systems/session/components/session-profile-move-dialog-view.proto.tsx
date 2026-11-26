@@ -1,4 +1,4 @@
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import { SESSION_PROFILE_MOVE_DIALOG_STATES } from "../mocks/session-profile-move-fixtures";
 import { SessionProfileMoveDialogView } from "./session-profile-move-dialog-view";

@@ -323,9 +323,9 @@
         "zod": "4.6.7",
       },
       "devDependencies": {
-        "@compozy/proto": "0.1.5",
         "@modelcontextprotocol/sdk": "1.32.2",
         "@playwright/test": "1.64.1",
+        "@protohq/cli": "0.3.0",
         "@rolldown/plugin-babel": "0.2.4",
         "@storybook/addon-a11y": "10.6.3",
         "@storybook/addon-docs": "10.6.3",
@@ -549,8 +549,6 @@
     "@compozy/extension-sdk": ["@compozy/extension-sdk@workspace:sdk/typescript"],
 
     "@compozy/lint-plugins": ["@compozy/lint-plugins@workspace:lint-plugins"],
-
-    "@compozy/proto": ["@compozy/proto@0.1.5", "", { "dependencies": { "citty": "0.2.2", "tldts": "7.4.19", "typescript": "6.0.3", "zod": "4.6.7" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.32.2", "@storybook/react-vite": "~10.6.0", "playwright": "^1.64.0", "postgres": "^3.4.0", "react": "^19.2.0", "react-dom": "^19.2.0", "storybook": "~10.6.0", "vite": "^8" }, "optionalPeers": ["@modelcontextprotocol/sdk", "@storybook/react-vite", "playwright", "postgres", "storybook"], "bin": { "proto": "src/cli/main.js" } }, "sha512-ii5fEDrMQMvXUN0n03ZLBxuO0j6x2I7TMhLMiBwACPGVvIuj6Gi1IEpCUVgSui5yHaZfAAWlupab+Qn/Oym5ZQ=="],
 
     "@compozy/site": ["@compozy/site@workspace:packages/site"],
 
@@ -1199,6 +1197,8 @@
     "@poppinss/exception": ["@poppinss/exception@1.2.3", "", {}, "sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw=="],
 
     "@preact/signals-core": ["@preact/signals-core@1.14.4", "", {}, "sha512-HNB6HYeYKhQbJ1aKl+YRjrS4+QWHLKX6qKoUsfS/m0vqzsVaEBiZiaKbG/e+NKk2ch5ALQr/ihWaMHxiCuuWHA=="],
+
+    "@protohq/cli": ["@protohq/cli@0.3.0", "", { "dependencies": { "citty": "0.2.2", "tldts": "7.4.19", "typescript": "6.0.3", "zod": "4.6.7" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.32.2", "@storybook/react-vite": "~10.6.0", "playwright": "^1.64.0", "postgres": "^3.4.0", "react": "^19.2.0", "react-dom": "^19.2.0", "storybook": "~10.6.0", "vite": "^8" }, "optionalPeers": ["@modelcontextprotocol/sdk", "@storybook/react-vite", "playwright", "postgres", "storybook"], "bin": { "proto": "dist/node/cli.js" } }, "sha512-1DauvA7lSD0tyF/lQjEqfBnKp1xFOtT37Gmtk0nYC5mdNGpQ+WQnsXKXFeE/joY4EkCw5p6SBZUunFGkXMCYhg=="],
 
     "@radix-ui/number": ["@radix-ui/number@1.1.3", "", {}, "sha512-Road2bidD0uu/1BGDOWNdPI06g0lIRy6IF9GZcIrDK2KGItfor8IQwQa+yM2ERgHM1MmHxaxpTzk0/Jp42lNfA=="],
 

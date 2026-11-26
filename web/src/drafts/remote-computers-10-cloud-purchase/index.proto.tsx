@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { definePrototype, useSearch, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, useSearch, type PrototypeProps } from "@protohq/cli";
 
 import { toast } from "@compozy/ui";
 
