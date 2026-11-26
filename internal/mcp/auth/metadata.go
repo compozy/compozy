@@ -36,6 +36,16 @@ func (r discoveredProtectedResource) loginScopes(configured []string) hostedLogi
 	return hostedLoginScopes{values: resourceOAuthScopes(r.ScopesSupported), metadataOnly: true}
 }
 
+// authServerMetadata trusts the resource's offline_access advertisement when the issuer publishes no
+// scope list; an issuer that lists scopes without offline_access still opts out.
+func (r discoveredProtectedResource) authServerMetadata(asm *oauthex.AuthServerMeta) Metadata {
+	metadata := metadataFromAuthServer(asm)
+	if len(metadata.ScopesSupported) == 0 && slices.Contains(trimStrings(r.ScopesSupported), offlineAccessScope) {
+		metadata.ScopesSupported = []string{offlineAccessScope}
+	}
+	return metadata
+}
+
 func resourceOAuthScopes(scopes []string) []string {
 	return slices.DeleteFunc(trimStrings(scopes), func(scope string) bool { return scope == offlineAccessScope })
 }

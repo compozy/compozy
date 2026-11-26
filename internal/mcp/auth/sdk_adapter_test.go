@@ -81,6 +81,16 @@ func TestOAuthOfflineAccess(t *testing.T) {
 			resourceScopes: "tools.read", want: []string{"tools.read", "offline_access"}, refresh: true,
 		},
 		{
+			name:   "Should request offline access the resource advertises when the issuer lists no scopes",
+			grants: "authorization_code refresh_token", resourceScopes: "tools.read offline_access",
+			configured: []string{"tools.read"}, want: []string{"tools.read", "offline_access"}, refresh: true,
+		},
+		{
+			name:   "Should honor an issuer scope list that omits the resource's offline access",
+			scopes: "tools.read", grants: "authorization_code refresh_token", resourceScopes: "tools.read offline_access",
+			configured: []string{"tools.read"}, want: []string{"tools.read"},
+		},
+		{
 			name:   "Should preserve scopes for a pre-registered client with unknown grant permissions",
 			scopes: "tools.read offline_access", grants: "authorization_code refresh_token",
 			configured: []string{"tools.read"}, want: []string{"tools.read"}, preRegistered: true,
@@ -163,7 +173,9 @@ func TestOAuthOfflineAccess(t *testing.T) {
 						"code_challenge_methods_supported": []string{
 							"S256",
 						},
-						"scopes_supported": strings.Fields(tc.scopes),
+					}
+					if tc.scopes != "" {
+						metadata["scopes_supported"] = strings.Fields(tc.scopes)
 					}
 					if tc.grants != "" {
 						metadata["grant_types_supported"] = strings.Fields(tc.grants)
@@ -1804,6 +1816,83 @@ func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 		status, err := service.Status(t.Context(), cfg)
 		if err != nil || status.Status != StatusNeedsLogin || status.TokenPresent {
 			t.Fatalf("Status(missing baseline) = %#v, %v", status, err)
+		}
+	})
+
+	// Invariant: an issuer may grant fewer scopes than requested (RFC 6749 §3.3); the token binds the requested
+	// set through login, refresh and later use, while a wider configuration still requires a new login.
+	// Owner: OAuth token binding and status; canonical suite: TestAuthorizationTokenRequiresBaselineScopes.
+	t.Run("Should bind a narrower grant to the scopes login requested", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			base := "http://" + r.Host
+			switch r.URL.Path {
+			case "/.well-known/oauth-protected-resource/mcp":
+				writeManagerTestResponse(t, w, fmt.Sprintf(
+					`{"resource":%q,"authorization_servers":[%q],"scopes_supported":["tools.read","tools.admin","offline_access"]}`,
+					base+"/mcp", base,
+				))
+			case "/.well-known/oauth-authorization-server":
+				// Atlassian-shaped issuer: no scopes_supported, refresh allowed.
+				writeManagerTestResponse(t, w, fmt.Sprintf(
+					`{"issuer":%q,"authorization_endpoint":%q,"token_endpoint":%q,"registration_endpoint":%q,`+
+						`"code_challenge_methods_supported":["S256"],"grant_types_supported":["authorization_code","refresh_token"]}`,
+					base, base+"/authorize", base+"/token", base+"/register",
+				))
+			case "/register":
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				writeManagerTestResponse(t, w, `{"client_id":"client","token_endpoint_auth_method":"none"}`)
+			case "/token":
+				writeManagerTestResponse(t, w,
+					`{"access_token":"granted","refresh_token":"refresh","scope":"tools.read offline_access","expires_in":60}`)
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(server.Close)
+		now := time.Date(2026, 11, 26, 12, 0, 0, 0, time.UTC)
+		store := &adapterTestStore{}
+		service, cfg := newPreRegisteredTestService(t, store, server, WithRegistrationStore(store),
+			WithNow(func() time.Time { return now }))
+		cfg.IssuerURL, cfg.ClientID, cfg.Registration = "", "", RegistrationAuto
+		cfg.Scopes = []string{"tools.read", "tools.admin"}
+		manager, err := NewManager(service)
+		if err != nil {
+			t.Fatal(err)
+		}
+		begin, err := manager.Begin(t.Context(), cfg, "http://127.0.0.1:2123/api/mcp/oauth/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		authURL, err := url.Parse(begin.AuthorizationURL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := authURL.Query().Get("scope"); got != "tools.read tools.admin offline_access" {
+			t.Fatalf("authorize scope = %q, want offline access from the protected resource", got)
+		}
+		if _, err := manager.Exchange(t.Context(), cfg, ExchangeInput{
+			RedirectURL: oauthCallbackURL(t, begin.CallbackURL, begin.State, ""),
+		}); err != nil {
+			t.Fatalf("Exchange(narrower grant) error = %v, want accepted", err)
+		}
+		status, err := manager.Status(t.Context(), cfg)
+		if err != nil || status.Status != StatusAuthenticated ||
+			!slices.Equal(status.Scopes, []string{"tools.read", "offline_access"}) {
+			t.Fatalf("Status(narrower grant) = %+v, %v; want granted scopes", status, err)
+		}
+		now = now.Add(55 * time.Second)
+		refreshed, err := service.Refresh(t.Context(), cfg)
+		if err != nil || refreshed.Status != StatusAuthenticated {
+			t.Fatalf("Refresh(narrower grant) = %+v, %v", refreshed, err)
+		}
+		if _, err := service.AuthorizationToken(t.Context(), cfg); err != nil {
+			t.Fatalf("AuthorizationToken(after refresh) error = %v", err)
+		}
+		cfg.Scopes = append(cfg.Scopes, "tools.write")
+		if _, err := service.AuthorizationToken(t.Context(), cfg); !errors.Is(err, ErrTokenBindingInvalid) {
+			t.Fatalf("AuthorizationToken(widened config) error = %v, want invalid binding", err)
 		}
 	})
 }
