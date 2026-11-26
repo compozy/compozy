@@ -100,6 +100,16 @@ Then add `" spaced_tool "` to the fixture. On legacy Streamable HTTP, require th
 round-trip unchanged and the ready probe to count it. On Streamable HTTP 2026-07-28, require the
 probe to skip it with a diagnostic mentioning the `Mcp-Name` header and keep the other tools usable.
 
+### Failure isolation across providers (#2002)
+
+In an isolated daemon with two healthy MCP servers, add a third manual Streamable HTTP fake that
+publishes a tool whose input schema uses an unsupported `type`. Require that server alone to report
+failed in `compozy mcp list` and the session MCP panel, while `compozy tool invoke` of
+`compozy__tool_info`, `compozy__mcp_list` and `compozy__logs` succeeds, new sessions start with a
+generated title, and both healthy servers' tools stay callable from a session. Repeat with the fake
+returning a transport error, and with an extension provider whose listing fails. Then fix the fake
+and require its tools to return on the next refresh, without a daemon restart.
+
 ### Boolean subschemas and tuples (#2001)
 
 In an isolated daemon, point a manual Streamable HTTP definition at a local fake whose tool input
@@ -110,4 +120,3 @@ require `tool_invalid_input` / `schema_invalid` only for the second call. Add a 
 (`prefixItems` with `items: false`, as `z.toJSONSchema` emits it) and its draft-07 form (`items`
 array with `additionalItems: false`). Require a matching two-element tuple to pass and an extra
 element or a wrong positional type to fail.
-
