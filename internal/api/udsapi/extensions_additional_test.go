@@ -200,7 +200,7 @@ func TestExtensionEnablementHandlers(t *testing.T) {
 				if name != "ext-a" || req.Profile != "finance" || req.Enabled {
 					t.Fatalf("SetEnablement() name = %q req = %#v", name, req)
 				}
-				return contract.ExtensionEnablementPayload(req), nil
+				return contract.ExtensionEnablementPayload{Profile: req.Profile, Enabled: req.Enabled}, nil
 			},
 		}, homePaths)
 		engine := newTestRouter(t, handlers)

@@ -9,6 +9,8 @@
 
 import { z } from "zod";
 
+import { computerApiPath, type ComputerId } from "@/lib/api-client";
+
 import type { TerminalInfo } from "../types";
 import {
   terminalExitSchema,
@@ -41,9 +43,16 @@ export class TerminalCatalogProtocolError extends Error {
 }
 
 /** One catalog stream is always owned by exactly one profile. */
-export function terminalCatalogStreamPath(workspaceId: string, profile: string): string {
+export function terminalCatalogStreamPath(
+  workspaceId: string,
+  profile: string,
+  computerId?: ComputerId
+): string {
   const query = new URLSearchParams({ profile });
-  return `/api/workspaces/${encodeURIComponent(workspaceId)}/terminals/stream?${query.toString()}`;
+  return computerApiPath(
+    computerId,
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/terminals/stream?${query.toString()}`
+  );
 }
 
 // `reset` marks the aggregate stream's fence snapshot (expired or foreign cursor).

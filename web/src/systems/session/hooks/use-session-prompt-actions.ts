@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { createClientId } from "@/lib/client-id";
+import { isRemoteComputerId } from "@/lib/computer-scope";
 import { useActiveWorkspace } from "@/systems/workspace";
 import {
   cancelQueuedSessionPrompt,
@@ -111,16 +113,19 @@ function promptRequestFromAction(
  */
 export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
+  const computerId = useCurrentComputerId();
+  const keys = sessionKeys.forComputer(computerId);
   const { runtimeWorkspaceId } = useActiveWorkspace();
   const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation<SessionPromptSendResult, Error, SendSessionPromptParams>({
-    mutationFn: params =>
-      sendSessionPrompt(
-        requireWorkspace(workspaceId),
-        params.id,
-        promptRequestFromAction(params, params.mode)
-      ),
+    mutationFn: params => {
+      const workspace = requireWorkspace(workspaceId);
+      const request = promptRequestFromAction(params, params.mode);
+      return isRemoteComputerId(computerId)
+        ? sendSessionPrompt(workspace, params.id, request, undefined, computerId)
+        : sendSessionPrompt(workspace, params.id, request);
+    },
     /** Projects typed Goal outcomes before refreshing authoritative session reads. */
     onSettled: (data, error, params) => {
       const goal =
@@ -136,12 +141,19 @@ export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
           result: goal,
         });
         if (workspaceId && (goal.snapshot !== null || goal.outcome === "cleared")) {
-          queryClient.setQueryData(sessionKeys.goal(workspaceId, params.id), {
+          queryClient.setQueryData(keys.goal(requireWorkspace(workspaceId), params.id), {
             goal: goal.snapshot,
           });
         }
       }
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
+      if (workspaceId != null) {
+        void invalidateSessionMutationQueries(
+          queryClient,
+          requireWorkspace(workspaceId),
+          params.id,
+          computerId
+        );
+      }
     },
   });
 }

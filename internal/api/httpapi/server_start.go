@@ -58,7 +58,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	streamCtx, streamCancel := context.WithCancel(context.WithoutCancel(ctx))
 	httpServer := &http.Server{
-		Handler:           s.engine,
+		Handler:           s.surfaceHandler(),
 		ReadHeaderTimeout: defaultReadHeaderTimeout,
 		ReadTimeout:       defaultReadTimeout,
 		IdleTimeout:       defaultIdleTimeout,

@@ -83,8 +83,12 @@ func (s *daemonExtensionService) SetEnablement(
 			return err
 		}
 		result = contract.ExtensionEnablementPayload{Profile: profile.Name, Enabled: req.Enabled}
+		if err := s.guardProfileDisable(ctx, name, profile.ID, req); err != nil {
+			return err
+		}
 		return s.applyProfileEnablement(ctx, name, profile.ID, profile.Name, req.Enabled, actor)
 	})
+	s.addRefusalRetryCommands(ctx, err)
 	if err != nil {
 		return contract.ExtensionEnablementPayload{}, err
 	}
@@ -104,6 +108,11 @@ func (s *daemonExtensionService) applyProfileEnablement(
 	}
 	if err := s.checkProfileEnablementInputs(ctx, name, profileID, enabled); err != nil {
 		return err
+	}
+	if enabled {
+		if err := s.checkProfileEnablementDependencies(ctx, name, profileID); err != nil {
+			return err
+		}
 	}
 	if err := s.registry.SetEnabledForProfile(name, profileID, enabled); err != nil {
 		return err

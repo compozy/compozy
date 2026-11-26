@@ -16,6 +16,11 @@ type sigstoreBundleVerifier struct {
 	cachePath string
 }
 
+// NewSigstoreBundleVerifier uses the release workflow's Sigstore identity policy.
+func NewSigstoreBundleVerifier(cachePath string) BundleVerifier {
+	return sigstoreBundleVerifier{cachePath: cachePath}
+}
+
 func (v sigstoreBundleVerifier) VerifyChecksums(_ context.Context, checksumsPath string, bundlePath string) error {
 	if err := os.MkdirAll(v.cachePath, 0o755); err != nil {
 		return fmt.Errorf("update: create sigstore cache %q: %w", v.cachePath, err)

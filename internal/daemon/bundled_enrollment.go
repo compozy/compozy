@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"github.com/compozy/compozy/extensions/connectivity/tailscale"
 	forgegithub "github.com/compozy/compozy/extensions/forge/github"
 	opendesign "github.com/compozy/compozy/extensions/open-design"
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
@@ -20,6 +19,5 @@ type bundledEnrollment struct {
 var bundledEnrollments = []bundledEnrollment{
 	{Name: opendesign.Name, Enroll: opendesign.EnsureManagedInstall},
 	{Name: speccycle.Name, Enroll: speccycle.EnsureManagedInstall},
-	{Name: tailscale.Name, Enroll: tailscale.EnsureManagedInstall},
 	{Name: forgegithub.Name, Enroll: forgegithub.EnsureManagedInstall},
 }

@@ -5,6 +5,7 @@ import { TreeBranch, TreeBranchNode } from "@compozy/ui";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 
 import { childSessionSignalState, isSubagentSession } from "../../lib/session-hierarchy";
+import { hasRunningDescendant } from "../../lib/session-running";
 import { sessionSubagentCounts } from "../../lib/session-subagent-summary";
 import {
   sessionThreadSegment,
@@ -43,6 +44,7 @@ export interface SessionListThreadProps {
   onSelectSession: (session: SessionListTarget) => void;
   selection?: SessionRowSelection;
   sessionActions: SessionLifecycleActionHandlers;
+  showActions?: boolean;
   testIdPrefix: string;
   /** Each row's folder, order, and drag wiring, root and children alike. */
   layoutFor?: (session: SessionPayload) => SessionThreadRootLayout | undefined;
@@ -66,6 +68,7 @@ function SessionListThreadView({
   onSelectSession,
   selection,
   sessionActions,
+  showActions,
   testIdPrefix,
   layoutFor,
 }: SessionListThreadProps) {
@@ -90,11 +93,16 @@ function SessionListThreadView({
           session={session}
           // Context rules make a subagent a root only when its ancestry was deleted.
           orphanedSubagent={isSubagentSession(session)}
+          // Running work anywhere below shows in the root's own mark column (#1926). Only the
+          // root aggregates: the thread is one nesting level, every descendant a row beneath it,
+          // and a child row lifts for its own live subagents (the row view's default).
+          descendantsRunning={hasRunningDescendant(session, childSessions)}
           owner={owner}
           current={session.id === currentSessionId}
           onSelect={() => onSelectSession(session)}
           selection={selection}
           sessionActions={sessionActions}
+          showActions={showActions}
           testIdPrefix={testIdPrefix}
           trailing={trailing}
         />
@@ -123,6 +131,7 @@ function SessionListThreadView({
                   onSelect={() => onSelectSession(child)}
                   selection={selection}
                   sessionActions={sessionActions}
+                  showActions={showActions}
                   testIdPrefix={testIdPrefix}
                   trailing={trailing}
                 />
@@ -161,6 +170,7 @@ function SessionListThreadView({
                     onSelect={() => onSelectSession(child)}
                     selection={selection}
                     sessionActions={sessionActions}
+                    showActions={showActions}
                     testIdPrefix={testIdPrefix}
                     trailing={trailing}
                   />

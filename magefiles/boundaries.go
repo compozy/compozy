@@ -139,7 +139,7 @@ func directImportBoundaries() []directImportBoundary {
 		{"internal/extension", "internal/api/httpapi"},
 		{"internal/extension", "internal/api/udsapi"},
 	}
-	return append(forbidden, gatewayForbiddenDirectImports...)
+	return forbidden
 }
 
 // Boundaries verifies direct package rules, strict leaf imports, and dependency closures.
@@ -181,6 +181,24 @@ func Boundaries() error {
 		{"internal/worktree", "internal/api"},
 		{"internal/worktree", "internal/cli"},
 		{"internal/profile", "internal/api"},
+		{"internal/apptoken", "internal/daemon"},
+		{"internal/apptoken", "internal/api"},
+		{"internal/apptoken", "internal/cli"},
+		{"internal/ingress", "internal/daemon"},
+		{"internal/ingress", "internal/api"},
+		{"internal/ingress", "internal/cli"},
+		{"internal/remotehost", "internal/daemon"},
+		{"internal/remotehost", "internal/api"},
+		{"internal/remotehost", "internal/cli"},
+		{"internal/remotehost", "internal/store/globaldb"},
+		{"internal/cloudclient", "internal/remotehost"},
+		{"internal/computers", "internal/remotehost"},
+		{"internal/computers", "internal/daemon"},
+		{"internal/computers", "internal/api"},
+		{"internal/computers", "internal/cli"},
+		{"internal/computers", "internal/store/globaldb"},
+		{"internal/remotehost", "internal/computers"},
+		{"internal/store/globaldb", "internal/computers"},
 	}
 	for _, rule := range prefixForbidden {
 		importerDir := rule.importer
@@ -311,6 +329,15 @@ func Boundaries() error {
 			violation.root,
 			violation.dependency,
 		)
+		violations++
+	}
+
+	cloudViolations, err := cloudBoundaryViolations()
+	if err != nil {
+		return fmt.Errorf("inspect cloud import boundaries: %w", err)
+	}
+	for _, violation := range cloudViolations {
+		fmt.Printf("VIOLATION: %s\n", violation)
 		violations++
 	}
 

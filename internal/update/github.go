@@ -226,7 +226,8 @@ func (r *Release) findAsset(name string) (ReleaseAsset, bool) {
 	return ReleaseAsset{}, false
 }
 
-func archiveAssetName(runtimeOS string, runtimeArch string) (string, error) {
+// ArchiveAssetName gives the published archive name for a Go OS and architecture.
+func ArchiveAssetName(runtimeOS string, runtimeArch string) (string, error) {
 	var arch string
 	switch runtimeArch {
 	case runtimeArchAMD64:

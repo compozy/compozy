@@ -26,14 +26,6 @@ export {
 } from "./errors.js";
 export type { ToolExecutionData } from "./errors.js";
 export {
-  CONNECTIVITY_ESTABLISH_METHOD,
-  CONNECTIVITY_PROVIDER_CAPABILITY,
-  CONNECTIVITY_STATUS_METHOD,
-  CONNECTIVITY_TEARDOWN_METHOD,
-  registerConnectivityProvider,
-} from "./connectivity-provider.js";
-export type { ConnectivityProviderHandlers } from "./connectivity-provider.js";
-export {
   FORGE_CAPABILITIES_METHOD,
   FORGE_PR_CREATE_METHOD,
   FORGE_PROVIDER_CAPABILITY,
@@ -123,12 +115,6 @@ export type {
   AuthoredContextProvenance,
   CapabilitiesConfig,
   Chip,
-  ConnectivityAdvertisedEndpoint,
-  ConnectivityEstablishRequest,
-  ConnectivityReachability,
-  ConnectivityStatusRequest,
-  ConnectivityTeardownRequest,
-  ConnectivityTeardownResponse,
   ForgeCapabilitiesRequest,
   ForgeCapabilitiesResponse,
   ForgePRCreateRequest,

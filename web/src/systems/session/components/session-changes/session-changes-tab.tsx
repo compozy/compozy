@@ -3,6 +3,9 @@ import { useRef, type KeyboardEvent } from "react";
 import { DiffViewer, type DiffViewerHandle, type DiffViewerItem } from "@compozy/ui";
 import { FileDiff } from "@compozy/ui/icons";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { isRemoteComputerId } from "@/lib/computer-scope";
+
 import { useSessionChangesView } from "../../hooks/use-session-changes-view";
 import type { UseSessionReviewPanelStateResult } from "../../hooks/use-session-review-panel-state";
 import { noChangesText, type SessionChangeItem } from "../../lib/session-changes";
@@ -45,10 +48,16 @@ export interface SessionChangesTabProps {
 export function SessionChangesTab({ workspaceId, sessionId, review }: SessionChangesTabProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const diffRef = useRef<DiffViewerHandle>(null);
+  const computerId = useCurrentComputerId();
   const view = useSessionChangesView({ workspaceId, sessionId, review, rootRef, diffRef });
   const { changes } = view;
   const { summary } = changes;
-  const filesRoot = { kind: "session", workspaceId, sessionId } as const;
+  const filesRoot = {
+    kind: "session",
+    workspaceId,
+    sessionId,
+    ...(isRemoteComputerId(computerId) ? { computerId } : {}),
+  } as const;
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (isTextEntry(event.target) || event.metaKey || event.ctrlKey) return;

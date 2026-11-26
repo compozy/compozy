@@ -64,34 +64,11 @@ func (d commandDeps) withRegistryDefaults() commandDeps {
 }
 
 func (d commandDeps) withRuntimeDefaults() commandDeps {
-	d = d.withGatewayRuntimeDefaults()
-	d = d.withDaemonRuntimeDefaults()
-	d = d.withMCPRuntimeDefaults()
-	return d
-}
-
-func (d commandDeps) withGatewayRuntimeDefaults() commandDeps {
 	if d.runInstallWizard == nil {
 		d.runInstallWizard = runInstallWizard
 	}
-	if d.writeGatewayCredential == nil {
-		d.writeGatewayCredential = WriteGatewayCredential
-	}
-	if d.readGatewayCredential == nil {
-		d.readGatewayCredential = ReadGatewayCredential
-	}
-	if d.removeGatewayCredential == nil {
-		d.removeGatewayCredential = RemoveGatewayCredential
-	}
-	if d.setActiveGatewayProfile == nil {
-		d.setActiveGatewayProfile = setActiveGatewayProfile
-	}
-	if d.applyGatewayProfileState == nil {
-		d.applyGatewayProfileState = applyGatewayProfileConfigState
-	}
-	if d.newSSHExecutor == nil {
-		d.newSSHExecutor = func() sshExecutor { return systemSSHExecutor{} }
-	}
+	d = d.withDaemonRuntimeDefaults()
+	d = d.withMCPRuntimeDefaults()
 	return d
 }
 
@@ -183,6 +160,9 @@ func (d commandDeps) withDaemonRuntimeDefaults() commandDeps {
 }
 
 func (d commandDeps) withBootstrapDefaults() commandDeps {
+	if d.outputIsTerminal == nil {
+		d.outputIsTerminal = writerIsTerminal
+	}
 	if d.inspectDaemonLock == nil {
 		d.inspectDaemonLock = compozydaemon.InspectLockOwner
 	}

@@ -10,7 +10,7 @@ const toolSurfaceShellKey = "shell"
 
 // globalOnlyConfigRoots are sections that only the home config may set.
 var globalOnlyConfigRoots = []string{
-	toolSurfaceMarketplaceKey, GatewayDirName, ProviderUsageConfigKey, toolSurfaceShellKey, desktopConfigKey,
+	toolSurfaceMarketplaceKey, ProviderUsageConfigKey, toolSurfaceShellKey, desktopConfigKey,
 	vaultConfigKey,
 }
 
@@ -43,6 +43,9 @@ func ValidateConfigWriteScope(scope WriteScope, path []string) error {
 	clean, err := normalizeMutationPath(path)
 	if err != nil {
 		return err
+	}
+	if scope != WriteScopeUser && clean[0] == "computers" {
+		return fmt.Errorf("config: path %q is global-only; write this key with --scope user", strings.Join(clean, "."))
 	}
 	if scope == WriteScopeWorkspace && slices.Contains(globalOnlyConfigRoots, clean[0]) {
 		return fmt.Errorf(

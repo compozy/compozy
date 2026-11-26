@@ -1241,7 +1241,8 @@ describe("session actions", () => {
         createdSession.workspace_id,
         createdSession.id,
         { archived: true },
-        expect.anything()
+        expect.anything(),
+        "local"
       );
     });
 
@@ -2118,7 +2119,9 @@ describe("session actions", () => {
         idempotency_key: "idem-edit",
         message_id: "message-edit",
         text: replacement.text,
-      }
+      },
+      undefined,
+      "local"
     );
     // The daemon's queue summary survives a list-only write; the reread refreshes it.
     expect(
@@ -2211,7 +2214,12 @@ describe("session actions", () => {
       await result.current.mutateAsync();
     });
 
-    expect(clearSessionInputs).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id);
+    expect(clearSessionInputs).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      createdSession.id,
+      undefined,
+      "local"
+    );
     // A dispatching entry is never canceled implicitly: it stays visible until it leaves on its own.
     expect(
       queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))

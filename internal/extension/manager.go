@@ -234,6 +234,7 @@ type Manager struct {
 	compozyExecutable  func() (string, error)
 	secretResolver     SecretRefResolver
 	envBindings        EnvBindingStore
+	inputRows          InputRowReader
 	profileNames       ProfileNameResolver
 	launch             processLauncher
 	toolCallTracker    ExtensionToolCallTracker

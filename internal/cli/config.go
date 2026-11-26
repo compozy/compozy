@@ -249,7 +249,6 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	"agents.heartbeat.session_health_hook_min_interval": configSetDuration,
 },
 	roleConfigSetPathKinds(),
-	gatewayConfigSetPathKinds(),
 	loopAndGoalConfigSetPathKinds(),
 	extensionConfigSetPathKinds(),
 	marketplaceConfigSetPathKinds(),

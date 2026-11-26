@@ -1,4 +1,7 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
+import { apiClient, apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+
+import type { components } from "@compozy/client";
 
 import type { SessionPayload } from "../types";
 import type { SessionProcessPolicy } from "./session-processes-api";
@@ -16,9 +19,10 @@ export async function archiveSession(
   profile: string,
   signal?: AbortSignal,
   stop = false,
-  processes?: SessionProcessPolicy
+  processes?: SessionProcessPolicy,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
     {
       params: {
@@ -135,4 +139,32 @@ export async function unarchiveSession(
     throwSessionRequestError(response, error, `Failed to unarchive session "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to unarchive session "${id}"`).session;
+}
+
+export type SessionArchiveStoppedResponse = components["schemas"]["SessionArchiveStoppedResponse"];
+
+/** One project, or every project of the profile. */
+export type ArchiveStoppedScope = { kind: "project"; workspaceId: string } | { kind: "all" };
+
+/**
+ * Archives every eligible stopped thread of the scope in one daemon pass. The report lists each
+ * archived thread's session ids, root first, so the caller can undo exactly what it archived.
+ */
+export async function archiveStoppedSessions(
+  profile: string,
+  scope: ArchiveStoppedScope,
+  signal?: AbortSignal
+): Promise<SessionArchiveStoppedResponse> {
+  const { data, error, response } = await apiClient.POST("/api/sessions/archive-stopped", {
+    params: { query: { profile } },
+    body:
+      scope.kind === "all"
+        ? { all_workspaces: true, dry_run: false }
+        : { workspace_id: scope.workspaceId, dry_run: false },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, "Failed to archive stopped threads");
+  }
+  return requireResponseData(data, response, "Failed to archive stopped threads");
 }

@@ -151,9 +151,16 @@ describe("useClarificationComposerAnswer", () => {
 
     await result.current.answering(steer)?.(draft("  Ship it on Friday  "));
 
-    expect(answerSessionClarification).toHaveBeenCalledWith(WS, ID, "req-1", {
-      text: "Ship it on Friday",
-    });
+    expect(answerSessionClarification).toHaveBeenCalledWith(
+      WS,
+      ID,
+      "req-1",
+      {
+        text: "Ship it on Friday",
+      },
+      undefined,
+      "local"
+    );
     expect(steer).not.toHaveBeenCalled();
   });
 
@@ -167,9 +174,16 @@ describe("useClarificationComposerAnswer", () => {
 
     await result.current.answering(steer)?.(draft("Europe"));
 
-    expect(answerSessionClarification).toHaveBeenLastCalledWith(WS, ID, "req-2", {
-      text: "Europe",
-    });
+    expect(answerSessionClarification).toHaveBeenLastCalledWith(
+      WS,
+      ID,
+      "req-2",
+      {
+        text: "Europe",
+      },
+      undefined,
+      "local"
+    );
     expect(steer).not.toHaveBeenCalled();
   });
 
@@ -205,9 +219,16 @@ describe("useClarificationComposerAnswer", () => {
 
     await result.current.answering(steer)?.(draft("Europe"));
 
-    expect(answerSessionClarification).toHaveBeenLastCalledWith(WS, ID, "req-2", {
-      text: "Europe",
-    });
+    expect(answerSessionClarification).toHaveBeenLastCalledWith(
+      WS,
+      ID,
+      "req-2",
+      {
+        text: "Europe",
+      },
+      undefined,
+      "local"
+    );
     expect(steer).not.toHaveBeenCalled();
   });
 
@@ -227,9 +248,16 @@ describe("useClarificationComposerAnswer", () => {
 
     await result.current.answering(steer)?.(sent);
 
-    expect(answerSessionClarification).toHaveBeenLastCalledWith(WS, ID, "req-2", {
-      text: "Europe",
-    });
+    expect(answerSessionClarification).toHaveBeenLastCalledWith(
+      WS,
+      ID,
+      "req-2",
+      {
+        text: "Europe",
+      },
+      undefined,
+      "local"
+    );
     expect(steer).toHaveBeenCalledExactlyOnceWith(sent);
   });
 
@@ -300,9 +328,16 @@ describe("useClarificationComposerAnswer", () => {
       });
       await result.current.answering(steer)?.(draft("Ship it"));
 
-      expect(answerSessionClarification).toHaveBeenLastCalledWith(WS, ID, "req-1", {
-        text: "Ship it",
-      });
+      expect(answerSessionClarification).toHaveBeenLastCalledWith(
+        WS,
+        ID,
+        "req-1",
+        {
+          text: "Ship it",
+        },
+        undefined,
+        "local"
+      );
       expect(steer).not.toHaveBeenCalled();
     }
   );

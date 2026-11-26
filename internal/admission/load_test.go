@@ -43,11 +43,12 @@ func newTestLoadGate(
 ) (*Gate, *LoadMonitor) {
 	t.Helper()
 	monitor := NewLoadMonitor(LoadMonitorConfig{
-		Threshold:   threshold,
-		MaxWait:     maxWait,
-		Interval:    time.Second,
-		Sample:      source.sample,
-		LogicalCPUs: 4,
+		Threshold:    threshold,
+		MaxWait:      maxWait,
+		Interval:     time.Second,
+		Sample:       source.sample,
+		SampleMemory: func() (MemorySnapshot, error) { return MemorySnapshot{}, nil },
+		LogicalCPUs:  4,
 	})
 	if err := monitor.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
@@ -245,6 +246,31 @@ func TestSampleLoadAverage(t *testing.T) {
 		}
 		if load < 0 {
 			t.Fatalf("sampleLoadAverage() = %v, want non-negative", load)
+		}
+	})
+}
+
+func TestLoadMonitorMemory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should sample total and available memory in bytes and clear a failed read [UT-108]", func(t *testing.T) {
+		t.Parallel()
+		const meminfo = "MemTotal:       32768 kB\nMemFree:         4096 kB\nMemAvailable:   16384 kB\n"
+		var sampleErr error
+		monitor := NewLoadMonitor(LoadMonitorConfig{SampleMemory: func() (MemorySnapshot, error) {
+			if sampleErr != nil {
+				return MemorySnapshot{}, sampleErr
+			}
+			return parseMeminfo(meminfo)
+		}})
+		monitor.sample(false)
+		if got, want := monitor.Snapshot().Memory, (MemorySnapshot{Total: 32 << 20, Available: 16 << 20}); got != want {
+			t.Fatalf("host memory = %+v, want %+v", got, want)
+		}
+		sampleErr = errors.New("memory read failed")
+		monitor.sample(false)
+		if got := monitor.Snapshot().Memory; got != (MemorySnapshot{}) {
+			t.Fatalf("failed memory sample = %+v, want unavailable", got)
 		}
 	})
 }

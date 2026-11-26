@@ -3,6 +3,8 @@
 import type { TerminalViewHandle } from "@compozy/ui";
 import { useEffect, useEffectEvent, useRef } from "react";
 
+import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import { TerminalProtocolClient, type TerminalStreamSink } from "../lib/terminal-protocol-client";
 import { terminalScopeKey } from "../lib/terminal-scope-key";
 import type { TerminalSocketFactory } from "../adapters/terminal-socket";
@@ -15,6 +17,7 @@ export type TerminalAttachmentSocketFactory = TerminalSocketFactory;
 export interface UseTerminalAttachmentOptions {
   workspaceId: string;
   terminalId: string;
+  computerId?: ComputerId;
   scope: { profile: string };
   mode: TerminalAttachMode;
   viewer?: TerminalViewerIdentity | null;
@@ -54,12 +57,14 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
   const {
     workspaceId,
     terminalId,
+    computerId,
     mode,
     socketFactory,
     enabled = true,
     restartKey = 0,
     scope,
   } = options;
+  const normalizedComputerId = normalizeComputerId(computerId);
   const profile = scope.profile ?? "";
   const viewerId = options.viewer?.id ?? null;
   const viewerAttachmentToken = options.viewer?.attachmentToken ?? null;
@@ -83,14 +88,17 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
   useEffect(() => {
     if (!enabled || workspaceId === "" || terminalId === "") return undefined;
     // Bind the scope before opening the pane, never after. The reducer drops
-    // every pane from the previous `(workspace, profile)`, so a terminal id
-    // reused across profiles would otherwise inherit the old scope's input gate
+    // every pane from the previous `(computer, workspace, profile)`, so a terminal id
+    // reused across scopes would otherwise inherit the old scope's input gate
     // and error — and the drop would land on the pane just opened.
-    store.trigger.scopeBound({ scopeKey: terminalScopeKey(workspaceId, profile) });
+    store.trigger.scopeBound({
+      scopeKey: terminalScopeKey(workspaceId, profile, normalizedComputerId),
+    });
     store.trigger.paneOpened({ terminalId });
     const client = new TerminalProtocolClient({
       workspaceId,
       terminalId,
+      computerId: normalizedComputerId,
       scope: { profile },
       mode,
       viewer:
@@ -153,6 +161,7 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
   }, [
     enabled,
     mode,
+    normalizedComputerId,
     profile,
     restartKey,
     socketFactory,

@@ -1,3 +1,5 @@
+import { computerApiPath } from "@/lib/api-client";
+
 import type { FilesRootRef } from "../adapters/files-api";
 
 /** Text formats the viewer can render besides their source. */
@@ -82,12 +84,13 @@ function encodePath(path: string): string {
 
 function rootPrefix(root: FilesRootRef): string {
   const workspace = `/api/workspaces/${encodeURIComponent(root.workspaceId)}`;
-  if (root.kind === "session") {
-    return `${workspace}/sessions/${encodeURIComponent(root.sessionId)}`;
-  }
-  return root.worktreeId
-    ? `${workspace}/worktrees/${encodeURIComponent(root.worktreeId)}`
-    : workspace;
+  const rawPath =
+    root.kind === "session"
+      ? `${workspace}/sessions/${encodeURIComponent(root.sessionId)}`
+      : root.worktreeId
+        ? `${workspace}/worktrees/${encodeURIComponent(root.worktreeId)}`
+        : workspace;
+  return computerApiPath(root.computerId, rawPath);
 }
 
 /**

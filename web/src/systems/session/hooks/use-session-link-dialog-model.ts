@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -35,12 +36,13 @@ const LINK_CONCURRENCY = 3;
 
 /** The picker's two server searches for the settled query. */
 function useSessionLinkCandidates(workspaceId: string, sessionId: string, query: string) {
+  const computerId = useCurrentComputerId();
   const term = sessionLinkSearchTerm(query);
   const pulls = useInfiniteQuery(
-    sessionLinkCandidatesOptions(workspaceId, sessionId, "pull_requests", term)
+    sessionLinkCandidatesOptions(workspaceId, sessionId, "pull_requests", term, computerId)
   );
   const branchReads = useInfiniteQuery(
-    sessionLinkCandidatesOptions(workspaceId, sessionId, "branches", term)
+    sessionLinkCandidatesOptions(workspaceId, sessionId, "branches", term, computerId)
   );
   const pages = pulls.data?.pages ?? [];
   const discovery = pages[0]?.supports_pr_discovery ?? true;
@@ -110,7 +112,7 @@ export function useSessionLinkDialogModel({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const debounced = useDebouncedValue(query.trim());
-  const list = useQuery(sessionLinkedWorkOptions(workspaceId, sessionId));
+  const list = useQuery(sessionLinkedWorkOptions(workspaceId, sessionId, useCurrentComputerId()));
   const candidates = useSessionLinkCandidates(workspaceId, sessionId, debounced);
   const { add } = useSessionLinkMutations(workspaceId, sessionId, profile);
 

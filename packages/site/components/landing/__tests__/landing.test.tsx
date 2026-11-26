@@ -13,18 +13,25 @@ import {
   COMPARE_COLUMNS,
   COMPARE_ROWS,
   COMPARE_SOURCES,
-  COMPARE_VERDICTS,
   INSTALL_STEPS,
 } from "@/components/landing/content";
 import { SiteMotionProvider } from "@/components/site/motion-provider";
 import { InstallCommand } from "@/components/site/primitives";
-import { Automations, Community, Comparison, FinalCta, Hero, Install } from "@/components/landing";
+import {
+  Automations,
+  Community,
+  Comparison,
+  Computers,
+  FinalCta,
+  Hero,
+  Install,
+} from "@/components/landing";
 import { DESKTOP_TARGETS, type DesktopRelease } from "@/lib/release/desktop-downloads";
 import { siteConfig } from "@/lib/site-config";
 import {
+  HOMEBREW_INSTALL_COMMAND,
   NPM_INSTALL_COMMAND,
   VERIFIED_INSTALLER_COMMAND,
-  goInstallCommand,
 } from "@/lib/release/install-commands";
 
 vi.mock("next/link", () => ({
@@ -126,7 +133,7 @@ describe("Served motion", () => {
     expect(checks.map(hiddenAncestor)).toEqual(checks.map(() => null));
 
     const command = INSTALL_STEPS[0]!.command;
-    expect(typedText(served(<Install releaseTag="v9.9.9" />), command)).toBe(command);
+    expect(typedText(served(<Install />), command)).toBe(command);
     const briefing = "A briefing waiting for you every weekday at 08:30.";
     expect(typedText(served(<Automations />), briefing)).toBe(briefing);
   });
@@ -137,7 +144,7 @@ describe("Served motion", () => {
     const hydrate = async (onScreen: boolean) => {
       const page = (
         <SiteMotionProvider>
-          <Install releaseTag="v9.9.9" />
+          <Install />
         </SiteMotionProvider>
       );
       const container = served(page);
@@ -187,24 +194,48 @@ describe("Comparison", () => {
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(COMPARE_ROWS.length);
     rows.forEach((row, index) => {
-      const cells = within(row).getAllByRole("cell").slice(2);
-      const labels = cells.map(cell =>
-        cell.querySelector("[aria-label]")?.getAttribute("aria-label")
-      );
-      expect(labels).toEqual(
-        COMPARE_COLUMNS.map(
-          column =>
-            ({ yes: "Yes", partial: "Partial", no: "No" })[COMPARE_VERDICTS[column][index] ?? "no"]
-        )
-      );
+      const expected = COMPARE_ROWS[index]!;
+      const cells = within(row).getAllByRole("cell");
+      expect(cells[0]?.textContent?.trim()).toBe(expected.label);
+      if (expected.compozy === "check") {
+        expect(cells[1]?.querySelector("[aria-label]")?.getAttribute("aria-label")).toBe("Yes");
+      } else {
+        expect(cells[1]?.textContent?.trim()).toBe(expected.compozy);
+      }
+      const competitorValues = cells.slice(2).map(cell => cell.textContent?.trim());
+      expect(competitorValues).toEqual(COMPARE_COLUMNS.map(column => expected.competitors[column]));
     });
 
     const text = document.body.textContent ?? "";
     expect(text).not.toMatch(/to verify|<date>/);
+    expect(text).toContain("Runs on your computers. Open source (MIT).");
+    expect(text).toContain("Free + Pro");
+    expect(text).not.toContain("Local-first and MIT");
     expect(text).toContain(COMPARE_CHECKED_ON);
     for (const [name, href] of Object.entries(COMPARE_SOURCES)) {
       expect(screen.getByRole("link", { name }).getAttribute("href")).toBe(href);
     }
+  });
+});
+
+describe("Computers", () => {
+  it("renders Computers, Run on, and Phone access tabs with links to docs and pricing", () => {
+    render(<Computers />);
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Your agents, on all your computers." })
+    ).toBeDefined();
+    expect(screen.getByText("studio")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Run on" }));
+    expect(screen.getByText("Live fleet capacity")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Phone access" }));
+    expect(screen.getByText("Every session on your computer, in your pocket.")).toBeDefined();
+
+    expect(screen.getByRole("link", { name: /Read the Computers docs/ }).getAttribute("href")).toBe(
+      "/docs/computers"
+    );
+    expect(screen.getByRole("link", { name: /See pricing/ }).getAttribute("href")).toBe("/pricing");
   });
 });
 
@@ -225,23 +256,22 @@ describe("Community", () => {
 });
 
 describe("Install", () => {
-  it("offers the desktop download and every terminal method, with Go pinned to the release", () => {
-    const tag = "v9.9.9-beta.9";
-    render(<Install releaseTag={tag} />);
+  it("offers desktop, verified installer, Homebrew, and npm with Sign in, and omits go install", () => {
+    render(<Install />);
 
     expect(ctaHref("Download for macOS")).toBe("/download");
-    expect(screen.getByText("Start the daemon")).toBeDefined();
-    // Homebrew, npm and Go install only the binary: provider setup stays ahead of the daemon.
     const steps = screen.getAllByRole("listitem").map(item => item.textContent ?? "");
     expect(steps.findIndex(text => text.includes("compozy install"))).toBe(0);
-    expect(steps.findIndex(text => text.includes("compozy daemon start"))).toBe(1);
+    expect(steps.findIndex(text => text.includes("compozy account login"))).toBe(1);
+    expect(steps.findIndex(text => text.includes("compozy session new"))).toBe(2);
 
     fireEvent.click(screen.getByRole("tab", { name: "Installer" }));
     expect(screen.getByText(VERIFIED_INSTALLER_COMMAND)).toBeDefined();
+    fireEvent.click(screen.getByRole("tab", { name: "Homebrew" }));
+    expect(screen.getByText(HOMEBREW_INSTALL_COMMAND)).toBeDefined();
     fireEvent.click(screen.getByRole("tab", { name: "npm" }));
     expect(screen.getByText(NPM_INSTALL_COMMAND)).toBeDefined();
-    fireEvent.click(screen.getByRole("tab", { name: "Go" }));
-    expect(screen.getByText(goInstallCommand(tag))).toBeDefined();
+    expect(screen.queryByRole("tab", { name: "Go" })).toBeNull();
   });
 });
 

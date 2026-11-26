@@ -29,6 +29,16 @@ func (c *Client) AcceptAutomationSuggestion(ctx context.Context, params AcceptAu
 	return &out, nil
 }
 
+// AccountBillingPortal Open account billing
+func (c *Client) AccountBillingPortal(ctx context.Context) (*AccountBillingResponse, error) {
+	path := "/api/account/billing-portal"
+	var out AccountBillingResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AcknowledgeAttentionNotificationsParams carries the path, query, and header parameters.
 type AcknowledgeAttentionNotificationsParams struct {
 	ReceiptProfile *string `url:"receipt_profile"`
@@ -65,6 +75,58 @@ func (c *Client) AcknowledgeAttentionNotifications(ctx context.Context, params A
 		path += "?" + query.Encode()
 	}
 	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
+}
+
+// AddAccountComputerFrame preserves each response payload; select its variant using the event name or HTTP status.
+type AddAccountComputerFrame struct {
+	Raw        json.RawMessage
+	StatusCode int `json:"-"`
+}
+
+var _ json.Unmarshaler = (*AddAccountComputerFrame)(nil)
+
+var _ json.Marshaler = AddAccountComputerFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *AddAccountComputerFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f AddAccountComputerFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+func (f *AddAccountComputerFrame) setResponseStatus(status int) {
+	f.StatusCode = status
+}
+
+// AsComputer decodes this payload as Computer.
+func (f AddAccountComputerFrame) AsComputer() (*Computer, error) {
+	var out Computer
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsComputerSetupStarted decodes this payload as ComputerSetupStarted.
+func (f AddAccountComputerFrame) AsComputerSetupStarted() (*ComputerSetupStarted, error) {
+	var out ComputerSetupStarted
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AddAccountComputer Add a linked account computer or start SSH setup
+func (c *Client) AddAccountComputer(ctx context.Context, body AddComputerRequest) (*AddAccountComputerFrame, error) {
+	path := "/api/computers"
+	var out AddAccountComputerFrame
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // AddAgentMemoryParams carries the path, query, and header parameters.
@@ -302,6 +364,18 @@ func (c *Client) AmendLoopNode(ctx context.Context, params AmendLoopNodeParams, 
 	return &out, nil
 }
 
+// AnswerComputerSetupParams carries the path, query, and header parameters.
+type AnswerComputerSetupParams struct {
+	SetupID string `url:"setup_id"`
+}
+
+// AnswerComputerSetup Answer an SSH setup prompt
+func (c *Client) AnswerComputerSetup(ctx context.Context, params AnswerComputerSetupParams, body ComputerSetupAnswer) error {
+	path := "/api/computers/setups/{setup_id}/answer"
+	path = strings.ReplaceAll(path, "{setup_id}", url.PathEscape(params.SetupID))
+	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
+}
+
 // AnswerSessionClarificationParams carries the path, query, and header parameters.
 type AnswerSessionClarificationParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -373,75 +447,4 @@ type ApproveAgentHeartbeatAuthorityParams struct {
 	Name        string  `url:"name"`
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// ApproveAgentHeartbeatAuthority approve check-in authority
-func (c *Client) ApproveAgentHeartbeatAuthority(ctx context.Context, params ApproveAgentHeartbeatAuthorityParams, body HeartbeatScriptApprovalRequest) error {
-	path := "/api/agents/{name}/heartbeat/authority/approve"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
-}
-
-// ApproveAgentHeartbeatScriptParams carries the path, query, and header parameters.
-type ApproveAgentHeartbeatScriptParams struct {
-	Name        string  `url:"name"`
-	Script      string  `url:"script"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ApproveAgentHeartbeatScript Approve exact source script bytes (operator only)
-func (c *Client) ApproveAgentHeartbeatScript(ctx context.Context, params ApproveAgentHeartbeatScriptParams, body HeartbeatScriptApprovalRequest) (*HeartbeatScriptApprovalPayload, error) {
-	path := "/api/agents/{name}/heartbeat/scripts/{script}/approve"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	path = strings.ReplaceAll(path, "{script}", url.PathEscape(params.Script))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatScriptApprovalPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ApproveAgentSkillReviewParams carries the path, query, and header parameters.
-type ApproveAgentSkillReviewParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ApproveAgentSkillReview Decide a skill review as the operator (experimental)
-func (c *Client) ApproveAgentSkillReview(ctx context.Context, params ApproveAgentSkillReviewParams, body AgentSkillReviewDecisionRequest) (*AgentSkillReviewResponse, error) {
-	path := "/api/agent-skill-reviews/{id}/approve"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSkillReviewResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

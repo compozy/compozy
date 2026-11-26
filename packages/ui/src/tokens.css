@@ -34,13 +34,16 @@
      fg: in light, `muted-foreground` measures 4.36:1 on rail-hover and 4.16:1 on
      rail-selected, below AA. */
   --color-rail-hover: #232323;
-  --color-rail-selected: #262626;
+  --color-rail-selected: #2e2e2e;
   --color-desk: #131313;
   --color-canvas: #131313;
   --color-canvas-soft: #1a1a1a;
   --color-sunken: #0a0a0a;
   --color-surface-2: #232323;
-  --color-selected: #262626;
+  /* Selected sits a clear step above the hover plate (surface-2), not one
+     notch: #262626 read as hover (#1925). It is as light as the text floor
+     allows — subtle, faint and indicator are lifted to keep AA / 3:1 on it. */
+  --color-selected: #2e2e2e;
   --color-code-bg: #1a1a1a;
   --color-sidebar: var(--color-sunken);
   --color-elevated: #1b1b1b;
@@ -59,7 +62,7 @@
   /* Resting non-text indicator: a dot, ring or mark that alone carries state
      (inactive pager dot, queued ring). Clears 3:1 on every surface in the ramp;
      the hairlines above stay decorative boundaries. */
-  --color-indicator: #707070;
+  --color-indicator: #777777;
   /* Control knob (switch thumb): the lightest ink in either theme — the
      near-white fg on dark, pure white on light — so an off switch reads as a
      light knob on its line-strong track, never a heavy dark disc. */
@@ -75,8 +78,8 @@
   --color-fg-2: #bababa;
   --color-fg-3: #d3d3d3;
   --color-muted-foreground: #989898;
-  --color-subtle: #8e8e8e;
-  --color-faint: #8d8d8d;
+  --color-subtle: #969696;
+  --color-faint: #959595;
 
   /* Primary — the single inverted action (near-white on dark, near-black on
      light). Never the brand hue: actions stay inverted, highlights ride the

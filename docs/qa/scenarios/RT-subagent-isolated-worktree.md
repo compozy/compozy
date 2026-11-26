@@ -43,3 +43,10 @@ This packet does not authorize QA labs; the controller owns the scenario walk af
    rollback keeps its anchor and retries successfully on a later boot.
 6. Complete, cancel, stop the parent and archive. Confirm admitted worktrees remain available and
    existing worktree removal refusals still apply.
+7. Have an isolated child commit a change and leave a separate uncommitted file. After it settles,
+   delegate a correction from the same parent with `prior_subagent_id`, a handoff, and
+   `isolation: "worktree"`. Omit `base_ref`. Confirm the new worktree has a distinct branch and its
+   `base_ref` and `base_sha` match the prior branch and its commit. The new checkout contains the
+   committed change and excludes the uncommitted file. Repeat with an explicit base pointing to
+   the original starting commit and confirm that base wins. Repeat with a prior shared subagent
+   and an omitted base and confirm the new checkout starts at the caller's HEAD.

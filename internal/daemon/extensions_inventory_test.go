@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"slices"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -804,7 +803,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject preview without the required automation dependency", func(t *testing.T) {
+	t.Run("Should preview no starting automation when automation is disabled", func(t *testing.T) {
 		t.Parallel()
 
 		db := openDaemonTestGlobalDB(t)
@@ -816,9 +815,10 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 			resourceCodecs: inventoryTestResourceCodecs(t),
 		}
 
-		_, err := service.Preview(t.Context(), "kit")
-		if err == nil || !strings.Contains(err.Error(), "extension automation previewer is required") {
-			t.Fatalf("Preview() error = %v, want required automation dependency error", err)
+		// A daemon with [automation] enabled = false wires no previewer; enable must still preview.
+		preview, err := service.Preview(t.Context(), "kit")
+		if err != nil || len(preview.AutomationStarting) != 0 {
+			t.Fatalf("Preview() = %#v, %v; want no starting automation and no error", preview.AutomationStarting, err)
 		}
 	})
 

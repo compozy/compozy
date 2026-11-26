@@ -1,3 +1,4 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import type {
   MarketplaceDestinationScope,
   MarketplaceCatalogOptions,
@@ -20,7 +21,7 @@ function scopeIdentity(
 }
 
 export const marketplaceKeys = {
-  all: ["marketplace"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "marketplace"),
   sources: () => [...marketplaceKeys.all, "sources"] as const,
   sourcePreview: (ref: string, name?: string) =>
     [...marketplaceKeys.all, "source-preview", ref.trim(), name?.trim() ?? ""] as const,

@@ -1,15 +1,10 @@
 import { DocsCode } from "@/components/docs/docs-prose";
 import { getCurrentRelease } from "@/lib/release/current-release";
-import {
-  curlEnvInstallCommand,
-  curlPinnedInstallCommand,
-  goInstallCommand,
-} from "@/lib/release/install-commands";
+import { curlEnvInstallCommand, curlPinnedInstallCommand } from "@/lib/release/install-commands";
 
 const COMMAND_BUILDERS = {
   "curl-pinned": curlPinnedInstallCommand,
   "curl-env": curlEnvInstallCommand,
-  go: goInstallCommand,
 } as const;
 
 export type InstallCommandMethod = keyof typeof COMMAND_BUILDERS;

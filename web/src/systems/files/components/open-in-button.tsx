@@ -11,6 +11,8 @@ import {
 import { ChevronDown, Code2, ExternalLink, FolderOpen } from "@compozy/ui/icons";
 import { CursorLogo } from "@compozy/ui/logos";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { desktopShellBridge, type OpenTarget } from "@/systems/os";
 
 import type { FilesRootRef } from "../adapters/files-api";
@@ -37,13 +39,17 @@ export function OpenInButton({
   root,
   path,
   line,
+  computerId,
   children,
 }: {
   root?: FilesRootRef;
   path?: string;
   line?: number;
+  computerId?: ComputerId;
   children?: ReactNode;
 }) {
+  const effectiveComputerId = useCurrentComputerId(computerId ?? root?.computerId);
+  if (isRemoteComputerId(effectiveComputerId)) return null;
   if (!desktopShellBridge()?.files?.listOpenTargets) return null;
   if (!root || !path) return <>{children}</>;
   if (!canOpenInTargets()) return null;
@@ -99,7 +105,15 @@ function OpenTargetButton({
  * The tree root header's Open in menu: the root directory, without a line (US-006.AC-4). The
  * root has no root-relative path, so its menu has no Copy path.
  */
-export function OpenRootInMenu({ root }: { root: FilesRootRef }) {
+export function OpenRootInMenu({
+  root,
+  computerId,
+}: {
+  root: FilesRootRef;
+  computerId?: ComputerId;
+}) {
+  const effectiveComputerId = useCurrentComputerId(computerId ?? root.computerId);
+  if (isRemoteComputerId(effectiveComputerId)) return null;
   if (!canOpenInTargets()) return null;
   return (
     <DropdownMenu>

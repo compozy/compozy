@@ -24,15 +24,16 @@ type ResolveWorkspaceRequest struct {
 
 // WorkspacePayload is the shared workspace response payload.
 type WorkspacePayload struct {
-	RootMissing  bool       `json:"root_missing,omitzero"`
-	ArchivedAt   *time.Time `json:"archived_at,omitzero"`
-	ID           string     `json:"id"`
-	RootDir      string     `json:"root_dir"`
-	AddDirs      []string   `json:"add_dirs"`
-	Name         string     `json:"name"`
-	DefaultAgent string     `json:"default_agent,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	RepositoryKey string     `json:"repository_key,omitempty"`
+	RootMissing   bool       `json:"root_missing,omitzero"`
+	ArchivedAt    *time.Time `json:"archived_at,omitzero"`
+	ID            string     `json:"id"`
+	RootDir       string     `json:"root_dir"`
+	AddDirs       []string   `json:"add_dirs"`
+	Name          string     `json:"name"`
+	DefaultAgent  string     `json:"default_agent,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // WorkspaceSkillPayload is the shared workspace skill response payload.

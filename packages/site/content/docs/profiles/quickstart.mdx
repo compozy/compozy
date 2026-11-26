@@ -13,8 +13,7 @@ Expect about ten minutes. Nothing here is destructive, and nothing you already h
 
 - The daemon is running on this machine (`compozy status`).
 - One workspace is registered. The examples use a workspace named `my-saas`; substitute your own.
-- You are on a local surface. Reads work through a remote gateway, but every profile-state write is
-  local-only.
+- Run the walkthrough on the computer that owns the profile.
 
 You already have one profile: the permanent `default`. Everything you have made so far belongs to
 it, and nothing in this walkthrough moves it.
@@ -209,7 +208,7 @@ If a more specific layer already wins the key, the write still happens and says 
 
 That is "saved, but not the effective value" — useful to know before you go looking for why nothing
 changed. A profile layer also cannot change daemon identity (`http`, `daemon`, `log`, `database`,
-`gateway`, `shell`, `marketplace`, `observability`); those come back as
+`remote`, `shell`, `marketplace`, `observability`); those come back as
 `profile_config_key_denied` with the `--scope user` alternative.
 
 See [Profile layer precedence](/docs/configuration#profile-layer-precedence) for all four layers and

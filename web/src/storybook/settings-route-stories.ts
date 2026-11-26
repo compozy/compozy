@@ -66,10 +66,24 @@ export const settingsRouteStories = [
   },
   {
     system: "settings",
+    routePath: "/settings/computers",
+    storybookPath: "/settings/computers",
+    title: "systems/settings/routes/SettingsComputers",
+    storyName: "Default",
+  },
+  {
+    system: "settings",
+    routePath: "/settings/account",
+    storybookPath: "/settings/account",
+    title: "systems/settings/routes/SettingsAccount",
+    storyName: "Default",
+  },
+  {
+    system: "settings",
     routePath: "/settings/gateway",
     storybookPath: "/settings/gateway",
-    title: "systems/settings/routes/SettingsGateway",
-    storyName: "Default",
+    title: "systems/settings/routes/SettingsComputers",
+    storyName: "RetiredGatewayRedirect",
   },
   {
     system: "settings",

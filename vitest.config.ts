@@ -15,6 +15,7 @@ export default defineConfig({
     },
     projects: [
       "web/vitest.config.ts",
+      "infra/cloud-edge/vitest.config.ts",
       "packages/ui/vitest.config.ts",
       "packages/site/vitest.config.ts",
       "sdk/typescript/vitest.config.ts",

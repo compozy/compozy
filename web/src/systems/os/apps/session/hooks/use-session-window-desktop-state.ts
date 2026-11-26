@@ -1,3 +1,4 @@
+import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import { sessionBoardDrawerOpen } from "@/systems/session";
 
 import { useDesktop } from "../../../hooks/use-desktop";
@@ -8,6 +9,10 @@ export function useSessionWindowDesktopState(windowId: string) {
   const drawerOpen = useDesktop(state =>
     sessionBoardDrawerOpen(state.windows[windowId]?.route.search)
   );
+  const computerId: ComputerId = useDesktop(state => {
+    const value = state.windows[windowId]?.route.search.computer;
+    return normalizeComputerId(typeof value === "string" ? value : undefined);
+  });
   const liveTailEnabled = useWindowLiveDataEnabled(windowId);
-  return { drawerOpen, liveTailEnabled, pathname };
+  return { computerId, drawerOpen, liveTailEnabled, pathname };
 }

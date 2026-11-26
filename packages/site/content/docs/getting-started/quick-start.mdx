@@ -31,7 +31,20 @@ Verify that the daemon is available:
 compozy status
 ```
 
-## 2. Register the current repository as a workspace
+## 2. Sign in
+
+Official release builds require signing in once with Google or GitHub on first run:
+
+```bash
+compozy account login
+```
+
+Confirm the code shown in your terminal matches the browser page, then continue with Google or
+GitHub. Your first sign-in needs an internet connection; local sessions and projects keep working
+offline after that. See [Why CompozyOS asks you to sign in](/docs/account/sign-in) or
+[Account tokens](/docs/account/tokens) for CI and headless setups.
+
+## 3. Register the current repository as a workspace
 
 CompozyOS can use the current directory directly, but registering the workspace gives you a stable name
 you can reuse in later commands.
@@ -46,7 +59,7 @@ Confirm the registration:
 compozy workspace info current
 ```
 
-## 3. Create your first session
+## 4. Create your first session
 
 Create a session for the workspace you just registered:
 
@@ -63,7 +76,7 @@ compozy session new --cwd "$PWD" --agent general
 The key point is explicit workspace context. That keeps the first session tied to the repository
 you expect, instead of relying on an implicit working directory.
 
-## 4. Find the session ID
+## 5. Find the session ID
 
 List sessions and note the ID:
 
@@ -79,7 +92,7 @@ compozy session list -o json
 
 The examples below use `sess_1234` as a placeholder for your real session ID.
 
-## 5. Send a repository-aware prompt
+## 6. Send a repository-aware prompt
 
 Use a prompt that makes the workspace matter:
 
@@ -90,7 +103,7 @@ compozy session prompt sess_1234 "Summarize the top-level structure of this repo
 CompozyOS records the prompt, the agent response, tool calls, permission decisions, and usage events in
 the per-session event store.
 
-## 6. Follow the live event stream
+## 7. Follow the live event stream
 
 ```bash
 compozy session events sess_1234 --follow
@@ -101,7 +114,7 @@ an event instead of disappearing into one terminal transcript.
 
 When you are done following, press `Ctrl+C`.
 
-## 7. Attach to the active session
+## 8. Attach to the active session
 
 ```bash
 compozy session list --resumable -o json
@@ -112,7 +125,7 @@ Despite its historical name, `session resume` acquires a short-lived attach leas
 live session. It does not restart a stopped provider process. The resumable list is the authoritative
 way to find sessions that currently accept this operation.
 
-## 8. Inspect the durable history
+## 9. Inspect the durable history
 
 ```bash
 compozy session history sess_1234
@@ -122,7 +135,7 @@ compozy session recap sess_1234
 History and recap read the persisted record. They do not depend on the attach lease and remain
 available after the live runtime stops.
 
-## 9. Clean up the live session
+## 10. Clean up the live session
 
 If you want to continue with the [Web UI](/docs/getting-started/web-ui), leave this session
 active and return to cleanup afterward. Otherwise, stop it now:

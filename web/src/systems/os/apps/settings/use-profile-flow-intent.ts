@@ -2,7 +2,6 @@ import { useEffect, useEffectEvent } from "react";
 
 import { useOsShell } from "../../hooks/use-os-shell";
 import type { OsWindowRoute } from "../../lib/os-types";
-import { useGatewayAccessTier } from "@/systems/gateway";
 import {
   openProfileDialog,
   profileFlowFromSearch,
@@ -34,7 +33,6 @@ function asFlow(value: string): ProfileLifecycleFlow | null {
  */
 export function useProfileFlowIntent(windowId: string, route: OsWindowRoute | undefined): void {
   const { manager } = useOsShell();
-  const tier = useGatewayAccessTier();
   const intent = route === undefined ? undefined : profileFlowFromSearch(route.search);
   const raise = useEffectEvent((flow: ProfileLifecycleFlow) => {
     if (route === undefined) return;
@@ -66,7 +64,7 @@ export function useProfileFlowIntent(windowId: string, route: OsWindowRoute | un
 
   useEffect(() => {
     const resolved = asFlow(flow);
-    if (resolved === null || tier !== "local") return;
+    if (resolved === null) return;
     raise(resolved);
-  }, [flow, profile, name, newName, tier]);
+  }, [flow, profile, name, newName]);
 }

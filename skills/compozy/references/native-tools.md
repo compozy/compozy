@@ -141,7 +141,7 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_compact`, `compozy__session_status`, `compozy__session_history`,
 `compozy__session_events`, `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
-`compozy__session_unarchive`, `compozy__session_cleanup`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_mark_seen`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
+`compozy__session_unarchive`, `compozy__session_archive_stopped`, `compozy__session_cleanup`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_mark_seen`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
 `compozy__session_clarify_answer`, `compozy__session_prompt_cancel`, `compozy__session_changes`.
 
@@ -435,17 +435,18 @@ by another agent, provider, or model while you keep working:
    those hidden for unavailable providers). Any model id advertised by the provider is accepted
    even if absent from this preview; delegation validates against the full catalog.
 2. `compozy__subagent_delegate` takes a required, self-contained `task` (≤ 120,000 characters). The
-   subagent sees only `task`: no conversation history and no attachments, so include every fact it
-   needs. Optional `title` (≤ 512), `role` (`general`, `implementation`, `research`, `review`, `design`,
-   `test`), `target` (`agent`, `provider`, `model`, `reasoning_effort`, `speed`, `acp_options`; omitted
+   child receives the task and any structured handoff. Include the facts it needs because the parent
+   history and attachments are unavailable. Optional `title` (≤ 512), `role` (`general`, `implementation`,
+   `research`, `review`, `design`, `test`), `target` (`agent`, `provider`, `model`, `reasoning_effort`, `speed`, `acp_options`; omitted
    fields inherit from the caller, and the model is inherited only when the provider is unchanged),
    `mode`, `timeout_ms`, `idempotency_key` (defaults to the tool call id), `permission_mode` (in an always-on lineage it is bounded by the child's configured level, and `inherit` uses that level), and
    `tools`/`skills`/`mcp_servers`/`workspace_paths`. Unlike `session_spawn`, omitted permission lists
    inherit the caller's full budget, `[]` means none, and every value can only narrow
    (`permission_escalation_denied` otherwise). There is no TTL, depth, or count cap.
    `isolation` defaults to `shared`. Choose `worktree` for a separate branch; `base_ref` is valid only
-   with `worktree` and defaults to the caller checkout's current HEAD commit. Uncommitted changes
-   are not copied. Include "commit, then deliver with `compozy worktree deliver`" in a code task.
+   with `worktree`. For a fresh delegation it defaults to the caller checkout's current HEAD
+   commit. See corrective rounds below for linked delegations. Uncommitted changes are not copied.
+   Include "commit, then deliver with `compozy worktree deliver`" in a code task.
    Reusing an idempotency key requires the same isolation and requested base ref. Worktree/setup
    hook denial returns `capability_denied`; creation/setup failure returns `isolation_failed`.
    The first prompt names the isolated branch and delivery command. `spawn.pre_create` exposes
@@ -488,15 +489,25 @@ safe because an already stopped or missing child counts as success. Claude's own
 (`origin: "provider_native"`) return `subagent_not_cancelable`; a background one stays `running` until
 its own task finishes, then reads `completed`, `failed`, or `canceled` with the task's summary as
 `result` once Claude reports it (briefly `null` before that); one with no task report settles
-`completed` with `result: null` when its turn ends. For another review round, delegate again
-with the original brief, prior findings, and open objections instead of prompting the old child. A
-subagent may delegate its own subagents. Subagents share your workspace and worktree, so give
-concurrent subagents disjoint files or read-only tasks. Stopping your session cancels every live
+`completed` with `result: null` when its turn ends. A subagent may delegate its own subagents.
+Give concurrent shared subagents disjoint files or read-only tasks. Stopping your session cancels every live
 subagent depth-first; interrupting a turn keeps its subagents running, but their results no longer wake
 you. CLI and HTTP/UDS fallback for reads, cancel and delete: `compozy session subagents <session-id>`,
 `compozy session subagents show|cancel|delete <subagent-id>`. A delete permanently removes a delegated
 subagent and its child session transcript/history; provider-native rows refuse with
 `subagent_not_deletable`.
+
+For a corrective round, call `compozy__subagent_delegate` with a fresh `task` and the
+`prior_subagent_id` from the same parent session and workspace. Use `handoff.objections` for
+open verification failures, `handoff.findings` for established conclusions, and `handoff.files`
+for relevant inspected or modified paths. Each text field allows up to 40,000 characters, and
+`files` allows up to 64 paths of 1,024 characters each. The task and formatted handoff share the
+120,000-character prompt limit.
+
+With `isolation: "worktree"` and no `base_ref`, the new worktree starts from the prior
+subagent's branch and carries its committed changes. If the prior subagent used shared isolation,
+the caller's HEAD is the default. If the prior subagent is isolated and has no associated branch
+yet, the request returns `invalid_request`. An explicit `base_ref` takes precedence.
 
 `compozy__session_stop` stops another policy-authorized session and is destructive/approval-gated. It is
 idempotent for an already stopped target. `compozy__session_prompt_cancel` cancels only another
@@ -616,7 +627,20 @@ inside the session's workspace and profile, `stop` and `processes` cover the inc
 a failed stop archives nothing. A tree containing the calling session is denied. Unarchive restores
 subagent families only, so restore other children one by one.
 The CLI fallback is `compozy session archive <id> [--stop] [--with-children]`. Unarchive before
-prompting or resuming a session. `compozy__session_cleanup` deletes the profile's archived history in bulk. Its default
+prompting or resuming a session. `compozy__session_archive_stopped` archives every stopped thread
+of a project in one call, reversibly: each thread (top-level session with every child, subagent, and
+side chat) archives whole, and nothing is stopped. Threads that are running, waiting on you, have
+queued input, are pinned, in Later, or hold an always-on main session are skipped and counted in
+`skip_counts`; the thread containing the calling session is always skipped as `caller`. Input is
+`{workspace?, all_workspaces?, dry_run?}`; it defaults to the caller's workspace, `dry_run: true`
+previews and runs without approval, and `all_workspaces` needs operator authority or unrestricted
+workspace access (otherwise `tool_denied` with reason `workspace_access_denied`) and takes precedence
+over `workspace`, as on `compozy__session_cleanup`. The result's
+`archived[].session_ids` lists the archived sessions root first. To undo, call
+`compozy__session_unarchive` on each of `archived[].restore_ids` in order: the same list without
+subagents, which restore with their parent. The CLI fallback is
+`compozy session archive --stopped [--workspace <ref> | --all-workspaces] [--dry-run]`.
+`compozy__session_cleanup` deletes the profile's archived history in bulk. Its default
 `action: "plan"` with `dry_run` true only previews and runs without approval: every count is a
 number of sessions, and `kept_live` counts child sessions still in the session list or in Later,
 which always stay with everything under them. `dry_run: false` asks for approval, then deletes in
@@ -744,16 +768,7 @@ in `references/runtime-operations.md#provider-usage-experimental`.
 Vault catalog tool: `compozy__vault_list`. It returns global reference names and redacted metadata,
 optionally filtered by prefix. It never returns secret values.
 
-Gateway tool: `compozy__gateway`, in toolset `compozy__gateway`. Resolve its live descriptor before
-calling it. `status`, `audit`, and `device_list` are read actions and remain callable in every
-session permission mode while the Gateway service is available. Management actions are
-`surface_set`, `provider_enable`, `provider_disable`, `device_rename`, `device_revoke`,
-`device_remove`, `ingress_bind`, and `ingress_unbind`. A local operator may call them directly; an
-agent session must
-have effective permission mode `approve-all`. Lower modes return `tool_denied` with
-`policy_denied`. The tool returns only redacted projections and intentionally has no pairing,
-credential, or stream-ticket issuance action. Use the local CLI or private management API when a
-one-time secret must be issued.
+Use [Computers](computers.md) to inspect routes and device access.
 
 `compozy__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `compozy provider models list` and `compozy provider models list --all`. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, `default_effort`, and `default_speed`. Speed accepts `normal` or `fast`; explicit model configurations that omit Fast reject it with `speed_rejected`. Its CLI fallback is `compozy provider models set`. Treat `model_not_found`, `reasoning_effort_unsupported`, and `speed_rejected` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
@@ -828,7 +843,7 @@ Denied native calls return `workspace_access_denied`. The message names the axis
 
     access could not be authorized for the caller workspace and profile; ask the operator to inspect the session identity and workspace access policy
 
-When a native call is allowed outside the caller's own workspace and profile, the dispatch boundary redacts the result before hooks, events, and the agent see it. Every string in the result (session names, messages, tool inputs and outputs, previews, metadata) passes the shared secret redactor with its heuristics always on: known credential shapes (`Authorization`/`Bearer` values, `key=value` and `--flag value` pairs whose key names a secret, URL userinfo, `env:`/`vault:` references, CompozyOS claim and gateway tokens, registered runtime secrets), well-known provider token prefixes (`sk-`, `ghp_`, `github_pat_`, `xox*-`, `AKIA`, and others), and high-entropy mixed-case tokens of 28 or more characters become `[REDACTED]`. Fields named `*_id`, hashes, digests, and cursors stay readable. This is pattern-based: a secret with no recognizable shape or key, a short or low-entropy secret, or a secret split across fields can still pass, and errors and binary artifacts are not rewritten. Own-scope reads are unchanged. Redaction applies to native tool results; HTTP/UDS responses to agent-credentialed requests are not rewritten, because a process in the session can drop the agent headers and read as the operator (the soft boundary in `references/agent-definitions.md`).
+When a native call is allowed outside the caller's own workspace and profile, the dispatch boundary redacts the result before hooks, events, and the agent see it. Every string in the result (session names, messages, tool inputs and outputs, previews, metadata) passes the shared secret redactor with its heuristics always on: known credential shapes (`Authorization`/`Bearer` values, `key=value` and `--flag value` pairs whose key names a secret, URL userinfo, `env:`/`vault:` references, CompozyOS claim tokens and app credentials, registered runtime secrets), well-known provider token prefixes (`sk-`, `ghp_`, `github_pat_`, `xox*-`, `AKIA`, and others), and high-entropy mixed-case tokens of 28 or more characters become `[REDACTED]`. Fields named `*_id`, hashes, digests, and cursors stay readable. This is pattern-based: a secret with no recognizable shape or key, a short or low-entropy secret, or a secret split across fields can still pass, and errors and binary artifacts are not rewritten. Own-scope reads are unchanged. Redaction applies to native tool results; HTTP/UDS responses to agent-credentialed requests are not rewritten, because a process in the session can drop the agent headers and read as the operator (the soft boundary in `references/agent-definitions.md`).
 
 Under `approve-reads`, a call that crosses two axes, such as `all_profiles` on another workspace, asks once per axis: first `Access workspace <id>`, then `Read all profiles` or `Read profile <id>`.
 
@@ -1020,7 +1035,10 @@ Cursors bind the query, scope, workspace, and source revision. Paging and instal
 identity rules live in `references/tools-and-skills.md`. Installed state is scoped to the caller's
 exact workspace; never reuse it across workspace scopes.
 Extension tools are
-`compozy__extensions_{init,build,validate,dev,reload,logs,list,info,inventory,preview,search,provenance,publish,install,update,remove,enable,disable,restore,removed_list}`.
+`compozy__extensions_{init,build,validate,dev,reload,logs,list,info,inventory,preview,search,provenance,publish,install,update,remove,enable,disable,setup,restore,removed_list}`.
+`setup` is mutating but classified per call: without `inputs` it reads input `state` and needs no
+mutation approval; with `inputs` it writes only `missing`, `invalid` or `daemon_env` inputs of the
+caller's trusted instance and refuses a `set` input with `extension_input_overwrite_denied`.
 `validate`, `logs`, `list`, `info`, `search`, `provenance`, and `removed_list` are read-only; `init`, `build`, `dev`,
 and `reload` are mutating, with `build`, `dev`, and `reload` requiring interaction; `remove` is
 destructive; `restore` is mutating: it re-enrolls a permanently removed built-in at its bundled version,
@@ -1186,7 +1204,7 @@ Route specifics:
   Unknown runs are excluded by any `workspace_ids` filter and read as "Unknown project", never User.
 - **Worktrees** read cached store state with no Git discovery or refresh; `--refresh` cannot
   accompany `--all-workspaces`.
-- **Terminals** aggregate only on local listeners (gateway tiers return 404). The stream's
+- **Terminals** aggregate only on the local computer. The stream's
   `Last-Event-ID` is `<sequence>.<selection-fingerprint>`; a profile or filter change, or a replay
   older than retention, yields a fresh `terminal.snapshot` with `reset: true`. Workspace-path
   streams keep numeric cursors.

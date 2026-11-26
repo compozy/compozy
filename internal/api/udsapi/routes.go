@@ -7,51 +7,79 @@ import (
 
 // RegisterRoutes registers the shared Compozy API routes on the supplied Gin router.
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
+	signIn := core.NewSignInRoutes(router, handlers.BaseHandlers)
 	api := router.Group("/api")
 	api.Use(handlers.WorkspaceReferenceGuard)
 	api.Use(core.ProfileLabels)
-	api.GET("/daemon/profile/:kind", handlers.CaptureDaemonProfile)
+	signIn.RequireSignedIn(core.SignInAnonymous, func() {
+		registerSignedOutRoutes(api, handlers)
+		// Hosted MCP authenticates the agent's bound peer and admits calls in the registry.
+		registerHostedMCPRoutes(api, handlers)
+	})
+	registerAccountRoutes(api, handlers, signIn)
+	registerRemoteHostRoutes(api, handlers, signIn)
+	core.RegisterAgentKernelRoutes(api, handlers.BaseHandlers, signIn)
+	signIn.RequireSignedIn(core.SignInAccount, func() {
+		core.RegisterComputerRoutes(api, handlers.BaseHandlers)
+		router.Any(core.ComputerBridgeRoute, handlers.BridgeComputer)
+	})
+	signIn.RequireSignedIn(core.SignInLocal, func() {
+		registerMCPHostAPIRoutes(api, handlers)
+		registerDiagnosticRoutes(api, handlers)
+		api.GET("/daemon/profile/:kind", handlers.CaptureDaemonProfile)
 
-	registerAppSDKRoutes(api, handlers)
-	registerStatusRoutes(api, handlers)
-	registerOnboardingRoutes(api, handlers)
-	registerFilesystemRoutes(api, handlers)
-	registerNotificationRoutes(api, handlers)
-	registerProfileRoutes(api, handlers)
-	registerWorkspaceRoutes(api, handlers)
-	registerWorktreeRoutes(api, handlers)
-	registerWindowManagerRoutes(api, handlers)
-	registerTerminalRoutes(api, handlers)
-	registerCmdPaletteRoutes(api, handlers)
-	registerSessionRoutes(api, handlers)
-	registerAgentRoutes(api, handlers)
-	registerRoleRoutes(api, handlers)
-	registerAgentKernelRoutes(api, handlers)
-	registerLogsRoutes(api, handlers)
-	registerSupportRoutes(api, handlers)
-	registerObserveRoutes(api, handlers)
-	registerHookRoutes(api, handlers)
-	registerResourceRoutes(api, handlers)
-	registerToolRoutes(api, handlers)
-	registerAutomationRoutes(api, handlers)
-	registerLoopRoutes(api, handlers)
-	registerTaskRoutes(api, handlers)
-	registerTaskRunRoutes(api, handlers)
-	registerMarketplaceRoutes(api, handlers)
-	registerSkillRoutes(api, handlers)
-	registerExtensionRoutes(api, handlers)
-	registerSettingsRoutes(api, handlers)
-	registerVaultRoutes(api, handlers)
-	registerProviderRoutes(api, handlers)
-	registerModelCatalogRoutes(api, handlers)
-	registerProviderUsageRoutes(api, handlers)
-	registerGatewayRoutes(api, handlers)
-	registerMCPRoutes(api, handlers)
+		registerAppSDKRoutes(api, handlers)
+		core.RegisterIngressRoutes(api, handlers.BaseHandlers)
+		core.RegisterMigrationNoticeRoutes(api, handlers.BaseHandlers)
+		registerOnboardingRoutes(api, handlers)
+		registerFilesystemRoutes(api, handlers)
+		registerNotificationRoutes(api, handlers)
+		registerProfileRoutes(api, handlers)
+		registerWorkspaceRoutes(api, handlers)
+		registerWorktreeRoutes(api, handlers)
+		registerWindowManagerRoutes(api, handlers)
+		registerTerminalRoutes(api, handlers)
+		registerCmdPaletteRoutes(api, handlers)
+		registerSessionRoutes(api, handlers)
+		registerAgentRoutes(api, handlers)
+		registerRoleRoutes(api, handlers)
+		registerLogsRoutes(api, handlers)
+		registerSupportRoutes(api, handlers)
+		registerObserveRoutes(api, handlers)
+		registerHookRoutes(api, handlers)
+		registerResourceRoutes(api, handlers)
+		registerToolRoutes(api, handlers)
+		registerAutomationRoutes(api, handlers)
+		registerLoopRoutes(api, handlers)
+		registerTaskRoutes(api, handlers)
+		registerTaskRunRoutes(api, handlers)
+		registerMarketplaceRoutes(api, handlers)
+		registerSkillRoutes(api, handlers)
+		registerExtensionRoutes(api, handlers)
+		registerSettingsRoutes(api, handlers)
+		registerVaultRoutes(api, handlers)
+		registerProviderRoutes(api, handlers)
+		registerModelCatalogRoutes(api, handlers)
+		registerProviderUsageRoutes(api, handlers)
+	})
+	signIn.Validate()
 }
 
-func registerStatusRoutes(api gin.IRouter, handlers *Handlers) {
+func registerSignedOutRoutes(api gin.IRouter, handlers *Handlers) {
 	api.GET("/status", handlers.GetStatus)
 	api.GET("/status/identity", handlers.GetRuntimeIdentity)
+	settings := api.Group("/settings")
+	settings.GET("/update", handlers.GetSettingsUpdate)
+	settings.POST("/update/check", handlers.CheckSettingsUpdate)
+	settings.POST("/update/apply", handlers.ApplySettingsUpdate)
+	settings.POST("/update/cancel", handlers.CancelSettingsUpdate)
+	actions := settings.Group("/actions")
+	actions.POST("/restart", handlers.TriggerSettingsRestart)
+	actions.GET("/restart/:operation_id", handlers.GetSettingsRestartStatus)
+}
+
+func registerDiagnosticRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/host/resources", handlers.GetHostResources)
 	api.GET("/doctor", handlers.GetDoctor)
 	api.POST("/drain", handlers.DrainDaemon)
 	api.POST("/undrain", handlers.UndrainDaemon)
@@ -96,28 +124,6 @@ func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaces.POST("/:workspace_id/archive", handlers.ArchiveWorkspace)
 		workspaces.POST("/:workspace_id/unarchive", handlers.UnarchiveWorkspace)
 		workspaces.POST("/resolve", handlers.ResolveWorkspace)
-	}
-}
-
-func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
-	agent := api.Group("/agent")
-	{
-		agent.GET("/me", handlers.AgentMe)
-		agent.GET("/context", handlers.AgentContext)
-		agent.GET("/soul", handlers.AgentSoul)
-		agent.POST("/soul/validate", handlers.ValidateAgentSoul)
-		agent.GET("/coordinator/config", handlers.AgentCoordinatorRole)
-		agent.POST("/spawn", handlers.AgentSpawn)
-		agent.POST("/notify", handlers.AgentNotify)
-		tasks := agent.Group("/tasks")
-		{
-			tasks.POST("/claim-next", handlers.AgentTaskClaimNext)
-			tasks.POST("/:run_id/start", handlers.AgentTaskStart)
-			tasks.POST("/:run_id/heartbeat", handlers.AgentTaskHeartbeat)
-			tasks.POST("/:run_id/complete", handlers.AgentTaskComplete)
-			tasks.POST("/:run_id/fail", handlers.AgentTaskFail)
-			tasks.POST("/:run_id/release", handlers.AgentTaskRelease)
-		}
 	}
 }
 
@@ -322,10 +328,6 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.POST("/reload", handlers.ReloadSettings)
 	settings.GET("/general", handlers.GetSettingsGeneral)
 	settings.GET("/persona", handlers.GetSettingsPersona)
-	settings.GET("/update", handlers.GetSettingsUpdate)
-	settings.POST("/update/check", handlers.CheckSettingsUpdate)
-	settings.POST("/update/apply", handlers.ApplySettingsUpdate)
-	settings.POST("/update/cancel", handlers.CancelSettingsUpdate)
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
 	settings.PATCH("/persona", handlers.UpdateSettingsPersona)
 	settings.GET("/roles", handlers.GetSettingsRoles)
@@ -379,10 +381,6 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.GET("/hooks", handlers.ListSettingsHooks)
 	settings.PUT("/hooks/:name", handlers.PutSettingsHook)
 	settings.DELETE("/hooks/:name", handlers.DeleteSettingsHook)
-
-	actions := settings.Group("/actions")
-	actions.POST("/restart", handlers.TriggerSettingsRestart)
-	actions.GET("/restart/:operation_id", handlers.GetSettingsRestartStatus)
 }
 
 func registerVaultRoutes(api gin.IRouter, handlers *Handlers) {

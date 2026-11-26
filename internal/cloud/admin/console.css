@@ -1,0 +1,117 @@
+/* SPDX-License-Identifier: FSL-1.1-MIT */
+/* Shared dark cloud palette and control styles come from sign-in.css. */
+.console {
+  width: min(100%, 76rem);
+  margin: 0 auto;
+  padding: 1.5rem clamp(1rem, 4vw, 2.5rem) 3rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.console nav,
+.search-controls,
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.console nav {
+  align-items: end;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 1rem;
+}
+
+.console nav > a {
+  font-weight: 600;
+}
+
+.console section,
+.account-heading {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.console h1 {
+  font-size: 1.5rem;
+}
+
+.console h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.console button {
+  min-height: 2.25rem;
+  border-radius: 0.5rem;
+}
+
+.console input,
+.console textarea,
+.console select {
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  color: var(--strong);
+  background: var(--card);
+  font: inherit;
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.console table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.console th,
+.console td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.console th,
+.console dt {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.stats > div,
+.console pre {
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--card);
+}
+
+.stats dd {
+  overflow-wrap: anywhere;
+  margin: 0.375rem 0 0;
+}
+
+.console pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.confirm {
+  width: min(100%, 27rem);
+}

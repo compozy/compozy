@@ -26,7 +26,6 @@ const (
 	HTTPTransportE2EPattern  = "^TestHTTPTransport"
 	UDSTransportE2EPattern   = "^TestUDSTransport"
 	HarnessRuntimeE2EPattern = "^TestStartRuntimeHarness"
-	RemoteGatewayE2EPattern  = "^TestRemoteGatewayE2E"
 )
 
 type GoSuite struct {
@@ -113,10 +112,6 @@ var runtimeGoSuites = []GoSuite{
 	{
 		Packages: []string{lanesInternalTestutilE2ePath},
 		Run:      HarnessRuntimeE2EPattern,
-	},
-	{
-		Packages: []string{lanesInternalCLIPath},
-		Run:      RemoteGatewayE2EPattern,
 	},
 }
 

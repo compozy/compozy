@@ -101,15 +101,15 @@ compozy automation triggers get <trigger-id>
 
 ## Publish the delivery URL
 
-When the public gateway ingress surface has a verified address, trigger reads include an `ingress`
+When the computer has an advertised HTTPS address, trigger reads include an `ingress`
 object. Its `url` is the complete delivery URL. `reachability` tells you whether it is `live`,
 `unconfirmed`, `off`, or needs `reconfirmation_required`; do not treat the presence of a URL as proof
 that delivery is enabled.
 
-Confirm the trigger against the current public endpoint through the private HTTP listener or UDS:
+Confirm the trigger against the current public endpoint through the operator HTTP API or UDS:
 
 ```http
-POST /api/gateway/ingress-bindings
+POST /api/ingress/bindings
 Content-Type: application/json
 
 {
@@ -122,12 +122,12 @@ Content-Type: application/json
 The daemon resolves the trigger's global or workspace owner. A caller cannot select or override that
 scope. If the public address changes, the endpoint generation changes and the trigger reports
 `reconfirmation_required` until it is confirmed again. Remove a confirmation with
-`DELETE /api/gateway/ingress-bindings/webhook_trigger/<trigger-id>`.
+`DELETE /api/ingress/bindings/webhook_trigger/<trigger-id>`.
 
 <OperatorNote>
-  Public ingress forwards requests only while the daemon and its connectivity provider are running.
-  It does not queue deliveries while CompozyOS is offline. Configure retries at the sender and treat
-  a connection failure as a failed delivery.
+  Use a hosted route or point your HTTPS tunnel at the loopback tunnel listener with
+  `remote.ingress.public_url` set to the public base. Configure retries at the sender because the
+  daemon receives deliveries only while it is online.
 </OperatorNote>
 
 ## Authentication
@@ -241,7 +241,7 @@ jobs:
 Store the full webhook URL in `COMPOZY_WEBHOOK_URL`, for example:
 
 ```text
-https://gateway.example.com/api/webhooks/workspaces/ws_123/deploy--wbh_abc123
+https://hooks.example.com/api/webhooks/workspaces/ws_123/deploy--wbh_abc123
 ```
 
 ## Errors

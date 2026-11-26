@@ -10,15 +10,17 @@ import {
   removeExtension,
   restoreBuiltinExtension,
   setExtensionEnablement,
+  setExtensionInputs,
   updateExtension,
 } from "../adapters/extensions-api";
-import { extensionGatewayConfirmation } from "../lib/extension-gateway-confirmation";
 import { extensionKeys } from "../lib/query-keys";
 import type {
   ExtensionEnablement,
   ExtensionEntry,
+  ExtensionInputsState,
   ExtensionInstanceScope,
   ExtensionRestoreResult,
+  ExtensionSetInputsRequest,
   ExtensionUpdateRequest,
 } from "../types";
 import { useExtensionInstanceScope } from "./use-extensions";
@@ -35,7 +37,6 @@ export interface UpdateExtensionVariables extends ExtensionInstanceScope {
   name: string;
   allowUnverified?: boolean;
   version?: string;
-  confirmGatewayDigest?: string;
 }
 
 export interface RemoveExtensionVariables extends ExtensionInstanceScope {
@@ -43,15 +44,6 @@ export interface RemoveExtensionVariables extends ExtensionInstanceScope {
   name: string;
   /** Permanent removal of a bundled built-in. It is global, so the scope is not sent with it. */
   permanent?: boolean;
-}
-
-/**
- * A refused gateway confirmation is not a failure the operator has to read twice: the confirm
- * affordance owns it, so the toast stays out of the way.
- */
-function toastUnlessGatewayConfirmation(error: Error) {
-  if (extensionGatewayConfirmation(error)) return;
-  toast.error(error.message);
 }
 
 export interface ToggleExtensionOptions {
@@ -125,7 +117,6 @@ export function useUpdateExtension() {
       name,
       allowUnverified,
       version,
-      confirmGatewayDigest,
       scope,
       workspaceId,
       profileName,
@@ -138,11 +129,10 @@ export function useUpdateExtension() {
         ...(profileName ? { profile: profileName } : {}),
         ...(inputs ? { inputs } : {}),
         ...(version ? { version } : {}),
-        ...(confirmGatewayDigest ? { confirm_gateway_digest: confirmGatewayDigest } : {}),
       }),
     onSuccess: (_data, { name, version }) =>
       toast.success(version ? `${name} updated to v${version}` : `${name} updated`),
-    onError: toastUnlessGatewayConfirmation,
+    onError: error => toast.error(error.message),
     onSettled: () => reconcileInstalledExtensionCaches(queryClient),
   });
 }
@@ -175,6 +165,30 @@ export function useRestoreBuiltinExtension() {
     onSuccess: async result => {
       await reconcileInstalledExtensionCaches(queryClient);
       toast.success(`${result.name} restored`);
+    },
+  });
+}
+
+export interface SetExtensionInputsVariables {
+  name: string;
+  scope: ExtensionInstanceScope;
+  inputs: ExtensionSetInputsRequest["inputs"];
+}
+
+/**
+ * Setup writes one instance. The caller reports the outcome (restart, still missing, field error),
+ * so this hook only seeds the fresh setup state and reconciles the installed caches.
+ */
+export function useSetExtensionInputs() {
+  const queryClient = useQueryClient();
+  return useMutation<ExtensionInputsState, Error, SetExtensionInputsVariables>({
+    mutationFn: ({ name, scope, inputs }) => setExtensionInputs(name, scope, { inputs }),
+    onSuccess: async (state, { name, scope }) => {
+      await reconcileInstalledExtensionCaches(queryClient);
+      queryClient.setQueryData(
+        extensionKeys.inputs(name, scope.workspaceId, scope.profileName),
+        state
+      );
     },
   });
 }

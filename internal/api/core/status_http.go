@@ -5,15 +5,15 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/gin-gonic/gin"
 )
 
 // GetStatus returns the hard-cut runtime status payload shared by HTTP and UDS.
 func (h *BaseHandlers) GetStatus(c *gin.Context) {
-	ctx, err := h.gatewayStatusReadContext(c)
+	ctx, err := h.ingressReadContext(c, "status")
 	if err != nil {
-		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+		h.respondIngressError(c, errors.Join(ingress.ErrForbidden, err))
 		return
 	}
 	payload, err := h.statusPayload(

@@ -36,7 +36,7 @@ func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 		parent.AddCommand(newAgentInstanceAction(deps, action))
 	}
 	checks := &cobra.Command{Use: "checks", Short: "Turn proactive checks on or off"}
-	for _, action := range []string{"on", agentInstanceChecksOff} {
+	for _, action := range []string{"on", cliOffValue} {
 		checks.AddCommand(newAgentInstanceAction(deps, action))
 	}
 	parent.AddCommand(newAgentInstancePickCommand(deps))
@@ -93,7 +93,7 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 	}
 	if action == agentListKey || action == configShowKey {
 		configureProfileReadCommand(cmd, deps)
-		cmd.Annotations = map[string]string{agentAggregateProfileReadAnnotation: "true"}
+		cmd.Annotations = map[string]string{agentAggregateProfileReadAnnotation: toolBoolTrue}
 	}
 	return cmd
 }
@@ -163,7 +163,7 @@ func instanceActionText(instance contract.AgentInstancePayload, action string) s
 		return fmt.Sprintf("%s resumed in %s\n", label, scope)
 	case workspaceArchiveAction:
 		return fmt.Sprintf("%s archived in %s. Its sessions stay in history.\n", label, scope)
-	case "on", agentInstanceChecksOff:
+	case "on", cliOffValue:
 		return fmt.Sprintf("Checks %s for %s in %s\n", action, label, scope)
 	case "ensure-main":
 		return fmt.Sprintf("Main session: %s\n", instance.MainSessionID)
@@ -273,7 +273,7 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 		return err
 	}
 
-	if action == agentInstanceCheckAction || action == "on" || action == agentInstanceChecksOff {
+	if action == agentInstanceCheckAction || action == "on" || action == cliOffValue {
 		return options.check(cmd, base, action, id, target)
 	}
 	if action == agentInstanceBudgetAction {
@@ -425,7 +425,6 @@ const (
 	agentInstanceClearMainAction = "clear-main"
 
 	agentInstanceAdoptAction    = "adopt"
-	agentInstanceChecksOff      = "off"
 	agentInstanceAwayAction     = "away"
 	agentInstanceMarkSeenAction = "mark-seen"
 )

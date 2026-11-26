@@ -57,7 +57,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		providerModelsDescriptors(),
 		providerUsageDescriptors(),
 		observeDescriptors(),
-		gatewayDescriptors(),
+		remoteHostDescriptors(),
 		taskDescriptors(),
 		autonomyDescriptors(),
 		configDescriptors(),
@@ -104,23 +104,28 @@ func nativeDescriptor(
 	tags []string,
 	searchHints []string,
 ) toolspkg.Descriptor {
+	var metadata *toolspkg.ToolExecutionMetadata
+	if scope, ok := RemoteToolScope(id.String()); ok {
+		metadata = &toolspkg.ToolExecutionMetadata{RemoteScope: scope}
+	}
 	return toolspkg.Descriptor{
-		ID:               id,
-		Backend:          toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: nativeName},
-		ToolPresentation: toolspkg.NewToolPresentation(title, "", ""),
-		Description:      description,
-		InputSchema:      nativeProfileInputSchema(inputSchema, readOnly),
-		OutputSchema:     json.RawMessage(`{"type":"object"}`),
-		Source:           Source(),
-		Visibility:       toolspkg.VisibilityModel,
-		Risk:             risk,
-		ReadOnly:         readOnly,
-		Destructive:      destructive,
-		OpenWorld:        openWorld,
-		ConcurrencySafe:  true,
-		Toolsets:         cloneToolsets(toolsets),
-		Tags:             cloneStrings(tags),
-		SearchHints:      cloneStrings(searchHints),
+		ID:                    id,
+		Backend:               toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: nativeName},
+		ToolPresentation:      toolspkg.NewToolPresentation(title, "", ""),
+		ToolExecutionMetadata: metadata,
+		Description:           description,
+		InputSchema:           nativeProfileInputSchema(inputSchema, readOnly),
+		OutputSchema:          json.RawMessage(`{"type":"object"}`),
+		Source:                Source(),
+		Visibility:            toolspkg.VisibilityModel,
+		Risk:                  risk,
+		ReadOnly:              readOnly,
+		Destructive:           destructive,
+		OpenWorld:             openWorld,
+		ConcurrencySafe:       true,
+		Toolsets:              cloneToolsets(toolsets),
+		Tags:                  cloneStrings(tags),
+		SearchHints:           cloneStrings(searchHints),
 	}
 }
 

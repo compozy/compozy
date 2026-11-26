@@ -4,16 +4,8 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { runtimeIdentityFixture, statusFixture } from "./fixtures";
 
 export const handlers: HttpHandler[] = [
-  compozyApiMock.get("/api/status/identity", () =>
-    HttpResponse.json(runtimeIdentityFixture, {
-      headers: { "X-Compozy-Gateway-Tier": "local" },
-    })
-  ),
-  compozyApiMock.get("/api/status", () =>
-    HttpResponse.json(statusFixture, {
-      headers: { "X-Compozy-Gateway-Tier": "local" },
-    })
-  ),
+  compozyApiMock.get("/api/status/identity", () => HttpResponse.json(runtimeIdentityFixture)),
+  compozyApiMock.get("/api/status", () => HttpResponse.json(statusFixture)),
   compozyApiMock.get("/api/doctor", () =>
     HttpResponse.json({
       schema_version: "2026-05-20",

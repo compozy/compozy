@@ -15,6 +15,7 @@ var singleResultExtensions = map[toolspkg.ToolID]SingleResultReason{
 	"compozy__extensions_restore":      SingleResultMinimal,
 	"compozy__extensions_removed_list": SingleResultCallerBounded,
 	"compozy__extensions_search":       SingleResultCallerBounded,
+	"compozy__extensions_setup":        SingleResultContent,
 	"compozy__extensions_update":       SingleResultMinimal,
 	"compozy__extensions_validate":     SingleResultContent,
 }

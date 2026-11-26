@@ -65,7 +65,7 @@ func TestInstanceSkillInstallConflictIntegration(t *testing.T) {
 		skillsRoot := filepath.Join(rootDir, compozyconfig.DirName, compozyconfig.SkillsDirName)
 		opID := seedSkillInstallConflict(t, skillsRoot)
 
-		uds := gatewayDaemonUDSClient(d.homePaths.DaemonSocket)
+		uds := daemonIntegrationUDSClient(d.homePaths.DaemonSocket)
 		t.Cleanup(uds.CloseIdleConnections)
 		transports := []struct {
 			base   string

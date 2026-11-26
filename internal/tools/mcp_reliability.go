@@ -216,7 +216,8 @@ func (p *MCPProvider) discoverySucceeded(
 	_, wasFailed := p.discoveryFailures.Load(source)
 	descriptors, err := p.normalizeDiscovery(source, discovered)
 	if err != nil {
-		return nil, false, err
+		// A server that publishes an unusable tool fails alone, with a recorded source status.
+		return p.discoveryFailed(ctx, source, key, tracked, reliabilityState, err)
 	}
 	p.discoveryFailures.Delete(source)
 	if tracked && p.reliability != nil {

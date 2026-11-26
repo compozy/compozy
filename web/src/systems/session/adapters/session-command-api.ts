@@ -1,4 +1,5 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
+import { apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
 import type { SessionCommandsResponse } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
@@ -8,11 +9,12 @@ import { sessionWorkspacePath } from "./session-workspace-path";
 export async function fetchSessionCommands(
   workspaceId: string,
   sessionId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionCommandsResponse> {
   const workspace = workspaceId.trim();
   const session = sessionId.trim();
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/commands",
     {
       params: { path: { workspace_id: sessionWorkspacePath(workspace), session_id: session } },

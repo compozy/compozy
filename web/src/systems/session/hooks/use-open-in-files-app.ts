@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { requestFilesAppPlace, type FileViewerTarget } from "@/systems/files";
 import { useOpenProjectFiles } from "@/systems/os";
 
@@ -15,16 +16,19 @@ export type OpenInFilesApp = (target: FileViewerTarget) => void;
  */
 export function useOpenInFilesApp(scope: SessionScope): OpenInFilesApp | null {
   const queryClient = useQueryClient();
+  const computerId = useCurrentComputerId(scope.computerId);
   const openFiles = useOpenProjectFiles();
   if (openFiles === null) return null;
+  const scoped = { ...scope, computerId };
   return target => {
-    void readFilePathResolutionBase(queryClient, scope).then(({ worktreeId }) => {
+    void readFilePathResolutionBase(queryClient, scoped).then(({ worktreeId }) => {
       requestFilesAppPlace(
         scope.workspaceId,
         { worktreeId, path: target.kind === "file" ? target.path : null },
-        target
+        target,
+        computerId
       );
-      openFiles(scope.workspaceId);
+      openFiles(scope.workspaceId, computerId);
     });
   };
 }

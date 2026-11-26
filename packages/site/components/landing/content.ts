@@ -25,7 +25,6 @@ import {
   HOMEBREW_INSTALL_COMMAND,
   NPM_INSTALL_COMMAND,
   VERIFIED_INSTALLER_COMMAND,
-  goInstallCommand,
 } from "@/lib/release/install-commands";
 
 export const INSTALL_COMMAND = VERIFIED_INSTALLER_COMMAND;
@@ -40,6 +39,8 @@ export const HERO_SUBHEAD =
 export const HREF = {
   download: "/download",
   docs: "/docs",
+  computers: "/docs/computers",
+  pricing: "/pricing",
   providers: "/docs/agents/providers",
   alwaysOn: "/docs/guides/watch-new-github-issues",
   loops: "/docs/loops",
@@ -143,18 +144,15 @@ export const DETAILS: ReadonlyArray<readonly [LucideIcon, string, string]> = [
 export const COMPARE_COLUMNS = ["Synara", "T3 Code", "Hermes", "OpenClaw", "DIY stack"] as const;
 
 export type CompareColumn = (typeof COMPARE_COLUMNS)[number];
-export type CompareVerdict = "yes" | "partial" | "no";
-type CompareRowVerdicts = readonly [
-  CompareVerdict,
-  CompareVerdict,
-  CompareVerdict,
-  CompareVerdict,
-  CompareVerdict,
-  CompareVerdict,
-];
+
+export interface CompareRow {
+  readonly label: string;
+  readonly compozy: "check" | string;
+  readonly competitors: Readonly<Record<CompareColumn, string>>;
+}
 
 /** When each product's public documentation was last checked for the table below. */
-export const COMPARE_CHECKED_ON = "November 10, 2026";
+export const COMPARE_CHECKED_ON = "November 23, 2026";
 
 /** The public documentation each product column was checked against. */
 export const COMPARE_SOURCES: Record<Exclude<CompareColumn, "DIY stack">, string> = {
@@ -165,66 +163,101 @@ export const COMPARE_SOURCES: Record<Exclude<CompareColumn, "DIY stack">, string
 };
 
 /**
- * One verdict per row of `COMPARE_ROWS`, in order, from each product's own documentation
- * (checked on `COMPARE_CHECKED_ON`). "partial" means the docs cover part of the row: for example
- * approvals without an audit trail, or schedules without event triggers. Rows a product's docs do
- * not mention read "no". The DIY stack column is the assembled alternative (agent CLIs plus cron,
- * scripts and terminals), so it is a judgment rather than a documented product.
+ * Updated comparison table (ADR-014 §3, `remote-computers-09-computers-section`): lists CompozyOS's
+ * Free + Pro remote tier alongside Synara's paid plan and replaces "Local-first and MIT" with
+ * "Runs on your computers. Open source (MIT)."
  */
-export const COMPARE_VERDICTS: Record<CompareColumn, CompareRowVerdicts> = {
-  // Agent CLIs: yes. Heartbeat runs and goals, no proactive agent: partial. "Awaiting you" board:
-  // yes. Schedules and loops, no event triggers: partial. Approvals, audit only for external MCP:
-  // partial. Local, MIT: yes.
-  Synara: ["yes", "partial", "yes", "partial", "partial", "yes"],
-  // Agent CLIs: yes. Background service and push alerts, no proactive agent: partial. Sidebar by
-  // working state, not a board: partial. Goals, schedules, webhooks: yes. Permission modes, no
-  // audit log: partial. Local, MIT: yes.
-  "T3 Code": ["yes", "partial", "partial", "yes", "partial", "yes"],
-  // Its own agent; Codex only as an opt-in runtime: partial. Heartbeat and goals: yes. Task kanban
-  // by status: partial. Loops, cron, GitHub webhooks: yes. Approvals, session history but no
-  // audit: partial. Local, MIT: yes.
-  Hermes: ["partial", "yes", "partial", "yes", "partial", "yes"],
-  // ACP coding harnesses: yes. Proactive check job: yes. No board by next owner: no. Scheduler and
-  // webhooks, no goal loops: partial. Exec approvals, no audit trail: partial. Local, MIT: yes.
-  OpenClaw: ["yes", "yes", "no", "partial", "partial", "yes"],
-  // The CLIs run as they are; nothing checks in, nothing groups sessions; cron and scripts cover
-  // part of loops; each CLI prompts on its own with no shared record; licences vary by tool.
-  "DIY stack": ["yes", "no", "no", "partial", "partial", "partial"],
-};
-
-export const COMPARE_ROWS = [
-  "Runs the agents you already use",
-  "Always-on agents that check in on their own",
-  "One board by who owns the next step",
-  "Loops, schedules, and triggers",
-  "Approvals and audit",
-  "Local-first and MIT",
+export const COMPARE_ROWS: readonly CompareRow[] = [
+  {
+    label: "Runs the agents you already use",
+    compozy: "check",
+    competitors: {
+      Synara: "Yes",
+      "T3 Code": "Yes",
+      Hermes: "Own agent",
+      OpenClaw: "Own agent",
+      "DIY stack": "By hand",
+    },
+  },
+  {
+    label: "Always-on agents that check in on their own",
+    compozy: "check",
+    competitors: {
+      Synara: "No",
+      "T3 Code": "No",
+      Hermes: "Limited",
+      OpenClaw: "Cron only",
+      "DIY stack": "Scripts",
+    },
+  },
+  {
+    label: "One board by who owns the next step",
+    compozy: "check",
+    competitors: {
+      Synara: "List",
+      "T3 Code": "List",
+      Hermes: "No",
+      OpenClaw: "No",
+      "DIY stack": "No",
+    },
+  },
+  {
+    label: "Loops, schedules, and triggers",
+    compozy: "check",
+    competitors: {
+      Synara: "No",
+      "T3 Code": "No",
+      Hermes: "Basic",
+      OpenClaw: "Basic",
+      "DIY stack": "Glued",
+    },
+  },
+  {
+    label: "Remote computers and phone access",
+    compozy: "Free + Pro",
+    competitors: {
+      Synara: "Paid plan",
+      "T3 Code": "SSH",
+      Hermes: "No",
+      OpenClaw: "Self-hosted",
+      "DIY stack": "Tailscale + SSH",
+    },
+  },
+  {
+    label: "Runs on your computers. Open source (MIT).",
+    compozy: "check",
+    competitors: {
+      Synara: "Closed",
+      "T3 Code": "MIT",
+      Hermes: "Open",
+      OpenClaw: "MIT",
+      "DIY stack": "Mixed",
+    },
+  },
 ];
 
-/** Terminal install methods; the Go line pins the current release tag. */
-export function installMethods(tag: string) {
-  return [
-    { id: "Installer", command: VERIFIED_INSTALLER_COMMAND },
-    { id: "Homebrew", command: HOMEBREW_INSTALL_COMMAND },
-    { id: "npm", command: NPM_INSTALL_COMMAND },
-    { id: "Go", command: goInstallCommand(tag) },
-  ];
-}
+/** Official terminal install methods (ADR-014 §3; source builds live in the contributor guide). */
+export const OFFICIAL_INSTALL_METHODS = [
+  { id: "Installer", command: VERIFIED_INSTALLER_COMMAND },
+  { id: "Homebrew", command: HOMEBREW_INSTALL_COMMAND },
+  { id: "npm", command: NPM_INSTALL_COMMAND },
+] as const;
 
-/**
- * First-run steps after any install method. Homebrew, npm and Go ship only the binary, so the
- * provider setup stays an explicit step ahead of the daemon.
- */
+/** First-run steps after any official install method (ADR-014 §3: includes Sign in). */
 export const INSTALL_STEPS: ReadonlyArray<{ title: string; command: string; note?: string }> = [
   {
     title: "Pick a provider",
     command: "compozy install",
     note: "The verified installer opens this for you.",
   },
-  { title: "Start the daemon", command: "compozy daemon start" },
+  {
+    title: "Sign in",
+    command: "compozy account login",
+    note: "Sign in with Google or GitHub on first run. Later use works offline.",
+  },
   {
     title: "Open a session",
     command: "compozy session new --agent general --name first-run",
-    note: "from the repository you want to work on",
+    note: "From the repository you want to work on, or pick a remote computer with Run on.",
   },
 ];

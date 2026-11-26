@@ -1,0 +1,62 @@
+---
+title: Account tokens for CI and headless environments
+description: Unlock local CompozyOS daemon use in CI runners and headless automation with COMPOZY_ACCOUNT_TOKEN.
+icon: Key
+---
+
+Interactive browser sign-in is impractical on ephemeral CI runners or scripted headless machines.
+Account tokens let you unlock local CompozyOS daemon use through a single environment variable
+without registering a device or granting remote computer access.
+
+## Create a token
+
+Create a named token from **Settings → Account → Account tokens** or from a signed-in terminal:
+
+```bash
+compozy account token create --name ci
+```
+
+CompozyOS prints the secret (`cpzat_…`) once. Store it in your CI provider's secret manager.
+
+## Use a token in CI or headless runs
+
+Export `COMPOZY_ACCOUNT_TOKEN` in the environment that starts the CompozyOS daemon:
+
+```bash
+export COMPOZY_ACCOUNT_TOKEN="cpzat_..."
+compozy daemon start
+compozy session list -o json
+```
+
+When the CLI launcher starts a detached daemon, it hands the token to the daemon over an internal
+variable. The daemon removes both variables from its environment before starting any agent process,
+terminal, or hook. It keeps the token in memory for the lifetime of the daemon. Provide
+`COMPOZY_ACCOUNT_TOKEN` each time you start or restart a token-signed installation.
+
+## What an account token can and cannot do
+
+- **Local daemon use only:** an account token unlocks local sessions, workspaces, Loops, tasks,
+  tools, and automation on that installation.
+- **No remote or account mutations:** a token cannot list or add remote computers, enable remote
+  access, manage devices, change email preferences, create other tokens, or open billing checkout.
+  Those calls fail with `account_token_local_only`.
+- **No device registration:** exchanging a token does not create a device row, register a device
+  key, or increment your account's security epoch.
+- **Reusable across runners:** multiple CI jobs or containers can start simultaneously with the same
+  account token; Compozy Cloud tracks each active installation separately.
+
+## Re-exchange and revocation
+
+The daemon exchanges `COMPOZY_ACCOUNT_TOKEN` at boot and then at most once every 24 hours while
+idle. Temporary network errors or cloud outages keep the daemon signed in.
+
+List and revoke tokens from **Settings → Account → Account tokens** or the CLI:
+
+```bash
+compozy account token list
+compozy account token revoke atk_8d2k1m
+```
+
+Revoking a token moves installations using it to `reauth_required` (`token_revoked`) on their next
+exchange. Already-running agent turns finish their work before the installation requires a new token
+or interactive sign-in.

@@ -218,3 +218,17 @@ func (s *daemonExtensionService) marketplacePluginFromEntry(
 		SourceName: entry.SourceName, Record: *details.Extension.Acquisition, Acquirer: s.marketplaceAcquirer,
 	}, nil
 }
+
+// listedMarketplaceDigest returns the digest the selected marketplace listing pins for ref.
+func (s *daemonExtensionService) listedMarketplaceDigest(ctx context.Context, ref string) (string, error) {
+	slug, _ := splitExtensionDistributionRef(ref)
+	name, entryID, ok := strings.Cut(slug, "/")
+	if !ok {
+		return "", marketplacepkg.ErrInstallSlugInvalid
+	}
+	plugin, err := s.resolveMarketplacePlugin(ctx, strings.ToLower(name)+"/"+entryID)
+	if err != nil {
+		return "", err
+	}
+	return plugin.Record.DigestSHA256, nil
+}

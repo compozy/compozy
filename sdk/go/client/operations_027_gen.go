@@ -6,8 +6,386 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+// ListWindowManagerClients List connected window-manager clients
+func (c *Client) ListWindowManagerClients(ctx context.Context, params ListWindowManagerClientsParams) (*WindowManagerClientsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/clients"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WindowManagerClientsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWindowManagerLayoutProfilesParams carries the path, query, and header parameters.
+type ListWindowManagerLayoutProfilesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ListWindowManagerLayoutProfiles List layout profiles visible to one workspace
+func (c *Client) ListWindowManagerLayoutProfiles(ctx context.Context, params ListWindowManagerLayoutProfilesParams) (*ResourcesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ResourcesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWorkspaceSessionsParams carries the path, query, and header parameters.
+type ListWorkspaceSessionsParams struct {
+	WorkspaceID               string    `url:"workspace_id"`
+	WorkspaceIds              *[]string `url:"workspace_ids"`
+	IncludeHealth             *bool     `url:"include_health"`
+	SkipTotal                 *bool     `url:"skip_total"`
+	ExcludeInstanceMain       *bool     `url:"exclude_instance_main"`
+	ExcludeFinishedAutomation *bool     `url:"exclude_finished_automation"`
+	ExcludeAutomation         *bool     `url:"exclude_automation"`
+	State                     *string   `url:"state"`
+	Type                      *string   `url:"type"`
+	Agent                     *string   `url:"agent"`
+	Subagents                 *string   `url:"subagents"`
+	Children                  *string   `url:"children"`
+	Parent                    *string   `url:"parent"`
+	Root                      *string   `url:"root"`
+	ExcludeRoot               *string   `url:"exclude_root"`
+	Worktree                  *string   `url:"worktree"`
+	Folder                    *string   `url:"folder"`
+	Q                         *string   `url:"q"`
+	SearchFields              *string   `url:"search_fields"`
+	Resumable                 *bool     `url:"resumable"`
+	Attention                 *bool     `url:"attention"`
+	BoardColumn               *[]string `url:"board_column"`
+	Badge                     *string   `url:"badge"`
+	Archive                   *string   `url:"archive"`
+	Later                     *string   `url:"later"`
+	Pinned                    *string   `url:"pinned"`
+	Sort                      *string   `url:"sort"`
+	Cursor                    *string   `url:"cursor"`
+	Limit                     *int      `url:"limit"`
+	Profile                   *string   `url:"profile"`
+	AllProfiles               *bool     `url:"all_profiles"`
+}
+
+// ListWorkspaceSessions List sessions
+func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspaceSessionsParams) (*SessionCatalogResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.IncludeHealth != nil {
+		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
+	}
+	if params.SkipTotal != nil {
+		query.Set("skip_total", strconv.FormatBool(*params.SkipTotal))
+	}
+	if params.ExcludeInstanceMain != nil {
+		query.Set("exclude_instance_main", strconv.FormatBool(*params.ExcludeInstanceMain))
+	}
+	if params.ExcludeFinishedAutomation != nil {
+		query.Set("exclude_finished_automation", strconv.FormatBool(*params.ExcludeFinishedAutomation))
+	}
+	if params.ExcludeAutomation != nil {
+		query.Set("exclude_automation", strconv.FormatBool(*params.ExcludeAutomation))
+	}
+	if params.State != nil {
+		query.Set("state", *params.State)
+	}
+	if params.Type != nil {
+		query.Set("type", *params.Type)
+	}
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
+	}
+	if params.Subagents != nil {
+		query.Set("subagents", *params.Subagents)
+	}
+	if params.Children != nil {
+		query.Set("children", *params.Children)
+	}
+	if params.Parent != nil {
+		query.Set("parent", *params.Parent)
+	}
+	if params.Root != nil {
+		query.Set("root", *params.Root)
+	}
+	if params.ExcludeRoot != nil {
+		query.Set("exclude_root", *params.ExcludeRoot)
+	}
+	if params.Worktree != nil {
+		query.Set("worktree", *params.Worktree)
+	}
+	if params.Folder != nil {
+		query.Set("folder", *params.Folder)
+	}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
+	}
+	if params.SearchFields != nil {
+		query.Set("search_fields", *params.SearchFields)
+	}
+	if params.Resumable != nil {
+		query.Set("resumable", strconv.FormatBool(*params.Resumable))
+	}
+	if params.Attention != nil {
+		query.Set("attention", strconv.FormatBool(*params.Attention))
+	}
+	if params.BoardColumn != nil {
+		for _, value := range *params.BoardColumn {
+			query.Add("board_column", value)
+		}
+	}
+	if params.Badge != nil {
+		query.Set("badge", *params.Badge)
+	}
+	if params.Archive != nil {
+		query.Set("archive", *params.Archive)
+	}
+	if params.Later != nil {
+		query.Set("later", *params.Later)
+	}
+	if params.Pinned != nil {
+		query.Set("pinned", *params.Pinned)
+	}
+	if params.Sort != nil {
+		query.Set("sort", *params.Sort)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionCatalogResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWorkspacesParams carries the path, query, and header parameters.
+type ListWorkspacesParams struct {
+	Archived          *bool `url:"archived"`
+	IncludeRepository *bool `url:"include_repository"`
+}
+
+// ListWorkspaces lists active workspaces.
+func (c *Client) ListWorkspaces(ctx context.Context) (*WorkspacesResponse, error) {
+	return c.ListWorkspacesWithParams(ctx, ListWorkspacesParams{})
+}
+
+// ListWorkspacesWithParams List active or archived workspaces
+func (c *Client) ListWorkspacesWithParams(ctx context.Context, params ListWorkspacesParams) (*WorkspacesResponse, error) {
+	path := "/api/workspaces"
+	query := url.Values{}
+	if params.Archived != nil {
+		query.Set("archived", strconv.FormatBool(*params.Archived))
+	}
+	if params.IncludeRepository != nil {
+		query.Set("include_repository", strconv.FormatBool(*params.IncludeRepository))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkspacesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWorktreesParams carries the path, query, and header parameters.
+type ListWorktreesParams struct {
+	WorkspaceID    string `url:"workspace_id"`
+	Refresh        *bool  `url:"refresh"`
+	IncludeRemoved *bool  `url:"include_removed"`
+}
+
+// ListWorktrees List registered and discovered worktrees
+func (c *Client) ListWorktrees(ctx context.Context, params ListWorktreesParams) (*WorktreesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Refresh != nil {
+		query.Set("refresh", strconv.FormatBool(*params.Refresh))
+	}
+	if params.IncludeRemoved != nil {
+		query.Set("include_removed", strconv.FormatBool(*params.IncludeRemoved))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorktreesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWorktreesAggregateParams carries the path, query, and header parameters.
+type ListWorktreesAggregateParams struct {
+	AllWorkspaces  *bool     `url:"all_workspaces"`
+	WorkspaceIds   *[]string `url:"workspace_ids"`
+	IncludeRemoved *bool     `url:"include_removed"`
+}
+
+// ListWorktreesAggregate List registered and discovered worktrees
+func (c *Client) ListWorktreesAggregate(ctx context.Context, params ListWorktreesAggregateParams) (*WorktreesResponse, error) {
+	path := "/api/worktrees"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.IncludeRemoved != nil {
+		query.Set("include_removed", strconv.FormatBool(*params.IncludeRemoved))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorktreesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// LogoutAccount Sign out this installation
+func (c *Client) LogoutAccount(ctx context.Context, body AccountLogoutRequest) (*AccountLogoutResponse, error) {
+	path := "/api/account/logout"
+	var out AccountLogoutResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// LogoutSettingsMCPAuthParams carries the path, query, and header parameters.
+type LogoutSettingsMCPAuthParams struct {
+	Name        string  `url:"name"`
+	Scope       string  `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	Owner       *string `url:"owner"`
+}
+
+// LogoutSettingsMCPAuth Log out one scoped MCP server
+func (c *Client) LogoutSettingsMCPAuth(ctx context.Context, params LogoutSettingsMCPAuthParams) (*SettingsMCPAuthStatusPayload, error) {
+	path := "/api/settings/mcp-servers/{name}/auth/logout"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("scope", params.Scope)
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Owner != nil {
+		query.Set("owner", *params.Owner)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsMCPAuthStatusPayload
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MarkAgentInstanceSeenParams carries the path, query, and header parameters.
+type MarkAgentInstanceSeenParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// MarkAgentInstanceSeen Mark the instance seen by the local operator
+func (c *Client) MarkAgentInstanceSeen(ctx context.Context, params MarkAgentInstanceSeenParams) (*AgentInstanceSeenResponse, error) {
+	path := "/api/agent-instances/{id}/away"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceSeenResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MarkSessionSeenParams carries the path, query, and header parameters.
+type MarkSessionSeenParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// MarkSessionSeen Mark a session's Needs you as seen until its next occurrence; a session waiting on an answer, a sign-in, or a stop is refused
+func (c *Client) MarkSessionSeen(ctx context.Context, params MarkSessionSeenParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MarkTaskReadParams carries the path, query, and header parameters.
+type MarkTaskReadParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
 
 // MarkTaskRead Mark one task inbox item as read
 func (c *Client) MarkTaskRead(ctx context.Context, params MarkTaskReadParams) (*TaskTriageStateResponse, error) {
@@ -27,21 +405,18 @@ func (c *Client) MarkTaskRead(ctx context.Context, params MarkTaskReadParams) (*
 	return &out, nil
 }
 
-// MintGatewayPairing Mint a bounded one-time gateway pairing artifact
-func (c *Client) MintGatewayPairing(ctx context.Context) (*GatewayPairingArtifactPayload, error) {
-	path := "/api/gateway/pairings"
-	var out GatewayPairingArtifactPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
+// MintBrowserStreamTicketParams carries the path, query, and header parameters.
+type MintBrowserStreamTicketParams struct {
+	DPoP string `url:"DPoP"`
 }
 
-// MintGatewayStreamTicket Mint a short-lived single-use stream ticket
-func (c *Client) MintGatewayStreamTicket(ctx context.Context) (*GatewayStreamTicketPayload, error) {
-	path := "/api/gateway/stream-tickets"
-	var out GatewayStreamTicketPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+// MintBrowserStreamTicket Mint a single-use ticket for one stream path
+func (c *Client) MintBrowserStreamTicket(ctx context.Context, params MintBrowserStreamTicketParams, body BrowserStreamTicketRequest) (*BrowserStreamTicketResponse, error) {
+	path := "/remote/v1/stream-tickets"
+	headers := http.Header{}
+	headers.Set("DPoP", params.DPoP)
+	var out BrowserStreamTicketResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -54,392 +429,4 @@ type MintTerminalAttachTicketParams struct {
 	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
 	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
 	Profile                 *string `url:"profile"`
-}
-
-// MintTerminalAttachTicket Mint a single-use terminal attach ticket
-func (c *Client) MintTerminalAttachTicket(ctx context.Context, params MintTerminalAttachTicketParams, body TerminalAttachTicketRequest) (*TerminalAttachTicketResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}/attach-ticket"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	headers := http.Header{}
-	if params.XCompozyClientToken != nil {
-		headers.Set("X-Compozy-Client-Token", *params.XCompozyClientToken)
-	}
-	if params.XCompozyClientWorkspace != nil {
-		headers.Set("X-Compozy-Client-Workspace", *params.XCompozyClientWorkspace)
-	}
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalAttachTicketResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MoveSessionParams carries the path, query, and header parameters.
-type MoveSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// MoveSession Move a session into a folder or back to the workspace root
-func (c *Client) MoveSession(ctx context.Context, params MoveSessionParams, body MoveSessionRequest) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/move"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MoveSessionToLaterParams carries the path, query, and header parameters.
-type MoveSessionToLaterParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// MoveSessionToLater Stop a session and its children and park them in Later, with an optional reason and return time
-func (c *Client) MoveSessionToLater(ctx context.Context, params MoveSessionToLaterParams, body MoveSessionToLaterRequest) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/later"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MoveSessionToProfileParams carries the path, query, and header parameters.
-type MoveSessionToProfileParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// MoveSessionToProfile Copy a stopped user session into another profile and archive the original
-func (c *Client) MoveSessionToProfile(ctx context.Context, params MoveSessionToProfileParams, body MoveSessionToProfileRequest) (*MoveSessionToProfileResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MoveSessionToProfileResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MoveWorkspaceParams carries the path, query, and header parameters.
-type MoveWorkspaceParams struct {
-	Profile *string `url:"profile"`
-}
-
-// MoveWorkspace Move a workspace into a folder or back to the root
-func (c *Client) MoveWorkspace(ctx context.Context, params MoveWorkspaceParams, body MoveWorkspaceRequest) (*WorkspaceLayoutResponse, error) {
-	path := "/api/workspace-order/move"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorkspaceLayoutResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MutateSessionGoalParams carries the path, query, and header parameters.
-type MutateSessionGoalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// MutateSessionGoal Set or control the authenticated session Goal
-func (c *Client) MutateSessionGoal(ctx context.Context, params MutateSessionGoalParams, body SessionGoalCommandRequest) (*GoalCommandResult, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/goal"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out GoalCommandResult
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// NotifyOperatorParams carries the path, query, and header parameters.
-type NotifyOperatorParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-}
-
-// NotifyOperator Notify live operator clients from the calling agent
-func (c *Client) NotifyOperator(ctx context.Context, params NotifyOperatorParams, body AgentNotifyRequest) (*AgentNotifyResponse, error) {
-	path := "/api/agent/notify"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentNotifyResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// OpenCmdPaletteViewSessionParams carries the path, query, and header parameters.
-type OpenCmdPaletteViewSessionParams struct {
-	ID                  string  `url:"id"`
-	XCompozyClientToken string  `url:"X-Compozy-Client-Token"`
-	Profile             *string `url:"profile"`
-}
-
-// OpenCmdPaletteViewSession Open one programmable command palette view
-func (c *Client) OpenCmdPaletteViewSession(ctx context.Context, params OpenCmdPaletteViewSessionParams, body CmdPaletteViewSessionOpenRequest) (*CmdPaletteViewSessionOpenResponse, error) {
-	path := "/api/cmd-palette/views/{id}/open"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	headers := http.Header{}
-	headers.Set("X-Compozy-Client-Token", params.XCompozyClientToken)
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPaletteViewSessionOpenResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// OpenSessionSideParams carries the path, query, and header parameters.
-type OpenSessionSideParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// OpenSessionSide Open a side chat without changing its source session
-func (c *Client) OpenSessionSide(ctx context.Context, params OpenSessionSideParams, body OpenSessionSideRequest) (*SessionDeriveResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/sides"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionDeriveResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PatchLoopParams carries the path, query, and header parameters.
-type PatchLoopParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
-}
-
-// PatchLoop Publish one Loop definition with optimistic concurrency
-func (c *Client) PatchLoop(ctx context.Context, params PatchLoopParams, body PatchLoopRequest) (*LoopResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loops/{name}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PauseAgentInstanceParams carries the path, query, and header parameters.
-type PauseAgentInstanceParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// PauseAgentInstance Pause an agent instance
-func (c *Client) PauseAgentInstance(ctx context.Context, params PauseAgentInstanceParams) (*AgentInstanceResponse, error) {
-	path := "/api/agent-instances/{id}/pause"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PauseLoopNodeParams carries the path, query, and header parameters.
-type PauseLoopNodeParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	NodeID      string  `url:"node_id"`
-	Profile     *string `url:"profile"`
-}
-
-// PauseLoopNode Pause one Loop node
-func (c *Client) PauseLoopNode(ctx context.Context, params PauseLoopNodeParams, body LoopNodePauseRequest) (*LoopMutationResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/pause"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	path = strings.ReplaceAll(path, "{node_id}", url.PathEscape(params.NodeID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopMutationResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PauseLoopRunParams carries the path, query, and header parameters.
-type PauseLoopRunParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	Profile     *string `url:"profile"`
-}
-
-// PauseLoopRun Pause one Loop run
-func (c *Client) PauseLoopRun(ctx context.Context, params PauseLoopRunParams, body map[string]any) (*map[string]bool, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/pause"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out map[string]bool
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PauseScheduler Pause scheduler dispatch and task-run claims
-func (c *Client) PauseScheduler(ctx context.Context, body SchedulerPauseRequest) (*SchedulerStatusResponse, error) {
-	path := "/api/scheduler/pause"
-	var out SchedulerStatusResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PauseTaskParams carries the path, query, and header parameters.
-type PauseTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// PauseTask Pause one task for future scheduler claims
-func (c *Client) PauseTask(ctx context.Context, params PauseTaskParams, body PauseTaskRequest) (*TaskResponse, error) {
-	path := "/api/tasks/{id}/pause"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PickAgentInstanceProposalParams carries the path, query, and header parameters.
-type PickAgentInstanceProposalParams struct {
-	ID       string  `url:"id"`
-	ReportID string  `url:"report_id"`
-	Profile  *string `url:"profile"`
-}
-
-// PickAgentInstanceProposal Pick an instance proposal
-func (c *Client) PickAgentInstanceProposal(ctx context.Context, params PickAgentInstanceProposalParams, body AgentInstancePickRequest) (*AgentInstancePickResponse, error) {
-	path := "/api/agent-instances/{id}/reports/{report_id}/pick"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	path = strings.ReplaceAll(path, "{report_id}", url.PathEscape(params.ReportID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstancePickResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

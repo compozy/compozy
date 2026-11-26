@@ -4,6 +4,18 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type AccountSignInProgress = {
+  attempt_id: string;
+  code?: string;
+  new_account?: boolean;
+  state: string;
+};
+
+export type AccountStatePayload = {
+  signed_out_reason: string | null;
+  state: string;
+};
+
 export type Action = {
   app?: string;
   args?: {
@@ -77,6 +89,23 @@ export type AgentInstancePayload = {
   workspace_id: string;
 };
 
+export type ApprovalResult = {
+  id: string;
+  result: string;
+};
+
+export type Change = {
+  approval?: ApprovalResult | null;
+  approval_id?: string;
+  computer_id?: string;
+  device_id?: string;
+  evict_remote?: boolean;
+  kind?: string;
+  payment_issue?: boolean | null;
+  plan?: string;
+  security_epoch?: number;
+};
+
 export type Chip = {
   count?: number | null;
   fallback?: string;
@@ -110,6 +139,71 @@ export type CmdPaletteViewPatch = {
   revision: string;
   sequence: number;
   stream_epoch: string;
+};
+
+export type Computer = {
+  account_id: string;
+  added_at: string;
+  diagnosis: ComputerDiagnosis | null;
+  enabled: boolean;
+  id: string;
+  last_connected_at: string | null;
+  load_balancing_weight: number;
+  name: string;
+  plan_state: string;
+  platform: string;
+  protocol: ProtocolRange | null;
+  route_in_use: ComputerRouteInUse | null;
+  routes: Array<ComputerRoute>;
+  scopes: Array<string>;
+  status: string;
+  version: string;
+};
+
+export type ComputerChange = {
+  answered?: boolean;
+  computer?: Computer | null;
+  computer_id?: string;
+  error?: ErrorPayload | null;
+  prompt?: ComputerSetupPrompt | null;
+  removed?: boolean;
+  setup_id?: string;
+  state?: string;
+  step?: string;
+};
+
+export type ComputerDiagnosis = {
+  at: string;
+  code: string;
+  message: string;
+  step: string;
+};
+
+export type ComputerEvent = {
+  data: ComputerChange;
+  event: string;
+  id: string;
+};
+
+export type ComputerRoute = {
+  address: string;
+  id: string;
+  in_use: boolean;
+  kind: string;
+  last_error: string | null;
+  learned: boolean;
+};
+
+export type ComputerRouteInUse = {
+  id: string;
+  kind: string;
+  label: string;
+};
+
+export type ComputerSetupPrompt = {
+  fingerprint?: string;
+  host?: string;
+  kind: string;
 };
 
 export type Confirmation = {
@@ -184,6 +278,12 @@ export type ErrorPayload = {
   provider_error?: string;
   retryable?: boolean;
   unknown_keys?: Array<string>;
+};
+
+export type Event = {
+  data: Change;
+  event: string;
+  id: string;
 };
 
 export type FormBody = {
@@ -502,6 +602,11 @@ export type PromptOriginMeta = {
   session_id: string;
   title_at_send?: string;
   workspace_id: string;
+};
+
+export type ProtocolRange = {
+  max: number;
+  min: number;
 };
 
 export type ProviderErrorDiagnostic = {
@@ -1021,6 +1126,110 @@ export type WorktreeCatalogEventPayload = {
   worktree_id: string;
 };
 
+export type StreamAccountSignInData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account/sign-in/events";
+};
+
+export type StreamAccountSignInErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type StreamAccountSignInError = StreamAccountSignInErrors[keyof StreamAccountSignInErrors];
+
+export type StreamAccountSignInResponses = {
+  /**
+   * Sign-in progress and account state
+   */
+  200: AccountSignInProgress | AccountStatePayload;
+};
+
+export type StreamAccountSignInResponse =
+  StreamAccountSignInResponses[keyof StreamAccountSignInResponses];
+
+export type StreamAccountData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Last account event ID in this auth generation
+     */
+    after_sequence?: string;
+  };
+  url: "/api/account/stream";
+};
+
+export type StreamAccountErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type StreamAccountError = StreamAccountErrors[keyof StreamAccountErrors];
+
+export type StreamAccountResponses = {
+  /**
+   * Account changes and stream resets
+   */
+  200: Event;
+};
+
+export type StreamAccountResponse = StreamAccountResponses[keyof StreamAccountResponses];
+
 export type StreamCmdPaletteData = {
   body?: never;
   path?: never;
@@ -1168,6 +1377,70 @@ export type StreamCmdPaletteViewResponses = {
 
 export type StreamCmdPaletteViewResponse =
   StreamCmdPaletteViewResponses[keyof StreamCmdPaletteViewResponses];
+
+export type StreamComputersData = {
+  body?: never;
+  headers?: {
+    /**
+     * Resume from the last computer event received
+     */
+    "Last-Event-ID"?: string;
+  };
+  path?: never;
+  query?: {
+    /**
+     * Resume from a computer event sequence
+     */
+    after_sequence?: string;
+  };
+  url: "/api/computers/stream";
+};
+
+export type StreamComputersErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type StreamComputersError = StreamComputersErrors[keyof StreamComputersErrors];
+
+export type StreamComputersResponses = {
+  /**
+   * Computer changes and resets
+   */
+  200: ComputerEvent;
+};
+
+export type StreamComputersResponse = StreamComputersResponses[keyof StreamComputersResponses];
 
 export type StreamLogsData = {
   body?: never;

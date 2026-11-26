@@ -1,5 +1,3 @@
-import { useGatewayAccessTier } from "@/systems/gateway";
-
 import { activeProfiles, archivedProfiles } from "../lib/profile-rows";
 import { openProfileDialog } from "../stores/profile-dialog-store";
 import type { ProfileDialogIntent, ProfilePayload } from "../types";
@@ -10,7 +8,6 @@ export interface ProfilesSettingsPageModel {
   active: ProfilePayload[];
   archived: ProfilePayload[];
   currentName: string;
-  /** Remote surfaces read the list; management is absent, not disabled. */
   manageable: boolean;
   isLoading: boolean;
   errorMessage: string | null;
@@ -27,7 +24,6 @@ export interface ProfilesSettingsPageModel {
 export function useProfilesSettingsPage(): ProfilesSettingsPageModel {
   const profiles = useProfiles();
   const view = useActiveProfileView();
-  const tier = useGatewayAccessTier();
 
   const all = profiles.data ?? [];
 
@@ -35,7 +31,7 @@ export function useProfilesSettingsPage(): ProfilesSettingsPageModel {
     active: activeProfiles(all),
     archived: archivedProfiles(all),
     currentName: view.kind === "profile" ? view.profile : "",
-    manageable: tier === "local",
+    manageable: !profiles.isLoading && !profiles.isError,
     isLoading: profiles.isLoading,
     errorMessage: profiles.error instanceof Error ? profiles.error.message : null,
     refetch: () => void profiles.refetch(),

@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -51,6 +52,12 @@ const (
 	ErrorCodeUnavailable ErrorCode = "tool_unavailable"
 	// ErrorCodeDenied maps to ErrToolDenied.
 	ErrorCodeDenied ErrorCode = "tool_denied"
+	// ErrorCodeNotForwardable reports a tool without remote execution scope.
+	ErrorCodeNotForwardable ErrorCode = "tool_not_forwardable"
+	// ErrorCodeForwardDenied reports a session that cannot target another computer.
+	ErrorCodeForwardDenied ErrorCode = "tool_forward_denied"
+	// ErrorCodeSecretAnswerOperatorOnly requires operator entry of an SSH setup secret.
+	ErrorCodeSecretAnswerOperatorOnly ErrorCode = "secret_answer_operator_only"
 	// ErrorCodeApprovalRequired maps to ErrToolApprovalRequired.
 	ErrorCodeApprovalRequired ErrorCode = "tool_approval_required"
 	// ErrorCodeInvalidInput maps to ErrToolInvalidInput.
@@ -114,15 +121,16 @@ type ToolError struct {
 	ClientMessageID string `json:"client_message_id,omitempty"`
 	ProviderError   string `json:"provider_error,omitempty"`
 
-	Code          ErrorCode        `json:"code"`
-	ToolID        ToolID           `json:"tool_id,omitempty"`
-	Message       string           `json:"message"`
-	ReasonCodes   []ReasonCode     `json:"reason_codes,omitempty"`
-	Operator      *OperatorFailure `json:"operator,omitzero"`
-	PartialResult *ToolResult      `json:"partial_result,omitzero"`
-	Err           error            `json:"-"`
-	HTTPStatus    int              `json:"-"`
-	PublicMessage string           `json:"-"`
+	Code          ErrorCode                  `json:"code"`
+	ToolID        ToolID                     `json:"tool_id,omitempty"`
+	Message       string                     `json:"message"`
+	ReasonCodes   []ReasonCode               `json:"reason_codes,omitempty"`
+	Operator      *OperatorFailure           `json:"operator,omitzero"`
+	PartialResult *ToolResult                `json:"partial_result,omitzero"`
+	Err           error                      `json:"-"`
+	HTTPStatus    int                        `json:"-"`
+	PublicMessage string                     `json:"-"`
+	RemoteDetails map[string]json.RawMessage `json:"-"`
 }
 
 // WithPartialResult returns a cloned error carrying a redacted bounded result preview.

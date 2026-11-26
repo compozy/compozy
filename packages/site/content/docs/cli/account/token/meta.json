@@ -1,0 +1,4 @@
+{
+    "title": "Token",
+    "pages": ["index", "create", "list", "revoke"]
+}

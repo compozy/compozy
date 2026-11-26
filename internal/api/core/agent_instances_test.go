@@ -20,8 +20,8 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/apptoken"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
@@ -521,7 +521,7 @@ func TestAgentInstanceDailyBudgetSettings(t *testing.T) {
 		request := httptest.NewRequestWithContext(t.Context(), "PATCH", url,
 			strings.NewReader(`{"daily_budget":{"tokens":0}}`))
 		request.Header.Set("Content-Type", "application/json")
-		request = request.WithContext(core.ContextWithAppToken(request.Context(), gateway.AppToken{}))
+		request = request.WithContext(core.ContextWithAppToken(request.Context(), apptoken.Token{}))
 		response := httptest.NewRecorder()
 		fixture.Engine.ServeHTTP(response, request)
 		var failure contract.ErrorPayload

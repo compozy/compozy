@@ -120,7 +120,7 @@ func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (_ DeriveR
 	if err := validateDeriveSpec(spec); err != nil {
 		return DeriveResult{}, err
 	}
-	if err := m.checkNewWorkAdmission(ctx); err != nil {
+	if err := m.checkSessionCreationAdmission(ctx); err != nil {
 		return DeriveResult{}, err
 	}
 	derivations, err := m.derivationStore()

@@ -3,11 +3,15 @@ import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ErrorPage from "@/app/error";
 import HomePage from "@/app/(home)/page";
+import PricingPage from "@/app/(home)/pricing/page";
 import NotFound from "@/app/not-found";
 import BlogIndexPage from "@/app/blog/page";
 import BlogPostPage from "@/app/blog/[slug]/page";
 import CategoryArchivePage from "@/app/blog/categories/[category]/page";
 import ChangelogPage from "@/app/changelog/page";
+import PrivacyPage from "@/app/legal/privacy/page";
+import RefundsPage from "@/app/legal/refunds/page";
+import TermsPage from "@/app/legal/terms/page";
 import { BLOG_CATEGORIES, allPosts, postsByCategory } from "@/lib/blog";
 
 vi.mock("next/link", () => ({
@@ -108,5 +112,26 @@ describe("public heading hierarchy", () => {
 
     render(<ErrorPage error={new Error("render failed")} retry={vi.fn()} />);
     expectSingleH1("The site hit a recoverable boundary.");
+  });
+
+  it("keeps pricing and legal pages to one primary heading without skipped levels", () => {
+    render(<PricingPage />);
+    expectSingleH1("Free on your computer. Pro across all of them.");
+    expectNoSkippedHeadingLevels();
+    cleanup();
+
+    render(<TermsPage />);
+    expectSingleH1("Terms of Service");
+    expectNoSkippedHeadingLevels();
+    cleanup();
+
+    render(<PrivacyPage />);
+    expectSingleH1("Privacy Policy");
+    expectNoSkippedHeadingLevels();
+    cleanup();
+
+    render(<RefundsPage />);
+    expectSingleH1("Refund Policy");
+    expectNoSkippedHeadingLevels();
   });
 });

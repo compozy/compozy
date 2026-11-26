@@ -73,9 +73,19 @@ func (r *RuntimeRegistry) requestApproval(
 		)
 	}
 	view := cloneToolView(&target.view)
-	if err := r.approvalBridge.RequestToolApproval(ctx, scope, req, &view); err != nil {
+	approval := *req
+	if approval.ForwardComputer != "" {
+		input, err := InputWithComputer(approval.Input, approval.ForwardComputer)
+		if err != nil {
+			return err
+		}
+		approval.Input = input
+	}
+	if err := r.approvalBridge.RequestToolApproval(ctx, scope, &approval, &view); err != nil {
 		return normalizeApprovalBridgeError(target.descriptor.ID, err)
 	}
+	approval.Input = req.Input
+	*req = approval
 	req.ApprovalGranted = true
 	req.ApprovalLabel = strings.TrimSpace(req.ApprovalLabel)
 	if req.ApprovalLabel == "" {
@@ -115,6 +125,7 @@ func approvalBridgeError(id ToolID, message string, err error, reasons ...Reason
 }
 
 func mergeHookCallRequest(original CallRequest, patched CallRequest) CallRequest {
+	patched.ForwardComputer = original.ForwardComputer
 	patched.PinnedView = original.PinnedView
 	patched.View = ""
 	if patched.ToolID == "" {

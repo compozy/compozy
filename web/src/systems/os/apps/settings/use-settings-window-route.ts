@@ -20,8 +20,9 @@ const DEFAULT_SETTINGS_ROUTE: OsWindowRoute = { pathname: "/settings", search: {
 export function useSettingsWindowRoute(windowId: string): {
   route: OsWindowRoute;
   searchEnabled: boolean;
+  coordinator: ReturnType<typeof useOsShell>["coordinator"];
 } {
-  const { manager } = useOsShell();
+  const { coordinator, manager } = useOsShell();
   const { stored, searchEnabled } = useDesktop(state => {
     const win = state.windows[windowId];
     return {
@@ -50,5 +51,5 @@ export function useSettingsWindowRoute(windowId: string): {
     replace();
   }, [movedCommand, windowId]);
 
-  return { route: moved ?? stored, searchEnabled };
+  return { route: moved ?? stored, searchEnabled, coordinator };
 }

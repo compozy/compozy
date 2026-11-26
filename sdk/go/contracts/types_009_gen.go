@@ -2,55 +2,10 @@
 
 package contracts
 
-import "time"
-
-type ForgeReviewThread struct {
-	ID     string `json:"id"`
-	Commit string `json:"commit,omitempty"`
-}
-
-type ForgeReviews struct {
-	Items             []ForgeReview       `json:"items"`
-	Threads           []ForgeReviewThread `json:"threads,omitempty"`
-	UnresolvedThreads int                 `json:"unresolved_threads"`
-	Truncated         bool                `json:"truncated,omitempty"`
-}
-
-type ForgeStatusRequest struct {
-	RemoteURLs []string `json:"remote_urls"`
-	Branch     string   `json:"branch"`
-	Base       string   `json:"base,omitempty"`
-	HeadSHA    string   `json:"head_sha,omitempty"`
-}
-
-type ForgeStatusResponse struct {
-	Title              string        `json:"title,omitempty"`
-	Checks             *ForgeChecks  `json:"checks,omitempty"`
-	Reviews            *ForgeReviews `json:"reviews,omitempty"`
-	ReviewsUnavailable bool          `json:"reviews_unavailable,omitempty"`
-	ReviewDecision     string        `json:"review_decision,omitempty"`
-	Mergeable          string        `json:"mergeable,omitempty"`
-	UpdatedAt          *time.Time    `json:"updated_at,omitempty"`
-	Selection          string        `json:"selection,omitempty"`
-	RetryAfter         *time.Time    `json:"retry_after,omitempty"`
-	Provider           string        `json:"provider"`
-	PRNumber           *int          `json:"pr_number,omitempty"`
-	PRState            *string       `json:"pr_state,omitempty"`
-	PRURL              string        `json:"pr_url,omitempty"`
-	Head               string        `json:"head,omitempty"`
-	Base               string        `json:"base,omitempty"`
-	HeadSHA            string        `json:"head_sha,omitempty"`
-	Draft              *bool         `json:"draft,omitempty"`
-	Merged             *bool         `json:"merged,omitempty"`
-	FetchedAt          time.Time     `json:"fetched_at"`
-	Cause              string        `json:"cause,omitempty"`
-}
-
-type FormBody struct {
-	Fields   []FormField `json:"fields"`
-	Submit   *RowAction  `json:"submit,omitempty"`
-	OnSubmit string      `json:"on_submit,omitempty"`
-}
+import (
+	"encoding/json"
+	"time"
+)
 
 type FormField struct {
 	ID          string            `json:"id"`
@@ -68,19 +23,6 @@ type FormField struct {
 	EventCount  int64             `json:"event_count,omitempty"`
 	Requires    map[string]string `json:"requires,omitempty"`
 	Fallback    string            `json:"fallback,omitempty"`
-}
-
-type GatewayIngressPayload struct {
-	SubjectKind                 string     `json:"subject_kind"`
-	SubjectID                   string     `json:"subject_id"`
-	ScopeKind                   string     `json:"scope_kind"`
-	WorkspaceID                 string     `json:"workspace_id,omitempty"`
-	URL                         string     `json:"url,omitempty"`
-	Reachability                string     `json:"reachability"`
-	EndpointGeneration          uint64     `json:"endpoint_generation"`
-	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
-	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
-	EnablePath                  string     `json:"enable_path,omitempty"`
 }
 
 type GridBody struct {
@@ -211,4 +153,58 @@ type HeartbeatPreferencesPayload struct {
 	ActiveHours  []HeartbeatTimeWindowPayload      `json:"active_hours,omitempty"`
 	QuietWindows []HeartbeatTimeWindowPayload      `json:"quiet_windows,omitempty"`
 	Context      HeartbeatContextProjectionPayload `json:"context"`
+}
+
+type HeartbeatPromptContributionPayload struct {
+	Active           bool                               `json:"active"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Summary          string                             `json:"summary,omitempty"`
+	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	Truncated        bool                               `json:"truncated"`
+	MaxBytes         int64                              `json:"max_bytes"`
+	MaxBodyBytes     int64                              `json:"max_body_bytes"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	Context          HeartbeatContextProjectionPayload  `json:"context"`
+}
+
+type HeartbeatPutRequest struct {
+	ApproveAuthoritySHA256 string `json:"approve_authority_sha256,omitempty"`
+	WorkspaceID            string `json:"workspace_id,omitempty"`
+	AgentName              string `json:"agent_name"`
+	Body                   string `json:"body"`
+	ExpectedDigest         string `json:"expected_digest"`
+	IdempotencyKey         string `json:"idempotency_key,omitempty"`
+}
+
+type HeartbeatRevisionOperation string
+
+type HeartbeatRevisionPayload struct {
+	ID             string                     `json:"id"`
+	AgentName      string                     `json:"agent_name"`
+	SourcePath     string                     `json:"source_path"`
+	Operation      HeartbeatRevisionOperation `json:"operation"`
+	PreviousDigest string                     `json:"previous_digest,omitempty"`
+	NewDigest      string                     `json:"new_digest,omitempty"`
+	NewSnapshotID  string                     `json:"new_snapshot_id,omitempty"`
+	Actor          HeartbeatActorPayload      `json:"actor"`
+	CreatedAt      time.Time                  `json:"created_at"`
+}
+
+type HeartbeatRollbackRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	AgentName      string `json:"agent_name"`
+	RevisionID     string `json:"revision_id,omitempty"`
+	TargetDigest   string `json:"target_digest,omitempty"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+type HeartbeatSourceKind struct {
+	Kind         string          `json:"kind"`
+	Title        string          `json:"title"`
+	Description  string          `json:"description,omitempty"`
+	ParamsSchema json.RawMessage `json:"params_schema,omitempty"`
 }

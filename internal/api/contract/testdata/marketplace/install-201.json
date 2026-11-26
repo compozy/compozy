@@ -23,7 +23,6 @@
     "source": "marketplace",
     "enabled": true,
     "state": "enabled",
-    "gateway_confirmation_required": false,
     "consecutive_failures": 0,
     "restart_backoff_ms": 0,
     "update_available": false,

@@ -23,6 +23,9 @@ export const SDK_VERSION = "0.1.0";
 
 export const SDK_MIN_COMPOZY_VERSION = "0.3.0-beta.1";
 
+/** First CompozyOS release that builds and delivers SDK-declared subprocess inputs. */
+export const SDK_INPUTS_MIN_COMPOZY_VERSION = "0.7.9";
+
 export const SUPPORTED_PROTOCOL_VERSIONS = ["1"];
 
 export interface ExtensionDescribeProcess {

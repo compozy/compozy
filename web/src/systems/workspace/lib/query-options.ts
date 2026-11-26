@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import { fetchWorkspace, fetchWorkspaces } from "../adapters/workspace-api";
 import {
   fetchWorktrees,
@@ -16,20 +17,55 @@ import { USER_SCOPE_SELECTOR } from "./destination";
 
 export const WORKSPACE_REFETCH_INTERVAL = 10_000;
 
-export function workspacesListOptions(enabled = true, archived = false) {
+export function workspacesListOptions(
+  enabled = true,
+  archived = false,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: archived ? workspaceKeys.archived() : workspaceKeys.list(),
-    queryFn: ({ signal }) => fetchWorkspaces(signal, archived),
+    queryKey: archived ? keys.archived() : keys.list(),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchWorkspaces(signal, archived, computerId)
+        : fetchWorkspaces(signal, archived),
     enabled,
     staleTime: 60_000,
     refetchInterval: WORKSPACE_REFETCH_INTERVAL,
   });
 }
 
-export function workspaceDetailOptions(workspaceID: string) {
+/**
+ * Computer-scoped project list used by the `Run on` picker (`["computer", id, "workspaces"]`, UT-081).
+ */
+export function computerWorkspacesOptions(
+  computerId: ComputerId = LOCAL_COMPUTER_ID,
+  enabled = true
+) {
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: workspaceKeys.detail(workspaceID),
-    queryFn: ({ signal }) => fetchWorkspace(workspaceID, signal),
+    queryKey: keys.all,
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchWorkspaces(signal, false, computerId)
+        : fetchWorkspaces(signal, false),
+    enabled,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export function workspaceDetailOptions(
+  workspaceID: string,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const keys = workspaceKeys.forComputer(computerId);
+  return queryOptions({
+    queryKey: keys.detail(workspaceID),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchWorkspace(workspaceID, signal, computerId)
+        : fetchWorkspace(workspaceID, signal),
     staleTime: 60_000,
     refetchInterval: WORKSPACE_REFETCH_INTERVAL,
   });
@@ -43,11 +79,14 @@ export function workspaceDetailOptions(workspaceID: string) {
 export function worktreesListOptions(
   workspaceID: string,
   enabled = true,
-  availability?: { rootMissing: boolean; observedAt: number }
+  availability?: { rootMissing: boolean; observedAt: number },
+  computerId: ComputerId = LOCAL_COMPUTER_ID
 ) {
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: workspaceKeys.worktrees(workspaceID),
-    queryFn: ({ signal }) => fetchWorktrees(workspaceID, {}, signal),
+    queryKey: keys.worktrees(workspaceID),
+    queryFn: ({ signal }) =>
+      fetchWorktrees(workspaceID, isRemoteComputerId(computerId) ? { computerId } : {}, signal),
     // User-scope work has no worktrees (USW BR-4); the daemon rejects the read.
     enabled: query =>
       enabled &&
@@ -94,10 +133,19 @@ function worktreeScopeEnabled(workspaceID: string, worktreeID: string, enabled: 
  * One worktree record plus its last status, forge cache, and bindings summary.
  * The per-worktree stream owns freshness — no polling interval here either.
  */
-export function worktreeDetailOptions(workspaceID: string, worktreeID: string, enabled = true) {
+export function worktreeDetailOptions(
+  workspaceID: string,
+  worktreeID: string,
+  enabled = true,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: workspaceKeys.worktreeDetail(workspaceID, worktreeID),
-    queryFn: ({ signal }) => inspectWorktree(workspaceID, worktreeID, signal),
+    queryKey: keys.worktreeDetail(workspaceID, worktreeID),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? inspectWorktree(workspaceID, worktreeID, signal, computerId)
+        : inspectWorktree(workspaceID, worktreeID, signal),
     enabled: worktreeScopeEnabled(workspaceID, worktreeID, enabled),
     staleTime: 30_000,
   });
@@ -110,12 +158,16 @@ export function worktreeDetailOptions(workspaceID: string, worktreeID: string, e
 export function worktreeStatusOptions(
   workspaceID: string,
   worktreeID: string,
-  options: { enabled?: boolean; refresh?: boolean } = {}
+  options: { enabled?: boolean; refresh?: boolean; computerId?: ComputerId } = {}
 ) {
-  const { enabled = true, refresh } = options;
+  const { enabled = true, refresh, computerId = LOCAL_COMPUTER_ID } = options;
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: workspaceKeys.worktreeStatus(workspaceID, worktreeID),
-    queryFn: ({ signal }) => fetchWorktreeStatus(workspaceID, worktreeID, { refresh }, signal),
+    queryKey: keys.worktreeStatus(workspaceID, worktreeID),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchWorktreeStatus(workspaceID, worktreeID, { refresh }, signal, computerId)
+        : fetchWorktreeStatus(workspaceID, worktreeID, { refresh }, signal),
     enabled: worktreeScopeEnabled(workspaceID, worktreeID, enabled),
     staleTime: 15_000,
   });
@@ -125,19 +177,33 @@ export function worktreeStatusOptions(
  * The daemon recomputes the ladder on every read (it refreshes status itself),
  * so this key is invalidated after actions and stream frames rather than polled.
  */
-export function worktreeExitPlanOptions(workspaceID: string, worktreeID: string, enabled = true) {
+export function worktreeExitPlanOptions(
+  workspaceID: string,
+  worktreeID: string,
+  enabled = true,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: workspaceKeys.worktreeExit(workspaceID, worktreeID),
-    queryFn: ({ signal }) => fetchWorktreeExitPlan(workspaceID, worktreeID, signal),
+    queryKey: keys.worktreeExit(workspaceID, worktreeID),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchWorktreeExitPlan(workspaceID, worktreeID, signal, computerId)
+        : fetchWorktreeExitPlan(workspaceID, worktreeID, signal),
     enabled: worktreeScopeEnabled(workspaceID, worktreeID, enabled),
     staleTime: 0,
   });
 }
 
 /** Cache-only handoff from the catalog stream to an active materialization owner. */
-export function worktreeMaterializationFailureOptions(workspaceID: string, worktreeID: string) {
+export function worktreeMaterializationFailureOptions(
+  workspaceID: string,
+  worktreeID: string,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: workspaceKeys.worktreeMaterializationFailure(workspaceID, worktreeID),
+    queryKey: keys.worktreeMaterializationFailure(workspaceID, worktreeID),
     queryFn: async () => "",
     enabled: false,
     staleTime: Number.POSITIVE_INFINITY,

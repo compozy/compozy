@@ -9,6 +9,7 @@
         "packages/launch-video",
         "web",
         "desktop",
+        "infra/cloud-edge",
         "lint-plugins",
         "sdk/client",
         "sdk/typescript",

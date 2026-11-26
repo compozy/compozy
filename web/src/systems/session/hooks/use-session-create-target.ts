@@ -1,5 +1,12 @@
 import { useState } from "react";
 
+import {
+  isRemoteComputerId,
+  LOCAL_COMPUTER_ID,
+  normalizeComputerId,
+  type ComputerId,
+} from "@/lib/computer-scope";
+import { useComputerWorkspaces } from "@/systems/computers";
 import { useProfileReadScope, useProfiles } from "@/systems/profiles";
 import {
   DESTINATION_COPY,
@@ -56,46 +63,50 @@ interface Picks {
   profile: string | null;
 }
 
-/**
- * The create target for one opening of a session surface. Each axis gets a
- * picker only while it is aggregated; a bounded axis is its own target. Picks
- * reset when `resetKey` changes (the surface reopened), so every opening
- * starts from the prefill.
- */
-export function useSessionCreateTarget({
-  resetKey,
+function buildTargetProjection({
+  activeProjectWorkspaces,
+  activeBreadthMode,
+  activePending,
+  activeDataScope,
+  remoteWorkspaces,
+  isRemote,
+  profileAggregate,
+  profileDestination,
+  profilesData,
+  current,
   focusedBinding,
-  seed,
 }: {
-  resetKey: unknown;
-  focusedBinding?: string | null;
-  /** The destination the opening surface named; each opening starts its picks from it. */
-  seed?: { project: string | null; profile: string | null };
-}): SessionCreateTarget {
-  const active = useActiveWorkspace();
-  const profileScope = useProfileReadScope();
-  const projectAxis = active.breadthMode === "all" && !active.pending;
-  const profileAxis = profileScope.aggregate;
-  const profiles = useProfiles(profileAxis);
-  const opening = { key: resetKey, project: seed?.project ?? null, profile: seed?.profile ?? null };
-  const [picks, setPicks] = useState<Picks>(opening);
-  const current = picks.key === resetKey ? picks : opening;
-  if (current !== picks) setPicks(current);
-
-  const projectOptions = projectAxis ? sessionProjectOptions(active.projectWorkspaces) : [];
+  activeProjectWorkspaces: readonly WorkspacePayload[];
+  activeBreadthMode: string;
+  activePending: boolean;
+  activeDataScope: DataScope | null;
+  remoteWorkspaces: readonly WorkspacePayload[] | undefined;
+  isRemote: boolean;
+  profileAggregate: boolean;
+  profileDestination: string;
+  profilesData: Parameters<typeof sessionProfileOptions>[0];
+  current: Picks;
+  focusedBinding: string | null | undefined;
+}) {
+  const projectWorkspaces = isRemote
+    ? (remoteWorkspaces ?? []).filter(workspace => !workspace.archived_at)
+    : activeProjectWorkspaces;
+  const projectAxis = isRemote ? true : activeBreadthMode === "all" && !activePending;
+  const profileAxis = !isRemote && profileAggregate;
+  const projectOptions = projectAxis ? sessionProjectOptions(projectWorkspaces) : [];
   const projectValue = resolveProjectPick(
     projectAxis,
     projectOptions,
     current.project,
-    focusedBinding
+    isRemote ? null : focusedBinding
   );
-  const profileOptions = profileAxis ? sessionProfileOptions(profiles.data ?? []) : [];
-  const profile = resolveProfilePick(profileOptions, current.profile, profileScope.destination);
-  const named = resolveNamedProject(projectAxis, current.project, active.projectWorkspaces);
+  const profileOptions = profileAxis ? sessionProfileOptions(profilesData) : [];
+  const profile = resolveProfilePick(profileOptions, current.profile, profileDestination);
+  const named = resolveNamedProject(projectAxis, current.project, projectWorkspaces);
   const scope = named.workspace
     ? sessionTargetScope(named.workspace.id)
-    : resolveCreateScope(projectValue, active.dataScope);
-  const workspace = projectWorkspaceOf(scope, active.projectWorkspaces);
+    : resolveCreateScope(projectValue, isRemote ? null : activeDataScope);
+  const workspace = projectWorkspaceOf(scope, projectWorkspaces);
 
   return {
     projectAxis,
@@ -109,6 +120,62 @@ export function useSessionCreateTarget({
     scope,
     workspace,
     projectLabel: workspace?.name ?? DESTINATION_COPY.user,
+  };
+}
+
+/**
+ * The create target for one opening of a session surface. Each axis gets a
+ * picker only while it is aggregated; a bounded axis is its own target. Picks
+ * reset when `resetKey` changes (the surface reopened), so every opening
+ * starts from the prefill.
+ */
+export function useSessionCreateTarget({
+  resetKey,
+  focusedBinding,
+  seed,
+  computerId = LOCAL_COMPUTER_ID,
+  open = true,
+}: {
+  resetKey: unknown;
+  focusedBinding?: string | null;
+  /** The destination the opening surface named; each opening starts its picks from it. */
+  seed?: { project: string | null; profile: string | null };
+  /** Target computer selected in Run on; remote targets query that computer's workspaces (UT-081). */
+  computerId?: ComputerId;
+  open?: boolean;
+}): SessionCreateTarget {
+  const active = useActiveWorkspace();
+  const profileScope = useProfileReadScope();
+  const scopedComputerId = normalizeComputerId(computerId);
+  const isRemote = isRemoteComputerId(scopedComputerId);
+  const remoteWorkspacesQuery = useComputerWorkspaces(scopedComputerId, open && isRemote);
+  const profiles = useProfiles(!isRemote && profileScope.aggregate);
+  const pickKey = `${String(resetKey)}:${scopedComputerId}`;
+  const opening: Picks = {
+    key: pickKey,
+    project: isRemote ? null : (seed?.project ?? null),
+    profile: seed?.profile ?? null,
+  };
+  const [picks, setPicks] = useState<Picks>(opening);
+  const current = picks.key === pickKey ? picks : opening;
+  if (current !== picks) setPicks(current);
+
+  const projected = buildTargetProjection({
+    activeProjectWorkspaces: active.projectWorkspaces,
+    activeBreadthMode: active.breadthMode,
+    activePending: active.pending,
+    activeDataScope: active.dataScope,
+    remoteWorkspaces: remoteWorkspacesQuery.data,
+    isRemote,
+    profileAggregate: profileScope.aggregate,
+    profileDestination: profileScope.destination,
+    profilesData: profiles.data ?? [],
+    current,
+    focusedBinding,
+  });
+
+  return {
+    ...projected,
     selectProject: value => setPicks({ ...current, project: value }),
     selectProfile: value => setPicks({ ...current, profile: value }),
   };

@@ -2,7 +2,6 @@ package udsapi
 
 import (
 	core "github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/gateway"
 )
 
 func newHandlers(cfg *handlerConfig) *Handlers {
@@ -68,6 +67,8 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		AgentDefinitionSync:          cfg.agentSync,
 		ContextWindowResolver:        cfg.contextWindowResolver,
 		ModelCatalog:                 cfg.modelCatalog,
+		Account:                      cfg.account,
+		Remote:                       cfg.remote,
 		ProviderUsage:                cfg.providerUsage,
 		MarketplaceCatalog:           cfg.marketplaceCatalog,
 		AgentContextService:          cfg.agentContext,
@@ -93,8 +94,6 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		DeadEntities:                 cfg.deadEntities,
 		AppTokens:                    cfg.appTokens,
 		OpenAPI:                      cfg.openAPI,
-		Gateway:                      cfg.gateway,
-		GatewayPairingSource:         string(gateway.PairingSourceLocal),
 		HomePaths:                    cfg.homePaths,
 		Config:                       cfg.config,
 		Logger:                       cfg.logger,
@@ -108,6 +107,9 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 func withHandlerServices(cfg *handlerConfig, base *core.BaseHandlerConfig) *core.BaseHandlerConfig {
 	base.SessionChanges = cfg.sessionChanges
 	base.TelemetryStatus = cfg.telemetryStatus
+	base.Ingress = cfg.ingress
+	base.MigrationNotices = cfg.migrationNotices
+	base.Computers = cfg.computers
 	base.OnProviderAuthSuccess = cfg.onProviderAuthSuccess
 	base.ProviderAuthVerdicts = cfg.providerAuthVerdicts
 	return base

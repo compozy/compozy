@@ -534,7 +534,7 @@ Use `last_event_id=<id>` on an upgrade to resume; `Last-Event-ID` takes preceden
 Session catalog ids are sequences; log and terminal catalog ids are the complete values from their
 frames.
 Keep the same filters and profile/workspace scope when reconnecting, and obtain a fresh single-use
-stream ticket for every upgrade through a remote gateway. Worktree catalog reconnects require a
+stream ticket for every upgrade through a hosted route. Worktree catalog reconnects require a
 catalog refetch because those wake events have no retained cursor.
 
 The same stream emits `session_attention_changed` after a committed badge edge. Its payload carries

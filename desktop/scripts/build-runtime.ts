@@ -54,6 +54,9 @@ const ldflags = [
   `-X github.com/compozy/compozy/internal/version.Commit=${commit}`,
   `-X github.com/compozy/compozy/internal/version.BuildDate=${buildDate}`,
   `-X github.com/compozy/compozy/internal/version.MinAppVersion=${minAppVersion}`,
+  ...(process.env.COMPOZY_RELEASE_BUILD === "1"
+    ? ["-X github.com/compozy/compozy/internal/version.SignInRequired=true"]
+    : []),
 ].join(" ");
 
 const build = Bun.spawn(

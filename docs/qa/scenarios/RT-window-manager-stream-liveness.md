@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: a1baedd3a
 evidence: /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/test-cases/walk-window-manager-stream-results.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/screenshots/05-stall-watchdog-reconnected.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/screenshots/08-daemon-restart-reconnected.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/qa-audit-report.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/teardown.json
 last_report: docs/qa/reports/2026-09-01-window-manager-hardening.md
-overlaps: ET-web-desktop-shell-lifecycle; ET-window-manager-multi-client; RT-gateway-browser-stream-reconnect
+overlaps: ET-web-desktop-shell-lifecycle; ET-window-manager-multi-client; RT-computers-revoke
 ---
 
 story: As a person who leaves the desktop app open for days, I never have to reload it because the

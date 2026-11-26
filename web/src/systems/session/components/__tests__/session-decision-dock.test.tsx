@@ -587,7 +587,9 @@ describe("SessionDecisionDock", () => {
         "clarify-1",
         {
           choice_index: 1,
-        }
+        },
+        undefined,
+        "local"
       );
     });
   });
@@ -622,7 +624,9 @@ describe("SessionDecisionDock", () => {
         WORKSPACE_ID,
         SESSION_ID,
         "clarify-1",
-        { choice_index: 0 }
+        { choice_index: 0 },
+        undefined,
+        "local"
       );
     });
     await waitFor(() => {
@@ -666,7 +670,9 @@ describe("SessionDecisionDock", () => {
         "clarify-1",
         {
           text: "Ship it as canary\n then promote",
-        }
+        },
+        undefined,
+        "local"
       );
     });
   });

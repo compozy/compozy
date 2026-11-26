@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useSelector } from "@xstate/store-react";
 import { toast } from "@compozy/ui";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { createClientId } from "@/lib/client-id";
 import { awaitStoreRequest } from "@/lib/store-request";
 import {
@@ -55,6 +56,7 @@ export function useSessionBusyInputControls({
   store,
   workspaceId,
 }: UseSessionBusyInputControlsOptions) {
+  const computerId = useCurrentComputerId();
   const sendMutation = useSendSessionPrompt({ workspaceId });
   const inputs = useSessionInputs(workspaceId, sessionId, {
     enabled: liveDataEnabled,
@@ -70,10 +72,13 @@ export function useSessionBusyInputControls({
   // session was mounted (a detached edit send).
   useEffect(
     () =>
-      sessionPromptRecovery.subscribeUnconfirmed({ workspaceId, sessionId }, envelope => {
-        store.trigger.sendUnconfirmedObserved({ send: envelope });
-      }),
-    [sessionId, store, workspaceId]
+      sessionPromptRecovery.subscribeUnconfirmed(
+        { computerId, workspaceId, sessionId },
+        envelope => {
+          store.trigger.sendUnconfirmedObserved({ send: envelope });
+        }
+      ),
+    [computerId, sessionId, store, workspaceId]
   );
   const unconfirmedSends = useSelector(store, snapshot => snapshot.context.unconfirmedSends);
   const refusalQueueCap = useSelector(store, snapshot => snapshot.context.queueCap);

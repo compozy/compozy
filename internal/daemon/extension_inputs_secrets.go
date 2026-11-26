@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -52,25 +53,73 @@ func (b extensionInputBinder) prepareSecret(
 	} else if err := validateExtensionInputSecretRef(plan, *value.VaultRef); err != nil {
 		return inputInvalid(input.ID, err.Error())
 	}
+	ref, err := b.prepareInputBinding(ctx, plan, input.ID, request)
+	if err != nil {
+		return err
+	}
+	plan.state.Values[input.ID] = extensionpkg.InputValueRecord{
+		Type: extensionInputTypeSecret, SecretRef: ref, Active: true, UpdatedAt: b.service.now().UTC(),
+	}
+	return nil
+}
+
+// prepareSubprocessValue stores a supplied non-secret subprocess input as an instance-owned Vault
+// secret bound to its env name; an omitted value keeps its prior binding (rule 3a).
+func (b extensionInputBinder) prepareSubprocessValue(
+	ctx context.Context,
+	plan *extensionInputPlan,
+	input extensionpkg.ManifestInput,
+	value extensioninput.Value,
+	supplied bool,
+) error {
+	if !supplied || value.VaultRef != nil {
+		return b.prepareValue(plan, input, value, supplied)
+	}
+	normalized, err := extensionpkg.NormalizeInputJSON(input.Type, value.Value)
+	if err != nil {
+		return inputInvalid(input.ID, err.Error())
+	}
+	var decoded any
+	if err := json.Unmarshal(normalized, &decoded); err != nil {
+		return inputInvalid(input.ID, "value must be valid JSON")
+	}
+	text := fmt.Sprint(decoded)
+	if strings.TrimSpace(text) == "" {
+		return inputInvalid(input.ID, "subprocess input value must not be blank")
+	}
+	if b.service.secretVault == nil || b.service.envBindings == nil {
+		return errors.New("daemon: extension input secret storage is required")
+	}
+	ref, err := b.prepareInputBinding(ctx, plan, input.ID,
+		contract.ExtensionSecretBindingInput{EnvName: input.Binding.Name, Value: &text})
+	if err != nil {
+		return err
+	}
+	plan.state.Values[input.ID] = extensionpkg.InputValueRecord{
+		Type: input.Type, Value: normalized, SecretRef: ref, Active: true, UpdatedAt: b.service.now().UTC(),
+	}
+	return nil
+}
+
+func (b extensionInputBinder) prepareInputBinding(
+	ctx context.Context, plan *extensionInputPlan, inputID string, request contract.ExtensionSecretBindingInput,
+) (string, error) {
 	write, err := b.service.prepareExtensionSecret(ctx, plan.key, plan.instance.ProfileID, request)
 	if err != nil {
-		return inputInvalid(input.ID, "secret could not be prepared")
+		return "", inputInvalidWithCause(inputID, "value could not be prepared", err)
 	}
-	write.inputID = input.ID
+	write.inputID = inputID
 	if write.value != nil {
 		snapshot, err := b.service.snapshotExtensionSecret(ctx, write.ref)
 		if err != nil {
-			return inputInvalid(input.ID, "secret could not be snapshotted")
+			return "", inputInvalidWithCause(inputID, "value could not be snapshotted", err)
 		}
 		write.snapshot = &snapshot
 	}
 	if !inputSecretUnchanged(plan, write) {
 		plan.writes = append(plan.writes, write)
 	}
-	plan.state.Values[input.ID] = extensionpkg.InputValueRecord{
-		Type: extensionInputTypeSecret, SecretRef: write.ref, Active: true, UpdatedAt: b.service.now().UTC(),
-	}
-	return nil
+	return write.ref, nil
 }
 
 func validateExtensionInputSecretRef(plan *extensionInputPlan, value string) error {

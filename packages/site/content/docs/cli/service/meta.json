@@ -1,0 +1,4 @@
+{
+    "title": "Service",
+    "pages": ["index", "install", "status", "uninstall"]
+}
