@@ -580,7 +580,9 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		valid := descriptorWithID(ToolIDTaskRead, "Read Task")
 		invalid := descriptorWithID(ToolIDToolList, "List Tools")
 		invalid.InputSchema = json.RawMessage(`{"type":"not-a-schema-type"}`)
-		provider := &scopedListingTestProvider{registryTestProvider: providerWithDescriptors(valid.Source, valid, invalid)}
+		provider := &scopedListingTestProvider{
+			registryTestProvider: providerWithDescriptors(valid.Source, valid, invalid),
+		}
 		registry, err := NewRegistry(WithProviders(provider))
 		if err != nil {
 			t.Fatal(err)
