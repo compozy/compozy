@@ -432,3 +432,14 @@ func TestCompletionWorkspaceRefReadOnly(t *testing.T) {
 		}
 	})
 }
+
+func TestMapWorkspaceCandidatesTreatsWSNameAsID(t *testing.T) {
+	t.Parallel()
+
+	got := mapWorkspaceCandidates([]WorkspaceRecord{{
+		ID: "ws_real", Name: "ws_alias", RootDir: "/repo",
+	}})
+	if len(got) != 1 || got[0].value != "ws_real" {
+		t.Fatalf("workspace candidates = %#v, want value ws_real", got)
+	}
+}

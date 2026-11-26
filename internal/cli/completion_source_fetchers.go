@@ -36,7 +36,8 @@ func mapWorkspaceCandidates(items []WorkspaceRecord) []completionCandidate {
 	for _, item := range items {
 		name := strings.TrimSpace(item.Name)
 		id := strings.TrimSpace(item.ID)
-		useID := name == "" || counts[name] > 1 || containsWhitespace(name) || workspaceRefLooksLikePath(name)
+		useID := name == "" || counts[name] > 1 || containsWhitespace(name) || workspaceRefLooksLikePath(name) ||
+			strings.HasPrefix(name, "ws_") || strings.HasPrefix(name, "ws-")
 		value := name
 		if useID {
 			value = id

@@ -34,7 +34,13 @@ func completionBaseContext(cmd *cobra.Command) context.Context {
 func completionCommandDeps(ctx context.Context, deps commandDeps, cmd *cobra.Command) commandDeps {
 	deps.windowManagerWarning = compozyconfig.WithWindowManagerWarning(func(string, bool) {})
 	if deps.defaultLoadConfig {
-		deps.loadConfig = nil
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			homePaths, err := deps.resolveHome()
+			if err != nil {
+				return compozyconfig.Config{}, err
+			}
+			return compozyconfig.LoadForHome(homePaths, deps.windowManagerWarning)
+		}
 	}
 	if deps.defaultNewClient {
 		deps.newClient = nil
@@ -62,6 +68,21 @@ func (r *completionRuntime) ensureClient(ctx context.Context, cmd *cobra.Command
 		r.client, r.err = clientFromDeps(deps)
 	})
 	return r.client, r.err
+}
+
+func completionProfileContext(ctx context.Context, cmd *cobra.Command) context.Context {
+	if cmd == nil {
+		return ctx
+	}
+	if flag := cmd.Flag(allProfilesFlagName); flag != nil && flag.Changed {
+		return context.WithValue(ctx, profileReadSelectionContextKey{}, profileReadSelection{AllProfiles: true})
+	}
+	if flag := cmd.Flag(profileFlagName); flag != nil {
+		if name := strings.TrimSpace(flag.Value.String()); name != "" {
+			return context.WithValue(ctx, profileReadSelectionContextKey{}, profileReadSelection{Profile: name})
+		}
+	}
+	return ctx
 }
 
 func completionWorkspaceRef(
@@ -115,6 +136,7 @@ func (r *completionRuntime) complete(
 	}
 	ctx, cancel := context.WithTimeout(completionBaseContext(cmd), completionBudget)
 	defer cancel()
+	ctx = completionProfileContext(ctx, cmd)
 
 	if _, err := r.ensureClient(ctx, cmd); err != nil {
 		return nil

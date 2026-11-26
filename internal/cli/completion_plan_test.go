@@ -114,6 +114,18 @@ func TestCompletionPlanWiring(t *testing.T) {
 			if len(comps) != 0 || directive != cobra.ShellCompDirectiveDefault {
 				t.Fatalf("mixed file arg completion = (%v, %v), want (empty, Default)", comps, directive)
 			}
+
+			taskRunShow, _, err := root.Find([]string{"task", "run", "show"})
+			if err != nil {
+				t.Fatalf("Find(task run show) error = %v", err)
+			}
+			if taskRunShow.ValidArgsFunction == nil {
+				t.Fatal("task run show ValidArgsFunction is nil")
+			}
+			idComps, idDirective := taskRunShow.ValidArgsFunction(taskRunShow, nil, "")
+			if len(idComps) != 0 || idDirective != cobra.ShellCompDirectiveNoFileComp {
+				t.Fatalf("opted-out id completion = (%v, %v), want (empty, NoFileComp)", idComps, idDirective)
+			}
 		},
 	)
 

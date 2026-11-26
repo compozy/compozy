@@ -257,6 +257,17 @@ var completionCommandTable = map[string]completionCommandSpec{
 	"toolsets info": singleArgSpec(kindToolset),
 }
 
+var completionCommandFileOptOut = map[string]struct{}{
+	"app open":           {},
+	"extension build":    {},
+	"extension dev":      {},
+	"extension install":  {},
+	"extension publish":  {},
+	"extension validate": {},
+	"workspace add":      {},
+	"worktree adopt":     {},
+}
+
 var completionCommandOptOut = map[string]struct{}{
 	// New values / user-authored strings
 	"agent create":            {}, // new agent name

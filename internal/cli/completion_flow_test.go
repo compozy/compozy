@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func assertCompletionStderrClean(t *testing.T, stderr string) {
@@ -57,25 +59,12 @@ func TestCompletionIntegration(t *testing.T) {
 	})
 
 	t.Run(
-		"Should return no candidates, exit 0, and silence retired config warning on client failure",
+		"Should return no candidates, exit 0, and keep stderr clean on client failure",
 		func(t *testing.T) {
 			t.Parallel()
 
-			homeDir := t.TempDir()
-			if err := os.WriteFile(
-				filepath.Join(homeDir, "config.toml"),
-				[]byte("window_manager = { enabled = true }\n"),
-				0o600,
-			); err != nil {
-				t.Fatalf("WriteFile(config.toml) error = %v", err)
-			}
 			deps := commandDeps{
-				getenv: func(key string) string {
-					if key == "COMPOZY_HOME" {
-						return homeDir
-					}
-					return ""
-				},
+				getenv: func(string) string { return "" },
 				newClient: func(ClientTarget) (DaemonClient, error) {
 					return nil, errors.New("daemon offline")
 				},
@@ -94,6 +83,87 @@ func TestCompletionIntegration(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run(
+		"Should suppress retired config warnings through the completion loader",
+		func(t *testing.T) {
+			t.Parallel()
+
+			homeDir := t.TempDir()
+			if err := os.WriteFile(
+				filepath.Join(homeDir, "config.toml"),
+				[]byte("[window_manager]\nnew_window_policy = \"floating\"\n"),
+				0o600,
+			); err != nil {
+				t.Fatalf("WriteFile(config.toml) error = %v", err)
+			}
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(homeDir)
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+
+			warnings := 0
+			warning := compozyconfig.WithWindowManagerWarning(func(string, bool) { warnings++ })
+			if _, err := compozyconfig.LoadForHome(homePaths, warning); err != nil {
+				t.Fatalf("baseline LoadForHome() error = %v", err)
+			}
+			if warnings == 0 {
+				t.Fatal("baseline config load did not emit the retired warning")
+			}
+
+			deps := commandDeps{
+				defaultLoadConfig:    true,
+				windowManagerWarning: warning,
+				resolveHome: func() (compozyconfig.HomePaths, error) {
+					return homePaths, nil
+				},
+				ensureHome: func(compozyconfig.HomePaths) error { return nil },
+				getwd:      func() (string, error) { return homeDir, nil },
+				getenv:     func(string) string { return "" },
+				newClient: func(ClientTarget) (DaemonClient, error) {
+					return nil, errors.New("daemon offline")
+				},
+			}
+			completionDeps := completionCommandDeps(t.Context(), deps, nil)
+			before := warnings
+			if _, err := completionDeps.loadConfig(); err != nil {
+				t.Fatalf("completion loadConfig() error = %v", err)
+			}
+			if warnings != before {
+				t.Fatalf("completion loader emitted %d retired warnings", warnings-before)
+			}
+		},
+	)
+
+	t.Run("Should apply --profile to completion requests", func(t *testing.T) {
+		t.Parallel()
+
+		var gotProfile string
+		stub := &stubClient{
+			listSessionsFn: func(ctx context.Context, _ SessionListQuery) ([]SessionRecord, error) {
+				if selection, ok := ctx.Value(profileReadSelectionContextKey{}).(profileReadSelection); ok {
+					gotProfile = selection.Profile
+				}
+				return []SessionRecord{{ID: "sess-work", Name: "Work session"}}, nil
+			},
+		}
+		deps := newTestDeps(t, stub)
+		deps.newClient = func(ClientTarget) (DaemonClient, error) { return stub, nil }
+		code, stdout, stderr := executeRootCommandWithExit(
+			t,
+			deps,
+			"__complete", "session", "inspect", "--profile", "work", "",
+		)
+		if code != 0 {
+			t.Fatalf("exit code = %d, want 0 (stderr=%q)", code, stderr)
+		}
+		if gotProfile != "work" {
+			t.Fatalf("completion profile = %q, want %q", gotProfile, "work")
+		}
+		if !strings.Contains(stdout, "sess-work") {
+			t.Fatalf("stdout = %q, want sess-work candidate", stdout)
+		}
+	})
 
 	t.Run("Should complete --workspace flag with workspace candidates", func(t *testing.T) {
 		t.Parallel()

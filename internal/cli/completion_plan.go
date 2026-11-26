@@ -212,6 +212,9 @@ func registerPositionalCompletions(cmd *cobra.Command, commandPath string, rt *c
 		return
 	}
 	if _, optedOut := completionCommandOptOut[commandPath]; optedOut {
+		if _, keepFiles := completionCommandFileOptOut[commandPath]; !keepFiles {
+			cmd.ValidArgsFunction = cobra.NoFileCompletions
+		}
 		return
 	}
 	spec, ok := completionCommandTable[commandPath]
