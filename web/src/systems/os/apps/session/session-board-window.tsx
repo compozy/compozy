@@ -166,6 +166,7 @@ export function SessionBoardWindow({
                 isDeleting={deleteDialog.isDeleting}
                 childSessions={deleteDialog.childSessions}
                 sideChats={deleteDialog.sideChats}
+                metadataPending={deleteDialog.metadataPending}
                 onConfirm={deleteDialog.onConfirm}
                 onOpenChange={deleteDialog.onOpenChange}
                 onRetry={deleteDialog.onRetry}

@@ -17,8 +17,12 @@ export function useCurrentDeleteSessions(
       refetchOnMount: "always" as const,
     })),
   });
-  return sessions?.map((session, index) => {
+  const current = sessions?.map((session, index) => {
     const read = deleteReads[index];
     return read && read.dataUpdatedAt >= openedAt ? (read.data ?? session) : session;
   });
+  return {
+    sessions: current,
+    pending: deleteReads.some(read => read.isPending || read.isFetching),
+  };
 }

@@ -34,6 +34,7 @@ export interface SessionDeleteDialogSetProps {
   results?: readonly SessionBatchResult[];
   isDeleting: boolean;
   childSessions?: SessionChildrenChoice;
+  metadataPending?: boolean;
   /** `processes` answers what happens to running processes; absent when none run. */
   onConfirm: (processes?: SessionProcessPolicy) => void;
   onRetry?: () => void;
@@ -47,6 +48,7 @@ export function SessionDeleteDialogSet({
   results = [],
   isDeleting,
   childSessions,
+  metadataPending = false,
   onConfirm,
   onRetry,
 }: SessionDeleteDialogSetProps) {
@@ -142,6 +144,7 @@ export function SessionDeleteDialogSet({
             isDeleting={isDeleting}
             retrying={partial}
             processChoice={processChoice}
+            processChoicePending={metadataPending && !processChoice}
             deleteLabel={`Delete ${count} sessions`}
             deletingLabel={`Deleting ${Math.max(1, progressIndex + 1)} of ${count}`}
             retryLabel={`Retry ${failed}`}

@@ -15,6 +15,7 @@ export interface SessionDeleteActionsProps {
   retrying: boolean;
   /** Present while the targets have processes running; adds Keep processes running. */
   processChoice: SessionProcessChoiceCopy | null;
+  processChoicePending?: boolean;
   deleteLabel: string;
   deletingLabel: string;
   retryLabel: string;
@@ -34,6 +35,7 @@ export function SessionDeleteActions({
   askOnRetry = false,
   retrying,
   processChoice,
+  processChoicePending = false,
   deleteLabel,
   deletingLabel,
   retryLabel,
@@ -84,6 +86,19 @@ export function SessionDeleteActions({
           data-testid="delete-dialog-keep-processes"
         >
           {choice.keepLabel}
+        </Button>
+      ) : null}
+      {!choice && processChoicePending ? (
+        <Button
+          aria-hidden="true"
+          className="invisible"
+          data-testid="delete-dialog-keep-processes-placeholder"
+          disabled
+          tabIndex={-1}
+          type="button"
+          variant="outline"
+        >
+          Keep processes running
         </Button>
       ) : null}
       <Button

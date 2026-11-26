@@ -95,6 +95,7 @@ export function OsSessionsDialogHost({
           isDeleting={lifecycle.deleteDialog.isDeleting}
           childSessions={lifecycle.deleteDialog.childSessions}
           sideChats={lifecycle.deleteDialog.sideChats}
+          metadataPending={lifecycle.deleteDialog.metadataPending}
           onConfirm={lifecycle.deleteDialog.onConfirm}
         />
       ) : null}

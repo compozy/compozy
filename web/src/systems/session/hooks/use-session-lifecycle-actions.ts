@@ -96,12 +96,14 @@ export function useSessionLifecycleActions(
   const batchRunning = useSessionBatchAdmission();
   const deleteConfirmation = useRef(0);
   const [deleteChildren, setDeleteChildren] = useState(false);
-  const deleteSessions = useCurrentDeleteSessions(
+  const currentDeleteSessions = useCurrentDeleteSessions(
     deleteTarget?.sessions,
     deleteTarget?.openedAt ?? Infinity
   );
+  const deleteSessions = currentDeleteSessions.sessions;
   const deleteSession = deleteSessions?.[0] ?? null;
   const deleteSideChats = useDeleteTargetHasSideChats(deleteSessions);
+  const deleteMetadataPending = currentDeleteSessions.pending || deleteSideChats.pending;
   // A target the batch already deleted has no tree left to read or to ask about.
   const remainingDeleteTargets = deleteTarget?.sessions.filter(
     session => !batchResults.some(result => result.id === session.id && result.status === "done")
@@ -443,7 +445,8 @@ export function useSessionLifecycleActions(
       sessions: deleteSessions ?? closingDeleteTarget ?? undefined,
       results: deleteTarget?.bulk ? batchResults : undefined,
       isDeleting: remove.isPending || batchAction === "delete",
-      sideChats: deleteSideChats,
+      sideChats: deleteSideChats.hasSideChats,
+      metadataPending: deleteMetadataPending,
       childSessions: sessionChildrenChoice(deleteScope, deleteChildren, setDeleteChildren, {
         pending: !deleteRead.settled,
         onRetry: deleteRead.onRetry,

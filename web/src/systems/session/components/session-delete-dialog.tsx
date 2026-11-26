@@ -31,6 +31,8 @@ export interface SessionDeleteDialogProps {
   childSessions?: SessionChildrenChoice;
   /** The session has side chats (closed ones included): deleting it deletes them too (S5). */
   sideChats?: boolean;
+  /** Metadata is still loading, so reserve space for side-chat and process choices. */
+  metadataPending?: boolean;
   /** `processes` answers what happens to running processes; absent when none run. */
   onConfirm: (processes?: SessionProcessPolicy) => void;
 }
@@ -46,6 +48,7 @@ export function SessionDeleteDialog({
   isDeleting,
   childSessions,
   sideChats = false,
+  metadataPending = false,
   onConfirm,
 }: SessionDeleteDialogProps) {
   if (sessions && sessions.length > 1) {
@@ -58,6 +61,7 @@ export function SessionDeleteDialog({
         onRetry={onRetry}
         isDeleting={isDeleting}
         childSessions={childSessions}
+        metadataPending={metadataPending}
         onConfirm={onConfirm}
       />
     );
@@ -90,8 +94,26 @@ export function SessionDeleteDialog({
           <DialogDescription>
             This permanently removes <strong>{session.name?.trim() || session.id}</strong>,
             including its transcript and history, and removes it from the session list.
-            {processChoice ? ` ${processChoice.description}` : null}
-            {sideChats ? ` ${SIDE_CHAT_COPY.deleteLine}` : null}
+            <span
+              className={!processChoice && metadataPending ? "invisible" : undefined}
+              aria-hidden={!processChoice && metadataPending}
+            >
+              {processChoice
+                ? ` ${processChoice.description}`
+                : metadataPending
+                  ? " Reserved for process choice."
+                  : null}
+            </span>
+            <span
+              className={!sideChats && metadataPending ? "invisible" : undefined}
+              aria-hidden={!sideChats && metadataPending}
+            >
+              {sideChats
+                ? ` ${SIDE_CHAT_COPY.deleteLine}`
+                : metadataPending
+                  ? " Associated side chats will also be deleted."
+                  : null}
+            </span>
           </DialogDescription>
         </DialogHeader>
         {childSessions && (childSessions.count > 0 || !childSessions.pending) ? (
@@ -109,6 +131,7 @@ export function SessionDeleteDialog({
             isDeleting={isDeleting}
             retrying={retrying}
             processChoice={processChoice}
+            processChoicePending={metadataPending && !processChoice}
             deleteLabel="Delete session"
             deletingLabel="Deleting"
             retryLabel="Retry 1"

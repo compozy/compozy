@@ -368,6 +368,24 @@ describe("SessionDeleteDialog child sessions", () => {
     expect(screen.getByTestId("delete-dialog-confirm")).toBeDisabled();
   });
 
+  it("reserves the side-chat and process-choice layout while metadata is pending", () => {
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={[session]}
+        isDeleting={false}
+        metadataPending
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("delete-dialog-keep-processes-placeholder")).toHaveClass("invisible");
+    expect(screen.getByText(" Associated side chats will also be deleted.")).toHaveClass(
+      "invisible"
+    );
+  });
+
   it("asks about the processes included children left running", () => {
     render(
       <SessionDeleteDialog
