@@ -99,3 +99,13 @@ unavailable through their shared ID.
 Then add `" spaced_tool "` to the fixture. On legacy Streamable HTTP, require the padded name to
 round-trip unchanged and the ready probe to count it. On Streamable HTTP 2026-07-28, require the
 probe to skip it with a diagnostic mentioning the `Mcp-Name` header and keep the other tools usable.
+
+### Failure isolation across providers (#2002)
+
+In an isolated daemon with two healthy MCP servers, add a third manual Streamable HTTP fake that
+publishes a tool whose input schema uses an unsupported `type`. Require that server alone to report
+failed in `compozy mcp list` and the session MCP panel, while `compozy tool invoke` of
+`compozy__tool_info`, `compozy__mcp_list` and `compozy__logs` succeeds, new sessions start with a
+generated title, and both healthy servers' tools stay callable from a session. Repeat with the fake
+returning a transport error, and with an extension provider whose listing fails. Then fix the fake
+and require its tools to return on the next refresh, without a daemon restart.
