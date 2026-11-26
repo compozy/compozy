@@ -1847,8 +1847,15 @@ func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 				w.WriteHeader(http.StatusCreated)
 				writeManagerTestResponse(t, w, `{"client_id":"client","token_endpoint_auth_method":"none"}`)
 			case "/token":
-				writeManagerTestResponse(t, w, `{"access_token":"granted","refresh_token":"refresh",`+
-					`"scope":"tools.read offline_access","expires_in":60}`)
+				if err := r.ParseForm(); err != nil {
+					t.Error(err)
+				}
+				access := "granted"
+				if r.PostForm.Get("grant_type") == serviceRefreshTokenKey {
+					access = "renewed"
+				}
+				writeManagerTestResponse(t, w, fmt.Sprintf(`{"access_token":%q,"refresh_token":"refresh",`+
+					`"scope":"tools.read offline_access","expires_in":60}`, access))
 			default:
 				http.NotFound(w, r)
 			}
@@ -1890,8 +1897,14 @@ func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 		if err != nil || refreshed.Status != StatusAuthenticated {
 			t.Fatalf("Refresh(narrower grant) = %+v, %v", refreshed, err)
 		}
-		if _, err := service.AuthorizationToken(t.Context(), cfg); err != nil {
-			t.Fatalf("AuthorizationToken(after refresh) error = %v", err)
+		token, err := service.AuthorizationToken(t.Context(), cfg)
+		if err != nil || token.AccessToken != "renewed" {
+			t.Fatalf("AuthorizationToken(after refresh) = %q, %v; want the renewed bearer", token.AccessToken, err)
+		}
+		if want := []string{"tools.read", "tools.admin", "offline_access"}; !slices.Equal(
+			store.token.RequestedScopes, want,
+		) {
+			t.Fatalf("stored requested scopes = %v, want the login request %v", store.token.RequestedScopes, want)
 		}
 		cfg.Scopes = append(cfg.Scopes, "tools.write")
 		if _, err := service.AuthorizationToken(t.Context(), cfg); !errors.Is(err, ErrTokenBindingInvalid) {
