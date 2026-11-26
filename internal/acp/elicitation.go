@@ -105,20 +105,14 @@ func (p *AgentProcess) askElicitationQuestions(
 		p.logElicitation(ctx, slog.LevelInfo, "elicitation.declined", "unavailable")
 		return nil, elicitationOutcomeDecline
 	}
-	askCtx := ctx
-	if wait := p.permissionTimeoutOrDefault(); wait > 0 {
-		var cancel context.CancelFunc
-		askCtx, cancel = context.WithTimeout(ctx, wait)
-		defer cancel()
-	}
 	answers := make([]toolspkg.ClarifyAnswer, 0, len(questions))
 	for _, question := range questions {
-		answer, err := asker(askCtx, question.question)
+		answer, err := asker(ctx, question.question)
 		if err == nil && answer.Fallback {
 			err = context.DeadlineExceeded
 		}
 		if err != nil {
-			outcome := p.elicitationErrorOutcome(ctx, askCtx, err)
+			outcome := p.elicitationErrorOutcome(ctx, ctx, err)
 			p.logElicitation(ctx, slog.LevelInfo, "elicitation.declined", outcome, "error", err)
 			return nil, outcome
 		}

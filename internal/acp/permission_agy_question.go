@@ -42,13 +42,7 @@ func (p *AgentProcess) answerAgyInteractionQuestion(
 		p.logAgyInteraction(ctx, "unavailable", nil)
 		return canceled
 	}
-	askCtx := ctx
-	if wait := p.permissionTimeoutOrDefault(); wait > 0 {
-		var cancel context.CancelFunc
-		askCtx, cancel = context.WithTimeout(ctx, wait)
-		defer cancel()
-	}
-	answer, err := p.elicitationAsker(askCtx, question)
+	answer, err := p.elicitationAsker(ctx, question)
 	if err != nil {
 		p.logAgyInteraction(ctx, "unanswered", err)
 		return canceled

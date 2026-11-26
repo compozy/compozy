@@ -111,6 +111,13 @@ than four choices, or URL mode is declined. Automated evidence: `internal/acp/el
 Outstanding walk: answer a real opencode `question` from the dock, and confirm a system session
 declines without a pending interaction.
 
+QA impact 2026-11-26 (#2023): ACP elicitation and Antigravity interaction questions use the
+clarification context directly. The permission approval fallback (five minutes) cannot expire an
+unbounded clarification; session/turn cancellation and the clarification policy remain authoritative.
+The automated ACP suite asserts no permission deadline is added and preserves decline behavior when
+the asker reports its own clarification deadline. Walk the real OpenCode question path beyond five
+minutes and confirm it remains pending until answered or explicitly canceled.
+
 QA impact 2026-11-18 (#1821): while a clarification is pending, a steer or queue send from the
 main session composer answers that question as free text through the existing answer endpoint, so
 the turn resumes at once instead of waiting for the timeout. The composer placeholder says so. A

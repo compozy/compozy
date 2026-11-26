@@ -302,9 +302,8 @@ func TestElicitationDeclinesWithoutAnAnswer(t *testing.T) {
 		{
 			name:    "Should decline a timed-out question instead of hanging the turn",
 			timeout: 20 * time.Millisecond,
-			asker: func(ctx context.Context, _ toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
-				<-ctx.Done()
-				return toolspkg.ClarifyAnswer{}, ctx.Err()
+			asker: func(context.Context, toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+				return toolspkg.ClarifyAnswer{}, context.DeadlineExceeded
 			},
 		},
 		{
@@ -342,6 +341,33 @@ func TestElicitationDeclinesWithoutAnAnswer(t *testing.T) {
 				t.Fatalf("action = %q, want decline", response.Decline.Action)
 			}
 		})
+	}
+}
+
+func TestElicitationIgnoresPermissionTimeout(t *testing.T) {
+	t.Parallel()
+
+	params := json.RawMessage(`{
+		"sessionId":"sess-direct",
+		"mode":"form",
+		"message":"Questions",
+		"requestedSchema":{"type":"object","properties":{"q0":{"type":"string"}}}
+	}`)
+	proc := newElicitationTestProcess(t)
+	proc.permissionTimeout = time.Nanosecond
+	proc.elicitationAsker = func(ctx context.Context, _ toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+		if _, ok := ctx.Deadline(); ok {
+			t.Fatal("clarification context has a permission deadline")
+		}
+		return toolspkg.ClarifyAnswer{Text: "answered"}, nil
+	}
+
+	result, reqErr := proc.handleCreateElicitation(t.Context(), params)
+	if reqErr != nil {
+		t.Fatalf("handleCreateElicitation() error = %+v", reqErr)
+	}
+	if response := result.(acpsdk.UnstableCreateElicitationResponse); response.Accept == nil {
+		t.Fatalf("response = %+v, want accepted answer", response)
 	}
 }
 
@@ -685,7 +711,10 @@ func TestAgyInteractionPermissionAsksOperator(t *testing.T) {
 		return proc
 	}
 	answering := func(asked *toolspkg.ClarifyQuestion, answer toolspkg.ClarifyAnswer) ElicitationAsker {
-		return func(_ context.Context, question toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+		return func(ctx context.Context, question toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+			if _, ok := ctx.Deadline(); ok {
+				t.Fatal("clarification context has a permission deadline")
+			}
 			*asked = question
 			return answer, nil
 		}
