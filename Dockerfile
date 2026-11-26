@@ -11,6 +11,7 @@ COPY infra/cloud-edge/build-revision.txt ./cloud-revision.txt
 COPY cmd/compozy-cloud ./cmd/compozy-cloud
 COPY internal/cloud ./internal/cloud
 COPY internal/remoteproto ./internal/remoteproto
+COPY internal/redact ./internal/redact
 COPY packages/brand/cloud_assets.go ./packages/brand/cloud_assets.go
 COPY packages/brand/public/brand/visuals/swarm-1280.jpg packages/brand/public/brand/visuals/swarm-portrait-1280.jpg ./packages/brand/public/brand/visuals/
 COPY packages/brand/public/brand/svg/compozy-wordmark-white.svg ./packages/brand/public/brand/svg/
