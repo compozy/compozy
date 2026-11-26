@@ -14,6 +14,8 @@ import (
 const (
 	speedConfigCategory = "model_config"
 	speedConfigKey      = "speed"
+	// Codex advertises its Fast toggle under a category of its own.
+	speedOwnCategory = "speed"
 )
 
 type speedConfigMatch struct {
@@ -188,7 +190,8 @@ func matchSpeedConfig(
 }
 
 func isSpeedConfigCandidate(option SessionConfigOption) bool {
-	if normalizeSpeedToken(option.Category) != normalizeSpeedToken(speedConfigCategory) {
+	category := normalizeSpeedToken(option.Category)
+	if category != normalizeSpeedToken(speedConfigCategory) && category != speedOwnCategory {
 		return false
 	}
 	return isSpeedToken(normalizeSpeedToken(option.ID)) ||
