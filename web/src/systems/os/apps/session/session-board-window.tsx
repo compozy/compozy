@@ -1,5 +1,5 @@
 import { Plus, SquareKanban } from "@compozy/ui/icons";
-import { lazy, Suspense, useRef, type ReactNode } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 
 import { Button, type TopbarSlotValue } from "@compozy/ui";
 
@@ -122,14 +122,18 @@ export function SessionBoardWindow({
   };
 
   const { deleteDialog, processDialog, renameDialog, laterDialog } = lifecycle;
-  const lastDeleteSessions = useRef<readonly SessionPayload[]>([]);
-  if (deleteDialog.sessions?.length) {
-    lastDeleteSessions.current = deleteDialog.sessions;
-  } else if (deleteDialog.session) {
-    lastDeleteSessions.current = [deleteDialog.session];
+  const [retainedDelete, setRetainedDelete] = useState(() => ({
+    session: deleteDialog.session,
+    sessions: deleteDialog.sessions ?? (deleteDialog.session ? [deleteDialog.session] : []),
+  }));
+  if (deleteDialog.session && deleteDialog.session !== retainedDelete.session) {
+    setRetainedDelete({
+      session: deleteDialog.session,
+      sessions: deleteDialog.sessions ?? [deleteDialog.session],
+    });
   }
-  const retainedDeleteSessions = deleteDialog.sessions ?? lastDeleteSessions.current;
-  const retainedDeleteSession = deleteDialog.session ?? retainedDeleteSessions[0] ?? null;
+  const retainedDeleteSessions = deleteDialog.sessions ?? retainedDelete.sessions;
+  const retainedDeleteSession = deleteDialog.session ?? retainedDelete.session;
   return (
     <OsSessionsDeriveHost workspaceId={scope?.kind === "project" ? scope.workspaceId : null}>
       {() => (
