@@ -22,12 +22,16 @@ func TestMatchSpeedConfigAcceptsSpeedCategory(t *testing.T) {
 		speedpkg.SpeedFast:   "on",
 		speedpkg.SpeedNormal: "off",
 	} {
-		match, reason := matchSpeedConfig(requested, options)
-		if match == nil {
-			t.Fatalf("matchSpeedConfig(%q) found no option, reason %q", requested, reason)
-		}
-		if match.selection.ValueID != want {
-			t.Errorf("matchSpeedConfig(%q) selected %q, want %q", requested, match.selection.ValueID, want)
-		}
+		t.Run("Should select "+want+" for "+string(requested), func(t *testing.T) {
+			t.Parallel()
+
+			match, reason := matchSpeedConfig(requested, options)
+			if match == nil {
+				t.Fatalf("matchSpeedConfig(%q) found no option, reason %q", requested, reason)
+			}
+			if match.selection.ValueID != want {
+				t.Errorf("matchSpeedConfig(%q) selected %q, want %q", requested, match.selection.ValueID, want)
+			}
+		})
 	}
 }
