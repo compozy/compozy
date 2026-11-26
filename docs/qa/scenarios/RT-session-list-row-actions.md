@@ -124,3 +124,10 @@ when idle. Automated coverage: `session-delete-request-host.test.tsx` (request l
 single/batch forwarding), `use-session-window-sidebar.test.tsx` (rail delegation), and
 `session-delete-dialog.test.tsx` (pending dismissal guard). Reset for a focused live re-walk of the
 window rail's delete confirmation with a slow DELETE.
+
+QA impact 2026-11-26 (#2024): session delete confirmations now open after scoped detail, descendant
+trees, and single-target side chats have settled, preventing transient description and checkbox
+changes. Empty child trees never show an include checkbox; an unreadable tree exposes retry instead.
+Closing retains the target in both hosts while the UI primitive hides its content. The lifecycle,
+dialog, board-host, and sessions-host suites own these states; CI verification and a focused live
+catalog re-walk remain pending.

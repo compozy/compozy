@@ -34,6 +34,8 @@ export interface SessionDeleteDialogSetProps {
   results?: readonly SessionBatchResult[];
   isDeleting: boolean;
   childSessions?: SessionChildrenChoice;
+  childrenPending?: boolean;
+  processCount?: number;
   /** `processes` answers what happens to running processes; absent when none run. */
   onConfirm: (processes?: SessionProcessPolicy) => void;
   onRetry?: () => void;
@@ -47,6 +49,8 @@ export function SessionDeleteDialogSet({
   results = [],
   isDeleting,
   childSessions,
+  childrenPending = false,
+  processCount,
   onConfirm,
   onRetry,
 }: SessionDeleteDialogSetProps) {
@@ -58,10 +62,10 @@ export function SessionDeleteDialogSet({
   const progressIndex = results.findIndex(result => result.status === "running");
   const note = sessionDeleteNote(isDeleting, partial, active);
   const resultsById = new Map(results.map(result => [result.id, result]));
-  const processCount =
-    sessionsRunningProcesses(sessions) + (childSessions?.includedProcessCount ?? 0);
+  const targetProcessCount = processCount ?? sessionsRunningProcesses(sessions);
+  const runningProcessCount = targetProcessCount + (childSessions?.includedProcessCount ?? 0);
   const processChoice =
-    processCount > 0 ? sessionProcessChoiceCopy("delete", count, processCount) : null;
+    runningProcessCount > 0 ? sessionProcessChoiceCopy("delete", count, runningProcessCount) : null;
   return (
     <Dialog
       open={open}
@@ -124,7 +128,12 @@ export function SessionDeleteDialogSet({
           <SessionDeleteOverflowErrors sessions={sessions.slice(5)} resultsById={resultsById} />
         </div>
         {childSessions ? (
-          <SessionChildrenCheckbox action="delete" choice={childSessions} disabled={isDeleting} />
+          <SessionChildrenCheckbox
+            action="delete"
+            choice={childSessions}
+            disabled={isDeleting || childrenPending}
+            showCheckbox={childSessions.count > 0}
+          />
         ) : null}
         <DialogFooter className="shrink-0 flex-wrap gap-2">
           {note ? (
@@ -137,7 +146,7 @@ export function SessionDeleteDialogSet({
             </span>
           ) : null}
           <SessionDeleteActions
-            childrenPending={childSessions?.pending === true}
+            childrenPending={childrenPending}
             askOnRetry={(childSessions?.includedProcessCount ?? 0) > 0}
             isDeleting={isDeleting}
             retrying={partial}

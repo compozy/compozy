@@ -46,6 +46,19 @@ describe("sessionChildrenScope", () => {
     const scope = sessionChildrenScope("archive", [row("root")], new Map());
     expect(sessionChildrenChoice(scope, true, () => {})).toBeUndefined();
   });
+
+  it("retains pending and retry state for an empty tree without claiming child sessions exist", () => {
+    const scope = sessionChildrenScope("delete", [row("root")], new Map());
+    const pending = sessionChildrenChoice(scope, false, () => {}, { pending: true });
+    expect(pending).toMatchObject({ count: 0, pending: true });
+
+    const onRetry = () => {};
+    const failed = sessionChildrenChoice(scope, false, () => {}, {
+      pending: true,
+      onRetry,
+    });
+    expect(failed).toMatchObject({ count: 0, pending: true, onRetryRead: onRetry });
+  });
 });
 
 // Invariant: independent trees overlap within a fixed bound, related mutations stay ordered,

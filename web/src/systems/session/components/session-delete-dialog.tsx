@@ -29,6 +29,10 @@ export interface SessionDeleteDialogProps {
   isDeleting: boolean;
   /** Present when the targets have child sessions; absent keeps the dialog unchanged. */
   childSessions?: SessionChildrenChoice;
+  /** Child counts are unresolved, independently of whether a checkbox is visible. */
+  childrenPending?: boolean;
+  /** The prepared target process count is stable for this dialog lifetime. */
+  processCount?: number;
   /** The session has side chats (closed ones included): deleting it deletes them too (S5). */
   sideChats?: boolean;
   /** `processes` answers what happens to running processes; absent when none run. */
@@ -45,6 +49,8 @@ export function SessionDeleteDialog({
   onRetry,
   isDeleting,
   childSessions,
+  childrenPending = false,
+  processCount,
   sideChats = false,
   onConfirm,
 }: SessionDeleteDialogProps) {
@@ -58,6 +64,8 @@ export function SessionDeleteDialog({
         onRetry={onRetry}
         isDeleting={isDeleting}
         childSessions={childSessions}
+        childrenPending={childrenPending}
+        processCount={processCount}
         onConfirm={onConfirm}
       />
     );
@@ -66,10 +74,10 @@ export function SessionDeleteDialog({
   if (!session) return null;
   const failure = results?.find(result => result.id === session.id && result.status === "failed");
   const retrying = failure !== undefined && !isDeleting;
-  const processCount =
-    sessionRunningProcesses(session) + (childSessions?.includedProcessCount ?? 0);
+  const targetProcessCount = processCount ?? sessionRunningProcesses(session);
+  const runningProcessCount = targetProcessCount + (childSessions?.includedProcessCount ?? 0);
   const processChoice =
-    processCount > 0 ? sessionProcessChoiceCopy("delete", 1, processCount) : null;
+    runningProcessCount > 0 ? sessionProcessChoiceCopy("delete", 1, runningProcessCount) : null;
   return (
     <Dialog
       open={open}
@@ -95,7 +103,12 @@ export function SessionDeleteDialog({
           </DialogDescription>
         </DialogHeader>
         {childSessions ? (
-          <SessionChildrenCheckbox action="delete" choice={childSessions} disabled={isDeleting} />
+          <SessionChildrenCheckbox
+            action="delete"
+            choice={childSessions}
+            disabled={isDeleting || childrenPending}
+            showCheckbox={childSessions.count > 0}
+          />
         ) : null}
         {retrying ? (
           <p role="alert" className="text-small-body text-destructive">
@@ -104,7 +117,7 @@ export function SessionDeleteDialog({
         ) : null}
         <DialogFooter className="flex-wrap gap-2">
           <SessionDeleteActions
-            childrenPending={childSessions?.pending === true}
+            childrenPending={childrenPending}
             askOnRetry={(childSessions?.includedProcessCount ?? 0) > 0}
             isDeleting={isDeleting}
             retrying={retrying}

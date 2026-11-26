@@ -15,7 +15,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTopbarSlotStore, TopbarSlotProvider, useTopbarSlot } from "@compozy/ui";
@@ -57,6 +57,7 @@ const harness = vi.hoisted(() => ({
   onArchive: vi.fn(),
   onArchiveMany: vi.fn(),
   onDeleteMany: vi.fn(),
+  deleteDialog: null as { open: boolean; session: SessionPayload } | null,
   board: null as unknown,
 }));
 
@@ -96,7 +97,7 @@ vi.mock("../../../hooks/use-session-list-lifecycle-actions", () => ({
         onDeleteMany: harness.onDeleteMany,
       },
       batchResults: [],
-      deleteDialog: { open: false },
+      deleteDialog: harness.deleteDialog ?? { open: false, session: null },
       renameDialog: { open: false },
       laterDialog: { open: false },
       processDialog: { open: false },
@@ -105,6 +106,14 @@ vi.mock("../../../hooks/use-session-list-lifecycle-actions", () => ({
 }));
 vi.mock("@/systems/session/hooks/use-session-entry-preload", () => ({
   useSessionEntryPreload: () => ({}),
+}));
+vi.mock("@/systems/session/components/session-delete-dialog", () => ({
+  SessionDeleteDialog: ({ open, session }: { open: boolean; session: SessionPayload }) =>
+    createElement(
+      "div",
+      { "data-testid": "session-delete-dialog-host", "data-open": String(open) },
+      session.name
+    ),
 }));
 vi.mock("@/systems/workspace", async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -225,6 +234,7 @@ const closedRoute = (id: string) => ({
 });
 
 beforeEach(() => {
+  harness.deleteDialog = null;
   harness.userRetarget.mockReset();
   harness.onArchive.mockReset();
   harness.onArchiveMany.mockReset();
@@ -257,6 +267,22 @@ afterEach(() => {
 });
 
 describe("SessionBoardWindow drawer", () => {
+  it("keeps a closed delete dialog mounted with its target so it can reopen", async () => {
+    setRoute(null, false);
+    harness.deleteDialog = { open: true, session: card("delete-target", "working") };
+    const { rerenderBoard } = renderBoard();
+    const dialog = await screen.findByTestId("session-delete-dialog-host");
+    expect(dialog).toHaveAttribute("data-open", "true");
+
+    harness.deleteDialog = { open: false, session: card("delete-target", "working") };
+    rerenderBoard();
+    expect(screen.getByTestId("session-delete-dialog-host")).toHaveAttribute("data-open", "false");
+
+    harness.deleteDialog = { open: true, session: card("delete-target", "working") };
+    rerenderBoard();
+    expect(screen.getByTestId("session-delete-dialog-host")).toHaveAttribute("data-open", "true");
+  });
+
   it("Should open a card's session in the drawer beside the live board", async () => {
     setRoute(null, false);
     const { rerenderBoard, windowSlot } = renderBoard();

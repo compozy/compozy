@@ -347,6 +347,54 @@ describe("SessionDeleteDialog child sessions", () => {
     expect(screen.getByTestId("delete-dialog-confirm")).toBeDisabled();
   });
 
+  it("blocks confirmation while an empty child tree is pending without showing a checkbox", () => {
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={[session]}
+        isDeleting={false}
+        childrenPending
+        childSessions={{
+          count: 0,
+          included: false,
+          includedProcessCount: 0,
+          pending: true,
+          onIncludedChange: vi.fn(),
+        }}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+    expect(screen.queryByTestId("session-children-include")).not.toBeInTheDocument();
+    expect(screen.getByTestId("delete-dialog-confirm")).toBeDisabled();
+  });
+
+  it("retries an empty child tree without rendering a zero-count checkbox", () => {
+    const onRetryRead = vi.fn();
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={[session]}
+        isDeleting={false}
+        childrenPending
+        childSessions={{
+          count: 0,
+          included: false,
+          includedProcessCount: 0,
+          pending: true,
+          onRetryRead,
+          onIncludedChange: vi.fn(),
+        }}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+    expect(screen.queryByTestId("session-children-include")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't read child sessions.");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetryRead).toHaveBeenCalledOnce();
+  });
+
   it("asks about the processes included children left running", () => {
     render(
       <SessionDeleteDialog

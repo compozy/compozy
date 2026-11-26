@@ -10,6 +10,7 @@ export interface SessionChildrenCheckboxProps {
   action: SessionTreeAction;
   choice: SessionChildrenChoice;
   disabled?: boolean;
+  showCheckbox?: boolean;
 }
 
 /** The include-children answer shared by the archive and delete confirmations. */
@@ -17,23 +18,26 @@ export function SessionChildrenCheckbox({
   action,
   choice,
   disabled = false,
+  showCheckbox = true,
 }: SessionChildrenCheckboxProps) {
   const id = `session-children-${action}`;
   const retry = choice.onRetryRead;
   return (
     <>
-      <Field orientation="horizontal">
-        <Checkbox
-          id={id}
-          checked={choice.included}
-          disabled={disabled || choice.pending}
-          data-testid="session-children-include"
-          onCheckedChange={checked => choice.onIncludedChange(checked === true)}
-        />
-        <FieldLabel htmlFor={id}>
-          Also {action} {choice.pending ? "child sessions" : childSessionCountLabel(choice.count)}
-        </FieldLabel>
-      </Field>
+      {showCheckbox ? (
+        <Field orientation="horizontal">
+          <Checkbox
+            id={id}
+            checked={choice.included}
+            disabled={disabled || choice.pending}
+            data-testid="session-children-include"
+            onCheckedChange={checked => choice.onIncludedChange(checked === true)}
+          />
+          <FieldLabel htmlFor={id}>
+            Also {action} {choice.pending ? "child sessions" : childSessionCountLabel(choice.count)}
+          </FieldLabel>
+        </Field>
+      ) : null}
       {retry ? (
         <p role="alert" className="flex items-center gap-2 text-small-body text-destructive">
           Couldn't read child sessions.

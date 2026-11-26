@@ -5,7 +5,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
+import { createElement, useState, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -15,6 +15,7 @@ import {
   type SessionListGroupSpec,
   type SessionListViewModel,
   type SessionPayload,
+  type UseSessionLifecycleActionsResult,
 } from "@/systems/session";
 import { sessionListViewFixture } from "@/systems/session/mocks";
 import { workspaceBadgeIdentity } from "@/systems/workspace";
@@ -22,12 +23,27 @@ import { workspaceBadgeIdentity } from "@/systems/workspace";
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
-import { OsSessionsModal } from "../sessions-modal";
+import { OsSessionsDialogHost, OsSessionsModal } from "../sessions-modal";
 import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 const jumpToSession = vi.hoisted(() => vi.fn());
 vi.mock("../../hooks/use-attention-jump", () => ({
   useAttentionJump: () => jumpToSession,
+}));
+vi.mock("../../components/os-sessions-derive-host", () => ({
+  OsSessionsDeriveHost: ({
+    children,
+  }: {
+    children: (state: { deriveOpen: boolean }) => ReactNode;
+  }) => children({ deriveOpen: false }),
+}));
+vi.mock("@/systems/session/components/session-delete-dialog", () => ({
+  SessionDeleteDialog: ({ open, session }: { open: boolean; session: SessionPayload }) =>
+    createElement(
+      "div",
+      { "data-testid": "session-delete-dialog-host", "data-open": String(open) },
+      session.name
+    ),
 }));
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
@@ -139,6 +155,54 @@ describe("OsSessionsModal", () => {
   afterEach(() => {
     jumpToSession.mockClear();
     for (const manager of managers.splice(0)) manager.destroy();
+  });
+
+  it("keeps the shared delete dialog mounted while closed and reopens it", async () => {
+    const lifecycle = {
+      actions: SESSION_ACTIONS,
+      batchResults: [],
+      deleteDialog: {
+        open: true,
+        session: SESSIONS[0]!,
+        sessions: [SESSIONS[0]!],
+        results: undefined,
+        onRetry: vi.fn(),
+        isDeleting: false,
+        childrenPending: false,
+        processCount: 0,
+        childSessions: undefined,
+        sideChats: false,
+        onOpenChange: vi.fn(),
+        onConfirm: vi.fn(),
+      },
+      processDialog: { open: false },
+      renameDialog: { open: false, session: null },
+      laterDialog: { open: false },
+    } as unknown as UseSessionLifecycleActionsResult;
+    const renderHost = () => (
+      <TestShell value={createShell()}>
+        <OsSessionsDialogHost
+          open={false}
+          onOpenChange={vi.fn()}
+          disconnected={false}
+          view={listView()}
+          currentWorkspaceId="workspace-1"
+          onNewSession={vi.fn()}
+          lifecycle={lifecycle}
+        />
+      </TestShell>
+    );
+    const view = render(renderHost());
+    const dialog = await screen.findByTestId("session-delete-dialog-host");
+    expect(dialog).toHaveAttribute("data-open", "true");
+
+    lifecycle.deleteDialog.open = false;
+    view.rerender(renderHost());
+    expect(screen.getByTestId("session-delete-dialog-host")).toHaveAttribute("data-open", "false");
+
+    lifecycle.deleteDialog.open = true;
+    view.rerender(renderHost());
+    expect(screen.getByTestId("session-delete-dialog-host")).toHaveAttribute("data-open", "true");
   });
 
   it.each([
