@@ -63,3 +63,11 @@ checks passed. Evidence, in the compozy/proto workspace under
 `.compozy/tasks/proto-stories/qa/`: `validation-r3/report.md`,
 `validation-r3/ADDENDUM-disposition.md`, and `focus-race/` (`report.md`,
 `before-{0,1,2}.parity.json`, `matched-focus-{proto,static}.json`). All task servers are stopped.
+
+2026-11-26, Proto 0.3.0 migration smoke in
+[GitHub Actions](https://github.com/compozy/compozy/actions/runs/45842288233).
+`proto check` reported zero problems. `proto stories list` returned both roots and
+`proto build` produced the static gallery. `proto dev` printed `/p/compozyos/`.
+The project URL, its Components URL, and the bare `agent-avatar` preview each
+returned HTTP 200. `proto stop` confirmed shutdown. This smoke covered the
+gallery URL migration. The full story interaction matrix was not rerun.
