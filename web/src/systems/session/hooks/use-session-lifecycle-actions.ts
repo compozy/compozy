@@ -88,6 +88,9 @@ export function useSessionLifecycleActions(
     openedAt: number;
     onSelectionChange?: (ids: readonly string[]) => void;
   } | null>(null);
+  const [closingDeleteTarget, setClosingDeleteTarget] = useState<readonly SessionPayload[] | null>(
+    null
+  );
   const [batchAction, setBatchAction] = useState<SessionLifecycleAction | null>(null);
   const [batchResults, setBatchResults] = useState<readonly SessionBatchResult[]>([]);
   const batchRunning = useSessionBatchAdmission();
@@ -294,6 +297,7 @@ export function useSessionLifecycleActions(
     const failures = results.filter(result => result.status === "failed");
     deleteTarget.onSelectionChange?.(failures.map(result => result.id));
     if (failures.length === 0) {
+      setClosingDeleteTarget(deleteTarget.sessions);
       setDeleteTarget(null);
       reportDeletedSessions(results);
     }
@@ -317,7 +321,10 @@ export function useSessionLifecycleActions(
       {
         onError: error => reportActionError("delete", error),
         onSuccess: () => {
-          setDeleteTarget(current => (current?.sessions[0]?.id === id ? null : current));
+          if (deleteTarget?.sessions[0]?.id === id) {
+            setClosingDeleteTarget(deleteTarget.sessions);
+            setDeleteTarget(null);
+          }
         },
       }
     );
@@ -404,6 +411,7 @@ export function useSessionLifecycleActions(
           deletePolicy.current = undefined;
           setDeleteChildren(false);
           setBatchResults([]);
+          setClosingDeleteTarget(null);
           setDeleteTarget({ sessions: [session], bulk: false, openedAt: Date.now() });
         }
       },
@@ -419,6 +427,7 @@ export function useSessionLifecycleActions(
           deletePolicy.current = undefined;
           setDeleteChildren(false);
           setBatchResults([]);
+          setClosingDeleteTarget(null);
           setDeleteTarget({
             sessions: [...sessions],
             bulk: true,
@@ -430,8 +439,8 @@ export function useSessionLifecycleActions(
     },
     deleteDialog: {
       open: deleteSession !== null,
-      session: deleteSession,
-      sessions: deleteSessions,
+      session: deleteSession ?? closingDeleteTarget?.[0] ?? null,
+      sessions: deleteSessions ?? closingDeleteTarget ?? undefined,
       results: deleteTarget?.bulk ? batchResults : undefined,
       isDeleting: remove.isPending || batchAction === "delete",
       sideChats: deleteSideChats,
@@ -448,6 +457,7 @@ export function useSessionLifecycleActions(
             );
           }
           if (deleteTarget.bulk) reportDeletedSessions(batchResults);
+          setClosingDeleteTarget(deleteTarget.sessions);
           setDeleteTarget(null);
         }
       },

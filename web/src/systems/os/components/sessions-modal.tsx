@@ -1,5 +1,4 @@
 import { X } from "@compozy/ui/icons";
-import { useState } from "react";
 
 import {
   Button,
@@ -58,20 +57,8 @@ export function OsSessionsDialogHost({
   currentWorkspaceId?: string | null;
   lifecycle: ReturnType<typeof useSessionLifecycleActions>;
 }) {
-  const [retainedDelete, setRetainedDelete] = useState(() => ({
-    session: lifecycle.deleteDialog.session,
-    sessions:
-      lifecycle.deleteDialog.sessions ??
-      (lifecycle.deleteDialog.session ? [lifecycle.deleteDialog.session] : []),
-  }));
-  if (lifecycle.deleteDialog.session && lifecycle.deleteDialog.session !== retainedDelete.session) {
-    setRetainedDelete({
-      session: lifecycle.deleteDialog.session,
-      sessions: lifecycle.deleteDialog.sessions ?? [lifecycle.deleteDialog.session],
-    });
-  }
-  const deleteSessions = lifecycle.deleteDialog.sessions ?? retainedDelete.sessions;
-  const deleteSession = lifecycle.deleteDialog.session ?? retainedDelete.session;
+  const deleteSessions = lifecycle.deleteDialog.sessions;
+  const deleteSession = lifecycle.deleteDialog.session;
   return (
     <>
       <OsSessionsDeriveHost
