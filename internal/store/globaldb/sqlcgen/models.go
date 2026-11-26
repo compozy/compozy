@@ -1409,6 +1409,7 @@ type McpAuthToken struct {
 	ExpiresAt             sql.NullString `json:"expires_at"`
 	ObtainedAt            string         `json:"obtained_at"`
 	UpdatedAt             string         `json:"updated_at"`
+	RequestedScopesJson   string         `json:"requested_scopes_json"`
 }
 
 type McpOauthRegistration struct {
