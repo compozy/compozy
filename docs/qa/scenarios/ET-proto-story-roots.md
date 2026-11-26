@@ -59,7 +59,7 @@ in a requestAnimationFrame callback. Three cold UI/dark reruns passed with zero 
 and a paired 60-sample stress run at 4x CPU failed 9/60 in proto and 23/60 in static Storybook
 10.6.3. The story now waits for focus before asserting it. Final classification: (a) 0, (b) 108,
 (c) 2, (d) 0. Build/typecheck passed, proto check had zero problems, and gallery/prototype/flow
-checks passed. Evidence, in the compozy/proto workspace under
+checks passed. Evidence in the Proto workspace under
 `.compozy/tasks/proto-stories/qa/`: `validation-r3/report.md`,
 `validation-r3/ADDENDUM-disposition.md`, and `focus-race/` (`report.md`,
 `before-{0,1,2}.parity.json`, `matched-focus-{proto,static}.json`). All task servers are stopped.

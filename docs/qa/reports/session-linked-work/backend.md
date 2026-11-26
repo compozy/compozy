@@ -238,7 +238,7 @@ Only the five owned backend/QA paths were staged. The commit disables hooks for 
 
 ## Consolidated review round (items 1–17)
 
-Checkout verified: `/Users/pedronauck/.compozy/worktrees/compozy/proto-session-links`, branch `proto/session-links`. No commits, staging, push, or PR operation was attempted. The root agent owns commits. `web/proto.config.ts` was already modified and was preserved; concurrent frontend edits are outside this report. `extensions/open-design/lint.gen.mjs` is incidental Bun-version generation drift and must be excluded, as must any `tmp-sqlc-helper/`.
+Checkout verified: worktree `proto-session-links`, branch `proto/session-links`. No commits, staging, push, or PR operation was attempted. The root agent owns commits. `web/proto.config.ts` was already modified and was preserved; concurrent frontend edits are outside this report. `extensions/open-design/lint.gen.mjs` is incidental Bun-version generation drift and must be excluded, as must any `tmp-sqlc-helper/`.
 
 ### Implementation and owning regressions
 

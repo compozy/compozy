@@ -843,7 +843,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Refactoring
 
-- Replace the in-repo prototype gallery with @compozy/proto (#1092)
+- Replace the in-repo prototype gallery with the Proto CLI (#1092)
 - Align @compozy/ui with the bnui contract (#1126)
 
 ### Testing
