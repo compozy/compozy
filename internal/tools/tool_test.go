@@ -970,6 +970,56 @@ func TestResultViewDescriptorContract(t *testing.T) {
 			}
 		})
 	}
+	// Invariant: compact views stay closed through tuple items; a false subschema admits no open object.
+	for _, tc := range []struct{ name, pair, wantPath string }{
+		{
+			"Should reject an open object inside a draft-07 tuple",
+			`{"type":"array","items":[{"type":"object"}]}`, ".properties.pair.items[0]",
+		},
+		{
+			"Should reject an open object in tuple additionalItems",
+			`{"type":"array","items":[],"additionalItems":{"type":"object"}}`, ".properties.pair.additionalItems",
+		},
+		{
+			"Should reject a true subschema inside a draft-07 tuple",
+			`{"type":"array","items":[true]}`, ".properties.pair.items[0]",
+		},
+		{
+			"Should allow closed objects inside a draft-07 tuple",
+			`{"type":"array","items":[{"type":"object","additionalProperties":false}]}`, "",
+		},
+		{"Should allow a false subschema inside a draft-07 tuple", `{"type":"array","items":[false]}`, ""},
+		{"Should reject boolean true array items", `{"type":"array","items":true}`, ".properties.pair.items"},
+		{
+			"Should reject boolean true tuple additionalItems",
+			`{"type":"array","items":[],"additionalItems":true}`, ".properties.pair.additionalItems",
+		},
+		{"Should allow boolean false array items", `{"type":"array","items":false}`, ""},
+		{
+			"Should ignore additionalItems beside a single items schema",
+			`{"type":"array","items":{"type":"string"},"additionalItems":true}`, "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := resultViewDispatchDescriptor()
+			d.OutputViews.Compact.Schema = json.RawMessage(
+				`{"type":"object","additionalProperties":false,"properties":{"pair":` + tc.pair + `}}`,
+			)
+			d.OutputSchema = d.OutputViews.Compact.Schema
+			err := d.Validate()
+			if tc.wantPath == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), "compact objects must be closed") ||
+				!strings.Contains(err.Error(), "output_views.compact.schema"+tc.wantPath) {
+				t.Fatalf("Validate() = %v, want the closure error at %s", err, tc.wantPath)
+			}
+		})
+	}
 	t.Run("Should allow explicitly free-form content maps", func(t *testing.T) {
 		t.Parallel()
 		d := resultViewDispatchDescriptor()

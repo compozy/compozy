@@ -155,33 +155,6 @@ func (v schemaValidator) validateSchemaStringNode(path string, schema map[string
 	return nil
 }
 
-func (v schemaValidator) validateSchemaArrayNode(path string, schema map[string]json.RawMessage, value any) error {
-	arrayValue, ok := value.([]any)
-	if !ok {
-		return nil
-	}
-	minItems, ok, err := schemaNonNegativeInteger(schema["minItems"])
-	if err != nil {
-		return fmt.Errorf("%s.minItems: %w", path, err)
-	}
-	if ok && len(arrayValue) < minItems {
-		return schemaViolation(path, "array length %d is less than minItems %d", len(arrayValue), minItems)
-	}
-	items, ok, err := schemaNode(schema["items"])
-	if err != nil {
-		return fmt.Errorf("%s.items: %w", path, err)
-	}
-	if !ok {
-		return nil
-	}
-	for idx, item := range arrayValue {
-		if err := v.validateSchemaNode(fmt.Sprintf("%s[%d]", path, idx), items, item); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (v schemaValidator) validateSchemaObjectNode(path string, schema map[string]json.RawMessage, value any) error {
 	objectValue, ok := value.(map[string]any)
 	if !ok {
@@ -246,14 +219,8 @@ func (v schemaValidator) validateJSONSchemaDocument(path string, schema map[stri
 	if _, _, err := schemaNonNegativeInteger(schema["minItems"]); err != nil {
 		return fmt.Errorf("%s.minItems: %w", path, err)
 	}
-	items, ok, err := schemaNode(schema["items"])
-	if err != nil {
-		return fmt.Errorf("%s.items: %w", path, err)
-	}
-	if ok {
-		if err := v.validateJSONSchemaDocument(path+".items", items); err != nil {
-			return err
-		}
+	if err := v.validateJSONSchemaDocumentItems(path, schema); err != nil {
+		return err
 	}
 
 	if err := v.validateJSONSchemaDocumentArray(path+".allOf", schema["allOf"]); err != nil {
@@ -344,9 +311,20 @@ func schemaProperties(raw json.RawMessage) (map[string]map[string]json.RawMessag
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return nil, nil
 	}
-	var values map[string]map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &values); err != nil {
+	var rawValues map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &rawValues); err != nil {
 		return nil, err
+	}
+	if rawValues == nil {
+		return nil, nil
+	}
+	values := make(map[string]map[string]json.RawMessage, len(rawValues))
+	for key, rawValue := range rawValues {
+		value, err := decodeSchemaNode(rawValue)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", key, err)
+		}
+		values[key] = value
 	}
 	return values, nil
 }
@@ -355,8 +333,8 @@ func schemaNode(raw json.RawMessage) (map[string]json.RawMessage, bool, error) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return nil, false, nil
 	}
-	var value map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &value); err != nil {
+	value, err := decodeSchemaNode(raw)
+	if err != nil {
 		return nil, false, err
 	}
 	return value, true, nil
@@ -366,11 +344,35 @@ func schemaNodeArray(raw json.RawMessage) ([]map[string]json.RawMessage, error) 
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return nil, nil
 	}
-	var values []map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &values); err != nil {
+	var rawValues []json.RawMessage
+	if err := json.Unmarshal(raw, &rawValues); err != nil {
 		return nil, err
 	}
+	values := make([]map[string]json.RawMessage, 0, len(rawValues))
+	for idx, rawValue := range rawValues {
+		value, err := decodeSchemaNode(rawValue)
+		if err != nil {
+			return nil, fmt.Errorf("[%d]: %w", idx, err)
+		}
+		values = append(values, value)
+	}
 	return values, nil
+}
+
+// decodeSchemaNode accepts JSON Schema boolean subschemas: true matches every
+// instance and false matches none, expressed as {} and {"not":{}}.
+func decodeSchemaNode(raw json.RawMessage) (map[string]json.RawMessage, error) {
+	switch string(bytes.TrimSpace(raw)) {
+	case "true":
+		return map[string]json.RawMessage{}, nil
+	case "false":
+		return map[string]json.RawMessage{"not": json.RawMessage(`{}`)}, nil
+	}
+	var value map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, fmt.Errorf("schema must be an object or boolean: %w", err)
+	}
+	return value, nil
 }
 
 func schemaNonNegativeInteger(raw json.RawMessage) (int, bool, error) {

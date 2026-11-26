@@ -218,6 +218,39 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		}
 	})
 
+	t.Run("Should accept and enforce boolean subschemas", func(t *testing.T) {
+		t.Parallel()
+		d := validDispatchDescriptor()
+		d.InputSchema = json.RawMessage(`{"type":"object","properties":{` +
+			`"hooks":{"type":"array","items":true},` +
+			`"line":{"anyOf":[{"type":"object","properties":{"words":{"type":"array","items":true}}},true]},` +
+			`"legacy":false,"tags":{"type":"array","items":{"not":false}},` +
+			`"range":{"type":"array","prefixItems":[{"type":"integer"},{"type":"integer"}],"items":false},` +
+			`"pair":{"type":"array","items":[{"type":"string"},{"type":"integer"}],"additionalItems":false}}}`)
+		if err := d.Validate(); err != nil {
+			t.Fatalf("Validate = %v", err)
+		}
+		accepted := `{"hooks":[1,"two",{"three":3}],"line":{"words":[null,true]},"tags":["a"],` +
+			`"range":[10,50],"pair":["a",1]}`
+		if err := validateCallInput(d, json.RawMessage(accepted)); err != nil {
+			t.Fatalf("validateCallInput(%s) = %v", accepted, err)
+		}
+		for _, tc := range []struct{ name, input string }{
+			{"Should reject a value for a false subschema", `{"legacy":"anything"}`},
+			{"Should reject an element past a closed prefixItems tuple", `{"range":[10,50,90]}`},
+			{"Should reject a wrong positional type in a prefixItems tuple", `{"range":["ten",50]}`},
+			{"Should reject an element past a closed draft-07 tuple", `{"pair":["a",1,2]}`},
+			{"Should reject a wrong positional type in a draft-07 tuple", `{"pair":[1,"a"]}`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				if err := validateCallInput(d, json.RawMessage(tc.input)); !errors.Is(err, ErrToolInvalidInput) {
+					t.Fatalf("validateCallInput(%s) = %v, want ErrToolInvalidInput", tc.input, err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should reject invalid input before provider invocation", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct{ name, input, cause string }{
