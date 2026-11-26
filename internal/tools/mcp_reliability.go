@@ -216,9 +216,7 @@ func (p *MCPProvider) discoverySucceeded(
 	_, wasFailed := p.discoveryFailures.Load(source)
 	descriptors, err := p.normalizeDiscovery(source, discovered)
 	if err != nil {
-		// A server that publishes an unusable tool fails alone; it must not fail the
-		// aggregate registry listing every native tool depends on.
-		return p.discoveryFailed(ctx, source, key, tracked, reliabilityState, err)
+		return nil, false, err
 	}
 	p.discoveryFailures.Delete(source)
 	if tracked && p.reliability != nil {
