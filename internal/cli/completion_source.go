@@ -31,7 +31,7 @@ func completionBaseContext(cmd *cobra.Command) context.Context {
 	return context.Background()
 }
 
-func completionCommandDeps(deps commandDeps, ctx context.Context, cmd *cobra.Command) commandDeps {
+func completionCommandDeps(ctx context.Context, deps commandDeps, cmd *cobra.Command) commandDeps {
 	deps.windowManagerWarning = compozyconfig.WithWindowManagerWarning(func(string, bool) {})
 	if deps.defaultLoadConfig {
 		deps.loadConfig = nil
@@ -58,7 +58,7 @@ func (r *completionRuntime) ensureClient(ctx context.Context, cmd *cobra.Command
 		return nil, fmt.Errorf("cli: completion runtime is nil")
 	}
 	r.once.Do(func() {
-		deps := completionCommandDeps(r.deps, ctx, cmd)
+		deps := completionCommandDeps(ctx, r.deps, cmd)
 		r.client, r.err = clientFromDeps(deps)
 	})
 	return r.client, r.err
@@ -122,13 +122,20 @@ func (r *completionRuntime) complete(
 
 	workspaceRef := ""
 	if kindNeedsWorkspace(kind) {
-		if trimmed := strings.TrimSpace(workspaceOverride); trimmed != "" {
-			workspaceRef = trimmed
-		} else {
+		workspaceRef = strings.TrimSpace(workspaceOverride)
+		if workspaceRef == "" {
 			workspaceRef = completionWorkspaceRef(ctx, cmd, r.deps, r)
 		}
 	}
+	return r.candidates(ctx, kind, workspaceRef, providerOverride)
+}
 
+func (r *completionRuntime) candidates(
+	ctx context.Context,
+	kind completionKind,
+	workspaceRef string,
+	providerOverride string,
+) []completionCandidate {
 	switch kind {
 	case kindWorkspace:
 		return r.workspaces(ctx)

@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const completionWorktreeFlagName = "worktree"
+
 var completionFlagFamilyTable = map[string]completionKind{
 	workspaceFlagName:           kindWorkspace,
 	automationLoopWorkspaceFlag: kindWorkspace,
@@ -27,7 +29,7 @@ var completionFlagFamilyTable = map[string]completionKind{
 	loopLoopKey:                 kindLoop,
 	"fork-from-name":            kindLoop,
 	"job-id":                    kindAutomation,
-	"worktree":                  kindWorktree,
+	completionWorktreeFlagName:  kindWorktree,
 	taskWorktreeRefKey:          kindWorktree,
 	sessionFolderFlagName:       kindSessionFolder,
 	"extension":                 kindExtension,
@@ -121,14 +123,14 @@ func completionCommandPath(cmd *cobra.Command) string {
 func completionFlagKind(commandPath string, flagName string) (completionKind, bool) {
 	if overrides, exists := completionFlagOverrides[commandPath]; exists {
 		if override, ok := overrides[flagName]; ok {
-			if override.optOut || override.kind == "" {
-				return "", false
+			if override.optOut || override.kind == kindNone {
+				return kindNone, false
 			}
 			return override.kind, true
 		}
 	}
 	kind, ok := completionFlagFamilyTable[flagName]
-	return kind, ok && kind != ""
+	return kind, ok && kind != kindNone
 }
 
 func registerFlagCompletions(
@@ -185,21 +187,24 @@ func buildFlagCompletionFunc(
 	flagName string,
 	rt *completionRuntime,
 ) cobra.CompletionFunc {
-	return completionAdapter(cobra.ShellCompDirectiveNoFileComp, func(cmd *cobra.Command, _ []string, _ string) []completionCandidate {
-		workspaceOverride := ""
-		if kind == kindLoop && flagName == automationLoopFlag {
-			if flag := cmd.Flag(automationLoopWorkspaceFlag); flag != nil {
-				workspaceOverride = strings.TrimSpace(flag.Value.String())
+	return completionAdapter(
+		cobra.ShellCompDirectiveNoFileComp,
+		func(cmd *cobra.Command, _ []string, _ string) []completionCandidate {
+			workspaceOverride := ""
+			if kind == kindLoop && flagName == automationLoopFlag {
+				if flag := cmd.Flag(automationLoopWorkspaceFlag); flag != nil {
+					workspaceOverride = strings.TrimSpace(flag.Value.String())
+				}
 			}
-		}
-		providerOverride := ""
-		if kind == kindModel {
-			if flag := cmd.Flag(cliProviderKey); flag != nil {
-				providerOverride = strings.TrimSpace(flag.Value.String())
+			providerOverride := ""
+			if kind == kindModel {
+				if flag := cmd.Flag(cliProviderKey); flag != nil {
+					providerOverride = strings.TrimSpace(flag.Value.String())
+				}
 			}
-		}
-		return rt.complete(cmd, kind, workspaceOverride, providerOverride)
-	})
+			return rt.complete(cmd, kind, workspaceOverride, providerOverride)
+		},
+	)
 }
 
 func registerPositionalCompletions(cmd *cobra.Command, commandPath string, rt *completionRuntime) {
@@ -241,7 +246,7 @@ func buildPositionalCompletionFunc(spec completionCommandSpec, rt *completionRun
 			return nil, cobra.ShellCompDirectiveDefault
 		}
 
-		if argSpec.file || argSpec.kind == "" {
+		if argSpec.file || argSpec.kind == kindNone {
 			return nil, cobra.ShellCompDirectiveDefault
 		}
 

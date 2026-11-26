@@ -8,26 +8,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type completionKind string
+type completionKind int
 
 const (
-	kindWorkspace       completionKind = "workspace"
-	kindProfile         completionKind = "profile"
-	kindAgent           completionKind = "agent"
-	kindProvider        completionKind = "provider"
-	kindModel           completionKind = "model"
-	kindSession         completionKind = "session"
-	kindTask            completionKind = "task"
-	kindLoop            completionKind = "loop"
-	kindAutomation      completionKind = "automation"
-	kindWorktree        completionKind = "worktree"
-	kindSessionFolder   completionKind = "session_folder"
-	kindWorkspaceFolder completionKind = "workspace_folder"
-	kindExtension       completionKind = "extension"
-	kindComputer        completionKind = "computer"
-	kindVault           completionKind = "vault"
-	kindToolset         completionKind = "toolset"
-	kindOutput          completionKind = "output"
+	kindNone completionKind = iota
+	kindWorkspace
+	kindProfile
+	kindAgent
+	kindProvider
+	kindModel
+	kindSession
+	kindTask
+	kindLoop
+	kindAutomation
+	kindWorktree
+	kindSessionFolder
+	kindWorkspaceFolder
+	kindExtension
+	kindComputer
+	kindVault
+	kindToolset
+	kindOutput
 )
 
 type completionCandidate struct {

@@ -79,40 +79,43 @@ func commandHasEntityPlaceholder(cmd *cobra.Command) bool {
 func TestCompletionPlanWiring(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep ValidArgsFunction nil on file-only commands and return Default for file arg in mixed commands", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should keep ValidArgsFunction nil on file-only commands and return Default for file arg in mixed commands",
+		func(t *testing.T) {
+			t.Parallel()
 
-		root := newRootCommand(commandDeps{})
-		for _, path := range []string{
-			"workspace add",
-			"worktree adopt",
-			"extension build",
-			"extension validate",
-			"extension dev",
-			"extension publish",
-			"app open",
-		} {
-			cmd, _, err := root.Find(strings.Fields(path))
+			root := newRootCommand(commandDeps{})
+			for _, path := range []string{
+				"workspace add",
+				"worktree adopt",
+				"extension build",
+				"extension validate",
+				"extension dev",
+				"extension publish",
+				"app open",
+			} {
+				cmd, _, err := root.Find(strings.Fields(path))
+				if err != nil {
+					t.Fatalf("Find(%q) error = %v", path, err)
+				}
+				if cmd.ValidArgsFunction != nil {
+					t.Errorf("%q has non-nil ValidArgsFunction; file args must keep default file completion", path)
+				}
+			}
+
+			uploadCmd, _, err := root.Find([]string{"session", "attachments", "upload"})
 			if err != nil {
-				t.Fatalf("Find(%q) error = %v", path, err)
+				t.Fatalf("Find(session attachments upload) error = %v", err)
 			}
-			if cmd.ValidArgsFunction != nil {
-				t.Errorf("%q has non-nil ValidArgsFunction; file args must keep default file completion", path)
+			if uploadCmd.ValidArgsFunction == nil {
+				t.Fatal("session attachments upload ValidArgsFunction is nil")
 			}
-		}
-
-		uploadCmd, _, err := root.Find([]string{"session", "attachments", "upload"})
-		if err != nil {
-			t.Fatalf("Find(session attachments upload) error = %v", err)
-		}
-		if uploadCmd.ValidArgsFunction == nil {
-			t.Fatal("session attachments upload ValidArgsFunction is nil")
-		}
-		comps, directive := uploadCmd.ValidArgsFunction(uploadCmd, []string{"sess-1"}, "")
-		if len(comps) != 0 || directive != cobra.ShellCompDirectiveDefault {
-			t.Fatalf("mixed file arg completion = (%v, %v), want (empty, Default)", comps, directive)
-		}
-	})
+			comps, directive := uploadCmd.ValidArgsFunction(uploadCmd, []string{"sess-1"}, "")
+			if len(comps) != 0 || directive != cobra.ShellCompDirectiveDefault {
+				t.Fatalf("mixed file arg completion = (%v, %v), want (empty, Default)", comps, directive)
+			}
+		},
+	)
 
 	t.Run("Should exclude hidden --profile on machine-wide commands", func(t *testing.T) {
 		t.Parallel()

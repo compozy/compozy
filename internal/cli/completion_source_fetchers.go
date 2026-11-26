@@ -86,7 +86,8 @@ func (r *completionRuntime) agents(ctx context.Context, workspaceRef string) []c
 		return nil
 	}
 	candidates := make([]completionCandidate, 0, len(items))
-	for _, item := range items {
+	for index := range items {
+		item := &items[index]
 		name := strings.TrimSpace(item.Name)
 		if name == "" {
 			continue
@@ -149,7 +150,8 @@ func (r *completionRuntime) sessions(ctx context.Context, workspaceRef string) [
 		return nil
 	}
 	candidates := make([]completionCandidate, 0, len(page.Sessions))
-	for _, item := range page.Sessions {
+	for index := range page.Sessions {
+		item := &page.Sessions[index]
 		id := strings.TrimSpace(item.ID)
 		if id == "" {
 			continue
@@ -323,7 +325,8 @@ func (r *completionRuntime) extensions(ctx context.Context) []completionCandidat
 		return nil
 	}
 	candidates := make([]completionCandidate, 0, len(items))
-	for _, item := range items {
+	for index := range items {
+		item := &items[index]
 		name := strings.TrimSpace(item.Name)
 		if name == "" {
 			continue

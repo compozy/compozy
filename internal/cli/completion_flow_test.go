@@ -56,41 +56,44 @@ func TestCompletionIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return no candidates, exit 0, and silence retired config warning on client failure", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should return no candidates, exit 0, and silence retired config warning on client failure",
+		func(t *testing.T) {
+			t.Parallel()
 
-		homeDir := t.TempDir()
-		if err := os.WriteFile(
-			filepath.Join(homeDir, "config.toml"),
-			[]byte("window_manager = { enabled = true }\n"),
-			0o600,
-		); err != nil {
-			t.Fatalf("WriteFile(config.toml) error = %v", err)
-		}
-		deps := commandDeps{
-			getenv: func(key string) string {
-				if key == "COMPOZY_HOME" {
-					return homeDir
-				}
-				return ""
-			},
-			newClient: func(ClientTarget) (DaemonClient, error) {
-				return nil, errors.New("daemon offline")
-			},
-		}
-		code, stdout, stderr := executeRootCommandWithExit(
-			t,
-			deps,
-			"__complete", "session", "inspect", "sess-",
-		)
-		if code != 0 {
-			t.Fatalf("exit code = %d, want 0", code)
-		}
-		assertCompletionStderrClean(t, stderr)
-		if stdout != ":4\n" {
-			t.Fatalf("stdout = %q, want only :4", stdout)
-		}
-	})
+			homeDir := t.TempDir()
+			if err := os.WriteFile(
+				filepath.Join(homeDir, "config.toml"),
+				[]byte("window_manager = { enabled = true }\n"),
+				0o600,
+			); err != nil {
+				t.Fatalf("WriteFile(config.toml) error = %v", err)
+			}
+			deps := commandDeps{
+				getenv: func(key string) string {
+					if key == "COMPOZY_HOME" {
+						return homeDir
+					}
+					return ""
+				},
+				newClient: func(ClientTarget) (DaemonClient, error) {
+					return nil, errors.New("daemon offline")
+				},
+			}
+			code, stdout, stderr := executeRootCommandWithExit(
+				t,
+				deps,
+				"__complete", "session", "inspect", "sess-",
+			)
+			if code != 0 {
+				t.Fatalf("exit code = %d, want 0", code)
+			}
+			assertCompletionStderrClean(t, stderr)
+			if stdout != ":4\n" {
+				t.Fatalf("stdout = %q, want only :4", stdout)
+			}
+		},
+	)
 
 	t.Run("Should complete --workspace flag with workspace candidates", func(t *testing.T) {
 		t.Parallel()

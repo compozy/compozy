@@ -58,12 +58,15 @@ func TestCompletionAdapterDirectives(t *testing.T) {
 	t.Run("Should return NoFileComp directive and formatted completions", func(t *testing.T) {
 		t.Parallel()
 
-		fn := completionAdapter(cobra.ShellCompDirectiveNoFileComp, func(_ *cobra.Command, _ []string, _ string) []completionCandidate {
-			return []completionCandidate{
-				{value: "ws_2", description: "Beta"},
-				{value: "ws_1", description: "Alpha"},
-			}
-		})
+		fn := completionAdapter(
+			cobra.ShellCompDirectiveNoFileComp,
+			func(_ *cobra.Command, _ []string, _ string) []completionCandidate {
+				return []completionCandidate{
+					{value: "ws_2", description: "Beta"},
+					{value: "ws_1", description: "Alpha"},
+				}
+			},
+		)
 		got, directive := fn(&cobra.Command{Use: "test"}, nil, "ws_")
 		want := []string{"ws_1\tAlpha", "ws_2\tBeta"}
 		if !slices.Equal(got, want) {

@@ -23,26 +23,46 @@ type completionStubClient struct {
 	listComputersFn      func(context.Context) (contract.ComputerListResponse, error)
 }
 
-func (c *completionStubClient) ListSessionFolders(ctx context.Context, workspace string) (contract.SessionFoldersResponse, error) {
+func (c *completionStubClient) ListSessionFolders(
+	ctx context.Context,
+	workspace string,
+) (contract.SessionFoldersResponse, error) {
 	if c.listSessionFoldersFn != nil {
 		return c.listSessionFoldersFn(ctx, workspace)
 	}
 	return contract.SessionFoldersResponse{}, errors.New("unexpected ListSessionFolders call")
 }
 
-func (c *completionStubClient) CreateSessionFolder(context.Context, string, string) (contract.SessionFolderResponse, error) {
+func (c *completionStubClient) CreateSessionFolder(
+	context.Context,
+	string,
+	string,
+) (contract.SessionFolderResponse, error) {
 	return contract.SessionFolderResponse{}, errors.New("unexpected CreateSessionFolder call")
 }
 
-func (c *completionStubClient) RenameSessionFolder(context.Context, string, string, string) (contract.SessionFolderResponse, error) {
+func (c *completionStubClient) RenameSessionFolder(
+	context.Context,
+	string,
+	string,
+	string,
+) (contract.SessionFolderResponse, error) {
 	return contract.SessionFolderResponse{}, errors.New("unexpected RenameSessionFolder call")
 }
 
-func (c *completionStubClient) DeleteSessionFolder(context.Context, string, string) (contract.SessionFoldersResponse, error) {
+func (c *completionStubClient) DeleteSessionFolder(
+	context.Context,
+	string,
+	string,
+) (contract.SessionFoldersResponse, error) {
 	return contract.SessionFoldersResponse{}, errors.New("unexpected DeleteSessionFolder call")
 }
 
-func (c *completionStubClient) ReorderSessionFolders(context.Context, string, []string) (contract.SessionFoldersResponse, error) {
+func (c *completionStubClient) ReorderSessionFolders(
+	context.Context,
+	string,
+	[]string,
+) (contract.SessionFoldersResponse, error) {
 	return contract.SessionFoldersResponse{}, errors.New("unexpected ReorderSessionFolders call")
 }
 
@@ -50,7 +70,11 @@ func (c *completionStubClient) MoveSession(context.Context, string, string) (con
 	return contract.SessionFoldersResponse{}, errors.New("unexpected MoveSession call")
 }
 
-func (c *completionStubClient) ReorderSessions(context.Context, string, contract.ReorderSessionsRequest) (contract.SessionFoldersResponse, error) {
+func (c *completionStubClient) ReorderSessions(
+	context.Context,
+	string,
+	contract.ReorderSessionsRequest,
+) (contract.SessionFoldersResponse, error) {
 	return contract.SessionFoldersResponse{}, errors.New("unexpected ReorderSessions call")
 }
 
@@ -61,27 +85,46 @@ func (c *completionStubClient) WorkspaceLayout(ctx context.Context) (contract.Wo
 	return contract.WorkspaceLayoutResponse{}, errors.New("unexpected WorkspaceLayout call")
 }
 
-func (c *completionStubClient) CreateWorkspaceFolder(context.Context, string) (contract.WorkspaceFolderResponse, error) {
+func (c *completionStubClient) CreateWorkspaceFolder(
+	context.Context,
+	string,
+) (contract.WorkspaceFolderResponse, error) {
 	return contract.WorkspaceFolderResponse{}, errors.New("unexpected CreateWorkspaceFolder call")
 }
 
-func (c *completionStubClient) RenameWorkspaceFolder(context.Context, string, string) (contract.WorkspaceFolderResponse, error) {
+func (c *completionStubClient) RenameWorkspaceFolder(
+	context.Context,
+	string,
+	string,
+) (contract.WorkspaceFolderResponse, error) {
 	return contract.WorkspaceFolderResponse{}, errors.New("unexpected RenameWorkspaceFolder call")
 }
 
-func (c *completionStubClient) DeleteWorkspaceFolder(context.Context, string) (contract.WorkspaceLayoutResponse, error) {
+func (c *completionStubClient) DeleteWorkspaceFolder(
+	context.Context,
+	string,
+) (contract.WorkspaceLayoutResponse, error) {
 	return contract.WorkspaceLayoutResponse{}, errors.New("unexpected DeleteWorkspaceFolder call")
 }
 
-func (c *completionStubClient) ReorderWorkspaceFolders(context.Context, []string) (contract.WorkspaceLayoutResponse, error) {
+func (c *completionStubClient) ReorderWorkspaceFolders(
+	context.Context,
+	[]string,
+) (contract.WorkspaceLayoutResponse, error) {
 	return contract.WorkspaceLayoutResponse{}, errors.New("unexpected ReorderWorkspaceFolders call")
 }
 
-func (c *completionStubClient) MoveWorkspace(context.Context, contract.MoveWorkspaceRequest) (contract.WorkspaceLayoutResponse, error) {
+func (c *completionStubClient) MoveWorkspace(
+	context.Context,
+	contract.MoveWorkspaceRequest,
+) (contract.WorkspaceLayoutResponse, error) {
 	return contract.WorkspaceLayoutResponse{}, errors.New("unexpected MoveWorkspace call")
 }
 
-func (c *completionStubClient) ReorderWorkspaces(context.Context, contract.ReorderWorkspacesRequest) (contract.WorkspaceLayoutResponse, error) {
+func (c *completionStubClient) ReorderWorkspaces(
+	context.Context,
+	contract.ReorderWorkspacesRequest,
+) (contract.WorkspaceLayoutResponse, error) {
 	return contract.WorkspaceLayoutResponse{}, errors.New("unexpected ReorderWorkspaces call")
 }
 
@@ -193,13 +236,17 @@ func TestCompletionSourceMappings(t *testing.T) {
 					return []ExtensionRecord{{Name: "ext-alpha", Description: "Alpha ext"}}, nil
 				},
 				listVaultSecretsFn: func(context.Context, VaultListQuery) ([]VaultRecord, error) {
-					return []VaultRecord{{Ref: "vault:providers/claude/api_key", Namespace: "providers", Kind: "token"}}, nil
+					return []VaultRecord{
+						{Ref: "vault:providers/claude/api_key", Namespace: "providers", Kind: "token"},
+					}, nil
 				},
 				listToolsetsFn: func(_ context.Context, q ToolQuery) (ToolsetsResponseRecord, error) {
 					if q.WorkspaceID != "ws_1" {
 						return ToolsetsResponseRecord{}, errors.New("missing workspace")
 					}
-					return ToolsetsResponseRecord{Toolsets: []ToolsetRecord{{ID: tools.ToolsetID("compozy__core"), Status: "available"}}}, nil
+					return ToolsetsResponseRecord{
+						Toolsets: []ToolsetRecord{{ID: tools.ToolsetID("compozy__core"), Status: "available"}},
+					}, nil
 				},
 			},
 			listSessionFoldersFn: func(_ context.Context, ws string) (contract.SessionFoldersResponse, error) {
@@ -217,7 +264,9 @@ func TestCompletionSourceMappings(t *testing.T) {
 			},
 			listComputersFn: func(context.Context) (contract.ComputerListResponse, error) {
 				return contract.ComputerListResponse{
-					Computers: []contract.Computer{{ID: remoteproto.ComputerID("cmp-1"), Name: "macbook", Status: "online"}},
+					Computers: []contract.Computer{
+						{ID: remoteproto.ComputerID("cmp-1"), Name: "macbook", Status: "online"},
+					},
 				}, nil
 			},
 		}
@@ -262,11 +311,16 @@ func TestCompletionSourceMappings(t *testing.T) {
 		for _, tc := range checks {
 			got := renderCompletionCandidates(rt.complete(cmd, tc.kind, "", tc.provider), "")
 			if !slices.Equal(got, tc.want) {
-				t.Fatalf("kind %s = %#v, want %#v", tc.kind, got, tc.want)
+				t.Fatalf("kind %v = %#v, want %#v", tc.kind, got, tc.want)
 			}
 		}
 		if seenSessionQuery.Limit != completionSessionCap || seenSessionQuery.Sort != session.ListSortLastActivity {
-			t.Fatalf("session query = %#v, want Limit=%d Sort=%q", seenSessionQuery, completionSessionCap, session.ListSortLastActivity)
+			t.Fatalf(
+				"session query = %#v, want Limit=%d Sort=%q",
+				seenSessionQuery,
+				completionSessionCap,
+				session.ListSortLastActivity,
+			)
 		}
 	})
 
