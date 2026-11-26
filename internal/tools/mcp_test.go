@@ -1825,6 +1825,50 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 		})
 	})
 
+	// Invariant: a failing MCP source degrades only itself; other sources keep listing.
+	// Owner: MCP registry projection; canonical suite: bounded discovery.
+	t.Run("Should isolate a failing source from healthy sources", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name    string
+			consent func(context.Context, SourceRef, string) (bool, error)
+		}{
+			{name: "Should drop a source that publishes an invalid tool schema"},
+			{name: "Should drop a source whose admission check fails", consent: func(
+				_ context.Context, source SourceRef, _ string,
+			) (bool, error) {
+				if source.RawServerName == "broken" {
+					return false, errors.New("consent store unavailable")
+				}
+				return true, nil
+			}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				executor := &invalidSchemaMCPExecutor{fakeMCPExecutor: newFakeMCPExecutor(
+					[]MCPToolDescriptor{{RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+				)}
+				var opts []MCPProviderOption
+				if tc.consent != nil {
+					opts = append(opts, WithMCPConsent(tc.consent))
+				}
+				provider, err := NewMCPProvider(MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+					return []SourceRef{
+						{Kind: SourceMCP, Owner: "broken", RawServerName: "broken"},
+						{Kind: SourceMCP, Owner: "healthy", RawServerName: "healthy"},
+					}, nil
+				}), executor, executor, opts...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				listed, err := provider.List(t.Context(), Scope{})
+				if err != nil || len(listed) != 1 || listed[0].ID != "mcp__healthy__lookup" {
+					t.Fatalf("discovery with one failing source = %+v, %v", listed, err)
+				}
+			})
+		}
+	})
+
 	// Invariant: availability uses the successful discovery of this projection, not a second inconsistent upstream list.
 	// Owner: MCP registry projection; canonical suite: bounded discovery.
 	t.Run("Should project one coherent discovery when a second upstream listing would fail", func(t *testing.T) {
@@ -1987,6 +2031,19 @@ func (e *stalledMCPExecutor) ListTools(ctx context.Context, source SourceRef) ([
 	if source.RawServerName == "blocked" {
 		<-ctx.Done()
 		return nil, ctx.Err()
+	}
+	return e.fakeMCPExecutor.ListTools(ctx, source)
+}
+
+// invalidSchemaMCPExecutor publishes a tool with an unsupported schema type from the "broken" source.
+type invalidSchemaMCPExecutor struct{ *fakeMCPExecutor }
+
+func (e *invalidSchemaMCPExecutor) ListTools(ctx context.Context, source SourceRef) ([]MCPToolDescriptor, error) {
+	if source.RawServerName == "broken" {
+		return []MCPToolDescriptor{{
+			RawName:     "lookup",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"q":{"type":"bogus"}}}`),
+		}}, nil
 	}
 	return e.fakeMCPExecutor.ListTools(ctx, source)
 }

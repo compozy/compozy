@@ -92,8 +92,8 @@ func (l *ProjectionListings) loadPolicy(
 	}
 	key := projectionPolicyKey{r, scope, sha256.Sum256(data), r.ProjectionRedactionRevision()}
 	return l.policies.load(ctx, key, func() ([]ToolView, bool, error) {
-		views, err := r.policyProjection(ctx, scope, inputs)
-		return views, key.redaction == r.ProjectionRedactionRevision(), err
+		views, degraded, err := r.policyProjectionWithHealth(ctx, scope, inputs)
+		return views, !degraded && key.redaction == r.ProjectionRedactionRevision(), err
 	})
 }
 
@@ -312,11 +312,18 @@ func (r *RuntimeRegistry) listValidatedProvider(
 	if previous, ok := validated.entries[key]; ok && reflect.DeepEqual(previous, descriptors) {
 		return previous, complete, nil
 	}
+	valid := make([]Descriptor, 0, len(descriptors))
 	for i := range descriptors {
 		if err := descriptors[i].Validate(); err != nil {
-			return nil, false, indexValidationError(descriptors[i].ID, err)
+			// One invalid descriptor drops itself, not the rest of its provider.
+			logIsolatedListingFailure(ctx, "descriptor", descriptors[i].ID.String(),
+				indexValidationError(descriptors[i].ID, err))
+			complete = false
+			continue
 		}
+		valid = append(valid, descriptors[i])
 	}
+	descriptors = valid
 	if complete {
 		if validated.entries == nil || len(validated.entries) >= validated.capacity {
 			validated.entries = make(map[projectionListingKey][]Descriptor)

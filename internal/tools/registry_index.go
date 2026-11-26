@@ -10,6 +10,8 @@ import (
 type registryIndex struct {
 	entries []*registryEntry
 	byID    map[ToolID]*registryEntry
+	// degraded marks an index that left out a failed provider; callers must not memoize it.
+	degraded bool
 }
 
 type registryEntry struct {
@@ -74,7 +76,12 @@ func (r *RuntimeRegistry) buildUncachedIndex(
 		}
 		descriptors, err := r.listProvider(ctx, provider, providerIndex, scope)
 		if err != nil {
-			return nil, err
+			if abortsAggregateListing(ctx) {
+				return nil, err
+			}
+			logIsolatedListingFailure(ctx, "provider", sourceKey(provider.ID()), err)
+			index.degraded = true
+			continue
 		}
 		for descriptorIndex := range descriptors {
 			descriptor := descriptors[descriptorIndex]

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -138,26 +137,79 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 
 	ctx := t.Context()
 
-	t.Run("Should reject invalid descriptors introduced by a dynamic provider reindex", func(t *testing.T) {
+	t.Run("Should drop only the invalid descriptor introduced by a dynamic provider reindex", func(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDescriptor()
+		sibling := descriptorWithID(ToolIDTaskRead, "Read Task")
 		provider := registryTestProvider{
 			source: descriptor.Source,
 			list: func() []Descriptor {
-				return []Descriptor{descriptor}
+				return []Descriptor{descriptor, sibling}
 			},
 		}
 		registry, err := NewRegistry(WithProviders(provider))
 		if err != nil {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
-		if _, err := registry.DiagnosticProjection(t.Context(), Scope{}); err != nil {
+		views, err := registry.DiagnosticProjection(t.Context(), Scope{})
+		if err != nil {
 			t.Fatalf("DiagnosticProjection(initial) error = %v", err)
 		}
+		requireToolIDs(t, views, descriptor.ID, sibling.ID)
 		descriptor.InputSchema = json.RawMessage(`{"type":false}`)
-		_, err = registry.DiagnosticProjection(t.Context(), Scope{})
-		requireReason(t, err, ReasonSchemaInvalid)
+		views, err = registry.DiagnosticProjection(t.Context(), Scope{})
+		if err != nil {
+			t.Fatalf("DiagnosticProjection(invalid sibling) error = %v", err)
+		}
+		requireToolIDs(t, views, sibling.ID)
+	})
+
+	t.Run("Should keep native tools callable when a dynamic provider fails to list", func(t *testing.T) {
+		t.Parallel()
+
+		native := validDescriptor()
+		nativeProvider, err := NewNativeProvider(native.Source, NativeTool{
+			Descriptor: native,
+			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
+				return ToolResult{Structured: json.RawMessage(`{"ok":true}`)}, nil
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		healthy := descriptorWithID(ToolIDTaskRead, "Read Task")
+		broken := &scopedListingTestProvider{registryTestProvider: providerWithDescriptors(
+			SourceRef{Kind: SourceMCP, Owner: "broken", RawServerName: "broken"},
+		)}
+		broken.fail.Store(true)
+		registry, err := NewRegistry(WithProviders(
+			nativeProvider, broken, providerWithDescriptors(healthy.Source, healthy),
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+		views, err := registry.SessionProjection(t.Context(), Scope{})
+		if err != nil {
+			t.Fatalf("SessionProjection with a failed provider error = %v", err)
+		}
+		requireToolIDs(t, views, native.ID, healthy.ID)
+		result, err := registry.Call(t.Context(), Scope{ProfileID: "profile-a"},
+			CallRequest{ToolID: native.ID, Input: json.RawMessage(`{}`)})
+		if err != nil || string(result.Structured) != `{"ok":true}` {
+			t.Fatalf("native Call with a failed provider = %+v, %v", result, err)
+		}
+
+		// The caller's own cancellation still aborts the aggregate listing.
+		ctx, cancel := context.WithCancel(t.Context())
+		broken.fail.Store(false)
+		broken.beforeList = func(context.Context) error {
+			cancel()
+			return context.Canceled
+		}
+		if _, err := registry.SessionProjection(ctx, Scope{}); err == nil {
+			t.Fatal("SessionProjection after caller cancellation succeeded, want an error")
+		}
 	})
 
 	t.Run("Should recompute native conflicts and ordering when dynamic providers change", func(t *testing.T) {
@@ -847,10 +899,12 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 
 		retry := WithProjectionListings(t.Context(), NewProjectionListings())
 		provider.fail.Store(true)
-		if _, err := registry.SessionProjection(retry, Scope{SessionID: "sess-a", WorkspaceID: "ws-1"}); err == nil ||
-			!strings.Contains(err.Error(), "listing failed") {
-			t.Fatalf("failed listing error = %v, want listing failed", err)
+		// A failed provider degrades only its own tools; the projection itself still succeeds.
+		failed, err := registry.SessionProjection(retry, Scope{SessionID: "sess-a", WorkspaceID: "ws-1"})
+		if err != nil {
+			t.Fatalf("failed listing error = %v, want the provider isolated", err)
 		}
+		requireToolIDs(t, failed)
 		provider.fail.Store(false)
 		project(retry, "sess-b", "ws-1")
 		if calls := provider.calls.Load(); calls != 5 {
@@ -966,9 +1020,9 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 				waiter := project(shared, registry, "sess-waiter")
 				synctest.Wait()
 				close(release)
-				if result := <-leader; result.err == nil ||
-					!strings.Contains(result.err.Error(), "leader listing failed") {
-					t.Fatalf("leader error = %v, want leader listing failed", result.err)
+				// The leader's failed listing leaves the provider out of its projection only.
+				if result := <-leader; result.err != nil || len(result.views) != 0 {
+					t.Fatalf("leader = %v, %v, want an empty projection without error", result.views, result.err)
 				}
 				result := <-waiter
 				if result.err != nil {
