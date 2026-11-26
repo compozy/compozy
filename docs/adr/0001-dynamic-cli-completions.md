@@ -28,8 +28,9 @@ Add live value completion backed by the existing read-only daemon list APIs.
   arguments return `ShellCompDirectiveNoFileComp`.
 - One 400 ms context budget per completion call, covering client construction, workspace
   scoping and the list request. No cache.
-- Failures and timeouts return an empty candidate list with exit 0 and no stderr output.
-  Completion never starts the daemon and never mutates state.
+- Failures and timeouts return an empty candidate list with exit 0 and no warning or error
+  output. Cobra's own `Completion ended with directive` line remains the only stderr line,
+  as for every Cobra CLI. Completion never starts the daemon and never mutates state.
 - Workspace scoping uses only the explicit `--workspace` value, `COMPOZY_WORKSPACE`, or a
   single `ListWorkspaces` + cwd match. It does not reuse the interactive workspace/profile
   resolution chain, which mutates command context and prints warnings.
