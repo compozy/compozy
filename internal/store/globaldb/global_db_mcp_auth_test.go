@@ -401,7 +401,7 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 			t.Fatalf("token scopes = %#v", token.Scopes)
 		}
 		if !slices.Equal(token.RequestedScopes, []string{"read", "write", "admin"}) {
-			t.Fatalf("token requested scopes = %#v, want the login request preserved across reopen", token.RequestedScopes)
+			t.Fatalf("token requested scopes = %#v, want the login request preserved", token.RequestedScopes)
 		}
 		if !token.ExpiresAt.Equal(expiresAt) {
 			t.Fatalf("token expires_at = %s, want %s", token.ExpiresAt, expiresAt)

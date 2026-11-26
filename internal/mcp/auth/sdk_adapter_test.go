@@ -87,8 +87,9 @@ func TestOAuthOfflineAccess(t *testing.T) {
 		},
 		{
 			name:   "Should honor an issuer scope list that omits the resource's offline access",
-			scopes: "tools.read", grants: "authorization_code refresh_token", resourceScopes: "tools.read offline_access",
-			configured: []string{"tools.read"}, want: []string{"tools.read"},
+			scopes: "tools.read", grants: "authorization_code refresh_token",
+			resourceScopes: "tools.read offline_access",
+			configured:     []string{"tools.read"}, want: []string{"tools.read"},
 		},
 		{
 			name:   "Should preserve scopes for a pre-registered client with unknown grant permissions",
@@ -1829,14 +1830,16 @@ func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 			switch r.URL.Path {
 			case "/.well-known/oauth-protected-resource/mcp":
 				writeManagerTestResponse(t, w, fmt.Sprintf(
-					`{"resource":%q,"authorization_servers":[%q],"scopes_supported":["tools.read","tools.admin","offline_access"]}`,
+					`{"resource":%q,"authorization_servers":[%q],`+
+						`"scopes_supported":["tools.read","tools.admin","offline_access"]}`,
 					base+"/mcp", base,
 				))
 			case "/.well-known/oauth-authorization-server":
 				// Atlassian-shaped issuer: no scopes_supported, refresh allowed.
 				writeManagerTestResponse(t, w, fmt.Sprintf(
 					`{"issuer":%q,"authorization_endpoint":%q,"token_endpoint":%q,"registration_endpoint":%q,`+
-						`"code_challenge_methods_supported":["S256"],"grant_types_supported":["authorization_code","refresh_token"]}`,
+						`"code_challenge_methods_supported":["S256"],`+
+						`"grant_types_supported":["authorization_code","refresh_token"]}`,
 					base, base+"/authorize", base+"/token", base+"/register",
 				))
 			case "/register":
@@ -1844,8 +1847,8 @@ func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 				w.WriteHeader(http.StatusCreated)
 				writeManagerTestResponse(t, w, `{"client_id":"client","token_endpoint_auth_method":"none"}`)
 			case "/token":
-				writeManagerTestResponse(t, w,
-					`{"access_token":"granted","refresh_token":"refresh","scope":"tools.read offline_access","expires_in":60}`)
+				writeManagerTestResponse(t, w, `{"access_token":"granted","refresh_token":"refresh",`+
+					`"scope":"tools.read offline_access","expires_in":60}`)
 			default:
 				http.NotFound(w, r)
 			}
