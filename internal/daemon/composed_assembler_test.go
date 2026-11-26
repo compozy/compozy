@@ -981,6 +981,42 @@ func TestComposedAssemblerRuntimeEnvelopeEndTurnGuidance(t *testing.T) {
 	})
 }
 
+func TestComposedAssemblerRuntimeEnvelopeDelegationGuidance(t *testing.T) {
+	t.Parallel()
+	t.Run("Should route delegation through CompozyOS when native tools are available", func(t *testing.T) {
+		t.Parallel()
+		envelope := renderCompozyRuntimeEnvelope(session.StartupPromptContext{})
+		for _, want := range []string{
+			"asks you to use subagents, delegate, spawn agents, or parallelize work",
+			"`compozy__subagent_capabilities` to pick a target",
+			"`compozy__subagent_delegate` to delegate",
+			"(`compozy__session_create` or `compozy__session_spawn`) when workspace instructions call for them",
+			"only if the operator explicitly asks for the provider's own tool or " +
+				"the CompozyOS subagent tools are withheld or unavailable",
+		} {
+			if !strings.Contains(envelope, want) {
+				t.Fatalf("runtime envelope = %q, want %q", envelope, want)
+			}
+		}
+	})
+
+	t.Run("Should omit native delegation guidance when native tools are unavailable", func(t *testing.T) {
+		t.Parallel()
+		envelope := renderCompozyRuntimeEnvelope(session.StartupPromptContext{NativeToolsUnavailable: true})
+		for _, unwanted := range []string{
+			"compozy__subagent_capabilities",
+			"compozy__subagent_delegate",
+			"compozy__session_create",
+			"compozy__session_spawn",
+			"Use provider-native delegation",
+		} {
+			if strings.Contains(envelope, unwanted) {
+				t.Fatalf("runtime envelope = %q, should omit %q", envelope, unwanted)
+			}
+		}
+	})
+}
+
 func TestAgentMemoryStartup(t *testing.T) {
 	t.Run("Should read a catalog that boot creates after the assembler", func(t *testing.T) {
 		t.Parallel()
