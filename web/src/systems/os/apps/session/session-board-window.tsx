@@ -11,7 +11,6 @@ import {
   SessionViewOptionsMenu,
   SessionViewToggle,
   sessionBoardSort,
-  type SessionPayload,
 } from "@/systems/session";
 import { useDataScope } from "@/systems/workspace";
 
