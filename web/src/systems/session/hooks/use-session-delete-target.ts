@@ -118,12 +118,13 @@ export function useSessionDeleteTarget(queryClient: QueryClient, computerId: Com
           }
         : value
     );
-  const childSessions = target
-    ? sessionChildrenChoice(childrenScope, included, setIncluded, {
-        pending: childrenPending,
-        onRetry: target.treeErrors.size > 0 ? retryTrees : undefined,
-      })
+  const childChoice = target
+    ? sessionChildrenChoice(childrenScope, included, setIncluded, { pending: childrenPending })
     : undefined;
+  const childSessions =
+    childChoice && target?.treeErrors.size
+      ? { ...childChoice, onRetryRead: retryTrees }
+      : childChoice;
 
   return {
     target,

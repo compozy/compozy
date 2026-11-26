@@ -96,6 +96,7 @@ export function useSessionLifecycleActions(
   const [batchResults, setBatchResults] = useState<readonly SessionBatchResult[]>([]);
   const batchRunning = useSessionBatchAdmission();
   const deleteConfirmation = useRef(0);
+  const [deleteConfirmPending, setDeleteConfirmPending] = useState(false);
   const deleteSession = deleteTarget?.sessions[0] ?? null;
   const [renameTarget, setRenameTarget] = useState<SessionPayload | null>(null);
   const [processChoice, setProcessChoice] = useState<SessionProcessChoice | null>(null);
@@ -319,8 +320,9 @@ export function useSessionLifecycleActions(
   };
 
   const confirmDelete = (processes?: SessionProcessPolicy) => {
-    if (!deleteTarget?.open || childrenPending) return;
+    if (!deleteTarget?.open || childrenPending || deleteConfirmPending) return;
     const confirmation = ++deleteConfirmation.current;
+    setDeleteConfirmPending(true);
     const failedIds = new Set<string>();
     for (const result of batchResults) {
       if (result.status === "failed") failedIds.add(result.id);
@@ -361,6 +363,9 @@ export function useSessionLifecycleActions(
       })
       .catch(error => {
         if (confirmation === deleteConfirmation.current) reportActionError("delete", error);
+      })
+      .finally(() => {
+        if (confirmation === deleteConfirmation.current) setDeleteConfirmPending(false);
       });
   };
 
@@ -373,10 +378,12 @@ export function useSessionLifecycleActions(
       sessions.length === 0 ||
       pendingAction !== null ||
       batchRunning.held() ||
-      deleteTarget?.open
+      deleteTarget?.open ||
+      deleteConfirmPending
     )
       return;
     deleteConfirmation.current++;
+    setDeleteConfirmPending(false);
     deletePolicy.current = undefined;
     setBatchResults([]);
     prepareDeleteTarget(sessions, bulk, onSelectionChange);
@@ -442,13 +449,19 @@ export function useSessionLifecycleActions(
       session: deleteSession,
       sessions: deleteTarget?.sessions,
       results: deleteTarget?.bulk ? batchResults : undefined,
-      isDeleting: remove.isPending || batchAction === "delete",
+      isDeleting: remove.isPending || batchAction === "delete" || deleteConfirmPending,
       sideChats: deleteTarget?.sideChats ?? false,
       processCount: deleteTarget?.processCount ?? 0,
       childrenPending,
       childSessions,
       onOpenChange: open => {
-        if (!open && deleteTarget?.open && !remove.isPending && !batchRunning.held()) {
+        if (
+          !open &&
+          deleteTarget?.open &&
+          !remove.isPending &&
+          !deleteConfirmPending &&
+          !batchRunning.held()
+        ) {
           deleteConfirmation.current++;
           if (batchResults.some(result => result.status === "failed")) {
             deleteTarget?.onSelectionChange?.(

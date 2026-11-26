@@ -54,6 +54,7 @@ export function SessionDeleteDialogSet({
   onConfirm,
   onRetry,
 }: SessionDeleteDialogSetProps) {
+  const treeReadPending = childrenPending || childSessions?.pending === true;
   const count = sessions.length;
   const failed = results.filter(result => result.status === "failed").length;
   const deleted = results.filter(result => result.status === "done").length;
@@ -89,78 +90,179 @@ export function SessionDeleteDialogSet({
         <DialogHeader className="shrink-0">
           <DialogTitle>Delete {count} sessions</DialogTitle>
           <DialogDescription aria-live="polite">
-            {partial ? (
-              <>
-                <strong>
-                  {deleted} deleted · {failed} couldn't be deleted.
-                </strong>{" "}
-                {failed === 1
-                  ? "The one that failed is still in the list and still selected."
-                  : "The ones that failed are still in the list and still selected."}
-              </>
-            ) : (
-              <>
-                This permanently removes <strong>{count} sessions</strong>, including their
-                transcripts and history, and removes them from the session list.
-                {processChoice ? ` ${processChoice.description}` : null}
-              </>
-            )}
+            <SessionDeleteSetDescription
+              partial={partial}
+              deleted={deleted}
+              failed={failed}
+              count={count}
+              processDescription={processChoice?.description}
+            />
           </DialogDescription>
         </DialogHeader>
-        <div
-          role="region"
-          aria-label="Deletion results"
-          tabIndex={0}
-          className="min-h-0 space-y-4 overflow-y-auto"
-        >
-          <ul className="overflow-hidden rounded-lg bg-sunken py-1">
-            {sessions.slice(0, 5).map(session => (
-              <SessionDeleteResultRow
-                key={session.id}
-                session={session}
-                result={resultsById.get(session.id)}
-              />
-            ))}
-            {count > 5 ? (
-              <li className="px-3 py-1.5 text-micro text-subtle">and {count - 5} more</li>
-            ) : null}
-          </ul>
-          <SessionDeleteOverflowErrors sessions={sessions.slice(5)} resultsById={resultsById} />
-        </div>
-        {childSessions ? (
-          <SessionChildrenCheckbox
-            action="delete"
-            choice={childSessions}
-            disabled={isDeleting || childrenPending}
-            showCheckbox={childSessions.count > 0}
-          />
-        ) : null}
-        <DialogFooter className="shrink-0 flex-wrap gap-2">
-          {note ? (
-            <span
-              className="mr-auto flex items-center gap-1.5 text-micro text-muted-foreground"
-              data-testid="delete-dialog-note"
-            >
-              {!isDeleting ? <Info className="size-3 shrink-0" /> : null}
-              {note}
-            </span>
-          ) : null}
-          <SessionDeleteActions
-            childrenPending={childrenPending}
-            askOnRetry={(childSessions?.includedProcessCount ?? 0) > 0}
-            isDeleting={isDeleting}
-            retrying={partial}
-            processChoice={processChoice}
-            deleteLabel={`Delete ${count} sessions`}
-            deletingLabel={`Deleting ${Math.max(1, progressIndex + 1)} of ${count}`}
-            retryLabel={`Retry ${failed}`}
-            onClose={() => onOpenChange(false)}
-            onConfirm={onConfirm}
-            onRetry={onRetry}
-          />
-        </DialogFooter>
+        <SessionDeleteSetResults
+          sessions={sessions}
+          count={count}
+          resultsById={resultsById}
+        />
+        <SessionDeleteSetChildChoice
+          childSessions={childSessions}
+          childrenPending={treeReadPending}
+          isDeleting={isDeleting}
+        />
+        <SessionDeleteSetFooter
+          childrenPending={treeReadPending}
+          isDeleting={isDeleting}
+          note={note}
+          partial={partial}
+          processChoice={processChoice}
+          progressIndex={progressIndex}
+          count={count}
+          failed={failed}
+          onOpenChange={onOpenChange}
+          onConfirm={onConfirm}
+          onRetry={onRetry}
+          childSessions={childSessions}
+        />
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SessionDeleteSetDescription({
+  partial,
+  deleted,
+  failed,
+  count,
+  processDescription,
+}: {
+  partial: boolean;
+  deleted: number;
+  failed: number;
+  count: number;
+  processDescription?: string;
+}) {
+  return partial ? (
+    <>
+      <strong>
+        {deleted} deleted · {failed} couldn't be deleted.
+      </strong>{" "}
+      {failed === 1
+        ? "The one that failed is still in the list and still selected."
+        : "The ones that failed are still in the list and still selected."}
+    </>
+  ) : (
+    <>
+      This permanently removes <strong>{count} sessions</strong>, including their transcripts and
+      history, and removes them from the session list.
+      {processDescription ? ` ${processDescription}` : null}
+    </>
+  );
+}
+
+function SessionDeleteSetResults({
+  sessions,
+  count,
+  resultsById,
+}: {
+  sessions: readonly SessionPayload[];
+  count: number;
+  resultsById: ReadonlyMap<string, SessionBatchResult>;
+}) {
+  return (
+    <div
+      role="region"
+      aria-label="Deletion results"
+      tabIndex={0}
+      className="min-h-0 space-y-4 overflow-y-auto"
+    >
+      <ul className="overflow-hidden rounded-lg bg-sunken py-1">
+        {sessions.slice(0, 5).map(session => (
+          <SessionDeleteResultRow
+            key={session.id}
+            session={session}
+            result={resultsById.get(session.id)}
+          />
+        ))}
+        {count > 5 ? (
+          <li className="px-3 py-1.5 text-micro text-subtle">and {count - 5} more</li>
+        ) : null}
+      </ul>
+      <SessionDeleteOverflowErrors sessions={sessions.slice(5)} resultsById={resultsById} />
+    </div>
+  );
+}
+
+function SessionDeleteSetChildChoice({
+  childSessions,
+  childrenPending,
+  isDeleting,
+}: {
+  childSessions?: SessionChildrenChoice;
+  childrenPending: boolean;
+  isDeleting: boolean;
+}) {
+  return childSessions ? (
+    <SessionChildrenCheckbox
+      action="delete"
+      choice={childSessions}
+      disabled={isDeleting || childrenPending}
+      showCheckbox={childSessions.count > 0}
+    />
+  ) : null;
+}
+
+function SessionDeleteSetFooter({
+  childrenPending,
+  isDeleting,
+  note,
+  partial,
+  processChoice,
+  progressIndex,
+  count,
+  failed,
+  onOpenChange,
+  onConfirm,
+  onRetry,
+  childSessions,
+}: {
+  childrenPending: boolean;
+  isDeleting: boolean;
+  note: string | null;
+  partial: boolean;
+  processChoice: ReturnType<typeof sessionProcessChoiceCopy> | null;
+  progressIndex: number;
+  count: number;
+  failed: number;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (processes?: SessionProcessPolicy) => void;
+  onRetry?: () => void;
+  childSessions?: SessionChildrenChoice;
+}) {
+  return (
+    <DialogFooter className="shrink-0 flex-wrap gap-2">
+      {note ? (
+        <span
+          className="mr-auto flex items-center gap-1.5 text-micro text-muted-foreground"
+          data-testid="delete-dialog-note"
+        >
+          {!isDeleting ? <Info className="size-3 shrink-0" /> : null}
+          {note}
+        </span>
+      ) : null}
+      <SessionDeleteActions
+        childrenPending={childrenPending}
+        askOnRetry={(childSessions?.includedProcessCount ?? 0) > 0}
+        isDeleting={isDeleting}
+        retrying={partial}
+        processChoice={processChoice}
+        deleteLabel={`Delete ${count} sessions`}
+        deletingLabel={`Deleting ${Math.max(1, progressIndex + 1)} of ${count}`}
+        retryLabel={`Retry ${failed}`}
+        onClose={() => onOpenChange(false)}
+        onConfirm={onConfirm}
+        onRetry={onRetry}
+      />
+    </DialogFooter>
   );
 }
 
