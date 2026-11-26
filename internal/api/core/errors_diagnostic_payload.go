@@ -27,7 +27,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if refusal := workAdmissionErrorPayload(err); refusal != nil {
 		return *refusal
 	}
-	if refusal, ok := errors.AsType[*session.SessionRebindTimeoutError](err); ok && refusal != nil {
+	if refusal, ok := errors.AsType[*session.RebindTimeoutError](err); ok && refusal != nil {
 		payload.Error = diagnosticspkg.RedactAndBound(refusal.Error(), 2048)
 		payload.Code, payload.Retryable = session.SessionRebindTimeoutCode, true
 		payload.ProviderError = refusal.ProviderError()

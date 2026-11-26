@@ -337,7 +337,7 @@ func TestRespondErrorDiagnosticPayload(t *testing.T) {
 func TestSessionRebindTimeoutErrorContract(t *testing.T) {
 	t.Parallel()
 	const secret = "sk-live-0123456789abcdefghijklmnopqrstuv"
-	refusal := &session.SessionRebindTimeoutError{
+	refusal := &session.RebindTimeoutError{
 		LoadTimeout: fmt.Errorf("session/load: %w", context.DeadlineExceeded),
 		Fallback:    fmt.Errorf("hosted proxy bind failed: Authorization: Bearer %s", secret),
 	}

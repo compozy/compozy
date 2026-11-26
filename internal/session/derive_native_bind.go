@@ -88,7 +88,7 @@ func (m *Manager) launchPromptRuntimeCandidate(
 	loadTimedOut := acp.IsLoadSessionTimeout(err)
 	replayFailure := func(fallbackErr error) error {
 		if loadTimedOut && ctx.Err() == nil {
-			return &SessionRebindTimeoutError{LoadTimeout: err, Fallback: fallbackErr}
+			return &RebindTimeoutError{LoadTimeout: err, Fallback: fallbackErr}
 		}
 		return errors.Join(err, fallbackErr)
 	}

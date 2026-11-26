@@ -152,27 +152,10 @@ func statusForWorkspaceError(err error) int {
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
 func statusForSessionError(err error) int {
-	if status, ok := statusForSideError(err); ok {
+	if status, ok := statusForSessionEarlyError(err); ok {
 		return status
 	}
-	if errors.Is(err, context.Canceled) {
-		return statusClientClosedRequest
-	}
-	if _, ok := errors.AsType[*session.SessionRebindTimeoutError](err); ok {
-		return http.StatusGatewayTimeout
-	}
-	if _, ok := errors.AsType[*session.MCPReloadError](err); ok {
-		return http.StatusConflict
-	}
-	if errors.Is(err, store.ErrWorkspaceArchived) {
-		return http.StatusConflict
-	}
-	if WorktreeErrorCode(err) != "" {
-		return StatusForWorktreeError(err)
-	}
 	switch {
-	case errors.Is(err, context.Canceled):
-		return statusClientClosedRequest
 	case errors.Is(err, admission.ErrDraining), errors.Is(err, admission.ErrStarting):
 		return http.StatusServiceUnavailable
 	case errors.Is(err, session.ErrSessionMessageRateLimited):
@@ -212,6 +195,28 @@ func statusForSessionError(err error) int {
 		return http.StatusUnprocessableEntity
 	}
 	return http.StatusInternalServerError
+}
+
+func statusForSessionEarlyError(err error) (int, bool) {
+	if status, ok := statusForSideError(err); ok {
+		return status, true
+	}
+	if errors.Is(err, context.Canceled) {
+		return statusClientClosedRequest, true
+	}
+	if _, ok := errors.AsType[*session.RebindTimeoutError](err); ok {
+		return http.StatusGatewayTimeout, true
+	}
+	if _, ok := errors.AsType[*session.MCPReloadError](err); ok {
+		return http.StatusConflict, true
+	}
+	if errors.Is(err, store.ErrWorkspaceArchived) {
+		return http.StatusConflict, true
+	}
+	if WorktreeErrorCode(err) != "" {
+		return StatusForWorktreeError(err), true
+	}
+	return 0, false
 }
 
 func statusForSessionLookupError(err error) (int, bool) {

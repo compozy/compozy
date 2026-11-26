@@ -1470,7 +1470,9 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 					Name:      toolmeta.HostedServerName,
 					Transport: compozyconfig.MCPServerTransportStdio,
 					Command:   "/bin/compozy",
-					Args:      []string{"tool", "mcp", "--session", "placeholder", toolmeta.HostedBindNonceFlag, "nonce"},
+					Args: []string{
+						"tool", "mcp", "--session", "placeholder", toolmeta.HostedBindNonceFlag, "nonce",
+					},
 				}
 				hosted := &recordingHostedMCPLauncher{
 					server: hostedServer,
@@ -1515,7 +1517,7 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 					if promptErr == nil {
 						t.Fatal("Prompt() error = nil, want typed session rebind timeout")
 					}
-					rebindErr, ok := errors.AsType[*SessionRebindTimeoutError](promptErr)
+					rebindErr, ok := errors.AsType[*RebindTimeoutError](promptErr)
 					if !ok || rebindErr == nil || !errors.Is(promptErr, acp.ErrLoadSessionTimeout) ||
 						!errors.Is(promptErr, replayCause) {
 						t.Fatalf("Prompt() error = %v, want timeout and replay causes", promptErr)

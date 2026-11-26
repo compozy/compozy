@@ -9,22 +9,22 @@ import (
 // SessionRebindTimeoutCode names the retryable load-and-replay refusal on public transports.
 const SessionRebindTimeoutCode = "session_rebind_timeout"
 
-// SessionRebindTimeoutError reports that loading a released provider session timed out
+// RebindTimeoutError reports that loading a released provider session timed out
 // and the transcript-replay fallback could not start.
-type SessionRebindTimeoutError struct {
+type RebindTimeoutError struct {
 	LoadTimeout error
 	Fallback    error
 }
 
-var _ error = (*SessionRebindTimeoutError)(nil)
+var _ error = (*RebindTimeoutError)(nil)
 
-func (e *SessionRebindTimeoutError) Error() string {
+func (e *RebindTimeoutError) Error() string {
 	return "The provider session took too long to reload. Retry, or use Continue/Fork to keep " +
 		"the transcript on a fresh provider thread. Your message wasn't sent. (" +
 		SessionRebindTimeoutCode + ")"
 }
 
-func (e *SessionRebindTimeoutError) Unwrap() []error {
+func (e *RebindTimeoutError) Unwrap() []error {
 	if e == nil {
 		return nil
 	}
@@ -32,7 +32,7 @@ func (e *SessionRebindTimeoutError) Unwrap() []error {
 }
 
 // ProviderError returns redacted, bounded details about the timed-out load and failed replay.
-func (e *SessionRebindTimeoutError) ProviderError() string {
+func (e *RebindTimeoutError) ProviderError() string {
 	if e == nil {
 		return ""
 	}
