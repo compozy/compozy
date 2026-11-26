@@ -22,7 +22,7 @@ func TestAwaitSessionReasoningOption(t *testing.T) {
 					ID:             "model",
 					Kind:           SessionConfigOptionKindSelect,
 					CurrentValueID: "m1",
-					Values:         []SessionConfigOptionValue{{Value: "m1", Name: "m1"}},
+					Values:         []SessionConfigOptionValue{{Value: "m1", Label: "m1"}},
 				},
 			},
 		})
@@ -55,7 +55,7 @@ func TestAwaitSessionReasoningOption(t *testing.T) {
 					ID:             "model",
 					Kind:           SessionConfigOptionKindSelect,
 					CurrentValueID: "m1",
-					Values:         []SessionConfigOptionValue{{Value: "m1", Name: "m1"}},
+					Values:         []SessionConfigOptionValue{{Value: "m1", Label: "m1"}},
 				},
 			},
 		})
