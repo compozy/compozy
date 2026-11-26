@@ -218,6 +218,26 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		}
 	})
 
+	t.Run("Should accept and enforce boolean subschemas", func(t *testing.T) {
+		t.Parallel()
+		d := validDispatchDescriptor()
+		d.InputSchema = json.RawMessage(`{"type":"object","properties":{` +
+			`"hooks":{"type":"array","items":true},` +
+			`"line":{"anyOf":[{"type":"object","properties":{"words":{"type":"array","items":true}}},true]},` +
+			`"legacy":false,"tags":{"type":"array","items":{"not":false}}}}`)
+		if err := d.Validate(); err != nil {
+			t.Fatalf("Validate = %v", err)
+		}
+		accepted := `{"hooks":[1,"two",{"three":3}],"line":{"words":[null,true]},"tags":["a"]}`
+		if err := validateCallInput(d, json.RawMessage(accepted)); err != nil {
+			t.Fatalf("validateCallInput(%s) = %v", accepted, err)
+		}
+		err := validateCallInput(d, json.RawMessage(`{"legacy":"anything"}`))
+		if !errors.Is(err, ErrToolInvalidInput) {
+			t.Fatalf("validateCallInput(false subschema) = %v, want ErrToolInvalidInput", err)
+		}
+	})
+
 	t.Run("Should reject invalid input before provider invocation", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct{ name, input, cause string }{

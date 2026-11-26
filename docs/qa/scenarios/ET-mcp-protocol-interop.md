@@ -99,3 +99,15 @@ unavailable through their shared ID.
 Then add `" spaced_tool "` to the fixture. On legacy Streamable HTTP, require the padded name to
 round-trip unchanged and the ready probe to count it. On Streamable HTTP 2026-07-28, require the
 probe to skip it with a diagnostic mentioning the `Mcp-Name` header and keep the other tools usable.
+
+### Boolean subschemas and invalid tool isolation
+
+In an isolated daemon, point a manual Streamable HTTP definition at a local fake whose tool input
+schema uses JSON Schema boolean subschemas: `"items": true` inside a nested `anyOf` branch and a
+property declared as `false`. Require `compozy mcp check <name> -o json` to report a ready probe
+that counts the tool. Invoke it with arbitrary array items, then with the `false` property set, and
+require `tool_invalid_input` / `schema_invalid` only for the second call.
+
+Then make the fake publish a tool whose schema uses an unsupported `type`. Require that server alone
+to report failed with `schema_invalid`, while `compozy tool invoke compozy__mcp_list`,
+`compozy__tool_info`, and new session spawns keep working and other MCP servers stay callable.
