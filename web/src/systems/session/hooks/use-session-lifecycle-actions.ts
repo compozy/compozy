@@ -9,7 +9,6 @@ import { toast } from "@compozy/ui";
 
 import {
   lifecyclePendingSessionIds,
-  readCurrentSessions,
   runSessionBatch,
   type SessionBatchResult,
 } from "../lib/session-batch";
@@ -17,7 +16,6 @@ import {
 import { sessionProcessPorts, sessionsRunningProcesses } from "../lib/session-processes";
 import {
   sessionBatchCoverage,
-  sessionChildrenScope,
   sessionTreeBatchOrder,
   type SessionTrees,
 } from "../lib/session-tree";
@@ -30,6 +28,7 @@ import {
   useStopSession,
   useUnarchiveSession,
 } from "./use-session-actions";
+import { confirmSessionDelete } from "./session-delete-confirmation";
 import { useSessionDeleteTarget } from "./use-session-delete-target";
 import {
   archiveTarget,
@@ -331,50 +330,19 @@ export function useSessionLifecycleActions(
       return;
     const confirmation = ++deleteConfirmation.current;
     deleteConfirmRequest.current = confirmation;
-    const failedIds = new Set<string>();
-    for (const result of batchResults) {
-      if (result.status === "failed") failedIds.add(result.id);
-    }
-    const targets =
-      deleteTarget.bulk && failedIds.size > 0
-        ? deleteTarget.sessions.filter(session => failedIds.has(session.id))
-        : deleteTarget.sessions;
-    void readCurrentSessions(queryClient, targets, deleteTarget.bulk)
-      .then(current => {
-        if (confirmation !== deleteConfirmation.current) return;
-        if (!deleteTarget.bulk && current.errors.size) throw current.errors.values().next().value;
-        // A fresh nonzero count must be answered in the now-updated dialog.
-        if (!processes && !deletePolicy.current && sessionsRunningProcesses(current.sessions) > 0) {
-          const currentById = new Map(current.sessions.map(session => [session.id, session]));
-          const currentTargets = targets.map(session => currentById.get(session.id) ?? session);
-          const displaySessions =
-            failedIds.size > 0
-              ? currentTargets
-              : deleteTarget.sessions.map(session => currentById.get(session.id) ?? session);
-          if (failedIds.size > 0) {
-            reportDeletedSessions(batchResults);
-            setBatchResults([]);
-          }
-          setDeleteTarget(target =>
-            target
-              ? {
-                  ...target,
-                  sessions: Object.freeze(displaySessions),
-                  processCount: sessionsRunningProcesses(displaySessions),
-                  childrenScope: sessionChildrenScope("delete", displaySessions, target.trees),
-                }
-              : null
-          );
-          return;
-        }
-        performDelete(processes, current.errors);
-      })
-      .catch(error => {
-        if (confirmation === deleteConfirmation.current) reportActionError("delete", error);
-      })
-      .finally(() => {
-        if (deleteConfirmRequest.current === confirmation) deleteConfirmRequest.current = null;
-      });
+    void confirmSessionDelete({
+      queryClient,
+      target: deleteTarget,
+      batchResults,
+      deletePolicy: deletePolicy.current,
+      processes,
+      isCurrent: () => confirmation === deleteConfirmation.current,
+      setBatchResults,
+      setTarget: setDeleteTarget,
+      performDelete,
+    }).finally(() => {
+      if (deleteConfirmRequest.current === confirmation) deleteConfirmRequest.current = null;
+    });
   };
 
   const prepareDelete = (
@@ -463,12 +431,7 @@ export function useSessionLifecycleActions(
       childrenPending,
       childSessions,
       onOpenChange: open => {
-        if (
-          !open &&
-          deleteTarget?.open &&
-          !remove.isPending &&
-          !batchRunning.held()
-        ) {
+        if (!open && deleteTarget?.open && !remove.isPending && !batchRunning.held()) {
           deleteConfirmation.current++;
           deleteConfirmRequest.current = null;
           if (batchResults.some(result => result.status === "failed")) {

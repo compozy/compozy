@@ -99,11 +99,7 @@ export function SessionDeleteDialogSet({
             />
           </DialogDescription>
         </DialogHeader>
-        <SessionDeleteSetResults
-          sessions={sessions}
-          count={count}
-          resultsById={resultsById}
-        />
+        <SessionDeleteSetResults sessions={sessions} count={count} resultsById={resultsById} />
         <SessionDeleteSetChildChoice
           childSessions={childSessions}
           childrenPending={treeReadPending}

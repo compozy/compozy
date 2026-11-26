@@ -2460,6 +2460,9 @@ describe("session lifecycle batches", () => {
         workspace_id: "ws_personal",
       },
     ];
+    vi.mocked(fetchSessionById).mockImplementation(
+      async id => targets.find(session => session.id === id) ?? { ...createdSession, id }
+    );
     vi.mocked(deleteSession).mockResolvedValue(undefined);
     const { result } = lifecycle();
     act(() => result.current.actions.onDeleteMany?.(targets));
