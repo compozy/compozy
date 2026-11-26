@@ -92,10 +92,8 @@ func (m *Manager) launchPromptRuntimeCandidate(
 		}
 		return errors.Join(err, fallbackErr)
 	}
-	if loadTimedOut {
-		if remintErr := m.remintHostedMCPForReplay(ctx, plan, runtime); remintErr != nil {
-			return nil, replayFailure(remintErr)
-		}
+	if remintErr := m.remintHostedMCPForReplay(ctx, plan, runtime); remintErr != nil {
+		return nil, replayFailure(remintErr)
 	}
 	startOpts, prepareErr := m.prepareSessionLaunch(ctx, &plan.spec, session, runtime, nil)
 	if prepareErr != nil {

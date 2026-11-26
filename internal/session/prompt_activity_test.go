@@ -1463,7 +1463,7 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 			{name: "timed out load replays with a re-minted hosted launch", loadTimeout: true, wantRemint: true},
 			{name: "timed out load reports a typed error when replay startup fails",
 				loadTimeout: true, replayFails: true, wantRemint: true, wantRebindError: true},
-			{name: "non-timeout load failure keeps the existing replay path"},
+			{name: "non-timeout load failure re-mints the hosted launch before replay", wantRemint: true},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				hostedServer := compozyconfig.MCPServer{
