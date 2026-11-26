@@ -180,7 +180,7 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 		}
 		healthy := descriptorWithID(ToolIDTaskRead, "Read Task")
 		broken := &scopedListingTestProvider{registryTestProvider: providerWithDescriptors(
-			SourceRef{Kind: SourceMCP, Owner: "broken", RawServerName: "broken"},
+			SourceRef{Kind: SourceExtension, Owner: "broken"},
 		)}
 		broken.fail.Store(true)
 		registry, err := NewRegistry(WithProviders(
@@ -488,13 +488,18 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 
 		descriptor := validDescriptor()
 		descriptor.ID = ToolID("compozy__" + longASCII(65))
-		provider := providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, descriptor)
+		sibling := descriptorWithID(ToolIDTaskRead, "Read Task")
+		provider := providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, descriptor, sibling)
 		registry, err := NewRegistry(WithProviders(provider))
 		if err != nil {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
-		_, err = registry.OperatorProjection(ctx, Scope{Operator: true})
-		requireReason(t, err, ReasonIDTooLong)
+		// The over length ID never reaches the projection; its valid sibling still does.
+		views, err := registry.OperatorProjection(ctx, Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("OperatorProjection() error = %v", err)
+		}
+		requireToolIDs(t, views, sibling.ID)
 	})
 }
 
@@ -582,9 +587,13 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 			}
 		}
 		descriptor.InputSchema = json.RawMessage(`{"type":"not-a-schema-type"}`)
+		// The cached valid catalog is not reused: the changed descriptor drops out of every scope.
 		for _, scope := range []Scope{{WorkspaceID: "first"}, {WorkspaceID: "second"}} {
-			_, err := registry.OperatorProjection(t.Context(), scope)
-			requireReason(t, err, ReasonSchemaInvalid)
+			views, err := registry.OperatorProjection(t.Context(), scope)
+			if err != nil {
+				t.Fatalf("OperatorProjection(%s) error = %v", scope.WorkspaceID, err)
+			}
+			requireToolIDs(t, views)
 		}
 	})
 	// Invariant: a visibility class and its view use the same native availability snapshot.
