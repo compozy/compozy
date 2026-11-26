@@ -68,6 +68,9 @@ func equalSchema(left, right json.RawMessage) bool {
 
 // x-compozy-free-form explicitly marks maps whose keys belong to the tool's requested content.
 func validateClosedResultSchema(path string, node map[string]json.RawMessage) error {
+	if isFalseSchemaNode(node) {
+		return nil // A false subschema admits no value, so no open object can appear here.
+	}
 	types, err := schemaTypes(node["type"])
 	if err != nil {
 		return NewValidationError(path, ReasonSchemaInvalid, err.Error())
@@ -159,4 +162,10 @@ func populateResultViewDigests(d *Descriptor) error {
 	}
 	d.SetResultViews(views)
 	return nil
+}
+
+// isFalseSchemaNode reports the decoded form of the boolean subschema false: {"not":{}}.
+func isFalseSchemaNode(node map[string]json.RawMessage) bool {
+	not, ok := node["not"]
+	return ok && len(node) == 1 && bytes.Equal(bytes.TrimSpace(not), []byte("{}"))
 }

@@ -945,14 +945,6 @@ func TestResultViewDescriptorContract(t *testing.T) {
 			d.OutputViews.Compact.Schema = json.RawMessage(`{"type":"object","properties":{"nested":{"type":"object"}},"additionalProperties":false}`)
 			d.OutputSchema = d.OutputViews.Compact.Schema
 		}},
-		{"Should reject an open object inside a draft-07 tuple", func(d *Descriptor) {
-			d.OutputViews.Compact.Schema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"pair":{"type":"array","items":[{"type":"object"}]}}}`)
-			d.OutputSchema = d.OutputViews.Compact.Schema
-		}},
-		{"Should reject an open object in tuple additionalItems", func(d *Descriptor) {
-			d.OutputViews.Compact.Schema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"pair":{"type":"array","items":[],"additionalItems":{"type":"object"}}}}`)
-			d.OutputSchema = d.OutputViews.Compact.Schema
-		}},
 		{"Should reject a mismatched default schema", func(d *Descriptor) { d.OutputSchema = json.RawMessage(`{"type":"object"}`) }},
 		{"Should reject views on a non-native backend", func(d *Descriptor) {
 			other := extensionDenyAllDescriptor()
@@ -978,15 +970,46 @@ func TestResultViewDescriptorContract(t *testing.T) {
 			}
 		})
 	}
-	t.Run("Should allow closed objects inside a draft-07 tuple", func(t *testing.T) {
-		t.Parallel()
-		d := resultViewDispatchDescriptor()
-		d.OutputViews.Compact.Schema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"pair":{"type":"array","items":[{"type":"object","additionalProperties":false}]}}}`)
-		d.OutputSchema = d.OutputViews.Compact.Schema
-		if err := d.Validate(); err != nil {
-			t.Fatal(err)
-		}
-	})
+	// Invariant: compact views stay closed through tuple items; a false subschema admits no open object.
+	for _, tc := range []struct{ name, pair, wantPath string }{
+		{
+			"Should reject an open object inside a draft-07 tuple",
+			`{"type":"array","items":[{"type":"object"}]}`, ".properties.pair.items[0]",
+		},
+		{
+			"Should reject an open object in tuple additionalItems",
+			`{"type":"array","items":[],"additionalItems":{"type":"object"}}`, ".properties.pair.additionalItems",
+		},
+		{
+			"Should reject a true subschema inside a draft-07 tuple",
+			`{"type":"array","items":[true]}`, ".properties.pair.items[0]",
+		},
+		{
+			"Should allow closed objects inside a draft-07 tuple",
+			`{"type":"array","items":[{"type":"object","additionalProperties":false}]}`, "",
+		},
+		{"Should allow a false subschema inside a draft-07 tuple", `{"type":"array","items":[false]}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := resultViewDispatchDescriptor()
+			d.OutputViews.Compact.Schema = json.RawMessage(
+				`{"type":"object","additionalProperties":false,"properties":{"pair":` + tc.pair + `}}`,
+			)
+			d.OutputSchema = d.OutputViews.Compact.Schema
+			err := d.Validate()
+			if tc.wantPath == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), "compact objects must be closed") ||
+				!strings.Contains(err.Error(), "output_views.compact.schema"+tc.wantPath) {
+				t.Fatalf("Validate() = %v, want the closure error at %s", err, tc.wantPath)
+			}
+		})
+	}
 	t.Run("Should allow explicitly free-form content maps", func(t *testing.T) {
 		t.Parallel()
 		d := resultViewDispatchDescriptor()
