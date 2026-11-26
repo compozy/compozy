@@ -306,10 +306,18 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 	t.Run("Should fail closed when dependency listing fails", func(t *testing.T) {
 		t.Parallel()
 
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
 		_, err := inspectDependencyClosures(
-			t.Context(),
+			ctx,
 			[]dependencyClosureRule{{root: "./fixture"}},
-			func(context.Context, string) ([]string, error) { return nil, errors.New("go list failed") },
+			func(listingCtx context.Context, _ string) ([]string, error) {
+				cancel()
+				if !errors.Is(listingCtx.Err(), context.Canceled) {
+					t.Fatalf("dependency listing context error = %v, want %v", listingCtx.Err(), context.Canceled)
+				}
+				return nil, errors.New("go list failed")
+			},
 		)
 		if err == nil || !strings.Contains(err.Error(), "go list failed") {
 			t.Fatalf("inspectDependencyClosures() error = %v, want go list failure", err)
