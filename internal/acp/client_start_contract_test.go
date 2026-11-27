@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -1835,6 +1836,118 @@ func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
 			t.Fatalf("second set-config request = %#v, want effort=max", reasoningRequest)
 		}
 	})
+
+	t.Run("Should wait for reasoning announced after the startup model is confirmed", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "model_specific_config_options", "late-reasoning", StartOpts{
+			PreferredModel:  "other-model",
+			ReasoningEffort: "max",
+			ProviderConfig:  reasoningACPProviderConfig(),
+		})
+		defer stopProcess(t, driver, proc)
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "effort", "max", "none", "max")
+	})
+}
+
+func TestAwaitSessionReasoningOption(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should wait for a late config_option_update that publishes reasoning effort", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			driver := New(WithConfigSettleBudget(time.Second))
+			proc := &AgentProcess{}
+			proc.setCaps(Caps{
+				ConfigOptions: []SessionConfigOption{
+					{
+						ID:             "model",
+						Kind:           SessionConfigOptionKindSelect,
+						CurrentValueID: "m1",
+						Values:         []SessionConfigOptionValue{{Value: "m1", Label: "m1"}},
+					},
+				},
+			})
+
+			var option SessionConfigOption
+			var err error
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				option, err = driver.awaitSessionReasoningOption(t.Context(), proc, "high", true)
+			}()
+			synctest.Wait()
+			select {
+			case <-done:
+				t.Fatalf("negotiation returned before the provider update: %v", err)
+			default:
+			}
+
+			proc.setConfigOptions(sessionConfigOptionsFromSDK(helperConfigOptions("m1", "high")))
+			synctest.Wait()
+			select {
+			case <-done:
+			default:
+				t.Fatal("provider update did not release the reasoning wait")
+			}
+			if err != nil {
+				t.Fatalf("awaitSessionReasoningOption() error = %v", err)
+			}
+			if !configOptionAllowsValue(option, "high") {
+				t.Fatalf("returned option %#v does not allow high", option)
+			}
+		})
+	})
+
+	const budget = time.Second
+	tests := []struct {
+		name     string
+		options  []acpsdk.SessionConfigOption
+		wait     bool
+		wantCode string
+		wantWait time.Duration
+	}{
+		{
+			name:     "Should return reasoning_option_missing after the catalog budget",
+			options:  helperModelConfigOptions("m1"),
+			wait:     true,
+			wantCode: NegotiationCodeReasoningOptionMissing,
+			wantWait: budget,
+		},
+		{
+			name:     "Should return reasoning_effort_unsupported after the catalog budget",
+			options:  helperConfigOptions("m1", "medium"),
+			wait:     true,
+			wantCode: NegotiationCodeReasoningEffortUnsupported,
+			wantWait: budget,
+		},
+		{
+			name:     "Should reject an unsupported effort immediately when waiting is disabled",
+			options:  helperConfigOptions("m1", "medium"),
+			wantCode: NegotiationCodeReasoningEffortUnsupported,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				driver := New(WithConfigSettleBudget(budget))
+				proc := &AgentProcess{}
+				proc.setConfigOptions(sessionConfigOptionsFromSDK(tc.options))
+
+				started := time.Now()
+				_, err := driver.awaitSessionReasoningOption(t.Context(), proc, "turbo", tc.wait)
+				negotiationErr, ok := errors.AsType[*NegotiationError](err)
+				if !ok || negotiationErr.Code != tc.wantCode {
+					t.Fatalf("awaitSessionReasoningOption() error = %v, want %s", err, tc.wantCode)
+				}
+				if got := time.Since(started); got != tc.wantWait {
+					t.Fatalf("reasoning negotiation waited %s, want %s", got, tc.wantWait)
+				}
+			})
+		})
+	}
 }
 
 // TestConfigureRuntime verifies ordered negotiation, acknowledgement, and preservation after rejection.
@@ -2018,6 +2131,34 @@ func TestConfigureRuntime(t *testing.T) {
 		}
 	})
 
+	t.Run("Should wait for reasoning announced after a live model switch", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "model_specific_config_options", "late-reasoning", StartOpts{})
+		defer stopProcess(t, driver, proc)
+
+		if err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{
+			Model: "other-model", ReasoningEffort: "max",
+		}); err != nil {
+			t.Fatalf("ConfigureRuntime() error = %v", err)
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "effort", "max", "none", "max")
+	})
+
+	t.Run("Should refuse unavailable reasoning without waiting when the model is already active", func(t *testing.T) {
+		t.Parallel()
+		driver := New(WithConfigSettleBudget(time.Minute))
+		proc := startHelperProcess(t, driver, "config_options_no_reasoning", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.Scaled(t, 5*time.Second))
+		defer cancel()
+		err := driver.ConfigureRuntime(ctx, proc, RuntimeConfig{Model: "new-model", ReasoningEffort: "high"})
+		negotiationErr, ok := errors.AsType[*NegotiationError](err)
+		if !ok || negotiationErr.Code != NegotiationCodeReasoningOptionMissing {
+			t.Fatalf("ConfigureRuntime() error = %v, want reasoning_option_missing", err)
+		}
+	})
+
 	t.Run("Should return a typed failure when the provider rejects speed", func(t *testing.T) {
 		t.Parallel()
 
@@ -2053,7 +2194,7 @@ func TestStartRejectsReasoningEffortWhenConfigOptionIsAbsent(t *testing.T) {
 	t.Run("Should fail before prompting when the effort option is absent", func(t *testing.T) {
 		t.Parallel()
 
-		driver := New()
+		driver := New(WithConfigSettleBudget(30 * time.Millisecond))
 		captureFile := filepath.Join(t.TempDir(), "session-no-reasoning-config.jsonl")
 		proc, err := driver.Start(testutil.Context(t), StartOpts{
 			AgentName:       "helper",
@@ -2171,7 +2312,11 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			driver := newTestDriverWithCatalogBudget(t, 400*time.Millisecond)
+			driver := newTestDriverWithCatalogBudget(
+				t,
+				400*time.Millisecond,
+				WithConfigSettleBudget(30*time.Millisecond),
+			)
 			captureFile := filepath.Join(t.TempDir(), "session-unavailable-config-option.jsonl")
 			opts := StartOpts{
 				AgentName:   "helper",

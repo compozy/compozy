@@ -1306,6 +1306,13 @@ func (a *helperACPAgent) SetSessionConfigOption(
 		if a.scenario == "config_options_reject_speed" && configID == "speed" {
 			return acpsdk.SetSessionConfigOptionResponse{}, errors.New("provider rejected speed")
 		}
+		if a.scenario == "model_specific_config_options" && a.filePath == "late-reasoning" &&
+			configID == "model" && value == "other-model" {
+			options := helperModelConfigOptions(string(value))
+			a.configOptions = options
+			go a.announceModelReasoning(context.WithoutCancel(ctx), request.ValueId.SessionId, string(value))
+			return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: options}, nil
+		}
 		if (a.scenario == "model_specific_config_options" || a.scenario == "runtime_config_options") &&
 			configID == "model" {
 			configOptions := append(
@@ -1353,6 +1360,27 @@ func (a *helperACPAgent) SetSessionConfigOption(
 	return acpsdk.SetSessionConfigOptionResponse{
 		ConfigOptions: append([]acpsdk.SessionConfigOption(nil), a.configOptions...),
 	}, nil
+}
+
+func (a *helperACPAgent) announceModelReasoning(ctx context.Context, sessionID acpsdk.SessionId, model string) {
+	select {
+	case <-time.After(200 * time.Millisecond):
+	case <-a.conn.Done():
+		return
+	}
+	options := append(
+		helperModelConfigOptions(model),
+		helperSelectConfigOption("effort", "Reasoning effort", "none", "none", "max"),
+	)
+	a.setHelperConfigOptions(options)
+	if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+		SessionId: sessionID,
+		Update: acpsdk.SessionUpdate{ConfigOptionUpdate: &acpsdk.SessionConfigOptionUpdate{
+			ConfigOptions: options,
+		}},
+	}); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
 }
 
 func (a *helperACPAgent) setHelperConfigOptions(options []acpsdk.SessionConfigOption) {
