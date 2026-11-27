@@ -131,7 +131,7 @@ describe("SessionListComputerSection and Not counted footer (T-F7)", () => {
       count: null,
     });
     renderSection(failed);
-    expect(screen.getByText(/Couldn’t load sessions from devbox/i)).toBeInTheDocument();
+    expect(screen.getByText(/Couldn't load sessions from devbox/i)).toBeInTheDocument();
     const retry = screen.getByRole("button", { name: "Retry" });
     fireEvent.click(retry);
     expect(failed.retry).toHaveBeenCalledTimes(1);

@@ -115,7 +115,7 @@ describe("SessionsBoardComputerBandView (T-F13)", () => {
     });
 
     expect(screen.queryByTestId("sessions-board-band-cmp_fail-count")).not.toBeInTheDocument();
-    expect(screen.getByText(/Couldn’t load sessions from hetzner/i)).toBeInTheDocument();
+    expect(screen.getByText(/Couldn't load sessions from hetzner/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(retry).toHaveBeenCalledTimes(1);
   });
