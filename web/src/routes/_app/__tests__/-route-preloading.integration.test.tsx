@@ -409,7 +409,7 @@ const cases: PreloadCase[] = [
     ],
   },
   {
-    name: "home → workspace/agent/exact-active-session options",
+    name: "home → workspace/agent/working-now session options",
     load: queryClient => invokeLoader(HomeRoute, context(queryClient)),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
@@ -418,7 +418,13 @@ const cases: PreloadCase[] = [
         // Must mirror useHomeWorkingNow exactly: sort last_activity, limit 6,
         // workspace-scoped. A limit/sort drift here reintroduces the refetch.
         useSessions(workspace.id, {
-          filters: { state: "active", type: "user", sort: "last_activity", limit: 6 },
+          filters: {
+            state: "active",
+            badge: "running,waiting",
+            type: "user",
+            sort: "last_activity",
+            limit: 6,
+          },
         });
       }),
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.fetchAgents, adapterMocks.fetchSessions],

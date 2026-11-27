@@ -4,6 +4,7 @@
 // Boundary IN: daemon-served Web, overview transports, workspace switching, and QA artifacts.
 // Boundary OUT: overview aggregation internals (owned by internal/observe suites).
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -80,12 +81,12 @@ test.use({
       mockAgents: [
         {
           agentName: homeAgentAlpha,
-          fixtureAgent: "browser-lifecycle-agent",
+          fixtureAgent: "browser-dashboard-agent",
           fixturePath: browserLifecycleFixture,
         },
         {
           agentName: homeAgentBeta,
-          fixtureAgent: "browser-lifecycle-agent",
+          fixtureAgent: "browser-dashboard-agent",
           fixturePath: browserLifecycleFixture,
         },
       ],
@@ -98,7 +99,12 @@ test("operator sees truthful Home overview, navigation, artifacts, and transport
   browserArtifacts,
   runtime,
 }) => {
-  const workspace = await prepareHomeRuntime(runtime);
+  const { workspace, sessionId } = await prepareHomeRuntime(runtime);
+  await promptDashboardSession(runtime, workspace.id, sessionId, "wait for dashboard monitor");
+  await createDashboardSession(runtime, workspace.id, "Idle session");
+  const settled = await createDashboardSession(runtime, workspace.id, "Settled session");
+  await promptDashboardSession(runtime, workspace.id, settled.id, "finish dashboard work");
+
   await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(workspaceShell(appPage));
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
@@ -121,10 +127,12 @@ test("operator sees truthful Home overview, navigation, artifacts, and transport
   await expect(homeMetricValue(home, "Usage")).toHaveText(
     formatTokenCount(snapshot.http.usage.total_tokens)
   );
-  await expect
-    .poll(async () => Number(await homeMetricValue(home, "Working now").textContent()))
-    .toBeGreaterThan(0);
-  await expect(home.locator('[data-slot="home-run-card"]')).toBeVisible();
+  await expect(homeMetricValue(home, "Working now")).toHaveText("1");
+  const workCards = home.locator('[data-slot="home-run-card"]');
+  await expect(workCards).toHaveCount(1);
+  await expect(workCards).toContainText("Monitoring");
+  await expect(workCards.filter({ hasText: "Idle session" })).toHaveCount(0);
+  await expect(workCards.filter({ hasText: "Settled session" })).toHaveCount(0);
   await expect(home.locator('[data-slot="home-agent-row"]')).toHaveCount(
     snapshot.catalog.agents.length
   );
@@ -277,7 +285,8 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
     throw new Error("Home workspace switching requires launch-mode runtime paths.");
   }
 
-  await prepareHomeRuntime(runtime);
+  const { workspace, sessionId } = await prepareHomeRuntime(runtime);
+  await promptDashboardSession(runtime, workspace.id, sessionId, "wait for dashboard monitor");
   await ensureProjectWorkspace(appPage, runtime);
   const betaRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-home-workspace-beta-"));
   const beta = await runtime.resolveWorkspace(betaRoot);
@@ -304,7 +313,9 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
     .toBeGreaterThan(0);
 });
 
-async function prepareHomeRuntime(runtime: BrowserRuntime): Promise<WorkspacePayload> {
+async function prepareHomeRuntime(
+  runtime: BrowserRuntime
+): Promise<{ workspace: WorkspacePayload; sessionId: string }> {
   if (!runtime.paths?.homeDir) {
     throw new Error("Home E2E requires launch-mode runtime paths.");
   }
@@ -318,16 +329,47 @@ async function prepareHomeRuntime(runtime: BrowserRuntime): Promise<WorkspacePay
       session.workspace_id === workspace.id &&
       (session.state === "active" || session.state === "starting")
   );
-  const sessionId =
-    pending?.id ??
-    (
-      await runtime.requestJSON<{ session: SessionSummary }>("/api/sessions", {
-        method: "POST",
-        body: JSON.stringify({ agent_name: homeAgentAlpha, workspace: workspace.id }),
-      })
-    ).session.id;
-  await waitForSeedSessionActive(runtime, sessionId);
-  return workspace;
+  const session = pending ?? (await createDashboardSession(runtime, workspace.id));
+  await waitForSeedSessionActive(runtime, session.id);
+  return { workspace, sessionId: session.id };
+}
+
+async function createDashboardSession(
+  runtime: BrowserRuntime,
+  workspaceId: string,
+  name?: string
+): Promise<SessionSummary> {
+  const { session } = await runtime.requestJSON<{ session: SessionSummary }>("/api/sessions", {
+    method: "POST",
+    body: JSON.stringify({
+      agent_name: homeAgentAlpha,
+      workspace: workspaceId,
+      name,
+    }),
+  });
+  return session;
+}
+
+async function promptDashboardSession(
+  runtime: BrowserRuntime,
+  workspaceId: string,
+  sessionId: string,
+  message: string
+): Promise<void> {
+  const endpoint = `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`;
+  const response = await fetch(runtime.url(endpoint), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      message,
+      message_id: randomUUID(),
+      idempotency_key: randomUUID(),
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Dashboard prompt failed with ${response.status}: ${await response.text()}`);
+  }
+  expect(await response.text()).toContain('"finishReason":"stop"');
 }
 
 async function captureHomeSnapshot(

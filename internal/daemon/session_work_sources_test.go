@@ -114,11 +114,12 @@ func assertNoChildWork(t *testing.T, agent string, typ session.Type, lineage sto
 }
 
 // Invariant: a stopped child stays out of active-child work across passes without its
-// metadata being re-decoded, and a metadata rewrite to an active state counts it again.
+// metadata being re-decoded. A rewrite invalidates the cache, but only a child
+// with current work (such as startup) counts again.
 func TestSessionWorkSourcesChildrenSettledMetadata(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should skip an unchanged stopped child and count it after its metadata turns active", func(t *testing.T) {
+	t.Run("Should skip stopped and idle children and count a child starting again", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		registry, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(t.TempDir(), "compozy.db"))
@@ -196,11 +197,58 @@ func TestSessionWorkSourcesChildrenSettledMetadata(t *testing.T) {
 		}
 		writeMeta("sess-child", session.StateActive, &lineage)
 		work, err = sources.children(ctx, "sess-parent")
+		if err != nil || len(work) != 0 {
+			t.Fatalf("children() after activation = %#v, %v; want no work for an idle child", work, err)
+		}
+		writeMeta("sess-child", session.StateStarting, &lineage)
+		work, err = sources.children(ctx, "sess-parent")
 		if err != nil || len(work) != 1 || work[0].Ref != "sess-child" ||
 			work[0].Kind != session.WorkSignalActiveChild {
-			t.Fatalf("children() after activation = %#v, %v; want the active child", work, err)
+			t.Fatalf("children() during startup = %#v, %v; want the starting child", work, err)
 		}
 	})
+}
+
+func TestChildSupervisionDeadline(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 11, 27, 0, 0, 0, 0, time.UTC)
+	until := now.Add(30 * time.Second)
+	for _, tc := range []struct {
+		name    string
+		signals []session.WorkSignal
+		want    time.Time
+	}{
+		{
+			name: "Should ignore recent progress from a settled turn",
+			signals: []session.WorkSignal{
+				{Kind: session.WorkSignalAgentProgress, Since: now, ValidUntil: until},
+			},
+		},
+		{
+			name: "Should keep the original deadline of an observed child wait",
+			signals: []session.WorkSignal{
+				{Kind: session.WorkSignalActiveMonitor, Since: now, ValidUntil: now.Add(time.Second)},
+				{Kind: session.WorkSignalAgentProgress, Since: now, ValidUntil: until},
+			},
+			want: now.Add(time.Second),
+		},
+		{
+			name: "Should recheck a long-running child monitor on the supervision cadence",
+			signals: []session.WorkSignal{
+				{Kind: session.WorkSignalActiveMonitor, Since: now, ValidUntil: now.Add(time.Hour)},
+			},
+			want: until,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := childSupervisionDeadline(&session.SupervisionState{WorkSignals: tc.signals}, until)
+			if !got.Equal(tc.want) {
+				t.Fatalf("childSupervisionDeadline() = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestSessionWorkSourcesMonitors(t *testing.T) {

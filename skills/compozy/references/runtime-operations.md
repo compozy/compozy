@@ -1633,7 +1633,8 @@ process, and old events can omit this additive object. No retry-after seconds ar
 Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning` on the
 session resource/status or `compozy__session_describe` with `result_view: "full"`. Provider updates
 restart the quiet window. Verified tools,
-active children, reconciled Loop runs, future task leases, future scheduled waits, active/delivering
+children starting, stopping, running a turn or holding current work signals, reconciled Loop runs,
+future task leases, future scheduled waits, active/delivering
 monitors until their deadline, and awaited
 replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
 watch not yet delivered) prevent inactivity termination; an armed watch stops counting once it expires

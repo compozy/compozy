@@ -1,6 +1,7 @@
 package session
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -36,6 +37,7 @@ type BadgeInputs struct {
 	PendingAuth            bool
 	PendingClarify         bool
 	ActivePrompt           bool
+	RunningTool            bool
 	Stalled                bool
 	Waiting                bool
 	// EndedEarly marks a settled turn that stopped without delivering or open work.
@@ -151,6 +153,7 @@ func BadgeForInfo(info *Info) Badge {
 		PendingClarify:    info.PendingClarifyCount > 0,
 		Stalled:           infoHasDetectedStall(info),
 		Waiting:           waitingFromInfo(info),
+		RunningTool:       runningToolFromInfo(info),
 		EndedEarly:        strings.TrimSpace(info.EndedEarlyTurnID) != "",
 		ReturnedFromLater: info.LaterReturnedAt != nil,
 		FailureSeen:       info.FailureSeenAt != nil,
@@ -217,6 +220,7 @@ func BadgeForHealth(info *Info, health heartbeat.SessionHealth) Badge {
 			infoProviderAuthRecovery(info),
 		PendingClarify:      pendingClarify,
 		ActivePrompt:        health.ActivePrompt,
+		RunningTool:         runningToolFromInfo(info),
 		Unseen:              unseen,
 		Waiting:             waitingFromInfo(info),
 		EndedEarly:          info != nil && strings.TrimSpace(info.EndedEarlyTurnID) != "",
@@ -245,7 +249,14 @@ func infoFailureNeedsAuth(failure *store.SessionFailure) bool {
 
 func runningBadgeInput(input BadgeInputs) bool {
 	return input.State == StateStarting || input.State == StateStopping || input.ActivePrompt ||
-		input.HealthState == heartbeat.SessionHealthStatePrompting
+		input.HealthState == heartbeat.SessionHealthStatePrompting || (input.State == StateActive && input.RunningTool)
+}
+
+func runningToolFromInfo(info *Info) bool {
+	return info != nil && info.Supervision != nil &&
+		slices.ContainsFunc(info.Supervision.WorkSignals, func(s WorkSignal) bool {
+			return s.Kind == WorkSignalToolRunning
+		})
 }
 
 func infoProviderAuthRecovery(info *Info) bool {
