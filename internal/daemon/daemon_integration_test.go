@@ -4370,6 +4370,18 @@ func TestBootResumesInstancesAfterServersStart(t *testing.T) {
 			if err := d.Shutdown(t.Context()); err != nil {
 				t.Fatal(err)
 			}
+			// Older daemons stored the reply-watch queue ordering in the settled prompt's boundary.
+			idleMeta, err := store.ReadSessionMeta(idle.MetaPath())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if idleMeta.RestartBoundary == nil {
+				t.Fatal("idle main has no persisted restart boundary")
+			}
+			idleMeta.RestartBoundary.Delivery = store.SessionInputDeliveryAfterTurn
+			if err := store.WriteSessionMeta(idle.MetaPath(), &idleMeta); err != nil {
+				t.Fatal(err)
+			}
 			db, err = globaldb.OpenGlobalDB(t.Context(), d.homePaths.DatabaseFile)
 			if err != nil {
 				t.Fatal(err)

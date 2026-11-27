@@ -1505,9 +1505,10 @@ the interruption and resumption; CLI, HTTP/UDS and native reads share the same p
 
 A session that was idle when the restart began has no interrupted turn. Unless it is an instance
 main or needed for an interrupted worker, an eligible wake, or an undelivered child shutdown notice,
-boot leaves it `stopped` with `stop_reason: "shutdown"`. Prompt it with `compozy__session_prompt` (or
-`compozy session prompt`) to resume the same session in place with its history and parent; reach for
-`session continue` only to change agent or runtime, since it creates a new session.
+boot leaves it `stopped` with `stop_reason: "shutdown"`. An eligible idle instance main reopens
+even when its last turn handled a peer reply or a subagent wake. Prompt a shutdown-stopped
+session with `compozy__session_prompt` or `compozy session prompt` to resume it in place with its
+history and parent. Use `session continue` to create a session with a different agent or runtime.
 
 Automatic continuation is skipped for explicit stops, pending approval or clarification, maintenance
 commands, completed turns, archived sessions, changed provider binding/runtime selection/permission

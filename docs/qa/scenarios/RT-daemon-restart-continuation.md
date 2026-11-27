@@ -7,7 +7,7 @@ journey: J-daemon-restart-continuation
 expected: Eligible interrupted sessions preserve partial work, resume once, and finish without falsely reporting an agent failure; unsafe or explicitly stopped work waits for review.
 entry_points: compozy daemon restart; compozy session events; session permalink; HTTP/UDS session reads
 qa_status: untested
-bug_ids: GH-1580; GH-1815
+bug_ids: GH-1580; GH-1815; GH-2032
 fix_status:
 retest_status:
 fix_commits:
@@ -53,6 +53,10 @@ overlaps: RT-daemon-drain-admission; RT-subagent-restart
     existing `new_work_admission_unavailable` code while adding the retryable boot guidance.
 11. Restart with an always-on instance main whose last turn finished and whose input queue is empty.
     Its saved binding reopens after HTTP/UDS starts, without replaying the completed prompt.
+    Repeat after the main's last turn processes a peer reply delivered by a reply watch. Verify
+    that the same main reopens and can run its next Heartbeat check-in without operator input.
+    Repeat after upgrading from a daemon that stored `after_turn` on the completed turn's restart
+    boundary. The main reopens without replay or a `maintenance_command` skip.
     Repeat before the main's first prompt. The same session is active and unbound after boot; a
     manual Heartbeat wake binds the provider and completes its first turn.
     Disable automatic continuation and repeat with both mains. Each remains stopped, with the cause
