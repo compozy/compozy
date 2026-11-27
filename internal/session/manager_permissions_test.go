@@ -576,6 +576,20 @@ func TestInstancePermissionMode(t *testing.T) {
 		if limit != want {
 			t.Fatalf("instance limit = %+v, want %+v", limit, want)
 		}
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace.Agents = append(workspace.Agents, compozyconfig.AgentDef{
+			Name: "reviewer", Provider: "claude", Prompt: "Review.",
+			Permissions: string(compozyconfig.PermissionModeDenyAll),
+		})
+		h.resolver.upsert(&workspace)
+		limit, err = h.manager.SubagentPermissionLimit(t.Context(), info, SubagentTarget{Agent: "reviewer"})
+		want.Mode = compozyconfig.PermissionModeDenyAll
+		if err != nil || limit != want {
+			t.Fatalf("named instance limit = %+v, %v, want %+v", limit, err, want)
+		}
 	})
 }
 

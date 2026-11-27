@@ -2,6 +2,8 @@ package extensionpkg
 
 import (
 	"fmt"
+	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -16,6 +18,36 @@ type ManifestValidationError struct {
 	Field   string
 	Value   string
 	Message string
+}
+
+// ManifestDecodeError describes a malformed manifest and its source location.
+type ManifestDecodeError struct {
+	path   string
+	line   int
+	column int
+	cause  error
+}
+
+var _ error = (*ManifestDecodeError)(nil)
+
+func (e *ManifestDecodeError) Error() string {
+	return fmt.Sprintf("extension: decode manifest %q: %v", e.path, e.cause)
+}
+
+func (e *ManifestDecodeError) Is(target error) bool { return target == ErrManifestInvalid }
+
+func (e *ManifestDecodeError) Unwrap() error { return e.cause }
+
+// PackageMessage uses the relative manifest filename and retains surrounding error context.
+func (e *ManifestDecodeError) PackageMessage(message string) string {
+	return strings.ReplaceAll(message, strconv.Quote(e.path), strconv.Quote(filepath.Base(e.path)))
+}
+
+// Issue combines the source location with the caller's redacted message.
+func (e *ManifestDecodeError) Issue(message string) ValidationIssue {
+	return ValidationIssue{
+		Path: filepath.Base(e.path), Line: e.line, Column: e.column, Message: message, Severity: IssueSeverityError,
+	}
 }
 
 // ManifestCompatibilityError describes a daemon-version compatibility failure.

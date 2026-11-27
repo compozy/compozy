@@ -1,6 +1,6 @@
 # BUG-20261122-preview-malformed-manifest-500: Previewing a local package with a malformed manifest returns a masked 500
 
-- **Status:** open-upstream (pre-existing; filed as compozy/compozy#1962)
+- **Status:** fixed, pending re-walk (compozy/compozy#1962)
 - **Impact (user-side):** Friction. The Web review and API clients get "Internal Server Error" instead of the TOML error
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Bruno
@@ -47,4 +47,6 @@ for a manifest decode error. Not specific to dependencies.
 
 ## Verification
 
-Pending fix.
+`TestExtensionCommandRoundTripIntegration` exercises the HTTP preview, daemon install, and CLI
+human and JSON output with a malformed TOML manifest. The expected result is recorded in
+`ET-extension-dependencies`, step 17.

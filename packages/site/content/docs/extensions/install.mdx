@@ -204,6 +204,12 @@ compozy extension install git:https://github.com/acme/acme-tools@v1.2.0 \
   --allow-unverified --yes
 ```
 
+If `extension.toml` fails to decode, the install error names the manifest file and includes the
+TOML diagnostic. With `-o json`, the CLI writes the validation error to stderr. Install preview
+and install requests return HTTP 422. The validation issue includes the line and column when the
+TOML decoder supplies a position. Manifest schema validation errors use HTTP 400. A local manifest
+error exits with code 1. A daemon-reported 422 maps to the CLI's configuration error exit code, 78.
+
 Both managed and dev instances receive absolute `PLUGIN_ROOT` and `PLUGIN_DATA` paths. Managed data
 is stable across updates at `<COMPOZY_HOME>/extension-data/<name>/`; a dev instance is isolated at
 `<COMPOZY_HOME>/extension-data/<name>@ws-<workspace-id>/`. See

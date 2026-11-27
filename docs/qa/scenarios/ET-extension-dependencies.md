@@ -105,6 +105,11 @@ Steps:
     from the workspace, with dependency consent. Both refuse with `extension_dependencies_required`,
     identify the missing global child, and leave the global attachment absent. Restore the global
     attachment and retry. The workspace install completes.
+17. Put a literal `\n` between two assignments on one line of `extension.toml`. Preview the
+    local package with `POST /api/extensions/preview-install` and confirm HTTP 422 with the
+    filename, line, column, and TOML error. Run `compozy extension install <dir> --allow-unverified
+    --yes` in human mode and again with `-o json`. Both exit with code 1. The human output names
+    the file and line, and the JSON error on stderr carries the positioned issue.
 
 Pass: no dependency is installed, enabled or updated without consent for that exact artifact;
 removal never cascades; the dependent's runtime state never changes because of the guard.
