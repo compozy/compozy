@@ -151,7 +151,7 @@ function SessionListPinnedRows({
               subagentThreads={subagentThreads}
               onThreadBranchChange={onThreadBranchChange}
               onSelectSession={session => {
-                const targetComputer = sessionComputerOf(session) ?? computerId;
+                const targetComputer = sessionComputerOf(session, computerId);
                 onSelectSession(
                   isRemoteComputerId(targetComputer)
                     ? { ...session, computerId: targetComputer }

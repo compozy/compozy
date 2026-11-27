@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import type { ScopedComputerFailureItem } from "@/systems/computers";
-import { useProfileReadScope } from "@/systems/profiles";
+import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
 import {
   useActiveWorkspace,
   workspaceBadgeIdentity,
@@ -236,7 +236,7 @@ export function useSessionsBoard({
 
   const targetComputerId: ComputerId = multi.scopedRemoteSource?.key ?? LOCAL_COMPUTER_ID;
   const isRemoteScoped = isRemoteComputerId(targetComputerId);
-  const targetLens = isRemoteScoped ? { all_profiles: true } : params;
+  const targetLens: ProfileScopeParams = isRemoteScoped ? { all_profiles: true } : params;
   const targetWorkspaces = multi.scopedRemoteSource
     ? multi.scopedRemoteSource.workspaces
     : registeredWorkspaces;

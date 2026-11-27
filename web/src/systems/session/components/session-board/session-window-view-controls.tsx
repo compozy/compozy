@@ -1,12 +1,12 @@
 import { ComputerScopePicker, type ComputerScopeCount } from "@/systems/computers";
 
 import { useSessionWindowComputerControls } from "../../hooks/use-session-window-computer-controls";
-import type { SessionWindowView } from "../../lib/session-board-view";
+import type { SessionWindowViewMode } from "../../lib/session-sidebar-scope";
 import { SessionViewToggle } from "./session-view-toggle";
 
 export interface SessionWindowViewControlsProps {
-  value: SessionWindowView;
-  onValueChange: (next: SessionWindowView) => void;
+  value: SessionWindowViewMode;
+  onValueChange: (next: SessionWindowViewMode) => void;
   /** Optional handler to open Settings → Computers from the scope picker footer. */
   onManageComputers?: () => void;
 }

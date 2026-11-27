@@ -6,7 +6,11 @@ import type { ProfileScopeParams } from "@/systems/profiles";
 import { workspaceBadgeIdentity, type DataScope, type WorkspacePayload } from "@/systems/workspace";
 
 import { fetchSessionCatalogPage } from "../adapters/session-catalog-api";
-import { SESSION_BOARD_PAGE_SIZE, sessionBoardPageOptions } from "../lib/session-catalog-options";
+import {
+  SESSION_BOARD_PAGE_SIZE,
+  SESSION_BOARD_STALE_MS,
+  sessionBoardPageOptions,
+} from "../lib/session-catalog-options";
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import type { SessionBoardColumnId, SessionBoardPayload } from "../lib/session-board-contract";
 import type { SessionRowComputerInfo } from "../lib/session-list-computer";
@@ -143,7 +147,7 @@ function useMultiComputerBoardShelf(
           return page;
         },
         enabled: enabled && source.read === "ok" && !emptyRemoteMatch && scope !== null,
-        staleTime: opts.staleTime,
+        staleTime: SESSION_BOARD_STALE_MS,
         retry: false as const,
       };
     }),

@@ -122,6 +122,7 @@ export function sessionFacetsOptions(
 
 /** Cards per board column page (`_spec.md` §Assumptions: page size 50). */
 export const SESSION_BOARD_PAGE_SIZE = 50;
+export const SESSION_BOARD_STALE_MS = 5_000;
 
 /** Visible board surfaces re-read on this interval; TanStack pauses it while the document is hidden. */
 export const SESSION_BOARD_REFETCH_MS = 60_000;
@@ -151,7 +152,7 @@ export function sessionBoardPageOptions(
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page =>
       page.page.has_more && page.page.next_cursor ? page.page.next_cursor : undefined,
-    staleTime: 5_000,
+    staleTime: SESSION_BOARD_STALE_MS,
     refetchInterval: remote ? REMOTE_SESSION_REFETCH_MS : SESSION_BOARD_REFETCH_MS,
     refetchOnWindowFocus: false,
     retry: false,

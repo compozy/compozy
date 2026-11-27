@@ -1,3 +1,4 @@
+import { useSelector } from "@xstate/store-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
@@ -5,8 +6,7 @@ import { isRemoteComputerId } from "@/lib/computer-scope";
 import { useComputers } from "@/systems/computers";
 
 import type { SessionWindowComputerScope } from "../lib/session-sidebar-scope";
-import { sessionSidebarStore } from "./use-session-sidebar-state";
-import { useSessionWindowOrder } from "./use-session-window-order";
+import { resolveSessionWindowOrder, sessionSidebarStore } from "./use-session-sidebar-state";
 
 export interface SessionComputerScopeModel {
   /** Active per-window computer filter: `"all"`, `"local"`, or a remote computer id. */
@@ -25,7 +25,10 @@ export interface SessionComputerScopeModel {
  */
 export function useSessionComputerScope(): SessionComputerScopeModel {
   const scopeId = useWorktreeScopeId();
-  const order = useSessionWindowOrder();
+  const scope = useSelector(
+    sessionSidebarStore,
+    snapshot => resolveSessionWindowOrder(snapshot.context.byScope, scopeId).computerScope
+  );
   const { computers, enabledComputers, isLoading, isError, canRead } = useComputers();
   const [removedName, setRemovedName] = useState<string | null>(null);
   const lastKnownNameRef = useRef<Map<string, string>>(new Map());
@@ -36,7 +39,6 @@ export function useSessionComputerScope(): SessionComputerScopeModel {
     }
   }, [computers]);
 
-  const scope = order.computerScope;
   const scopedIsRemote = scope !== "all" && isRemoteComputerId(scope);
   const enabledSet = new Set(enabledComputers.map(computer => computer.id));
   const missingFromEnabled =

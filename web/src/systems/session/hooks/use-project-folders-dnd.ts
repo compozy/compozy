@@ -55,11 +55,11 @@ export function useProjectFoldersDnd(
     event.dataTransfer?.setData(DRAG_MIME, id);
     event.dataTransfer?.setData("text/plain", id);
     if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-    sessionDragComputerStore.trigger.dragStarted({ computerId });
+    sessionDragComputerStore.trigger.started({ computerId });
     setDragging(item);
   };
   const end = () => {
-    sessionDragComputerStore.trigger.dragEnded();
+    sessionDragComputerStore.trigger.ended();
     setDragging(null);
     setIndicator(null);
   };

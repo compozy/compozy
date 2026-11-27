@@ -7,7 +7,7 @@ import {
   type ComputerId,
 } from "@/lib/computer-scope";
 
-import type { SessionPayload } from "../types";
+import type { SessionListTarget, SessionPayload } from "../types";
 
 /** Stable identity of one session row across computers (`P6`). */
 export interface SessionRowRef {
@@ -49,7 +49,7 @@ export function sessionRowKeyFor(session: SessionPayload, computerId?: ComputerI
 
 // WeakMap preserves frozen TanStack Query payloads while giving two payloads with
 // the same session id on different computers distinct computer ownership.
-const SESSION_COMPUTER_OWNERSHIP = new WeakMap<SessionPayload, ComputerId>();
+const SESSION_COMPUTER_OWNERSHIP = new WeakMap<SessionListTarget, ComputerId>();
 
 /** Associates a fetched session payload with the computer that served it. */
 export function recordSessionComputer<T extends SessionPayload>(
@@ -76,8 +76,10 @@ export function recordSessionsComputer<T extends SessionPayload>(
 }
 
 /** Resolves the computer owning a session payload; defaults to this computer. */
-export function sessionComputerOf(session: SessionPayload, fallback?: ComputerId): ComputerId {
-  return SESSION_COMPUTER_OWNERSHIP.get(session) ?? normalizeComputerId(fallback);
+export function sessionComputerOf(session: SessionListTarget, fallback?: ComputerId): ComputerId {
+  return (
+    session.computerId ?? SESSION_COMPUTER_OWNERSHIP.get(session) ?? normalizeComputerId(fallback)
+  );
 }
 
 interface SessionDragComputerContext {

@@ -65,7 +65,7 @@ export function SessionListProjectFolders({
   const dnd = useProjectFoldersDnd(readOnly ? undefined : layout, tree, computerId);
   const { folderFolds: collapsed, toggleFolder } = useSessionSidebarState();
   const foldKeyFor = (id: string) =>
-    isRemoteComputerId(computerId) ? folderComputerFoldKey(computerId, id) : id;
+    computerId && isRemoteComputerId(computerId) ? folderComputerFoldKey(computerId, id) : id;
   const ranks = new Map(projectGroupTreeGroups(tree).map((group, index) => [group.key, index]));
   const draggingFoldered = dnd.dragging?.kind === "project" && dnd.dragging.folderId !== null;
   // Every folder takes a project, including one hidden because its projects are empty (#1085).

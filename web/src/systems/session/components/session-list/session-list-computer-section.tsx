@@ -165,7 +165,7 @@ export function SessionListComputerSection({
   const sidebar = useSessionSidebarState();
   const dragComputer = useSelector(
     sessionDragComputerStore,
-    snapshot => snapshot.context.computerId
+    snapshot => snapshot.context.sourceComputerId
   );
   const [hoverRefused, setHoverRefused] = useState(false);
   const [projectFolderDialog, setProjectFolderDialog] =

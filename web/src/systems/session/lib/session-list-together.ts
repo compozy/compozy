@@ -71,8 +71,8 @@ export function buildTogetherProjectGroups(
 function attentionRank(session: SessionPayload): number {
   const signal = sessionBadgeSignal(session.badge);
   if (signal.attention === "needs-you") return 0;
-  if (signal.tone === "danger") return 1;
-  if (signal.tone === "success") return 2;
+  if (signal.state === "failed") return 1;
+  if (signal.state === "running") return 2;
   return 3;
 }
 

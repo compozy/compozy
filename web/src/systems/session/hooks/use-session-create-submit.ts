@@ -30,7 +30,7 @@ import type { CreateSessionParams } from "../types";
 import { useCreateSession } from "./use-session-actions";
 import type { SessionEnvironmentModel } from "./use-session-environment";
 import type { SessionCreateTarget } from "./use-session-create-target";
-import { useSessionSidebarState } from "./use-session-sidebar-state";
+import { useSessionComputerScope } from "./use-session-computer-scope";
 import type { SessionWindowComputerScope } from "../lib/session-sidebar-scope";
 
 interface UseSessionCreateSubmitOptions {
@@ -88,7 +88,7 @@ export function useSessionCreateSubmit({
 }: UseSessionCreateSubmitOptions): () => void {
   const navigate = useNavigate();
   const shell = use(OsShellContext);
-  const sidebar = useSessionSidebarState();
+  const computerScope = useSessionComputerScope();
   const createSession = useCreateSession();
   const scopedComputerId = normalizeComputerId(computerId);
   const scopedProjectComputerId = normalizeComputerId(projectComputerId);
@@ -216,8 +216,8 @@ export function useSessionCreateSubmit({
             scope,
             currentWorkspaceId: actingWorkspaceId,
             allProjectsTarget,
-            windowComputerScope: sidebar.computerScope,
-            onShowInList: () => sidebar.setComputerScope("all"),
+            windowComputerScope: computerScope.scope,
+            onShowInList: () => computerScope.setScope("all"),
           },
           navigate,
           shell
@@ -276,7 +276,7 @@ async function openCreatedSession(
     landing.onShowInList
   ) {
     const showInList = landing.onShowInList;
-    toast("Session started outside this computer scope.", {
+    toast.message("Session started outside this computer scope.", {
       action: { label: "Show in list", onClick: showInList },
     });
   }

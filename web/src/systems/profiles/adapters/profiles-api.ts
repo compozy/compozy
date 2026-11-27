@@ -3,10 +3,9 @@ import {
   apiClientFor,
   apiRequestFailed,
   defaultApiErrorMessage,
-  isRemoteComputerId,
   requireResponseData,
-  type ComputerId,
 } from "@/lib/api-client";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 
 import type {
   ArchiveProfilePlan,
