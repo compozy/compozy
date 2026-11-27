@@ -277,9 +277,10 @@ function SessionBoardDrawerParentCrumb({
   computerId: ComputerId;
   onOpen: (target: SessionWindowSidebarTarget) => void;
 }) {
-  const session = useBoardDrawerSession(sessionId, computerId);
+  const { params } = useProfileReadScope();
+  const session = useQuery(boardDrawerSessionOptions(sessionId, computerId, params)).data;
   const parentId = session ? sessionListParentId(session) : "";
-  const parent = useBoardDrawerSession(parentId, computerId);
+  const parent = useQuery(boardDrawerSessionOptions(parentId, computerId, params)).data;
   if (!parent) return null;
   const title = getSessionDisplayTitle(parent);
   return (
@@ -320,14 +321,18 @@ function SessionBoardDrawerMenu({
   const writable =
     !remote ||
     (computer?.status === "connected" && computerCanOperateSessions(computer.scopes, false));
-  const session = useBoardDrawerSession(sessionId, computerId);
+  const { params } = useProfileReadScope();
+  const session = useQuery(boardDrawerSessionOptions(sessionId, computerId, params)).data;
   return session && writable ? <SessionRowActions actions={actions} session={session} /> : null;
 }
 
-function useBoardDrawerSession(sessionId: string, computerId: ComputerId) {
-  const { params } = useProfileReadScope();
+function boardDrawerSessionOptions(
+  sessionId: string,
+  computerId: ComputerId,
+  params: ReturnType<typeof useProfileReadScope>["params"]
+) {
   const lens = isRemoteComputerId(computerId) ? { all_profiles: true as const } : params;
-  return useQuery(sessionScopedDetailOptions(sessionId, lens, { computerId })).data;
+  return sessionScopedDetailOptions(sessionId, lens, { computerId });
 }
 
 function SessionBoardDrawerButton({

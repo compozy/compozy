@@ -4,12 +4,7 @@ import { QueryClientContext, useInfiniteQuery, useQuery } from "@tanstack/react-
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import type { ScopedComputerFailureItem } from "@/systems/computers";
 import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
-import {
-  useActiveWorkspace,
-  workspaceBadgeIdentity,
-  workspaceSelectorOrAll,
-  type DataScope,
-} from "@/systems/workspace";
+import { useActiveWorkspace, workspaceBadgeIdentity, type DataScope } from "@/systems/workspace";
 
 import {
   SESSION_BOARD_COLUMNS,
@@ -37,6 +32,7 @@ import { scopedCatalogFilters } from "./use-session-catalog";
 import { useSessionGroupFolds } from "./use-session-group-folds";
 import { useSessionListGroups } from "./use-session-list-groups";
 import {
+  boardHeaderScope,
   useSessionsBoardComputers,
   type MultiComputerBoardModel,
   type SessionsBoardComputerBand,
@@ -224,6 +220,9 @@ function resolveBoardColumns(input: {
   singleColumns: SessionsBoardColumnView[];
 }): SessionsBoardColumnView[] {
   if (input.grouped || input.banded) return [];
+  if (input.multi.scopedRemoteSource?.workspacesLoading) {
+    return input.singleColumns.map(column => ({ ...column, loading: true }));
+  }
   return input.multi.togetherColumns ?? input.singleColumns;
 }
 
@@ -327,24 +326,6 @@ function boardWorkspaceNames(
   if (!allProjects) return () => null;
   const names = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
   return session => workspaceBadgeIdentity(session.workspace_id, names).name;
-}
-
-function boardHeaderScope(
-  scope: DataScope | null,
-  remote: MultiComputerBoardModel["scopedRemoteSource"]
-) {
-  if (!remote || scope?.kind !== "project") {
-    return {
-      focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
-      scopedComputerId: remote?.key,
-    };
-  }
-  const workspaces = remote.matchedWorkspaceIds ?? [];
-  return {
-    focusedWorkspaceId: workspaces.length === 1 ? workspaces[0]! : null,
-    scopedComputerId: remote.key,
-    hideAlwaysOnTop: workspaces.length !== 1,
-  };
 }
 
 /**
@@ -473,7 +454,9 @@ export function useSessionsBoard({
       folds,
     }),
     computerBands: multi.computerBands,
-    lanesLoading: singleGroupingActive ? grouping.loading : false,
+    lanesLoading: singleGroupingActive
+      ? grouping.loading
+      : grouped && multi.scopedRemoteSource?.workspacesLoading === true,
     lanesError: singleGroupingActive ? grouping.error : undefined,
     layoutError: singleGroupingActive ? arranged.loadError : undefined,
     groupBy: effectiveGroupBy,

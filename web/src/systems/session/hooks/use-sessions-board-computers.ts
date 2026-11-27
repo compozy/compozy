@@ -1,7 +1,12 @@
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import type { ScopedComputerFailureItem } from "@/systems/computers";
 import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
-import { workspaceBadgeIdentity, type DataScope, type WorkspacePayload } from "@/systems/workspace";
+import {
+  workspaceBadgeIdentity,
+  workspaceSelectorOrAll,
+  type DataScope,
+  type WorkspacePayload,
+} from "@/systems/workspace";
 
 import type { SessionBoardColumnId, SessionBoardPayload } from "../lib/session-board-contract";
 import type { SessionRowComputerInfo } from "../lib/session-list-computer";
@@ -80,6 +85,21 @@ export interface MultiComputerBoardModel {
   multiLater?: SessionsBoardShelf;
   /** Multi-computer project name resolver (`P1`). */
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
+}
+
+export function boardHeaderScope(scope: DataScope | null, remote: ComputerSessionsSource | null) {
+  if (!remote || scope?.kind !== "project") {
+    return {
+      focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
+      scopedComputerId: remote?.key,
+    };
+  }
+  const workspaces = remote.matchedWorkspaceIds ?? [];
+  return {
+    focusedWorkspaceId: workspaces.length === 1 ? workspaces[0]! : null,
+    scopedComputerId: remote.key,
+    hideAlwaysOnTop: workspaces.length !== 1,
+  };
 }
 
 function defaultBandFolded(source: ComputerSessionsSource): boolean {
