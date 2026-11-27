@@ -469,7 +469,7 @@ an awaited reply, a Loop run, or a task lease (`waiting_on: "sessions"`), otherw
 `done` follows once the last of that work closes. The [sessions board](/docs/sessions/board) groups
 every badge into Needs you, Working, In review, and Done.
 
-A child session can settle normally when its creator has a session monitor that includes `idle`
+A child session can settle normally when its creator has an active session monitor that includes `idle`
 (the default includes it) or a reply watch for that turn. The unseen result reads `done`, and
 the row and header offer no **Mark as seen** action. A child that ends a turn without answering
 its creator or delivering a linked pull request raises `needs-attention` with

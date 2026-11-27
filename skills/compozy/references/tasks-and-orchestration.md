@@ -63,7 +63,7 @@ stop of a hung turn), the reply resumes you; an operator stop waits for the oper
 Ask with `notify_on_complete` whenever you need the answer: without it nothing wakes you when the
 other session finishes.
 
-A creator can collect a child's settled turn with a session monitor that includes `idle` (the
+A creator can collect a child's settled turn with an active session monitor that includes `idle` (the
 default includes it) or a reply watch for that turn. The unseen result reads `done`. A session
 monitor that covers completion carries the wake, including when `notify_creator` is enabled.
 With queued input, the monitor waits for the queue to drain and the opt-in completion wake can
