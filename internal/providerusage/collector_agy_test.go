@@ -117,8 +117,8 @@ func TestAgyCollector(t *testing.T) {
 			w.WriteHeader(http.StatusForbidden)
 		})
 		snapshot, err := collectorRun(t, agyTestCollector(t, server.URL, keychain, "darwin"), agyTestTarget(true))
-		requireEqual(t, ErrorCodeAuthScope, AsUsageError(err, agyLabel).Code)
-		requireEqual(t, StatusSignedOut, snapshot.Status)
+		requireEqual(t, ErrorCodeProviderUnavailable, AsUsageError(err, agyLabel).Code)
+		requireEqual(t, StatusError, snapshot.Status)
 		requireEqual(t, "Google AI Pro", snapshot.Account.Plan)
 		if snapshot.MeasuredAt != nil {
 			t.Fatal("refused quota reported a measurement")
@@ -156,7 +156,7 @@ func TestAgyCollector(t *testing.T) {
 			},
 			{"Should refuse a missing CLI even with consent",
 				Target{ProviderID: agyProviderID, Route: ResolvedRoute{KeychainAccess: true}}, "darwin",
-				&fakeClaudeKeychain{}, ErrorCodeProviderUnavailable, 0},
+				&fakeClaudeKeychain{}, ErrorCodeNoCollector, 0},
 			{"Should require a login", agyTestTarget(true), "darwin", &fakeClaudeKeychain{err: os.ErrNotExist},
 				ErrorCodeAuthMissing, 1},
 			{"Should report a denied Keychain read", agyTestTarget(true), "darwin",

@@ -15,8 +15,8 @@ Owner: branch `feat/agy-usage-collector`.
   `is only valid for agy or claude`. Native config tools still refuse every `keychain_access`
   path. Revocation clears per provider. The collector never refreshes or writes the CLI's token,
   sends a transparent `antigravity compozy-provider-usage` User-Agent, and refuses agy aliases
-  (one machine-wide login) and non-macOS hosts as `unsupported`. A missing CLI returns
-  `provider_unavailable` before accessing the Keychain. Profiles keep their own routes.
+  (one machine-wide login) and non-macOS hosts as `unsupported`. A missing CLI also reports
+  `unsupported`, with installation guidance. Profiles keep their own routes.
 - **Web / docs / official skill:** Settings shows one Keychain consent row per Keychain provider;
   the usage row's **Allow** saves the row's provider. `agents/provider-usage`, `config-toml`,
   `skills/compozy/references/{runtime-operations,configuration,native-tools}.md`, and

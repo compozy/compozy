@@ -396,6 +396,25 @@ func TestProviderUsageRendering(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Should render the consent command for each Keychain provider", func(t *testing.T) {
+		t.Parallel()
+		consent := &contract.ProviderUsageError{Action: "allow_keychain"}
+		envelope := contract.ProviderUsageEnvelope{Enabled: true, Targets: []contract.ProviderUsageTarget{
+			{ProviderID: "claude", ProviderName: "Claude Code", Status: "needs_consent", Error: consent},
+			{ProviderID: "agy", ProviderName: "Google Antigravity", Status: "needs_consent", Error: consent},
+		}}
+		output := renderProviderUsage(envelope, time.Date(2026, 10, 20, 22, 10, 0, 0, time.UTC))
+		for _, want := range []string{
+			"Claude Code: Needs Keychain access. Allow it with: " +
+				"compozy config set provider_usage.providers.claude.keychain_access true",
+			"Google Antigravity: Needs Keychain access. Allow it with: " +
+				"compozy config set provider_usage.providers.agy.keychain_access true",
+		} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("missing %q in %s", want, output)
+			}
+		}
+	})
 	t.Run("Should render the disabled feature message", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 10, 20, 22, 10, 0, 0, time.UTC)

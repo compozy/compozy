@@ -1355,8 +1355,8 @@ preflight on every collection, then posts to Google's `retrieveUserQuotaSummary`
 bucket becomes a percent-only window labeled with its group (for example
 `Claude and GPT models · Weekly`; `5h` buckets are `Session`). It never refreshes the CLI's token:
 an expired access token reports `auth_expired` until the CLI runs again and renews it.
-If `agy` is missing on the daemon host, the collector returns `provider_unavailable` before attempting
-a Keychain read.
+If `agy` is missing on the daemon host, the collector reports `unsupported` with installation
+guidance before attempting a Keychain read.
 Foreign-origin app tokens may read but not refresh (`app_token_route_forbidden`). An agent without
 a `profile` reads its own session profile; naming another fails with `profile_session_conflict`.
 

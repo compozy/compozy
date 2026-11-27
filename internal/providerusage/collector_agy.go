@@ -84,7 +84,7 @@ func (c *AgyCollector) credential(ctx context.Context, t Target, intent Intent) 
 		return agyCredential{}, usage
 	}
 	if t.Route.NativeCommand == "" {
-		usage := NewUsageError(ErrorCodeProviderUnavailable, agyProviderID)
+		usage := NewUsageError(ErrorCodeNoCollector, agyProviderID)
 		usage.Message = "Install the Antigravity CLI (agy) on the daemon host to read usage"
 		return agyCredential{}, usage
 	}
@@ -185,6 +185,9 @@ func (c *AgyCollector) Collect(
 	if err != nil {
 		// The account and plan stay as fenced partial data; no quota was measured.
 		usage := AsUsageError(err, agyLabel)
+		if usage.Code == ErrorCodeAuthScope {
+			usage = NewUsageError(ErrorCodeProviderUnavailable, agyLabel)
+		}
 		snapshot.Status, snapshot.Error, snapshot.MeasuredAt = usage.Status(), usage, nil
 		return snapshot, usage
 	}
