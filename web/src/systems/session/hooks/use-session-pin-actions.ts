@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "@compozy/ui";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import { setSessionPinned } from "../adapters/session-pin-api";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
@@ -25,25 +27,43 @@ export interface SessionPinActions {
  * (`focusSession`) and announces the change; other windows follow on the stream.
  */
 export function useSessionPinActions(
-  focusSession: (sessionId: string, pinned: boolean) => void
+  focusSession: (sessionId: string, pinned: boolean) => void,
+  computerOf?: (session: SessionPayload) => ComputerId | undefined
 ): SessionPinActions {
   const queryClient = useQueryClient();
   const request = useAbortableMutationRequest();
   const [announcement, setAnnouncement] = useState("");
   const mutation = useMutation({
-    mutationFn: ({ session, pinned }: { session: SessionPayload; pinned: boolean }) =>
+    mutationFn: ({
+      session,
+      pinned,
+      computerId,
+    }: {
+      session: SessionPayload;
+      pinned: boolean;
+      computerId?: ComputerId;
+    }) =>
       request(signal =>
-        setSessionPinned(
-          requireWorkspace(session.workspace_id ?? ""),
-          session.id,
-          session.profile_name,
-          pinned,
-          signal
-        )
+        isRemoteComputerId(computerId)
+          ? setSessionPinned(
+              requireWorkspace(session.workspace_id ?? ""),
+              session.id,
+              session.profile_name,
+              pinned,
+              signal,
+              computerId
+            )
+          : setSessionPinned(
+              requireWorkspace(session.workspace_id ?? ""),
+              session.id,
+              session.profile_name,
+              pinned,
+              signal
+            )
       ),
-    onSuccess: async (_data, { session, pinned }) => {
+    onSuccess: async (_data, { session, pinned, computerId }) => {
       const workspace = requireWorkspace(session.workspace_id ?? "");
-      await invalidateSessionMutationQueries(queryClient, workspace, session.id);
+      await invalidateSessionMutationQueries(queryClient, workspace, session.id, computerId);
       const title = getSessionDisplayTitle(session);
       setAnnouncement(pinned ? `Pinned ${title}.` : `Unpinned ${title}.`);
       focusSession(session.id, pinned);
@@ -63,8 +83,9 @@ export function useSessionPinActions(
         }
       : null;
   return {
-    onPin: session => mutation.mutate({ session, pinned: true }),
-    onUnpin: session => mutation.mutate({ session, pinned: false }),
+    onPin: session => mutation.mutate({ session, pinned: true, computerId: computerOf?.(session) }),
+    onUnpin: session =>
+      mutation.mutate({ session, pinned: false, computerId: computerOf?.(session) }),
     pending,
     announcement,
   };

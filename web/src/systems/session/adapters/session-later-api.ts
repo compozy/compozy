@@ -1,4 +1,9 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import {
+  apiClientFor,
+  apiRequestFailed,
+  requireResponseData,
+  type ComputerId,
+} from "@/lib/api-client";
 
 import type { SessionPayload } from "../types";
 import type { components } from "@compozy/client";
@@ -18,9 +23,10 @@ export async function moveSessionToLater(
   id: string,
   profile: string,
   body: MoveSessionToLaterRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/later",
     {
       params: {
@@ -43,9 +49,10 @@ export async function resumeSessionFromLater(
   id: string,
   profile: string,
   body: ResumeSessionFromLaterRequest = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/resume-later",
     {
       params: {

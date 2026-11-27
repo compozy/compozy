@@ -1,4 +1,9 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import {
+  apiClientFor,
+  apiRequestFailed,
+  requireResponseData,
+  type ComputerId,
+} from "@/lib/api-client";
 
 import type { SessionPayload } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
@@ -12,9 +17,10 @@ export async function markSessionSeen(
   workspaceId: string,
   id: string,
   profile: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen",
     {
       params: {

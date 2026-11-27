@@ -1,3 +1,4 @@
+import type { ComputerId } from "@/lib/computer-scope";
 import type { ProfileOwner, ProfileScopeParams } from "@/systems/profiles";
 import {
   ownerDataScope,
@@ -27,8 +28,9 @@ interface GroupFacets {
   instances_needing_attention?: number;
 }
 
-/** One (workspace, profile) pair: the only place folders and manual order live (BR-11). */
+/** One (computer, workspace, profile) tuple: the only place folders and manual order live (BR-11). */
 export interface SessionListPair {
+  computerId?: ComputerId;
   workspaceId: string;
   profile: string;
 }

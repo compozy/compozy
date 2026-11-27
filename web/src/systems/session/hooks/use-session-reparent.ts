@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { ownerDataScope, workspaceSelectorForScope } from "@/systems/workspace";
 
 import { clearSessionParent, setSessionParent } from "../adapters/session-api";
@@ -10,8 +11,8 @@ import { invalidateWorkspaceSessionCatalog } from "../lib/session-query-invalida
 import type { SessionPayload } from "../types";
 
 type ReparentVariables =
-  | { kind: "adopt"; session: SessionPayload; parent: SessionPayload }
-  | { kind: "detach"; session: SessionPayload };
+  | { kind: "adopt"; session: SessionPayload; parent: SessionPayload; computerId?: ComputerId }
+  | { kind: "detach"; session: SessionPayload; computerId?: ComputerId };
 
 function failed(error: unknown) {
   toast.error("Couldn't move the session.", {
@@ -33,33 +34,67 @@ function workspacePath(session: SessionPayload): string {
  * host's lineage batch lock: while a batch Make top-level runs, every single move
  * (row menu, drop, toast Undo) is declined so it cannot overlap that batch.
  */
-export function useSessionReparent({ blocked = () => false }: { blocked?: () => boolean } = {}) {
+export function useSessionReparent({
+  blocked = () => false,
+  computerOf,
+}: {
+  blocked?: () => boolean;
+  computerOf?: (session: SessionPayload) => ComputerId | undefined;
+} = {}) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (variables: ReparentVariables) =>
-      variables.kind === "adopt"
-        ? setSessionParent(
+    mutationFn: (variables: ReparentVariables) => {
+      const remote = isRemoteComputerId(variables.computerId);
+      if (variables.kind === "adopt") {
+        return remote
+          ? setSessionParent(
+              workspacePath(variables.session),
+              variables.session.id,
+              variables.session.profile_name,
+              variables.parent.id,
+              undefined,
+              variables.computerId
+            )
+          : setSessionParent(
+              workspacePath(variables.session),
+              variables.session.id,
+              variables.session.profile_name,
+              variables.parent.id
+            );
+      }
+      return remote
+        ? clearSessionParent(
             workspacePath(variables.session),
             variables.session.id,
             variables.session.profile_name,
-            variables.parent.id
+            undefined,
+            variables.computerId
           )
         : clearSessionParent(
             workspacePath(variables.session),
             variables.session.id,
             variables.session.profile_name
-          ),
-    onSuccess: session => {
-      queryClient.setQueryData(sessionKeys.detail(workspacePath(session), session.id), session);
+          );
+    },
+    onSuccess: (session, variables) => {
+      queryClient.setQueryData(
+        sessionKeys.forComputer(variables.computerId).detail(workspacePath(session), session.id),
+        session
+      );
     },
     onSettled: (_data, _error, variables) =>
-      invalidateWorkspaceSessionCatalog(queryClient, workspacePath(variables.session)),
+      invalidateWorkspaceSessionCatalog(
+        queryClient,
+        workspacePath(variables.session),
+        variables.computerId
+      ),
   });
   const declined = () => mutation.isPending || blocked();
-  const detach = (session: SessionPayload) => {
+  const detach = (session: SessionPayload, computerId?: ComputerId) => {
     if (declined()) return;
+    const resolvedComputer = computerId ?? computerOf?.(session);
     mutation.mutate(
-      { kind: "detach", session },
+      { kind: "detach", session, computerId: resolvedComputer },
       {
         onError: failed,
         onSuccess: () =>
@@ -73,19 +108,30 @@ export function useSessionReparent({ blocked = () => false }: { blocked?: () => 
   };
   return {
     pending: mutation.isPending,
-    detachAsync: (session: SessionPayload) => mutation.mutateAsync({ kind: "detach", session }),
-    adoptAsync: (session: SessionPayload, parent: SessionPayload) =>
-      mutation.mutateAsync({ kind: "adopt", session, parent }),
-    adopt: (session: SessionPayload, parent: SessionPayload) => {
+    detachAsync: (session: SessionPayload, computerId?: ComputerId) =>
+      mutation.mutateAsync({
+        kind: "detach",
+        session,
+        computerId: computerId ?? computerOf?.(session),
+      }),
+    adoptAsync: (session: SessionPayload, parent: SessionPayload, computerId?: ComputerId) =>
+      mutation.mutateAsync({
+        kind: "adopt",
+        session,
+        parent,
+        computerId: computerId ?? computerOf?.(session),
+      }),
+    adopt: (session: SessionPayload, parent: SessionPayload, computerId?: ComputerId) => {
       if (declined()) return;
+      const resolvedComputer = computerId ?? computerOf?.(session);
       mutation.mutate(
-        { kind: "adopt", session, parent },
+        { kind: "adopt", session, parent, computerId: resolvedComputer },
         {
           onError: failed,
           onSuccess: moved =>
             toast.success(
               `Moved “${getSessionDisplayTitle(session)}” under “${getSessionDisplayTitle(parent)}”`,
-              { action: { label: "Undo", onClick: () => detach(moved) } }
+              { action: { label: "Undo", onClick: () => detach(moved, resolvedComputer) } }
             ),
         }
       );

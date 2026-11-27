@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@compozy/ui";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
+
 import {
   moveSessionToLater,
   resumeSessionFromLater,
@@ -70,12 +72,20 @@ export function useMoveSessionToLater() {
       workspace_id,
       profile_name,
       body,
+      computerId,
     }: SessionActionTarget & { body: MoveSessionToLaterRequest }) =>
       request(signal =>
-        moveSessionToLater(ownerWorkspace(workspace_id), id, profile_name, body, signal)
+        isRemoteComputerId(computerId)
+          ? moveSessionToLater(ownerWorkspace(workspace_id), id, profile_name, body, signal, computerId)
+          : moveSessionToLater(ownerWorkspace(workspace_id), id, profile_name, body, signal)
       ),
-    onSettled: (_data, _error, { id, workspace_id }) => {
-      void invalidateSessionMutationQueries(queryClient, ownerWorkspace(workspace_id), id);
+    onSettled: (_data, _error, { id, workspace_id, computerId }) => {
+      void invalidateSessionMutationQueries(
+        queryClient,
+        ownerWorkspace(workspace_id),
+        id,
+        computerId
+      );
     },
   });
 }
@@ -85,12 +95,19 @@ export function useResumeSessionFromLater() {
   const queryClient = useQueryClient();
   const request = useAbortableMutationRequest();
   return useMutation({
-    mutationFn: ({ id, workspace_id, profile_name }: SessionActionTarget) =>
+    mutationFn: ({ id, workspace_id, profile_name, computerId }: SessionActionTarget) =>
       request(signal =>
-        resumeSessionFromLater(ownerWorkspace(workspace_id), id, profile_name, {}, signal)
+        isRemoteComputerId(computerId)
+          ? resumeSessionFromLater(ownerWorkspace(workspace_id), id, profile_name, {}, signal, computerId)
+          : resumeSessionFromLater(ownerWorkspace(workspace_id), id, profile_name, {}, signal)
       ),
-    onSettled: (_data, _error, { id, workspace_id }) => {
-      void invalidateSessionMutationQueries(queryClient, ownerWorkspace(workspace_id), id);
+    onSettled: (_data, _error, { id, workspace_id, computerId }) => {
+      void invalidateSessionMutationQueries(
+        queryClient,
+        ownerWorkspace(workspace_id),
+        id,
+        computerId
+      );
     },
   });
 }

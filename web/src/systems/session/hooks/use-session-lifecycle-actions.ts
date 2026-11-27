@@ -13,7 +13,6 @@ import {
   type SessionBatchResult,
 } from "../lib/session-batch";
 
-import { sessionProcessPorts, sessionsRunningProcesses } from "../lib/session-processes";
 import {
   sessionBatchCoverage,
   sessionTreeBatchOrder,
@@ -33,9 +32,7 @@ import { useSessionDeleteTarget } from "./use-session-delete-target";
 import {
   archiveTarget,
   notifyArchivedSessions,
-  loadSessionProcessChoice,
   descendantsOf,
-  sessionArchiveChoiceState,
   reportActionError,
   reportDeletedSessions,
   settleTreeTarget,
@@ -43,9 +40,9 @@ import {
 import { useSessionLaterActions } from "./use-session-later-actions";
 import { useSessionBatchAdmission } from "./use-session-batch-admission";
 import { useMarkSessionSeenAction } from "./use-mark-session-seen";
+import { useSessionProcessChoice } from "./use-session-process-choice";
 import type {
   SessionLifecycleAction,
-  SessionProcessChoice,
   UseSessionLifecycleActionsResult,
 } from "./session-lifecycle-types";
 
@@ -100,9 +97,6 @@ export function useSessionLifecycleActions(
   const deleteConfirmRequest = useRef<number | null>(null);
   const deleteSession = deleteTarget?.sessions[0] ?? null;
   const [renameTarget, setRenameTarget] = useState<SessionPayload | null>(null);
-  const [processChoice, setProcessChoice] = useState<SessionProcessChoice | null>(null);
-  const processRead = useRef(0);
-  const [archiveChildren, setArchiveChildren] = useState(true);
   // The answer a delete got, so a retry of its failures repeats it.
   const deletePolicy = useRef<SessionProcessPolicy | undefined>(undefined);
 
@@ -225,44 +219,12 @@ export function useSessionLifecycleActions(
     else askAboutProcesses(action, eligible, run);
   };
 
-  /**
-   * Stop and archive ask first while their targets have processes running;
-   * at zero they run as they always did, with the daemon default (keep).
-   * Archive also asks while its targets have child sessions to include.
-   */
-  const checkingProcesses = useRef(false);
-  const askAboutProcesses = (
-    action: "stop" | "archive",
-    sessions: readonly SessionPayload[],
-    run: (
-      processes?: SessionProcessPolicy,
-      readErrors?: ReadonlyMap<string, unknown>,
-      trees?: SessionTrees
-    ) => void
-  ) => {
-    if (
-      sessions.length === 0 ||
-      checkingProcesses.current ||
-      processChoice !== null ||
-      pendingAction !== null ||
-      batchRunning.held()
-    )
-      return;
-    cancelDeletePrepare();
-    checkingProcesses.current = true;
-    const generation = ++processRead.current;
-    setArchiveChildren(true);
-    void loadSessionProcessChoice(
-      queryClient,
-      action,
-      sessions,
-      run,
-      setProcessChoice,
-      () => processRead.current === generation
-    ).finally(() => {
-      if (processRead.current === generation) checkingProcesses.current = false;
-    });
-  };
+  const { askAboutProcesses, processDialog } = useSessionProcessChoice({
+    queryClient,
+    pendingAction,
+    batchRunning,
+    cancelDeletePrepare,
+  });
 
   /** Retry failed IDs while preserving successful results across the dialog lifetime. */
   const confirmDeleteMany = async (
@@ -392,12 +354,6 @@ export function useSessionLifecycleActions(
     );
   };
 
-  const { archiveChoice, processTargets } = sessionArchiveChoiceState(
-    processChoice,
-    archiveChildren,
-    setArchiveChildren
-  );
-
   return {
     batchResults,
     actions: {
@@ -462,27 +418,7 @@ export function useSessionLifecycleActions(
       onConfirm: confirmDelete,
       onRetry: () => confirmDelete(),
     },
-    processDialog: {
-      open: processChoice !== null,
-      action: processChoice?.action ?? "stop",
-      sessionCount: processChoice?.sessions.length ?? 0,
-      processCount: sessionsRunningProcesses(processTargets),
-      ports: processTargets.flatMap(session => sessionProcessPorts(session)),
-      childSessions: archiveChoice,
-      onOpenChange: open => {
-        if (!open) {
-          processRead.current++;
-          checkingProcesses.current = false;
-          setProcessChoice(null);
-        }
-      },
-      onChoose: processes => {
-        const choice = processChoice;
-        if (choice?.read?.pending) return;
-        setProcessChoice(null);
-        choice?.run(processes, archiveChoice?.included ?? false);
-      },
-    },
+    processDialog,
     laterDialog: later.laterDialog,
     renameDialog: {
       open: renameTarget !== null,

@@ -1,6 +1,8 @@
 import { useMutation, useMutationState, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import {
   archiveStoppedSessions,
   unarchiveSession,
@@ -29,6 +31,7 @@ export interface ArchiveStoppedModel {
 interface ArchiveStoppedRun {
   profile: string;
   scope: ArchiveStoppedScope;
+  computerId: ComputerId;
 }
 
 function errorText(error: unknown, fallback: string): string {
@@ -40,35 +43,51 @@ function errorText(error: unknown, fallback: string): string {
  * a toast with the count and skip summary, and Undo that restores exactly the reported ids.
  * The in-flight state is the mutation cache's, so every menu reading a scope agrees.
  */
-export function useArchiveStopped(profile: string): ArchiveStoppedModel {
+export function useArchiveStopped(
+  profile: string,
+  computerId?: ComputerId
+): ArchiveStoppedModel {
   const queryClient = useQueryClient();
+  const resolvedComputer = normalizeComputerId(computerId);
+  const keys = sessionKeys.forComputer(resolvedComputer);
   const inFlight = useMutationState({
     filters: {
       mutationKey: ARCHIVE_STOPPED_KEY,
       status: "pending",
-      predicate: mutation => (mutation.state.variables as ArchiveStoppedRun).profile === profile,
+      predicate: mutation => {
+        const variables = mutation.state.variables as ArchiveStoppedRun;
+        return variables.profile === profile && variables.computerId === resolvedComputer;
+      },
     },
     select: mutation =>
       archiveStoppedScopeKey((mutation.state.variables as ArchiveStoppedRun).scope),
   });
   // A read that starts after the change: a list fetch already in flight may predate it.
   const refreshLists = () =>
-    void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }, { cancelRefetch: true });
+    void queryClient.invalidateQueries({ queryKey: keys.lists() }, { cancelRefetch: true });
 
-  const undo = (report: SessionArchiveStoppedResponse, runProfile: string) => {
+  const undo = (
+    report: SessionArchiveStoppedResponse,
+    runProfile: string,
+    runComputer: ComputerId
+  ) => {
     const { ids, threadOf } = archiveStoppedUndoPlan(report);
     const workspaceOf = new Map(
       report.archived.flatMap(thread =>
         thread.restore_ids.map(id => [id, thread.workspace_id] as const)
       )
     );
+    const runRemote = isRemoteComputerId(runComputer);
     // One lane per thread runs its ids in order, root first; threads run side by side.
     void runSessionBatch({
       action: "unarchive",
       ids,
       previous: [],
       coveredBy: threadOf,
-      execute: id => unarchiveSession(workspaceOf.get(id)!, id, runProfile),
+      execute: id =>
+        runRemote
+          ? unarchiveSession(workspaceOf.get(id)!, id, runProfile, undefined, runComputer)
+          : unarchiveSession(workspaceOf.get(id)!, id, runProfile),
       onProgress: () => {},
     }).then(results => {
       refreshLists();
@@ -80,11 +99,14 @@ export function useArchiveStopped(profile: string): ArchiveStoppedModel {
 
   const mutation = useMutation({
     mutationKey: ARCHIVE_STOPPED_KEY,
-    mutationFn: (run: ArchiveStoppedRun) => archiveStoppedSessions(run.profile, run.scope),
+    mutationFn: (run: ArchiveStoppedRun) =>
+      isRemoteComputerId(run.computerId)
+        ? archiveStoppedSessions(run.profile, run.scope, undefined, run.computerId)
+        : archiveStoppedSessions(run.profile, run.scope),
     onSuccess: (report, run) => {
       refreshLists();
       const outcome = archiveStoppedOutcome(report);
-      const action = { label: "Undo", onClick: () => undo(report, run.profile) };
+      const action = { label: "Undo", onClick: () => undo(report, run.profile, run.computerId) };
       if (outcome.kind === "empty") {
         toast.message("No stopped threads to archive", { description: outcome.description });
       } else if (outcome.kind === "archived") {
@@ -102,7 +124,7 @@ export function useArchiveStopped(profile: string): ArchiveStoppedModel {
   const running = (scope: ArchiveStoppedScope) => inFlight.includes(archiveStoppedScopeKey(scope));
   return {
     archiveStopped: scope => {
-      if (!running(scope)) mutation.mutate({ profile, scope });
+      if (!running(scope)) mutation.mutate({ profile, scope, computerId: resolvedComputer });
     },
     running,
   };

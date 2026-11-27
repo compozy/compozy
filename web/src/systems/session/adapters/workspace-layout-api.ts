@@ -1,4 +1,9 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import {
+  apiClientFor,
+  apiRequestFailed,
+  requireResponseData,
+  type ComputerId,
+} from "@/lib/api-client";
 
 import type { WorkspaceFolderPayload, WorkspaceLayoutResponse } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
@@ -14,9 +19,10 @@ function profileQuery(profile: string | undefined) {
 
 export async function fetchWorkspaceLayout(
   profile: string | undefined,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorkspaceLayoutResponse> {
-  const { data, error, response } = await apiClient.GET("/api/workspace-folders", {
+  const { data, error, response } = await apiClientFor(computerId).GET("/api/workspace-folders", {
     params: profileQuery(profile),
     signal,
   });
@@ -29,9 +35,10 @@ export async function fetchWorkspaceLayout(
 export async function createWorkspaceFolder(
   profile: string | undefined,
   name: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorkspaceFolderPayload> {
-  const { data, error, response } = await apiClient.POST("/api/workspace-folders", {
+  const { data, error, response } = await apiClientFor(computerId).POST("/api/workspace-folders", {
     signal,
     params: profileQuery(profile),
     body: { name },
@@ -46,13 +53,17 @@ export async function renameWorkspaceFolder(
   profile: string | undefined,
   folderId: string,
   name: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorkspaceFolderPayload> {
-  const { data, error, response } = await apiClient.PATCH("/api/workspace-folders/{folder_id}", {
-    params: { ...profileQuery(profile), path: { folder_id: folderId } },
-    body: { name },
-    signal,
-  });
+  const { data, error, response } = await apiClientFor(computerId).PATCH(
+    "/api/workspace-folders/{folder_id}",
+    {
+      params: { ...profileQuery(profile), path: { folder_id: folderId } },
+      body: { name },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, "Failed to rename folder");
   }
@@ -63,12 +74,16 @@ export async function renameWorkspaceFolder(
 export async function deleteWorkspaceFolder(
   profile: string | undefined,
   folderId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorkspaceLayoutResponse> {
-  const { data, error, response } = await apiClient.DELETE("/api/workspace-folders/{folder_id}", {
-    params: { ...profileQuery(profile), path: { folder_id: folderId } },
-    signal,
-  });
+  const { data, error, response } = await apiClientFor(computerId).DELETE(
+    "/api/workspace-folders/{folder_id}",
+    {
+      params: { ...profileQuery(profile), path: { folder_id: folderId } },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, "Failed to delete folder");
   }
@@ -79,13 +94,17 @@ export async function deleteWorkspaceFolder(
 export async function reorderWorkspaceFolders(
   profile: string | undefined,
   folderIds: readonly string[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorkspaceLayoutResponse> {
-  const { data, error, response } = await apiClient.PUT("/api/workspace-order/folders", {
-    signal,
-    params: profileQuery(profile),
-    body: { folder_ids: [...folderIds] },
-  });
+  const { data, error, response } = await apiClientFor(computerId).PUT(
+    "/api/workspace-order/folders",
+    {
+      signal,
+      params: profileQuery(profile),
+      body: { folder_ids: [...folderIds] },
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, "Failed to reorder folders");
   }
@@ -100,13 +119,17 @@ export async function reorderWorkspaces(
   profile: string | undefined,
   folderId: string | null,
   workspaceIds: readonly string[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorkspaceLayoutResponse> {
-  const { data, error, response } = await apiClient.PUT("/api/workspace-order/workspaces", {
-    signal,
-    params: profileQuery(profile),
-    body: { workspace_ids: [...workspaceIds], ...(folderId ? { folder_id: folderId } : {}) },
-  });
+  const { data, error, response } = await apiClientFor(computerId).PUT(
+    "/api/workspace-order/workspaces",
+    {
+      signal,
+      params: profileQuery(profile),
+      body: { workspace_ids: [...workspaceIds], ...(folderId ? { folder_id: folderId } : {}) },
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, "Failed to reorder projects");
   }
@@ -118,13 +141,17 @@ export async function moveWorkspace(
   profile: string | undefined,
   workspaceId: string,
   folderId: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorkspaceLayoutResponse> {
-  const { data, error, response } = await apiClient.POST("/api/workspace-order/move", {
-    signal,
-    params: profileQuery(profile),
-    body: { workspace_id: workspaceId, ...(folderId ? { folder_id: folderId } : {}) },
-  });
+  const { data, error, response } = await apiClientFor(computerId).POST(
+    "/api/workspace-order/move",
+    {
+      signal,
+      params: profileQuery(profile),
+      body: { workspace_id: workspaceId, ...(folderId ? { folder_id: folderId } : {}) },
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, "Failed to move project");
   }

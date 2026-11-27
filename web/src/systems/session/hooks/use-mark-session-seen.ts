@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
+
 import { markSessionSeen } from "../adapters/session-mark-seen-api";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import type { SessionPayload } from "../types";
@@ -15,12 +17,19 @@ export function useMarkSessionSeen() {
   const queryClient = useQueryClient();
   const request = useAbortableMutationRequest();
   return useMutation({
-    mutationFn: ({ id, workspace_id, profile_name }: SessionActionTarget) =>
+    mutationFn: ({ id, workspace_id, profile_name, computerId }: SessionActionTarget) =>
       request(signal =>
-        markSessionSeen(requireWorkspace(workspace_id ?? ""), id, profile_name, signal)
+        isRemoteComputerId(computerId)
+          ? markSessionSeen(requireWorkspace(workspace_id ?? ""), id, profile_name, signal, computerId)
+          : markSessionSeen(requireWorkspace(workspace_id ?? ""), id, profile_name, signal)
       ),
-    onSettled: (_data, _error, { id, workspace_id }) => {
-      void invalidateSessionMutationQueries(queryClient, requireWorkspace(workspace_id ?? ""), id);
+    onSettled: (_data, _error, { id, workspace_id, computerId }) => {
+      void invalidateSessionMutationQueries(
+        queryClient,
+        requireWorkspace(workspace_id ?? ""),
+        id,
+        computerId
+      );
     },
   });
 }

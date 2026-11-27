@@ -454,12 +454,22 @@ export function sessionAcrossProfilesOptions(sessionId: string, enabled = true) 
 
 /** The target's whole subtree from the daemon: a loaded catalog page cannot count it. */
 export function sessionDescendantsOptions(
-  session: Pick<SessionPayload, "id" | "workspace_id" | "profile_name">
+  session: Pick<SessionPayload, "id" | "workspace_id" | "profile_name">,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
 ) {
+  const remote = isRemoteComputerId(computerId);
   return queryOptions({
-    queryKey: sessionKeys.descendants(session.id, session.profile_name),
+    queryKey: sessionKeys.forComputer(computerId).descendants(session.id, session.profile_name),
     queryFn: ({ signal }) =>
-      listSessionDescendants(session.workspace_id ?? "", session.id, session.profile_name, signal),
+      remote
+        ? listSessionDescendants(
+            session.workspace_id ?? "",
+            session.id,
+            session.profile_name,
+            signal,
+            computerId
+          )
+        : listSessionDescendants(session.workspace_id ?? "", session.id, session.profile_name, signal),
     staleTime: 0,
   });
 }

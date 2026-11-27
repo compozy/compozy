@@ -12,6 +12,9 @@ export interface SessionCatalogCursor {
   previous: (string | undefined)[];
 }
 
+/** Live refresh interval for remote facets and visible remote pages (Q-C). */
+export const REMOTE_SESSION_REFETCH_MS = 15_000;
+
 export function sessionCatalogOptions(
   filters: SessionListFilters = {},
   computerId: ComputerId = LOCAL_COMPUTER_ID
@@ -20,11 +23,12 @@ export function sessionCatalogOptions(
     ...filters,
     skip_total: filters.skip_total ?? true,
   });
+  const remote = isRemoteComputerId(computerId);
   const keys = sessionKeys.forComputer(computerId);
   return infiniteQueryOptions({
     queryKey: keys.catalogPage(normalized),
     queryFn: ({ pageParam, signal }) =>
-      isRemoteComputerId(computerId)
+      remote
         ? fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal, computerId)
         : fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal),
     initialPageParam: { previous: [] } as SessionCatalogCursor,
@@ -38,6 +42,7 @@ export function sessionCatalogOptions(
         : undefined,
     maxPages: 1,
     staleTime: 5_000,
+    ...(remote ? { refetchInterval: REMOTE_SESSION_REFETCH_MS } : {}),
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -73,7 +78,10 @@ export function sessionLaunchPreviewOptions(filters: SessionListFilters) {
   });
 }
 
-export function sessionFacetsOptions(filters: SessionListFilters = {}) {
+export function sessionFacetsOptions(
+  filters: SessionListFilters = {},
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
   const {
     q: _search,
     badge: _badge,
@@ -87,10 +95,14 @@ export function sessionFacetsOptions(filters: SessionListFilters = {}) {
     folder: _folder,
     ...scope
   } = normalizeSessionListFilters(filters);
+  const remote = isRemoteComputerId(computerId);
+  const keys = sessionKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: [...sessionKeys.workspaceLists(scope.workspace_id ?? ""), "facets", scope],
-    queryFn: ({ signal }) => fetchSessionFacets(scope, signal),
+    queryKey: [...keys.workspaceLists(scope.workspace_id ?? ""), "facets", scope],
+    queryFn: ({ signal }) =>
+      remote ? fetchSessionFacets(scope, signal, computerId) : fetchSessionFacets(scope, signal),
     staleTime: 5_000,
+    ...(remote ? { refetchInterval: REMOTE_SESSION_REFETCH_MS } : {}),
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -108,41 +120,52 @@ export const SESSION_BOARD_REFETCH_MS = 60_000;
  * list there is no `maxPages`. The key sits under the workspace list family, so
  * the catalog stream's wake re-reads it like every other catalog read.
  */
-export function sessionBoardPageOptions(filters: SessionListFilters) {
+export function sessionBoardPageOptions(
+  filters: SessionListFilters,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
   const normalized = normalizeSessionListFilters({ ...filters, limit: SESSION_BOARD_PAGE_SIZE });
+  const remote = isRemoteComputerId(computerId);
+  const keys = sessionKeys.forComputer(computerId);
   return infiniteQueryOptions({
-    queryKey: [
-      ...sessionKeys.workspaceLists(normalized.workspace_id ?? ""),
-      "board",
-      normalized,
-    ] as const,
+    queryKey: [...keys.workspaceLists(normalized.workspace_id ?? ""), "board", normalized] as const,
     queryFn: ({ pageParam, signal }) =>
-      fetchSessionCatalogPage({ ...normalized, cursor: pageParam }, signal),
+      remote
+        ? fetchSessionCatalogPage({ ...normalized, cursor: pageParam }, signal, computerId)
+        : fetchSessionCatalogPage({ ...normalized, cursor: pageParam }, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page =>
       page.page.has_more && page.page.next_cursor ? page.page.next_cursor : undefined,
     staleTime: 5_000,
-    refetchInterval: SESSION_BOARD_REFETCH_MS,
+    refetchInterval: remote ? REMOTE_SESSION_REFETCH_MS : SESSION_BOARD_REFETCH_MS,
     refetchOnWindowFocus: false,
     retry: false,
   });
 }
 
-/** A board column or Archive bar read (`sessionBoardPageOptions`), in any scope. */
+/** A board column or Archive bar read (`sessionBoardPageOptions`), in any scope or computer. */
 export function isSessionBoardQueryKey(queryKey: readonly unknown[]): boolean {
-  const lists = sessionKeys.lists();
   return (
-    queryKey.length > lists.length + 1 &&
-    lists.every((part, index) => queryKey[index] === part) &&
-    queryKey[lists.length + 1] === "board"
+    queryKey.length >= 6 &&
+    queryKey[0] === "computer" &&
+    typeof queryKey[1] === "string" &&
+    queryKey[2] === "sessions" &&
+    queryKey[3] === "list" &&
+    queryKey[5] === "board"
   );
 }
 
 /** One profile's folders in one workspace, in the operator's manual order. */
-export function sessionFoldersOptions(scope: SessionLayoutScope) {
+export function sessionFoldersOptions(
+  scope: SessionLayoutScope,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const remote = isRemoteComputerId(computerId);
+  const keys = sessionKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: sessionKeys.folders(scope.workspaceId, scope.profile ?? ""),
-    queryFn: ({ signal }) => fetchSessionFolders(scope, signal),
+    queryKey: keys.folders(scope.workspaceId, scope.profile ?? ""),
+    queryFn: ({ signal }) =>
+      remote ? fetchSessionFolders(scope, signal, computerId) : fetchSessionFolders(scope, signal),
     staleTime: 5_000,
     refetchOnWindowFocus: false,
     retry: false,
@@ -150,10 +173,18 @@ export function sessionFoldersOptions(scope: SessionLayoutScope) {
 }
 
 /** One profile's project folders and placements; empty `profile` resolves the daemon default. */
-export function workspaceLayoutOptions(profile: string) {
+export function workspaceLayoutOptions(
+  profile: string,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const remote = isRemoteComputerId(computerId);
+  const keys = sessionKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: sessionKeys.workspaceLayout(profile),
-    queryFn: ({ signal }) => fetchWorkspaceLayout(profile.trim() || undefined, signal),
+    queryKey: keys.workspaceLayout(profile),
+    queryFn: ({ signal }) =>
+      remote
+        ? fetchWorkspaceLayout(profile.trim() || undefined, signal, computerId)
+        : fetchWorkspaceLayout(profile.trim() || undefined, signal),
     staleTime: 5_000,
     refetchOnWindowFocus: false,
     retry: false,

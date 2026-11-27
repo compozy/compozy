@@ -16,6 +16,7 @@ import type { SessionInteractionRecord, SessionPayload } from "../../types";
 import {
   sessionAcrossProfilesOptions,
   sessionCommandsOptions,
+  sessionDescendantsOptions,
   sessionDetailOptions,
   sessionInputsOptions,
   sessionResolvedInteractionsOptions,
@@ -23,6 +24,15 @@ import {
   sessionUsageOptions,
   sessionUsageTurnsOptions,
 } from "../query-options";
+import {
+  isSessionBoardQueryKey,
+  REMOTE_SESSION_REFETCH_MS,
+  sessionBoardPageOptions,
+  sessionCatalogOptions,
+  sessionFacetsOptions,
+  sessionFoldersOptions,
+  workspaceLayoutOptions,
+} from "../session-catalog-options";
 import { sessionKeys } from "../query-keys";
 import { sessionProcessesOptions } from "../session-processes-query-options";
 import {
@@ -727,4 +737,36 @@ describe("session read invalidation", () => {
       }
     });
   }
+});
+
+describe("computer-scoped catalog, facets, folder and layout keys (T-F1)", () => {
+  it("Should prefix remote folder, layout, facets, board and descendant keys with ['computer', id] and poll remote facets/pages at 15 s", () => {
+    const folders = sessionFoldersOptions({ workspaceId: "ws_alpha", profile: "default" }, "cmp_dev");
+    const localFolders = sessionFoldersOptions({ workspaceId: "ws_alpha", profile: "default" });
+    expect(folders.queryKey.slice(0, 2)).toEqual(["computer", "cmp_dev"]);
+    expect(localFolders.queryKey.slice(0, 2)).toEqual(["computer", "local"]);
+
+    const layout = workspaceLayoutOptions("default", "cmp_dev");
+    const localLayout = workspaceLayoutOptions("default");
+    expect(layout.queryKey.slice(0, 2)).toEqual(["computer", "cmp_dev"]);
+    expect(localLayout.queryKey.slice(0, 2)).toEqual(["computer", "local"]);
+
+    const facets = sessionFacetsOptions({ all_profiles: true }, "cmp_dev");
+    expect(facets.queryKey.slice(0, 2)).toEqual(["computer", "cmp_dev"]);
+    expect(facets.refetchInterval).toBe(REMOTE_SESSION_REFETCH_MS);
+    expect(sessionFacetsOptions({ all_profiles: true }).refetchInterval).toBeUndefined();
+
+    const page = sessionCatalogOptions({ all_profiles: true }, "cmp_dev");
+    expect(page.refetchInterval).toBe(REMOTE_SESSION_REFETCH_MS);
+    expect(sessionCatalogOptions({ all_profiles: true }).refetchInterval).toBeUndefined();
+
+    const board = sessionBoardPageOptions({ board_column: "working" }, "cmp_dev");
+    const localBoard = sessionBoardPageOptions({ board_column: "working" });
+    expect(board.queryKey.slice(0, 2)).toEqual(["computer", "cmp_dev"]);
+    expect(isSessionBoardQueryKey(board.queryKey)).toBe(true);
+    expect(isSessionBoardQueryKey(localBoard.queryKey)).toBe(true);
+
+    const descendants = sessionDescendantsOptions(primarySessionFixture, "cmp_dev");
+    expect(descendants.queryKey.slice(0, 2)).toEqual(["computer", "cmp_dev"]);
+  });
 });
