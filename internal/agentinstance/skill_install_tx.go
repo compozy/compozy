@@ -244,10 +244,13 @@ func (tx *skillTx) prepare() error {
 	if err != nil {
 		return err
 	}
-	tx.payload.StagedDigest = staged
-	if tx.payload.NextMarker != nil && tx.payload.NextMarker.InstalledDigest == "" {
-		tx.payload.NextMarker.InstalledDigest = staged
+	if next := tx.payload.NextMarker; next != nil {
+		if next.InstalledDigest != "" && next.InstalledDigest != staged {
+			return fmt.Errorf("%w: staged skill %s differs from the reviewed tree", ErrSkillReviewInvalid, tx.t.name)
+		}
+		next.InstalledDigest = staged
 	}
+	tx.payload.StagedDigest = staged
 	return tx.advance(dirpublish.PhaseIncoming)
 }
 

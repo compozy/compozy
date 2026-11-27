@@ -49,6 +49,8 @@ Approval of an edit succeeds only while the installed skill still equals its bas
 
 To rename a file by case, remove the old spelling and add the new one. The resulting tree cannot contain paths that differ only by case. Review detail marks masked base text with `redacted: true`. The CLI and Web viewer warn that changes to this text can be hidden from the diff.
 
+If the filesystem cannot preserve the reviewed tree, approval returns `skill_review_invalid` and leaves the installed skill unchanged.
+
 ## Operator decision
 
 Only an operator may approve or reject, through the review UI, CLI, HTTP, or UDS. There is no agent approval tool. Agent-credentialed decisions fail with `skill_review_operator_only`.

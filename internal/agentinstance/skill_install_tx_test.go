@@ -303,6 +303,23 @@ func requireReviewState(t *testing.T, svc *SkillProposalService, id, state strin
 // rolls back and an existing skill is never overwritten.
 // Owning layer: agentinstance install transaction; canonical suite: TestSkillInstallTransaction.
 func TestSkillInstallTransaction(t *testing.T) {
+	t.Run("Should roll back when staged contents differ from the reviewed tree", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		const name = "release-checklist"
+		original := f.install(t, name, skillBaseFiles...)
+		svc := f.service(t, "home-a", nil)
+		op := f.replaceOp(t, name)
+		op.next.InstalledDigest = original
+		if err := f.runOp(t, svc, name, op); !errors.Is(err, ErrSkillReviewInvalid) {
+			t.Fatalf("install transaction = %v, want skill_review_invalid", err)
+		}
+		if got := f.digest(t, name); got != original {
+			t.Fatalf("installed digest = %q, want original %q", got, original)
+		}
+		f.requireClean(t)
+	})
+
 	t.Run("Should re-approve a committed review without writing [UT-019]", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)

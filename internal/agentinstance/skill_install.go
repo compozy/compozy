@@ -165,6 +165,7 @@ func prepareSkillInstallOp(op *skillOp, t *skillTarget, review SkillReview, draf
 		}
 		op.preExists, op.preDigest = true, review.BaseDigest
 		op.changed = skillBaseStaleError(t.name)
+		op.next.InstalledDigest = review.ProposedDigest
 		op.stage = func(dir string) error { return writeSkillInstallStage(dir, tree) }
 		return nil
 	default:
