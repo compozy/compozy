@@ -134,8 +134,11 @@ export const instanceHandlers: HttpHandler[] = [
     return new HttpResponse(null, { status: 204 });
   }),
   http.patch("*/api/agent-instances/:id", async ({ params, request }) => {
-    const { checks_enabled } = (await request.json()) as { checks_enabled: boolean };
-    return respond(params.id, { checks_enabled });
+    const body = (await request.json()) as {
+      checks_enabled?: boolean;
+      skill_auto_approve?: boolean;
+    };
+    return respond(params.id, body);
   }),
   http.post("*/api/agent-instances/:id/check", async ({ request }) => {
     const { dry_run } = (await request.json()) as { dry_run: boolean };

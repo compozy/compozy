@@ -151,7 +151,7 @@ func isInstanceSelfServiceCall(d Descriptor, input json.RawMessage) bool {
 	switch d.ID {
 	case ToolIDAgentInstancePause, ToolIDAgentInstanceEnsureMain:
 		return true
-	case ToolIDAgentInstanceChecks, ToolIDAgentInstanceCheck:
+	case ToolIDAgentInstanceChecks, ToolIDAgentInstanceCheck, ToolIDAgentInstanceSkillAutoApprove:
 		var options struct {
 			Enabled *bool `json:"enabled"`
 			DryRun  bool  `json:"dry_run"`
@@ -159,7 +159,7 @@ func isInstanceSelfServiceCall(d Descriptor, input json.RawMessage) bool {
 		if json.Unmarshal(input, &options) != nil {
 			return false
 		}
-		if d.ID == ToolIDAgentInstanceChecks {
+		if d.ID == ToolIDAgentInstanceChecks || d.ID == ToolIDAgentInstanceSkillAutoApprove {
 			return options.Enabled != nil && !*options.Enabled
 		}
 		return options.DryRun

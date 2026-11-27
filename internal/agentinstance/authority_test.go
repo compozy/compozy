@@ -42,6 +42,9 @@ func TestInstanceAuthority(t *testing.T) {
 		{"Should allow definition pause resume", "resume", "definition_missing", "own", true},
 		{"Should reject agent adoption", "adopt", "", "own", false},
 		{"Should reject enabling checks", "checks_on", "", "own", false},
+		{"Should allow turning off own skill auto-approve [UT-028]", "skill_auto_approve_off", "", "own", true},
+		{"Should reject turning off another instance's skill auto-approve [UT-028]", "skill_auto_approve_off", "", "other", false},
+		{"Should reject any verb that would turn skill auto-approve on [UT-028]", "skill_auto_approve", "", "own", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

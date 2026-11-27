@@ -166,6 +166,7 @@ type AgentInstancePayload struct {
 	NextWake             *AgentInstanceNextWake          `json:"next_wake,omitempty"`
 	Created              bool                            `json:"created"`
 	ChecksEnabled        bool                            `json:"checks_enabled"`
+	SkillAutoApprove     bool                            `json:"skill_auto_approve"`
 	LastWakeAt           string                          `json:"last_wake_at"`
 	NextWakeAt           string                          `json:"next_wake_at"`
 	QuietStreak          int64                           `json:"quiet_streak"`
@@ -295,8 +296,9 @@ type AgentInstanceSeenResponse struct {
 
 // AgentInstanceUpdateRequest is a daemon API value.
 type AgentInstanceUpdateRequest struct {
-	ChecksEnabled *bool                          `json:"checks_enabled,omitempty"`
-	DailyBudget   *AgentInstanceDailyBudgetInput `json:"daily_budget,omitempty"`
+	ChecksEnabled    *bool                          `json:"checks_enabled,omitempty"`
+	DailyBudget      *AgentInstanceDailyBudgetInput `json:"daily_budget,omitempty"`
+	SkillAutoApprove *bool                          `json:"skill_auto_approve,omitempty"`
 }
 
 // AgentLimitsPayload is a daemon API value.

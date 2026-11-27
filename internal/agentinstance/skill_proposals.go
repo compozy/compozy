@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -41,19 +42,31 @@ type SkillProposalService struct {
 	HomeID string
 	// Publisher refreshes the catalog after every committed change; nil publishes nothing.
 	Publisher SkillPublisher
-	// Locks is the daemon's keyed mutex per physical skill; nil uses a process-wide default.
+	// Locks is the daemon's keyed mutex per physical skill and per instance; nil uses a process-wide
+	// default.
 	Locks *SkillInstallLocks
+	// AutoApprove reads an instance's skill auto-approve toggle; nil reads every toggle as off.
+	AutoApprove SkillAutoApproveReader
+	// SkillNameInUse reports a name already present in the instance's skill catalog.
+	SkillNameInUse func(context.Context, Instance, string) (bool, error)
+	// Now is the clock of install-log commit times and of the daily cap's UTC day; nil is time.Now.
+	Now func() time.Time
 	// crashAt is a test seam: returning true at a named transaction step stops the transaction there
 	// as a crash would, leaving disk state for the next Reconcile.
 	crashAt func(step string) bool
 	// syncDir is a test seam for directory syncs that confirm a commit; nil uses fileutil.SyncDir.
 	syncDir func(path string) error
+	// onStep is a test seam observing the proposal's lock and auto-approve evaluation order.
+	onStep func(step string, t *skillTarget)
 }
 
 type SkillProposalResult struct {
 	Review SkillReview
 	// Duplicate is true when a pending review with the same identity was returned unchanged.
 	Duplicate bool
+	// AutoApproveSkipped is the first failing Business Rule 9 check of a new review; "" when it was
+	// approved automatically or is a duplicate that was not evaluated again.
+	AutoApproveSkipped string
 }
 
 func (s *SkillProposalService) Propose(
@@ -88,11 +101,34 @@ func (s *SkillProposalService) Propose(
 	if err := s.checkEvidenceSessions(ctx, instance, evidence); err != nil {
 		return SkillProposalResult{}, err
 	}
+	// Lock order: instance mutex, then the keyed skill mutex, then the dirpublish lock (Safety
+	// Invariant 4). Taken unconditionally, whatever the toggle.
+	releaseInstance, err := s.lockInstance(ctx, instance.ID)
+	if err != nil {
+		return SkillProposalResult{}, err
+	}
+	defer releaseInstance()
 	t, blocked, err := s.lockReconciledSkill(ctx, targetRoot, draft.Name)
 	if err != nil {
 		return SkillProposalResult{}, err
 	}
 	defer func() { err = errors.Join(err, t.close()) }()
+	s.step("skill_locked", t)
+	return s.proposeLocked(ctx, t, actor, instance, targetRoot, input.Name, draft, blocked, lesson, evidence)
+}
+
+// proposeLocked creates the review under every lock and runs the auto-approve branch for a new one.
+func (s *SkillProposalService) proposeLocked(
+	ctx context.Context,
+	t *skillTarget,
+	actor workspaceaccess.ActorRef,
+	instance Instance,
+	targetRoot, name string,
+	draft SkillDraft,
+	blocked *SkillInstallPayload,
+	lesson SkillLesson,
+	evidence []string,
+) (SkillProposalResult, error) {
 	// Checked again after Reconcile, so an interrupted install is settled before name or base is judged.
 	edit, err := checkProposalTarget(ctx, t, targetRoot, draft, blocked)
 	if err != nil {
@@ -112,7 +148,7 @@ func (s *SkillProposalService) Propose(
 		ProfileID:          instance.ProfileID,
 		WorkspaceID:        instance.WorkspaceID,
 		AgentName:          instance.AgentName,
-		SkillName:          input.Name,
+		SkillName:          name,
 		Digest:             digest,
 		DraftPath:          path,
 		SourceSessionID:    actor.SessionID,
@@ -125,11 +161,15 @@ func (s *SkillProposalService) Propose(
 		EvidenceSessionIDs: evidence,
 	}, report)
 	result := SkillProposalResult{Review: review, Duplicate: duplicate}
-	if err = s.settleProposalFiles(ctx, id, path, snapshot, review, err); err == nil {
-		slog.InfoContext(ctx, "skill.review.created", "instance_id", instance.ID, "review_id", review.ID,
-			"kind", string(review.Kind), "decided_via", review.DecidedVia)
+	if settleErr := s.settleProposalFiles(ctx, id, path, snapshot, review, err); settleErr != nil {
+		return result, settleErr
 	}
-	return result, err
+	slog.InfoContext(ctx, "skill.review.created", "instance_id", instance.ID, "review_id", review.ID,
+		"kind", string(review.Kind), "decided_via", review.DecidedVia)
+	if !duplicate {
+		result.Review, result.AutoApproveSkipped = s.autoApprove(ctx, t, instance, review, draft, edit)
+	}
+	return result, nil
 }
 
 // settleProposalFiles removes the draft and snapshot no review row records: a refused proposal (limit

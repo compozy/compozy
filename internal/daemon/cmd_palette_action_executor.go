@@ -73,10 +73,24 @@ func (e *cmdPaletteActionExecutor) ApprovalRequired(
 	return view.Decision.ApprovalRequired, nil
 }
 
+var errCmdPaletteToolDenied = errors.New("cmd palette: tool is not available as a palette action")
+
+func deniedCmdPaletteTool(action cmdpalette.Action) error {
+	// Palette tool actions run with operator scope even when called by an agent.
+	if action.Kind == cmdpalette.ActionKindTool &&
+		toolspkg.ToolID(action.Tool) == toolspkg.ToolIDAgentInstanceSkillAutoApprove {
+		return fmt.Errorf("%w: %s", errCmdPaletteToolDenied, action.Tool)
+	}
+	return nil
+}
+
 func (e *cmdPaletteActionExecutor) ExecuteAction(
 	ctx context.Context,
 	request cmdpalette.ExecutionRequest,
 ) (cmdpalette.ExecutionResult, error) {
+	if err := deniedCmdPaletteTool(request.Descriptor.Action); err != nil {
+		return cmdpalette.ExecutionResult{}, err
+	}
 	requiresApproval, err := e.ApprovalRequired(ctx, request)
 	if err != nil {
 		return cmdpalette.ExecutionResult{}, err
@@ -186,6 +200,9 @@ func (e *cmdPaletteActionExecutor) dispatch(
 	request cmdpalette.ExecutionRequest,
 	approvalToken string,
 ) (json.RawMessage, error) {
+	if err := deniedCmdPaletteTool(request.Descriptor.Action); err != nil {
+		return nil, err
+	}
 	if request.Descriptor.Action.Kind == cmdpalette.ActionKindTool {
 		input, err := json.Marshal(mergedCmdPaletteArgs(request.Descriptor.Action.Args, request.Args))
 		if err != nil {

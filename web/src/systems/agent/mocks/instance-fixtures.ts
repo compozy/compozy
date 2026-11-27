@@ -25,6 +25,7 @@ export function agentInstanceFixture(
     pause_reason: "",
     main_session_id: "sess-main-triage",
     checks_enabled: true,
+    skill_auto_approve: false,
     last_wake_at: "2026-10-31T23:00:00Z",
     next_wake_at: "2026-10-31T23:30:00Z",
     quiet_streak: 0,

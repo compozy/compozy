@@ -22,6 +22,8 @@ type memSkillReviewStore struct {
 	mu         sync.Mutex
 	reviews    map[string]SkillReview
 	projectErr error
+	// approvalFailures fails that many next ProjectApproval calls, as a transient UPDATE error.
+	approvalFailures int
 }
 
 var _ SkillReviewStore = (*memSkillReviewStore)(nil)
@@ -64,6 +66,10 @@ func (s *memSkillReviewStore) ProjectApproval(
 	if s.projectErr != nil {
 		return s.projectErr
 	}
+	if s.approvalFailures > 0 {
+		s.approvalFailures--
+		return errors.New("database is locked")
+	}
 	review, ok := s.reviews[marker.ReviewID]
 	if !ok || review.State != SkillReviewPending {
 		return nil
@@ -90,6 +96,25 @@ func (s *memSkillReviewStore) ProjectRevert(ctx context.Context, id, operator st
 	review.State, review.RevertedBy, review.RevertedAt = SkillReviewReverted, operator, &revertedAt
 	s.reviews[id] = review
 	return nil
+}
+
+func (s *memSkillReviewStore) CountAutoApprovals(
+	_ context.Context,
+	instanceID string,
+	dayStart time.Time,
+) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	count := 0
+	for _, review := range s.reviews {
+		if review.InstanceID == instanceID && review.DecidedVia == skillDecidedViaAutoApprove &&
+			(review.State == skillReviewApproved || review.State == SkillReviewReverted) &&
+			review.DecidedAt != nil && !review.DecidedAt.Before(dayStart) &&
+			review.DecidedAt.Before(dayStart.Add(24*time.Hour)) {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (s *memSkillReviewStore) DecideReject(_ context.Context, id, digest, operator string) error {

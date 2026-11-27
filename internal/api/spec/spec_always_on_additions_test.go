@@ -56,6 +56,9 @@ var alwaysOnHardeningAdditions = []struct {
 	// #1849: opt-in instance budgets expose their configured ceilings and daily usage.
 	{"#/components/schemas/AgentInstancePayload", []string{"daily_budget", "daily_budget_usage"}},
 	{"#/components/schemas/AgentInstanceUpdateRequest", []string{"daily_budget"}},
+	// #1293: the operator-only per-instance skill auto-approve toggle, read and changed on its own.
+	{"#/components/schemas/AgentInstancePayload", []string{"skill_auto_approve"}},
+	{"#/components/schemas/AgentInstanceUpdateRequest", []string{"skill_auto_approve"}},
 	// Provider summaries: the reviewer mode the `auto` level selects.
 	{"#/", []string{"reviewer_mode"}},
 	// Agent definitions and reachable peers: the input forms an always-on agent declares.

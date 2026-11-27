@@ -49,3 +49,10 @@ SELECT profile_id, workspace_id FROM sessions WHERE id = sqlc.arg(id);
 UPDATE agent_skill_reviews SET state = 'reverted', reverted_by = sqlc.arg(reverted_by),
 reverted_at = sqlc.arg(reverted_at)
 WHERE id = sqlc.arg(id) AND state = 'approved';
+
+-- name: CountAgentSkillAutoApprovals :one
+-- Business Rule 14: automatic decisions of one instance committed in [day_start, day_end). decided_at is
+-- the install-log commit time; a reverted automatic approval still counts.
+SELECT count(*) FROM agent_skill_reviews
+WHERE instance_id = sqlc.arg(instance_id) AND state IN ('approved', 'reverted')
+AND decided_via = 'auto_approve' AND decided_at >= sqlc.arg(day_start) AND decided_at < sqlc.arg(day_end);

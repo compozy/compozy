@@ -33,6 +33,7 @@ func ErrorMessage(err error, activeLimit int) string {
 		{ErrBudgetHistoryUncertain, "An earlier session's usage could not be recovered. " +
 			"Wait until the next local day before enabling a budget."},
 		{ErrNotFound, "This agent instance was not found."},
+		{ErrSkillAutoApproveOperatorOnly, "only an operator can turn on skill auto-approve"},
 	} {
 		if errors.Is(err, item.domain) {
 			return item.message

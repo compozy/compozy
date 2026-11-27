@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/compozy/compozy/internal/dirpublish"
 	"github.com/compozy/compozy/internal/fileutil"
@@ -31,6 +32,8 @@ type SkillInstallLocks struct {
 	// while a committed change still needs a catalog refresh.
 	publishMu      sync.Mutex
 	publishPending bool
+	// unprojected maps an instance ID to its committed auto-approvals whose projection failed.
+	unprojected map[string]map[string]time.Time
 }
 
 type skillKeyLock struct {
@@ -76,6 +79,48 @@ func (l *SkillInstallLocks) lock(ctx context.Context, key string) (func(), error
 	case <-ctx.Done():
 		drop()
 		return nil, ctx.Err()
+	}
+}
+
+// markUnprojected makes the cap fail closed while an automatic approval may be committed and its
+// review is still pending. Startup recovery records projection failures again from the install log.
+func (l *SkillInstallLocks) markUnprojected(instanceID, reviewID string, at time.Time) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.unprojected == nil {
+		l.unprojected = make(map[string]map[string]time.Time)
+	}
+	if l.unprojected[instanceID] == nil {
+		l.unprojected[instanceID] = make(map[string]time.Time)
+	}
+	l.unprojected[instanceID][reviewID] = at
+}
+
+// unprojectedReviews drops commits outside the current cap window and returns the remaining reviews.
+func (l *SkillInstallLocks) unprojectedReviews(instanceID string, day time.Time) []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	ids := make([]string, 0, len(l.unprojected[instanceID]))
+	for id, at := range l.unprojected[instanceID] {
+		if at.Before(day) {
+			delete(l.unprojected[instanceID], id)
+			continue
+		}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		delete(l.unprojected, instanceID)
+	}
+	return ids
+}
+
+// clearUnprojected forgets an auto-approval after projection or rollback.
+func (l *SkillInstallLocks) clearUnprojected(instanceID, reviewID string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.unprojected[instanceID], reviewID)
+	if len(l.unprojected[instanceID]) == 0 {
+		delete(l.unprojected, instanceID)
 	}
 }
 
@@ -142,6 +187,33 @@ func (s *SkillProposalService) acquireSkill(
 		return nil, err
 	}
 	return target, nil
+}
+
+// ensureParent creates a missing target root and takes its publication lock, as acquireSkill does
+// with create, for a proposal that installs automatically.
+func (t *skillTarget) ensureParent(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if t.parent != nil {
+		return nil
+	}
+	if err := os.MkdirAll(t.root, 0o700); err != nil {
+		return err
+	}
+	parent, err := fileutil.OpenDirectoryForMutation(t.root)
+	if err != nil {
+		return fmt.Errorf("open skill target root: %w", err)
+	}
+	lock, err := dirpublish.AcquireLock(parent, t.name)
+	if errors.Is(err, dirpublish.ErrBusy) {
+		err = fmt.Errorf("%w: %s is being changed by another process", ErrSkillInstallBusy, t.name)
+	}
+	if err != nil {
+		return errors.Join(err, parent.Close())
+	}
+	t.parent, t.lock = parent, lock
+	return nil
 }
 
 func (t *skillTarget) close() error {

@@ -17,39 +17,41 @@ type AgentInstanceNextWake struct {
 }
 
 type AgentInstancePayload struct {
-	DailyBudget          *AgentInstanceDailyBudgetLimits   `json:"daily_budget,omitempty"`
-	DailyBudgetUsage     *AgentInstanceDailyBudgetUsage    `json:"daily_budget_usage,omitempty"`
-	AuthorityStatus      string                            `json:"authority_status"`
-	Sources              []heartbeat.HeartbeatSourceStatus `json:"sources"`
-	UnattendedTurns      int64                             `json:"unattended_turns"`
-	UnattendedTurnLimit  int64                             `json:"unattended_turn_limit"`
-	HeldWakes            int64                             `json:"held_wakes"`
-	NextWake             *AgentInstanceNextWake            `json:"next_wake,omitempty"`
-	Created              bool                              `json:"created"`
-	ChecksEnabled        bool                              `json:"checks_enabled"`
-	LastWakeAt           string                            `json:"last_wake_at"`
-	NextWakeAt           string                            `json:"next_wake_at"`
-	QuietStreak          int64                             `json:"quiet_streak"`
-	FailureStreak        int64                             `json:"failure_streak"`
-	FatigueLimit         int                               `json:"fatigue_limit"`
-	Label                string                            `json:"label"`
-	Provider             string                            `json:"provider"`
-	ResolvedAppearance   map[string]any                    `json:"resolved_appearance"`
-	Scope                string                            `json:"scope"`
-	Activity             string                            `json:"activity"`
-	Now                  string                            `json:"now"`
-	AttentionDismissible bool                              `json:"attention_dismissible"`
-	NeedsAttention       bool                              `json:"needs_attention"`
-	ID                   string                            `json:"id"`
-	ProfileID            string                            `json:"profile_id"`
-	ProfileName          string                            `json:"profile_name"`
-	AgentName            string                            `json:"agent_name"`
-	WorkspaceID          string                            `json:"workspace_id"`
-	State                string                            `json:"state"`
-	PauseReason          string                            `json:"pause_reason"`
-	MainSessionID        string                            `json:"main_session_id"`
-	CreatedAt            time.Time                         `json:"created_at"`
-	UpdatedAt            time.Time                         `json:"updated_at"`
+	DailyBudget         *AgentInstanceDailyBudgetLimits   `json:"daily_budget,omitempty"`
+	DailyBudgetUsage    *AgentInstanceDailyBudgetUsage    `json:"daily_budget_usage,omitempty"`
+	AuthorityStatus     string                            `json:"authority_status"`
+	Sources             []heartbeat.HeartbeatSourceStatus `json:"sources"`
+	UnattendedTurns     int64                             `json:"unattended_turns"`
+	UnattendedTurnLimit int64                             `json:"unattended_turn_limit"`
+	HeldWakes           int64                             `json:"held_wakes"`
+	NextWake            *AgentInstanceNextWake            `json:"next_wake,omitempty"`
+	Created             bool                              `json:"created"`
+	ChecksEnabled       bool                              `json:"checks_enabled"`
+	// SkillAutoApprove is the operator-only per-instance skill auto-approve toggle.
+	SkillAutoApprove     bool           `json:"skill_auto_approve"`
+	LastWakeAt           string         `json:"last_wake_at"`
+	NextWakeAt           string         `json:"next_wake_at"`
+	QuietStreak          int64          `json:"quiet_streak"`
+	FailureStreak        int64          `json:"failure_streak"`
+	FatigueLimit         int            `json:"fatigue_limit"`
+	Label                string         `json:"label"`
+	Provider             string         `json:"provider"`
+	ResolvedAppearance   map[string]any `json:"resolved_appearance"`
+	Scope                string         `json:"scope"`
+	Activity             string         `json:"activity"`
+	Now                  string         `json:"now"`
+	AttentionDismissible bool           `json:"attention_dismissible"`
+	NeedsAttention       bool           `json:"needs_attention"`
+	ID                   string         `json:"id"`
+	ProfileID            string         `json:"profile_id"`
+	ProfileName          string         `json:"profile_name"`
+	AgentName            string         `json:"agent_name"`
+	WorkspaceID          string         `json:"workspace_id"`
+	State                string         `json:"state"`
+	PauseReason          string         `json:"pause_reason"`
+	MainSessionID        string         `json:"main_session_id"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
 }
 
 // AgentInstanceDailyBudgetUsage reports the known USD subtotal separately from
@@ -147,9 +149,12 @@ type AgentInstanceCheckDigest struct {
 	Summary string                       `json:"summary"`
 }
 
+// AgentInstanceUpdateRequest changes exactly one of its fields per request.
 type AgentInstanceUpdateRequest struct {
 	ChecksEnabled *bool                          `json:"checks_enabled,omitempty"`
 	DailyBudget   *AgentInstanceDailyBudgetInput `json:"daily_budget,omitempty"`
+	// SkillAutoApprove turns skill auto-approve on (operator only) or off.
+	SkillAutoApprove *bool `json:"skill_auto_approve,omitempty"`
 }
 
 // AgentInstanceDailyBudgetInput is a strict full replacement: omitted or null

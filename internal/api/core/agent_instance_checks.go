@@ -66,12 +66,20 @@ func (h *BaseHandlers) UpdateAgentInstance(c *gin.Context) {
 		h.respondError(c, 422, err)
 		return
 	}
-	if (request.ChecksEnabled == nil) == (request.DailyBudget == nil) {
-		h.respondError(c, 422, errors.New("exactly one of checks_enabled or daily_budget is required"))
+	if setFields(request.ChecksEnabled != nil, request.DailyBudget != nil, request.SkillAutoApprove != nil) != 1 {
+		h.respondError(
+			c,
+			422,
+			errors.New("exactly one of checks_enabled, daily_budget, or skill_auto_approve is required"),
+		)
 		return
 	}
 	if request.DailyBudget != nil {
 		h.updateAgentInstanceDailyBudget(c.Request.Context(), c, *request.DailyBudget)
+		return
+	}
+	if request.SkillAutoApprove != nil {
+		h.updateAgentInstanceSkillAutoApprove(c.Request.Context(), c, *request.SkillAutoApprove)
 		return
 	}
 	verb := "checks_off"

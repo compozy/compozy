@@ -145,6 +145,7 @@ func instanceFromRow(row sqlcgen.AgentInstance) (agentinstance.Instance, error) 
 		GrantCeiling:      row.GrantCeiling,
 		PermissionCeiling: row.PermissionCeiling,
 		ChecksEnabled:     row.ChecksEnabled != 0,
+		SkillAutoApprove:  row.SkillAutoApprove != 0,
 		Depth:             int(row.Depth),
 		CreatedByKind:     row.CreatedByKind,
 		CreatedByID:       row.CreatedByID,

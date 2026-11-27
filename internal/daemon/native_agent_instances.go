@@ -38,6 +38,7 @@ func (n *daemonNativeTools) agentInstanceBindings() map[toolspkg.ToolID]nativeTo
 	for _, id := range []toolspkg.ToolID{
 		toolspkg.ToolIDAgentInstanceCheck,
 		toolspkg.ToolIDAgentInstanceChecks,
+		toolspkg.ToolIDAgentInstanceSkillAutoApprove,
 		toolspkg.ToolIDAgentInstanceOccurrence,
 		toolspkg.ToolIDAgentInstanceCreate,
 		toolspkg.ToolIDAgentInstanceList,
@@ -140,6 +141,9 @@ func executeNativeInstanceAction(
 			return toolspkg.ToolResult{}, errors.New("instance check settings unavailable")
 		}
 		instance, err = api.CheckSettings.SetChecks(ctx, instance.ID, *input.Enabled)
+	case nativeInstanceActionSkillAutoApprove:
+		// The on-guard already ran in authorizeNativeInstanceAction, before the verb mapping.
+		instance, err = api.SetSkillAutoApprove(ctx, instance.ID, *input.Enabled)
 	case "occurrence":
 		return nativeInstanceOccurrence(ctx, api, instance.ID, input)
 	case nativeInstanceActionGet:
@@ -274,6 +278,8 @@ const (
 	nativeInstanceActionGet      = "get"
 	nativeInstanceActionCheckIns = "check_ins"
 	nativeInstanceActionReports  = "reports"
+	// nativeInstanceActionSkillAutoApprove is compozy__agent_instance_skill_auto_approve.
+	nativeInstanceActionSkillAutoApprove = "skill_auto_approve"
 )
 
 func (n *daemonNativeTools) listNativeInstances(ctx context.Context, api *core.AgentInstanceAPI,
@@ -294,6 +300,14 @@ func nativeInstanceError(id toolspkg.ToolID, err error, maxActive int) error {
 	if errors.Is(err, agentinstance.ErrNotFound) {
 		return toolspkg.NewToolError(toolspkg.ErrorCodeAgentInstanceNotFound, id,
 			"This agent instance was not found in the selected scope.", err)
+	}
+	if errors.Is(err, agentinstance.ErrSkillAutoApproveOperatorOnly) {
+		// The domain code travels in its own field with the HTTP route's status and human message.
+		code := agentinstance.ErrSkillAutoApproveOperatorOnly.Error()
+		toolErr := toolspkg.NewToolError(toolspkg.ErrorCode(code), id, agentinstance.ErrorMessage(err, maxActive), err)
+		toolErr.HTTPStatus = 403
+		toolErr.PublicMessage = toolErr.Message
+		return toolErr
 	}
 	if message := agentinstance.ErrorMessage(err, maxActive); message != "" {
 		return fmt.Errorf("%w: %s", err, message)

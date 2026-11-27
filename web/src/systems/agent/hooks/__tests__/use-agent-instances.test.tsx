@@ -8,12 +8,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { resetProfileViews, setProfileView } from "@/systems/profiles";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { workspaceFixtures } from "@/systems/workspace/mocks";
+import { createDeferred } from "@/test/event-recorder";
 
 import {
   fetchAgentInstanceCheckIns,
   fetchAgentInstanceProjectedReports,
 } from "../../adapters/agent-instance-api";
 import { useTryCheck } from "../use-agent-instance-checks";
+import { useSetAgentInstanceSkillAutoApprove } from "../use-agent-instance-skill-auto-approve";
 import { agentKeys } from "../../lib/query-keys";
 import { agentInstancesOptions } from "../../lib/query-options";
 import { agentPayloadFixture, teamItemFixture } from "../../mocks/team-fixtures";
@@ -103,6 +105,37 @@ describe("instance routes and the selected profile", () => {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
 
+  it("Should keep every in-flight skill auto-approve update pending until its own response", async () => {
+    const first = agentInstanceFixture({ id: "first" });
+    const second = agentInstanceFixture({ id: "second" });
+    const firstReply = createDeferred<void>();
+    const secondReply = createDeferred<void>();
+    server.use(
+      http.patch("*/api/agent-instances/:id", async ({ params }) => {
+        const instance = params.id === first.id ? first : second;
+        await (instance === first ? firstReply.promise : secondReply.promise);
+        return HttpResponse.json({ instance: { ...instance, skill_auto_approve: true } });
+      })
+    );
+    const { result } = renderHook(useSetAgentInstanceSkillAutoApprove, { wrapper });
+    act(() => {
+      result.current.mutate({ instance: first, enabled: true });
+      result.current.mutate({ instance: second, enabled: true });
+    });
+    try {
+      await waitFor(() =>
+        expect(new Set(result.current.pendingInstanceIds)).toEqual(new Set([first.id, second.id]))
+      );
+      secondReply.resolve();
+      await waitFor(() => expect(result.current.pendingInstanceIds).toEqual([first.id]));
+      firstReply.resolve();
+      await waitFor(() => expect(result.current.pendingInstanceIds).toEqual([]));
+    } finally {
+      firstReply.resolve();
+      secondReply.resolve();
+    }
+  });
+
   // Invariant: acknowledgement refreshes server attention in the owning profile; failures propagate.
   // Owner: instance mutation hooks; canonical HTTP boundary suite.
   it("Should refresh attention after marking seen in the instance profile", async () => {
@@ -134,7 +167,7 @@ describe("instance routes and the selected profile", () => {
     await act(async () => {
       await result.current.seen.mutateAsync(result.current.instances[0]!);
     });
-    expect(result.current.instances[0]?.needs_attention).toBe(false);
+    await waitFor(() => expect(result.current.instances[0]?.needs_attention).toBe(false));
     expect(profiles).toEqual(["work"]);
   });
 

@@ -158,6 +158,11 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 	if (action == "away" || action == "mark_seen" || action == nativeInstanceActionClearMain) && !scope.Operator {
 		return agentinstance.ErrForbidden
 	}
+	// Native instance tools bypass UpdateAgentInstance: turning skill auto-approve on is refused to
+	// every non-operator scope before the verb mapping and the setter.
+	if action == nativeInstanceActionSkillAutoApprove && input.Enabled != nil && *input.Enabled && !scope.Operator {
+		return agentinstance.ErrSkillAutoApproveOperatorOnly
+	}
 	verb, err := nativeInstanceAuthorityVerb(input, action)
 	if err != nil {
 		return err
@@ -203,6 +208,14 @@ func nativeInstanceAuthorityVerb(input nativeInstanceInput, action string) (stri
 			return "checks_on", nil
 		}
 		return "checks_off", nil
+	case action == nativeInstanceActionSkillAutoApprove:
+		if input.Enabled == nil {
+			return "", errors.New("enabled is required")
+		}
+		if *input.Enabled {
+			return action, nil // operator only: no agent verb turns it on
+		}
+		return "skill_auto_approve_off", nil
 	case action == nativeInstanceActionCheck && input.DryRun:
 		return "check_dry_run", nil
 	default:

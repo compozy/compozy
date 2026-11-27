@@ -82,7 +82,8 @@ func (a Authority) Authorize(
 		"ensure_main",
 		"check",
 		"check_dry_run",
-		"checks_off":
+		"checks_off",
+		"skill_auto_approve_off":
 		return nil
 	case "resume":
 		if !OperatorOnlyResume(instance.PauseReason) {

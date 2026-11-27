@@ -15,17 +15,17 @@ type SkillAutomaticContents struct{ Hooks, MCPServers, Scripts int }
 func (draft SkillDraft) AutomaticContents() (SkillAutomaticContents, error) {
 	var result SkillAutomaticContents
 	for _, file := range draft.Files {
-		if strings.HasPrefix(file.Path, "scripts/") {
+		if strings.HasPrefix(strings.ToLower(file.Path), "scripts/") {
 			result.Scripts++
 		}
-		switch path.Base(file.Path) {
-		case compozyconfig.MCPJSONName:
+		switch base := path.Base(file.Path); {
+		case strings.EqualFold(base, compozyconfig.MCPJSONName):
 			servers, err := compozyconfig.ParseMCPServersJSON([]byte(file.Content), file.Path)
 			if err != nil {
 				return result, err
 			}
 			result.MCPServers += len(servers)
-		case skillDefinitionFile:
+		case strings.EqualFold(base, skillDefinitionFile):
 			parts, err := frontmatter.Split([]byte(file.Content))
 			if err != nil {
 				return result, err

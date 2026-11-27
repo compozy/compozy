@@ -215,6 +215,16 @@ export async function setAgentInstanceChecks(ref: AgentInstanceRef, checksEnable
   return owned(instance, ref.profile_name);
 }
 
+/** One field per PATCH: never batched with checks or the daily budget. */
+export async function setAgentInstanceSkillAutoApprove(ref: AgentInstanceRef, enabled: boolean) {
+  const { instance } = await request<{ instance: AgentInstanceWirePayload }>(instancePath(ref), {
+    method: "PATCH",
+    body: { skill_auto_approve: enabled },
+    fallback: "Failed to change skill auto-approve",
+  });
+  return owned(instance, ref.profile_name);
+}
+
 export function runAgentInstanceCheck(ref: AgentInstanceRef, dryRun: boolean) {
   return request<AgentInstanceCheckResponse>(instancePath(ref, "/check"), {
     method: "POST",

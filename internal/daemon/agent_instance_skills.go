@@ -6,10 +6,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"path/filepath"
+	"slices"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -41,6 +43,24 @@ func (d *Daemon) bindInstanceSkillReviews(
 		HomeID:    skillInstallHomeID(d.homePaths.HomeDir),
 		Publisher: skillCatalogPublisher{state: state},
 		Locks:     agentinstance.NewSkillInstallLocks(),
+		AutoApprove: func(ctx context.Context, instanceID string) (bool, error) {
+			instance, err := api.Store.Get(ctx, instanceID)
+			return err == nil && instance.ArchivedAt == nil && instance.SkillAutoApprove, err
+		},
+		SkillNameInUse: func(ctx context.Context, instance agentinstance.Instance, name string) (bool, error) {
+			resolved, err := definitions.resolveWorkspace(ctx, instance.ProfileID, instance.WorkspaceID)
+			if err != nil {
+				return false, err
+			}
+			agent, err := definitions.agents.ResolveAgent(instance.AgentName, &resolved)
+			if err != nil {
+				return false, err
+			}
+			inventory, err := state.skillsRegistry.ForAgentDef(ctx, &resolved, agent)
+			return slices.ContainsFunc(inventory, func(skill *skills.Skill) bool {
+				return skill.Meta.Name == name
+			}), err
+		},
 	}
 	api.SkillRecoveryRoot = definitions.skillRecoveryRoot
 	api.SkillTarget = func(ctx context.Context, instance agentinstance.Instance) (string, []string, error) {

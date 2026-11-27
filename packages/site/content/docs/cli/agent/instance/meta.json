@@ -19,6 +19,7 @@
         "reports",
         "resume",
         "show",
-        "checks"
+        "checks",
+        "skill-auto-approve"
     ]
 }

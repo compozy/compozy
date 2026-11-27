@@ -109,13 +109,13 @@ func (r ReportInput) Validate() error {
 	case ReportKindProposal:
 		return validateReportProposals(fields)
 	case "failure", "activity":
-		required = []string{"reason", "detail"}
+		required = []string{reasonKey, "detail"}
 	case "approval_expired":
 		required = []string{"session_id", "tool", "expired_by"}
 	case "interrupted":
 		required = []string{"session_id", "cause"}
 	case "rotation_failed", "rotation_deferred":
-		required = []string{"reason", "since"}
+		required = []string{reasonKey, "since"}
 	default:
 		return errors.New("agentinstance: invalid report kind")
 	}
@@ -163,3 +163,6 @@ func validateReportProposals(fields map[string]jsontext.Value) error {
 	}
 	return nil
 }
+
+// reasonKey is the "reason" field of a report payload and of a skill log record.
+const reasonKey = "reason"

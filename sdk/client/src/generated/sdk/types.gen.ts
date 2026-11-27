@@ -533,6 +533,7 @@ export type AgentInstancePayload = {
     [key: string]: unknown;
   };
   scope: string;
+  skill_auto_approve: boolean;
   sources: Array<HeartbeatSourceStatus>;
   state: string;
   unattended_turn_limit: number;
@@ -643,14 +644,22 @@ export type AgentInstanceUpdateRequest = (
   | {
       checks_enabled: boolean;
       daily_budget?: null;
+      skill_auto_approve?: null;
     }
   | {
       checks_enabled?: null;
       daily_budget: AgentInstanceDailyBudgetInput;
+      skill_auto_approve?: null;
+    }
+  | {
+      checks_enabled?: null;
+      daily_budget?: null;
+      skill_auto_approve: boolean;
     }
 ) & {
   checks_enabled?: boolean | null;
   daily_budget?: AgentInstanceDailyBudgetInput | null;
+  skill_auto_approve?: boolean | null;
 };
 
 export type AgentLimitsPayload = {
@@ -990,6 +999,7 @@ export type AgentSkillReviewPayload = {
 };
 
 export type AgentSkillReviewResponse = {
+  auto_approve_skipped?: string;
   duplicate_of_pending?: boolean;
   review: AgentSkillReviewPayload;
 };
