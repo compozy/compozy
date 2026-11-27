@@ -15,6 +15,7 @@ import {
 
 import { useAttentionJump } from "../../hooks/use-attention-jump";
 import { useOsShell } from "../../hooks/use-os-shell";
+import { sessionWindowInstanceKey } from "../../lib/session-window-identity";
 import { boundRoute } from "../../lib/open-target";
 
 /** A session to open by id; the agent name lets this window retarget in place. */
@@ -84,11 +85,16 @@ export function useSessionWindowOpenSession({
             : {}),
         },
       };
-      void coordinator.userRetarget(windowId, {
-        app: "session",
-        instanceKey: target.sessionId,
+      const windowTarget = {
+        app: "session" as const,
+        instanceKey: sessionWindowInstanceKey(
+          target.sessionId,
+          normalizeComputerId(target.computerId)
+        ),
         route: remoteRoute,
-      });
+      };
+      if (options.newWindow) void coordinator.userOpen({ ...windowTarget, placement: "split" });
+      else void coordinator.userRetarget(windowId, windowTarget);
       return;
     }
     const targetScope = ownerDataScope(target.workspaceId);

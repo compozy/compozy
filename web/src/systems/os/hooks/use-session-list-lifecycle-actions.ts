@@ -1,7 +1,11 @@
-import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import type { ComputerId } from "@/lib/computer-scope";
 import { useSessionLifecycleActions } from "@/systems/session";
 import { sessionComputerOf } from "@/systems/session/lib/session-row-ref";
 
+import {
+  sessionWindowInstanceKey,
+  sessionWindowRouteComputer,
+} from "../lib/session-window-identity";
 import { useOsShell } from "./use-os-shell";
 
 /** How a list action took a session off the list. */
@@ -27,14 +31,13 @@ export function useSessionListLifecycleActions(
     onRemoved?.(session, "archive");
     const targetComputer = sessionComputerOf(session);
     const windows = Object.values(manager.getState().windows);
-    const owningComputer = (value: unknown) =>
-      normalizeComputerId(typeof value === "string" ? value : undefined);
+    const instanceKey = sessionWindowInstanceKey(session.id, targetComputer);
     // The runtime serializes commands against fresh layout revisions; await every outcome.
     await Promise.all(
       windows.flatMap(window =>
         window.app === "session" &&
-        window.instanceKey === session.id &&
-        owningComputer(window.route?.search?.computer) === targetComputer
+        (window.instanceKey === instanceKey || window.instanceKey === session.id) &&
+        sessionWindowRouteComputer(window.route) === targetComputer
           ? [coordinator.userRetireSession(window.id)]
           : []
       )

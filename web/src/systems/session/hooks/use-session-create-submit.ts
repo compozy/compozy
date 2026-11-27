@@ -1,3 +1,4 @@
+import { sessionWindowInstanceKey } from "@/systems/os/lib/session-window-identity";
 import { use, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector } from "@xstate/store-react";
@@ -272,8 +273,8 @@ async function openCreatedSession(
 ): Promise<void> {
   // Named before the workspace switch: the route reconciliation that lands it — after the
   // target workspace hydrates — prefers the operator's existing Session window (#825).
-  shell?.coordinator.noteCreatedSession(session.id);
   const actualComputerId = normalizeComputerId(session.computer_id ?? landing.computerId);
+  shell?.coordinator.noteCreatedSession(sessionWindowInstanceKey(session.id, actualComputerId));
   if (
     landing.windowComputerScope &&
     landing.windowComputerScope !== "all" &&

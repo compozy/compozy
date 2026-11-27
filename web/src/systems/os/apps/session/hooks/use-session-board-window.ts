@@ -1,9 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 
-import { normalizeComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, normalizeComputerId } from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
 import {
+  SESSION_BOARD_DRAWER_SEARCH_KEY,
   sessionDetailOptions,
   setSessionWindowView,
   useSessionCreateActions,
@@ -18,6 +19,10 @@ import { ownerDataScope, useDataScope, workspaceSelectorForScope } from "@/syste
 
 import { useOsShell } from "../../../hooks/use-os-shell";
 import { useSessionListLifecycleActions } from "../../../hooks/use-session-list-lifecycle-actions";
+import {
+  sessionWindowInstanceKey,
+  sessionWindowRouteComputer,
+} from "../../../lib/session-window-identity";
 import { mruWindowInstance } from "../../../lib/window-instance-lookup";
 
 import {
@@ -37,7 +42,7 @@ export function useSessionBoardWindow(
   drawerOpen: boolean
 ) {
   const scope = useDataScope();
-  const { manager } = useOsShell();
+  const { coordinator, manager } = useOsShell();
   const view = useSessionWindowViewState();
   const order = useSessionWindowOrder();
   const sidebar = useSessionSidebarState();
@@ -54,23 +59,40 @@ export function useSessionBoardWindow(
 
   const openInDrawer = (target: SessionWindowSidebarTarget) => {
     const state = manager.getState();
+    const computerId = normalizeComputerId(target.computerId);
     const matchingWindows = Object.fromEntries(
-      Object.entries(state.windows).filter(([, win]) => {
-        const computer = win.route?.search?.computer;
-        return (
-          normalizeComputerId(typeof computer === "string" ? computer : undefined) ===
-          normalizeComputerId(target.computerId)
-        );
-      })
+      Object.entries(state.windows).filter(
+        ([, win]) => sessionWindowRouteComputer(win.route) === computerId
+      )
     );
-    const owner = mruWindowInstance(matchingWindows, state.client?.focusOrder ?? [], {
-      app: "session",
-      instanceKey: target.sessionId,
-    });
+    const focusOrder = state.client?.focusOrder ?? [];
+    const owner =
+      mruWindowInstance(matchingWindows, focusOrder, {
+        app: "session",
+        instanceKey: sessionWindowInstanceKey(target.sessionId, computerId),
+      }) ??
+      mruWindowInstance(matchingWindows, focusOrder, {
+        app: "session",
+        instanceKey: target.sessionId,
+      });
     // One window per session: a session another window shows is focused there, in List.
     if (owner && owner.id !== windowId) {
       setSessionWindowView(owner.id, "list");
-      openSession(target, { newWindow: false, drawer: false });
+      if (isRemoteComputerId(computerId)) {
+        const search = { ...owner.route.search };
+        delete search[SESSION_BOARD_DRAWER_SEARCH_KEY];
+        void coordinator
+          .userRetarget(owner.id, {
+            app: "session",
+            instanceKey: sessionWindowInstanceKey(target.sessionId, computerId),
+            route: { ...owner.route, search },
+          })
+          .then(applied => {
+            if (applied) void coordinator.userActivateWindow(owner.id);
+          });
+      } else {
+        openSession(target, { newWindow: false, drawer: false });
+      }
       return;
     }
     openSession(target, { newWindow: false, drawer: true });

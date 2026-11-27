@@ -11,6 +11,10 @@ import {
   withoutSessionComposerFocus,
 } from "@/systems/session";
 
+import {
+  sessionWindowInstanceKey,
+  sessionWindowRouteComputer,
+} from "../../../lib/session-window-identity";
 import { useOsShell } from "../../../hooks/use-os-shell";
 import type { SessionListRemoval } from "../../../hooks/use-session-list-lifecycle-actions";
 import { adjacentShortcutItem } from "../../../lib/adjacent-shortcut-item";
@@ -184,7 +188,7 @@ export function useSessionBoardDrawer({
     );
     void coordinator.userRetarget(windowId, {
       app: "session",
-      instanceKey: win.instanceKey,
+      instanceKey: sessionWindowInstanceKey(win.instanceKey, sessionWindowRouteComputer(win.route)),
       route: {
         pathname: win.route.pathname,
         search: next
