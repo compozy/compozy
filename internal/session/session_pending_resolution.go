@@ -249,6 +249,9 @@ func (m *Manager) ResolveOrphanedClarification(
 	if err != nil {
 		return toolspkg.ClarifyAnswerResult{}, err
 	}
+	if resolution.Outcome == store.PendingInteractionStatusTimedOut {
+		return toolspkg.ClarifyAnswerResult{}, fmt.Errorf("%w: %s", toolspkg.ErrClarifyCanceled, target)
+	}
 	winner := answerForStoredResolution(question, resolution.Resolution, answer)
 	return toolspkg.ClarifyAnswerResult{
 		ClarifyAnswer:  winner,

@@ -680,10 +680,29 @@ func fillAttentionClarificationQueue(
 	if queued.QueueEntryID == "" {
 		t.Fatalf("queued prompt = %#v, want the only available entry", queued)
 	}
-	input := compozycontract.ClarificationAnswerRequest{ChoiceIndex: new(1)}
-	err := harness.HTTPJSON(ctx, http.MethodPost, answerPath, input, nil)
-	if err == nil || !strings.Contains(err.Error(), "status 503:") || !strings.Contains(err.Error(), `"queue_full"`) {
-		t.Fatalf("answer with a full queue = %v, want retryable 503 with queue_full", err)
+	request, err := http.NewRequestWithContext(
+		ctx, http.MethodPost, harness.HTTPURL(answerPath), strings.NewReader(`{"choice_index":1}`),
+	)
+	if err != nil {
+		t.Fatalf("build clarification answer request: %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := harness.HTTPClient.Do(request)
+	if err != nil {
+		t.Fatalf("answer with a full queue: %v", err)
+	}
+	var failure compozycontract.ErrorPayload
+	decodeErr := json.NewDecoder(response.Body).Decode(&failure)
+	closeErr := response.Body.Close()
+	if err := errors.Join(decodeErr, closeErr); err != nil {
+		t.Fatalf("read full-queue answer response: %v", err)
+	}
+	if response.StatusCode != http.StatusServiceUnavailable || failure.Code != "queue_full" {
+		t.Fatalf(
+			"answer with a full queue = HTTP %d, %#v, want retryable 503 with queue_full",
+			response.StatusCode,
+			failure,
+		)
 	}
 	queueEntryPath := sessionPath + "/prompt/queue/" + url.PathEscape(queued.QueueEntryID)
 	if err := harness.HTTPJSON(ctx, http.MethodDelete, queueEntryPath, nil, nil); err != nil {

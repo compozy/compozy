@@ -99,8 +99,7 @@ func (g *SessionRepo) TransitionPendingInteraction(
 				return readErr
 			}
 			at := g.now().UTC()
-			if interaction.Kind == store.PendingInteractionKindPermission &&
-				interaction.ExpiresAt != nil && !at.Before(*interaction.ExpiresAt) {
+			if interaction.ExpiresAt != nil && !at.Before(*interaction.ExpiresAt) {
 				normalized.Status, normalized.Resolution = store.PendingInteractionStatusTimedOut, "expired"
 				normalized.ResolvedBy, normalized.At, normalized.ContinuationInput = pendingInteractionTimeoutActor, at, nil
 			}

@@ -153,7 +153,8 @@ Automated coverage is in `TestDaemonE2EAttentionTruthJourneys` (hosted MCP, HTTP
 ACP turn). A later turn holds the continuation in the queue. When that queue is full, HTTP 503
 keeps the card pending and the same answer succeeds after capacity is freed.
 `TestInteractionResolutionCouplesQueueAndIsIdempotent` checks atomic SQLite resolution,
-queue-full rollback, and a duplicate answer.
+queue-full rollback, and a duplicate answer. The canonical SQLite transaction suite also checks
+that a finite deadline expires a late clarification before a continuation can be queued.
 
 The provider-specific 30-second return in the original report remains a Codex retest. The
 daemon's 30-second keepalive interval does not expire the card. If the provider stops waiting for
