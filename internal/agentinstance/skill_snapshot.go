@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 )
@@ -181,8 +182,13 @@ func applySkillOverlay(base SkillTree, draft SkillDraft) (SkillTree, error) {
 		}
 		delete(byPath, path)
 	}
+	newPerm := skillNewFilePerm
+	if runtime.GOOS == "windows" {
+		// Go reports writable Windows files as 0666. Chmod only changes the read-only attribute.
+		newPerm = 0o666
+	}
 	for _, file := range draft.Files {
-		perm := skillNewFilePerm
+		perm := newPerm
 		if previous, ok := byPath[file.Path]; ok {
 			perm = previous.Perm
 		}
