@@ -100,6 +100,11 @@ export function SessionBoardWindow({
           />
         )}
         <SessionViewOptionsMenu
+          computerLayout={
+            board.hasRemoteComputers && order.computerScope === "all"
+              ? { value: order.computers, onValueChange: order.setComputers }
+              : undefined
+          }
           groupBy={board.groupBy}
           groupByOptions={board.groupByOptions}
           hideChildren={view.hideChildren}
@@ -116,7 +121,12 @@ export function SessionBoardWindow({
         />
         <Button
           data-testid="sessions-board-new-session"
-          onClick={() => openForAgent("")}
+          onClick={() =>
+            openForAgent(
+              "",
+              order.computerScope !== "all" ? { computerId: order.computerScope } : undefined
+            )
+          }
           size="sm"
           type="button"
           variant="secondary"

@@ -189,6 +189,7 @@ export function useSessionCreateDialogViewModel(
     hasLocalProject: Boolean(activeWorkspace || projectWorkspaceId),
     open: flow.open,
     requested: draft.computerId,
+    fixedComputer: flow.fixedComputer,
     store,
   });
 

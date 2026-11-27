@@ -109,6 +109,8 @@ export interface SessionsBoardView {
   computerBySessionId?: ReadonlyMap<string, SessionRowComputerInfo>;
   /** Remote computers whose board fan-out failed, rendered in a compact strip above columns. */
   failedComputers?: readonly ScopedComputerFailureItem[];
+  /** True when at least one remote computer is enabled for this window (`F9`, `F13`). */
+  hasRemoteComputers?: boolean;
 }
 
 function useSessionsBoardPage(filters: SessionListFilters, enabled: boolean): SessionsBoardPage {
@@ -278,6 +280,7 @@ export function useSessionsBoard({
     selectionKey: JSON.stringify([scope, params, effectiveGroupBy]),
     computerBySessionId: remote.computerBySessionId,
     failedComputers: remote.failedComputers,
+    hasRemoteComputers: remote.hasRemoteComputers,
   };
 }
 

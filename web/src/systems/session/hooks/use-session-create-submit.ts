@@ -1,6 +1,7 @@
 import { use, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector } from "@xstate/store-react";
+import { toast } from "@compozy/ui";
 import {
   AUTO_COMPUTER_ID,
   isAutoComputerId,
@@ -29,6 +30,8 @@ import type { CreateSessionParams } from "../types";
 import { useCreateSession } from "./use-session-actions";
 import type { SessionEnvironmentModel } from "./use-session-environment";
 import type { SessionCreateTarget } from "./use-session-create-target";
+import { useSessionSidebarState } from "./use-session-sidebar-state";
+import type { SessionWindowComputerScope } from "../lib/session-sidebar-scope";
 
 interface UseSessionCreateSubmitOptions {
   agents: readonly AgentPayload[];
@@ -54,6 +57,9 @@ interface SessionLanding {
   currentWorkspaceId: string | null;
   /** The All-projects picker value to remember; `null` outside All projects. */
   allProjectsTarget: string | null;
+  /** Active window computer scope; offers "Show in list" if created outside it (`R17`). */
+  windowComputerScope?: SessionWindowComputerScope;
+  onShowInList?: () => void;
 }
 
 type SessionCreateFlow = ReturnType<SessionCreateStore["getSnapshot"]>["context"];
@@ -82,6 +88,7 @@ export function useSessionCreateSubmit({
 }: UseSessionCreateSubmitOptions): () => void {
   const navigate = useNavigate();
   const shell = use(OsShellContext);
+  const sidebar = useSessionSidebarState();
   const createSession = useCreateSession();
   const scopedComputerId = normalizeComputerId(computerId);
   const scopedProjectComputerId = normalizeComputerId(projectComputerId);
@@ -209,6 +216,8 @@ export function useSessionCreateSubmit({
             scope,
             currentWorkspaceId: actingWorkspaceId,
             allProjectsTarget,
+            windowComputerScope: sidebar.computerScope,
+            onShowInList: () => sidebar.setComputerScope("all"),
           },
           navigate,
           shell
@@ -260,6 +269,17 @@ async function openCreatedSession(
   // target workspace hydrates — prefers the operator's existing Session window (#825).
   shell?.coordinator.noteCreatedSession(session.id);
   const actualComputerId = normalizeComputerId(session.computer_id ?? landing.computerId);
+  if (
+    landing.windowComputerScope &&
+    landing.windowComputerScope !== "all" &&
+    landing.windowComputerScope !== actualComputerId &&
+    landing.onShowInList
+  ) {
+    const showInList = landing.onShowInList;
+    toast("Session started outside this computer scope.", {
+      action: { label: "Show in list", onClick: showInList },
+    });
+  }
   if (isRemoteComputerId(actualComputerId)) {
     await navigate({
       to: "/agents/$name/sessions/$id",

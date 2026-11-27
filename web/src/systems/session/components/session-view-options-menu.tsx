@@ -177,7 +177,11 @@ export function SessionViewOptionsMenu({
   const defaultGroupBy = groupByOptions.includes(DEFAULT_SESSION_LIST_PREFERENCES.groupBy)
     ? DEFAULT_SESSION_LIST_PREFERENCES.groupBy
     : "none";
-  const marked = groupBy !== defaultGroupBy || showsChildren || showsAutomation;
+  const nonDefaultComputers =
+    computerLayout !== undefined &&
+    computerLayout.value !== DEFAULT_SESSION_LIST_PREFERENCES.computers;
+  const marked =
+    groupBy !== defaultGroupBy || showsChildren || showsAutomation || nonDefaultComputers;
   return (
     <DropdownMenu>
       {/* No tooltip: focus returns here when the menu closes, and an open tooltip would take
