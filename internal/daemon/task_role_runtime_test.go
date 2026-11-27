@@ -572,6 +572,84 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 	})
 
+	ownerCases := []struct {
+		name     string
+		change   func(*session.Info)
+		missing  bool
+		required []string
+		resume   bool
+	}{
+		{name: "Should resume the crashed owner even when another agent sorts first", resume: true},
+		{name: "Should keep an active owner on the normal wake path", change: func(info *session.Info) {
+			info.State = session.StateActive
+		}},
+		{name: "Should skip an owner that has been deleted", missing: true},
+		{name: "Should skip an owner stopped by the operator", change: func(info *session.Info) {
+			info.StopReason = store.StopUserCanceled
+		}},
+		{name: "Should skip an owner that belongs to another profile", change: func(info *session.Info) {
+			info.ProfileID = "profile-other"
+		}},
+		{name: "Should skip an owner that moved to another workspace", change: func(info *session.Info) {
+			info.WorkspaceID = "ws-other"
+		}},
+		{name: "Should resume an owner that covers the run capability", required: []string{"go"}, resume: true},
+		{
+			name:     "Should skip an owner when only a different agent covers the run capability",
+			required: []string{"docs"},
+		},
+	}
+	for _, tc := range ownerCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			taskRecord := taskRoleRuntimeTask("task-session-owner", "")
+			taskRecord.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindAgentSession, Ref: "sess-owner"}
+			run := taskRoleRuntimeRun("run-session-owner", taskRecord.ID)
+			run.RequiredCapabilities = tc.required
+			sessions := &taskRoleRuntimeSessions{}
+			if !tc.missing {
+				owner := &session.Info{
+					ID: taskRecord.Owner.Ref, AgentName: "zeta-agent", WorkspaceID: taskRecord.WorkspaceID,
+					Type: session.SessionTypeUser, State: session.StateStopped, StopReason: store.StopAgentCrashed,
+				}
+				if tc.change != nil {
+					tc.change(owner)
+				}
+				sessions.infos = []*session.Info{owner}
+			}
+			runtime := newTaskRoleRuntimeForTest(t, newTaskRoleRuntimeStore(taskRecord, run), sessions)
+			spawner := starvationSpawner{
+				workspaces: &fakeSpawnWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
+					Agents: []compozyconfig.AgentDef{
+						spawnAgentDef("alpha-agent", "docs"),
+						spawnAgentDef("zeta-agent", "go"),
+					},
+				}},
+			}
+
+			err := runtime.activateForStarvation(t.Context(), taskRecord, run, spawner)
+			if tc.resume {
+				if err != nil || !slices.Equal(sessions.resumeCalls, []string{taskRecord.Owner.Ref}) {
+					t.Fatalf(
+						"activateForStarvation() error/resumed = %v/%v, want only the owner",
+						err,
+						sessions.resumeCalls,
+					)
+				}
+			} else if !errors.Is(err, errStarvationSpawnUnresolvable) || len(sessions.resumeCalls) != 0 {
+				t.Fatalf(
+					"activateForStarvation() error/resumed = %v/%v, want no replacement",
+					err,
+					sessions.resumeCalls,
+				)
+			}
+			if got := sessions.createCount(); got != 0 {
+				t.Fatalf("create count = %d, want 0 for a session-owned task", got)
+			}
+		})
+	}
+
 	t.Run("Should stop a fresh session when initial prompt dispatch fails and allow retry", func(t *testing.T) {
 		t.Parallel()
 
@@ -878,7 +956,7 @@ func TestEscalationActorAdapterRequestWorkerSpawn(t *testing.T) {
 
 func newTaskRoleRuntimeForTest(
 	t *testing.T,
-	store *taskRoleRuntimeStore,
+	store taskRoleStore,
 	sessions taskRoleSessionManager,
 ) *taskRoleRuntime {
 	t.Helper()
@@ -1015,6 +1093,7 @@ type taskRoleRuntimeSessions struct {
 	mu           sync.Mutex
 	infos        []*session.Info
 	createCalls  []session.CreateOpts
+	resumeCalls  []string
 	promptCalls  []taskRoleRuntimePromptCall
 	promptErrors []error
 	stopCalls    []taskRoleRuntimeStopCall
@@ -1144,6 +1223,30 @@ func (s *taskRoleRuntimeSessions) ListAll(context.Context) ([]*session.Info, err
 	infos := make([]*session.Info, len(s.infos))
 	copy(infos, s.infos)
 	return infos, nil
+}
+
+func (s *taskRoleRuntimeSessions) Status(_ context.Context, id string) (*session.Info, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, info := range s.infos {
+		if info != nil && info.ID == id {
+			return new(*info), nil
+		}
+	}
+	return nil, session.ErrSessionNotFound
+}
+
+func (s *taskRoleRuntimeSessions) Resume(_ context.Context, id string) (*session.Session, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.resumeCalls = append(s.resumeCalls, id)
+	for _, info := range s.infos {
+		if info != nil && info.ID == id {
+			info.State = session.StateActive
+			return &session.Session{ID: id, AgentName: info.AgentName, State: info.State}, nil
+		}
+	}
+	return nil, session.ErrSessionNotFound
 }
 
 func (s *taskRoleRuntimeSessions) Events(

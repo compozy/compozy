@@ -682,6 +682,9 @@ func TestRunConvergenceEscalationLadder(t *testing.T) {
 		if got := escalator.attention(); !slices.Equal(got, []string{"run-ladder"}) {
 			t.Fatalf("needs_attention = %v, want [run-ladder]", got)
 		}
+		if want := "compozy task run recover " + work.Run.ID; !strings.Contains(escalator.attentionDiagnostic, want) {
+			t.Fatalf("needs_attention diagnostic = %q, want command %q", escalator.attentionDiagnostic, want)
+		}
 		if _, ok := store.snapshot("run-ladder"); ok {
 			t.Fatal("starvation budget not cleared after needs_attention")
 		}
@@ -1655,13 +1658,14 @@ func (f *fakeTaskSource) GetRunStatus(_ context.Context, runID string) (taskpkg.
 }
 
 type fakeEscalationActor struct {
-	mu            sync.Mutex
-	starvedEmits  []string
-	spawnRequests []string
-	attentionRuns []string
-	emitErr       error
-	spawnErr      error
-	attentionErr  error
+	mu                  sync.Mutex
+	starvedEmits        []string
+	spawnRequests       []string
+	attentionRuns       []string
+	attentionDiagnostic string
+	emitErr             error
+	spawnErr            error
+	attentionErr        error
 }
 
 func (f *fakeEscalationActor) EmitRunStarved(_ context.Context, work *RunSnapshot, _ time.Duration) error {
@@ -1687,7 +1691,7 @@ func (f *fakeEscalationActor) RequestWorkerSpawn(_ context.Context, work *RunSna
 func (f *fakeEscalationActor) MarkRunNeedsAttention(
 	_ context.Context,
 	runID string,
-	_ string,
+	diagnostic string,
 ) (taskpkg.Run, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -1695,6 +1699,7 @@ func (f *fakeEscalationActor) MarkRunNeedsAttention(
 		return taskpkg.Run{}, f.attentionErr
 	}
 	f.attentionRuns = append(f.attentionRuns, runID)
+	f.attentionDiagnostic = diagnostic
 	return taskpkg.Run{ID: runID, Status: taskpkg.TaskRunStatusNeedsAttention}, nil
 }
 

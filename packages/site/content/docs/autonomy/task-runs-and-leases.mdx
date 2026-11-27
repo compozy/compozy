@@ -248,6 +248,11 @@ coordinator. The existing retry and generation policy then applies, preserving s
 nodes under `failed_only`. `task run recover` remains specific to `needs_attention` runs, and Loop
 node requeue remains specific to quarantined nodes.
 
+`compozy task run recover <run-id>` queues a continuation under the task's recorded owner. For
+`agent_session` ownership, only that exact session can claim it. The scheduler can resume an eligible
+owner session after an unexpected stop. Resume a deliberately stopped owner before recovering the
+run. If its session record is gone, assign the task to a valid owner before recovery.
+
 Bulk force release and force fail use bounded batches of run IDs:
 
 ```bash

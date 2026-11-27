@@ -184,6 +184,8 @@ For a non-leased run with an active session, direct `task run complete`, `task r
 
 When the scheduler's convergence backstop cannot get a claimable run picked up, it parks the run as `needs_attention` — a non-claimable run status — and emits `task.run_needs_attention`. `compozy task run recover <run-id> [--reason <reason>] -o json` is the operator/agent recovery path: it terminalizes the parked run and queues a fresh linked child (`previous_run_id`, next attempt) for re-dispatch. Recover applies only to `needs_attention` runs; a still-queued or failed run returns a deterministic `task_run_not_recoverable` diagnostic (use `compozy task retry` for a failed run). This run-level recovery is distinct from task-level `compozy task recover <task-id>`, which clears a task escalated by the unblock-loop breaker (see Task Blocks And Escalation).
 
+The continuation uses the same task owner. If the owner is an `agent_session`, the scheduler targets that exact session ID. It can resume an eligible user session after an unexpected stop. If the owner was deliberately stopped, resume it before recovering the run. If its session record is gone, assign the task to a valid owner before recovery.
+
 For a Loop-owned worker, run-level recovery also advances the exact bound node cell to the linked
 child with the next attempt and epoch. It preserves the Loop run, workspace, designation, worktree,
 capability selectors, and node metadata; clears node attention; and emits the matching Loop
@@ -233,7 +235,7 @@ to recover that selection uses the route's Retry action rather than querying the
 
 Scheduler controls affect dispatch, not task truth. They do not complete work, approve reviews, or transfer ownership.
 
-A claimable run that no eligible session claims past `[autonomy.scheduler].min_queued_age` escalates on a bounded ladder: fan-out wake to every eligible session, then a capability-matched worker spawn, then the `task.run_starved` event (once), then `needs_attention`. Compatible sessions that are starting, prompting, already processing a run, or reserved for an earlier run in the same scheduler cycle are capacity, not absence. Their queued work remains queued without consuming the escalation budget; the daemon records `scheduler.capacity_waiting` diagnostics until capacity becomes available.
+A claimable run that no eligible session claims past `[autonomy.scheduler].min_queued_age` escalates on a bounded ladder: fan-out wake to every eligible session, then worker activation, then the `task.run_starved` event (once), then `needs_attention`. At worker activation, `agent_session` ownership restricts dispatch to the recorded owner ID, and the scheduler skips this tier when that owner cannot be resumed. Compatible sessions that are starting, prompting, already processing a run, or reserved for an earlier run in the same scheduler cycle are capacity, not absence. Their queued work remains queued without consuming the escalation budget; the daemon records `scheduler.capacity_waiting` diagnostics until capacity becomes available.
 
 `compozy scheduler status -o json` surfaces `starved_run_count` as the number of queued, claimable runs with an active durable escalation episode. Queue age alone does not increment it, and capacity-waiting runs remain visible through `queued_run_count`. `needs_attention_run_count` reports runs already parked by the ladder. The scheduler never claims — spawned `system` workers self-claim through the hosted `compozy__task_run_claim_next` tool and are TTL-reaped. Tune the ladder under `[autonomy.scheduler]`.
 

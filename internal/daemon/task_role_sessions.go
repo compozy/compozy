@@ -102,10 +102,7 @@ func (r *taskRoleRuntime) createRoleSession(
 	return info, nil
 }
 
-// activateForStarvation spawns a capability-matched worker for a starved run that no agent has
-// claimed. The worker self-claims through the hosted session-bound native tool; the scheduler never
-// claims. It carries a TTL + spawn budget so the reaper bounds its lifetime. Dedup on (agent, scope) keeps the
-// effective per-workspace cap at one active worker per role.
+// activateForStarvation restores a session owner or spawns a TTL-bounded worker. Workers self-claim.
 func (r *taskRoleRuntime) activateForStarvation(
 	ctx context.Context,
 	taskRecord taskpkg.Task,
@@ -115,10 +112,17 @@ func (r *taskRoleRuntime) activateForStarvation(
 	if ctx == nil {
 		return errors.New("daemon: starvation activation context is required")
 	}
-	if run.IsLoopWorker() {
+	if run.IsLoopWorker() || run.Status.Normalize() != taskpkg.TaskRunStatusQueued || taskRecord.Paused {
 		return nil
 	}
-	agentName, err := r.resolveStarvationAgent(ctx, taskRecord, run, spawner)
+	switch taskRecord.Status.Normalize() {
+	case taskpkg.TaskStatusDraft, taskpkg.TaskStatusBlocked, taskpkg.TaskStatusCanceled:
+		return nil
+	}
+	if owner := taskRecord.Owner; owner != nil && owner.Kind.Normalize() == taskpkg.OwnerKindAgentSession {
+		return r.resumeStarvationOwner(ctx, taskRecord, run, spawner)
+	}
+	agentName, err := resolveStarvationAgent(ctx, taskRecord, run, spawner)
 	if err != nil {
 		return err
 	}
@@ -159,7 +163,7 @@ func (r *taskRoleRuntime) activateForStarvation(
 	return nil
 }
 
-func (r *taskRoleRuntime) resolveStarvationAgent(
+func resolveStarvationAgent(
 	ctx context.Context,
 	taskRecord taskpkg.Task,
 	run taskpkg.Run,
@@ -188,20 +192,9 @@ func (r *taskRoleRuntime) starvationActivation(
 	run taskpkg.Run,
 	agentName string,
 ) (taskRoleActivation, bool, error) {
-	if run.IsLoopWorker() {
-		return taskRoleActivation{}, false, nil
-	}
 	agentName = strings.TrimSpace(agentName)
 	if agentName == "" {
 		return taskRoleActivation{}, false, nil
-	}
-	if run.Status.Normalize() != taskpkg.TaskRunStatusQueued {
-		return taskRoleActivation{}, false, nil
-	}
-	switch taskRecord.Status.Normalize() {
-	case taskpkg.TaskStatusDraft, taskpkg.TaskStatusBlocked, taskpkg.TaskStatusCanceled:
-		return taskRoleActivation{}, false, nil
-	default:
 	}
 	activation := taskRoleActivation{
 		TaskID:      strings.TrimSpace(taskRecord.ID),

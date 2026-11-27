@@ -129,6 +129,13 @@ func (m *Service) CancelRun(
 	if err != nil {
 		return nil, err
 	}
+	if run.Status.Normalize() == TaskRunStatusNeedsAttention {
+		return nil, fmt.Errorf(
+			"%w. To queue a continuation, run %s",
+			requireRunTransition(run, TaskRunStatusCanceled),
+			runRecoveryCommand(run.ID),
+		)
+	}
 	return m.cancelRunRecord(
 		ctx,
 		taskRecord,

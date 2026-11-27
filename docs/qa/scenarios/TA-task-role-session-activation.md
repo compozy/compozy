@@ -25,3 +25,5 @@ The task-role prompt must be actively dispatched; storing it only as `creation_p
 2026-07-14 final retest: four fresh Cursor/Grok task-role sessions each received one correlated activation, claimed one existing run, and completed exactly once. The faithful Compozy-71 children retained one session/run pair each and no polling redispatch appeared.
 
 2026-07-21: qa_status reset to untested — the opendesign redesigns restructured this scenario's web entry surface (task detail/run detail 3-tab IA, settings takeover shell, or providers page); the pass verdict predates that surface.
+
+GH-1995 `agent_session` dispatch regression. Assign a task to an agent session in a workspace with an unrelated agent whose name sorts first. After an unexpected owner process exit, let the unclaimed run reach the worker activation tier. Verify the same owner session is resumed and receives the normal scheduler wake for the exact run. Repeat with a missing or manually stopped owner. Verify escalation can reach `needs_attention` and the scheduler creates no replacement session.

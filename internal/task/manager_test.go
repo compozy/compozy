@@ -9785,6 +9785,29 @@ func TestManagerForceRunOperations(t *testing.T) {
 			store.runs[run.ID] = escalated
 			enqueuedPayloads = enqueuedPayloads[:0]
 
+			wantCommand := `compozy task run recover ` + run.ID + ` --reason "operator recovery"`
+			_, retryErr := manager.RetryRun(t.Context(), run.ID, RetryRunRequest{}, actor)
+			_, releaseErr := manager.ForceReleaseRun(t.Context(), run.ID, ForceReleaseRun{}, actor)
+			for _, refusal := range []struct {
+				operation string
+				err       error
+			}{{"RetryRun", retryErr}, {"ForceReleaseRun", releaseErr}} {
+				item, ok := diagnostics.ItemFromError(refusal.err)
+				if !errors.Is(refusal.err, ErrInvalidStatusTransition) || !ok || item.SuggestedCommand != wantCommand {
+					t.Fatalf(
+						"%s(needs_attention) = %v, want invalid transition with %q",
+						refusal.operation,
+						refusal.err,
+						wantCommand,
+					)
+				}
+			}
+			if _, err := manager.CancelRun(t.Context(), run.ID, CancelRun{}, actor); !errors.Is(
+				err, ErrInvalidStatusTransition,
+			) || !strings.Contains(err.Error(), wantCommand) {
+				t.Fatalf("CancelRun(needs_attention) = %v, want invalid transition with %q", err, wantCommand)
+			}
+
 			recovered, err := manager.RecoverRun(t.Context(), run.ID, RecoverRunRequest{
 				Reason: "operator unblocked " + rawToken,
 				Metadata: json.RawMessage(

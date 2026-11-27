@@ -4,15 +4,95 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/session"
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/workspace"
 )
+
+func TestTaskRoleRuntimeRecoveredSessionOwnerIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should recover a parked run under the same persisted session owner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openDaemonTestGlobalDB(t)
+		manager, err := task.NewManager(task.WithStore(db))
+		if err != nil {
+			t.Fatalf("task.NewManager() error = %v", err)
+		}
+		actor := coordinatorTaskActor()
+		owner := &session.Info{
+			ID: "sess-owner", ProfileID: storepkg.DefaultProfileID, AgentName: "zeta-agent",
+			Type: session.SessionTypeUser, State: session.StateStopped, StopReason: storepkg.StopAgentCrashed,
+		}
+		maxAttempts := 2
+		record, err := manager.CreateTask(ctx, task.CreateTask{
+			ProfileID: owner.ProfileID, Scope: task.ScopeGlobal, Title: "Recover session-owned task",
+			Owner: &task.Ownership{Kind: task.OwnerKindAgentSession, Ref: owner.ID}, MaxAttempts: &maxAttempts,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, task.EnqueueRun{TaskID: record.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		if _, err := manager.MarkRunNeedsAttention(ctx, run.ID, "unclaimed", actor); err != nil {
+			t.Fatalf("MarkRunNeedsAttention() error = %v", err)
+		}
+		recovered, err := manager.RecoverRun(ctx, run.ID, task.RecoverRunRequest{Reason: "operator recovery"}, actor)
+		if err != nil {
+			t.Fatalf("RecoverRun() error = %v", err)
+		}
+		if recovered.Run.PreviousRunID != run.ID || recovered.Run.Status != task.TaskRunStatusQueued {
+			t.Fatalf("RecoverRun() continuation = %#v, want queued run linked to %q", recovered.Run, run.ID)
+		}
+		stored, err := db.GetTask(ctx, recovered.Run.TaskID)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+		if stored.Owner == nil || *stored.Owner != *record.Owner {
+			t.Fatalf("GetTask().Owner = %#v, want %#v", stored.Owner, record.Owner)
+		}
+
+		sessions := &taskRoleRuntimeSessions{infos: []*session.Info{owner}}
+		runtime := newTaskRoleRuntimeForTest(t, db, sessions)
+		if err := runtime.activateForStarvation(ctx, stored, recovered.Run, starvationSpawner{}); err != nil {
+			t.Fatalf("activateForStarvation() error = %v", err)
+		}
+		resumed, err := sessions.Status(ctx, owner.ID)
+		if err != nil || resumed == nil || resumed.State != session.StateActive {
+			t.Fatalf("owner status = %#v, error = %v, want active", resumed, err)
+		}
+
+		for _, sessionID := range []string{"sess-same-agent", resumed.ID} {
+			claimant := actor
+			claimant.Actor = task.ActorIdentity{Kind: task.ActorKindAgentSession, Ref: sessionID}
+			claimant.Scope = task.CallerScope{SessionID: sessionID}
+			result, claimErr := manager.ClaimNextRun(ctx, task.ClaimCriteria{
+				RunID: recovered.Run.ID, AgentName: resumed.AgentName,
+			}, claimant)
+			if sessionID != resumed.ID {
+				if !errors.Is(claimErr, task.ErrNoClaimableRun) {
+					t.Fatalf("ClaimNextRun(same agent, different session) error = %v, want no claimable run", claimErr)
+				}
+				continue
+			}
+			if claimErr != nil || result == nil || result.Run.ID != recovered.Run.ID ||
+				result.Run.SessionID != resumed.ID {
+				t.Fatalf("ClaimNextRun(owner) error = %v or continuation is not bound to the owner session", claimErr)
+			}
+		}
+	})
+}
 
 func TestTaskRoleRuntimeWorktreeReuseIntegrationIT030(t *testing.T) {
 	t.Run("Should reuse only the same referenced worktree and never reuse per-run sessions", func(t *testing.T) {

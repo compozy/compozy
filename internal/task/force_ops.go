@@ -86,7 +86,7 @@ func (m *Service) ForceReleaseRun(
 				previous.Status.Normalize(),
 			),
 			diagnosticcontract.SeverityError,
-			fmt.Sprintf("compozy task inspect %s", previous.ID),
+			forceRunSuggestedCommand(previous),
 			map[string]any{runEvidenceIDKey: previous.ID, leaseStatusKey: previous.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)
@@ -173,7 +173,7 @@ func (m *Service) RetryRun(
 			"Task run cannot be retried",
 			fmt.Sprintf("Run %s is %s; only failed runs can be retried.", source.ID, source.Status.Normalize()),
 			diagnosticcontract.SeverityError,
-			fmt.Sprintf("compozy task inspect %s", source.ID),
+			forceRunSuggestedCommand(source),
 			map[string]any{runEvidenceIDKey: source.ID, leaseStatusKey: source.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)

@@ -43,10 +43,12 @@ type taskRoleStore interface {
 }
 
 type taskRoleSessionManager interface {
+	sessionStatusReader
 	Create(ctx context.Context, opts *session.CreateOpts) (*session.Session, error)
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	ListAll(ctx context.Context) ([]*session.Info, error)
 	PromptSynthetic(ctx context.Context, id string, opts session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
+	Resume(ctx context.Context, id string) (*session.Session, error)
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }
 
