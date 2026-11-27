@@ -10,7 +10,7 @@ import { sessionCatalogFirstPageOptions } from "../lib/session-catalog-options";
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import { buildComputerPopulationFilters } from "../lib/session-list-computer-filter";
 import type { SessionListShelf } from "../lib/session-list-shelf";
-import type { SessionListFilters } from "../types";
+import type { SessionCatalogPageResponse, SessionListFilters } from "../types";
 import { type ComputerSessionsSource } from "./use-computer-sessions-sources";
 
 const NOOP_QUERY_CLIENT = new QueryClient({
@@ -95,26 +95,51 @@ export function useComputerSectionSearch(input: {
     contextClient ?? NOOP_QUERY_CLIENT
   );
 
+  return computerSectionSearchResult({
+    source: input.source,
+    scope: input.scope,
+    filtering,
+    probe,
+    contextClient,
+    page: onlineSearchEnabled ? searchQuery.data : undefined,
+  });
+}
+
+function computerSectionSearchResult({
+  source,
+  scope,
+  filtering,
+  probe,
+  contextClient,
+  page,
+}: {
+  source: ComputerSessionsSource;
+  scope: DataScope | null;
+  filtering: boolean;
+  probe: ReturnType<typeof searchProbeFilters>;
+  contextClient: QueryClient | undefined;
+  page: SessionCatalogPageResponse | undefined;
+}): { hidden: boolean; headerCount: number | null } {
   if (!filtering) {
     return {
       hidden: false,
-      headerCount: isComputerCounted(input.source.read) ? input.source.count : null,
+      headerCount: isComputerCounted(source.read) ? source.count : null,
     };
   }
-  if (input.scope === null) return { hidden: false, headerCount: null };
-  if (input.source.read === "offline") {
+  if (scope === null) return { hidden: false, headerCount: null };
+  if (source.read === "offline") {
     const matches = probe.skip
       ? []
-      : readCachedOfflineRowsForComputer(contextClient, input.source.key, probe.filters);
+      : readCachedOfflineRowsForComputer(contextClient, source.key, probe.filters);
     return { hidden: matches.length === 0, headerCount: matches.length };
   }
-  if (input.source.read === "ok") {
+  if (source.read === "ok") {
     if (probe.skip) return { hidden: true, headerCount: 0 };
-    if (onlineSearchEnabled && searchQuery.data !== undefined) {
-      const matched = searchQuery.data.page.total ?? searchQuery.data.sessions.length;
+    if (page !== undefined) {
+      const matched = page.page.total ?? page.sessions.length;
       return { hidden: matched === 0, headerCount: matched };
     }
-    return { hidden: input.source.count === 0, headerCount: input.source.count };
+    return { hidden: source.count === 0, headerCount: source.count };
   }
   return { hidden: false, headerCount: null };
 }

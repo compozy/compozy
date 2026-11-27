@@ -17,17 +17,7 @@ export function useListArchiveStopped(
   const names = source?.profiles?.filter(profile => !profile.archived);
   const profile = source ? (names?.length === 1 ? names[0]!.name : null) : view.scopeLabel;
   const stopped = useArchiveStopped(profile ?? "", source?.key ?? view.computerId);
-  const matched = source?.matchedWorkspaceIds;
-  const workspaceId = source
-    ? matched?.length === 1
-      ? matched[0]
-      : undefined
-    : view.focusedWorkspaceId;
-  const scope: ArchiveStoppedScope | null = view.allProjects
-    ? { kind: "all" }
-    : workspaceId && workspaceId !== USER_SCOPE_SELECTOR
-      ? { kind: "project", workspaceId }
-      : null;
+  const scope = archiveStoppedScope(view, source);
   if (
     options.disabled ||
     (source && !source.canOperate) ||
@@ -42,4 +32,20 @@ export function useListArchiveStopped(
     running: stopped.running(scope),
     onSelect: () => stopped.archiveStopped(scope),
   };
+}
+
+function archiveStoppedScope(
+  view: SessionListViewModel,
+  source: ComputerSessionsSource | null | undefined
+): ArchiveStoppedScope | null {
+  if (view.allProjects) return { kind: "all" };
+  const matched = source?.matchedWorkspaceIds;
+  const workspaceId = source
+    ? matched?.length === 1
+      ? matched[0]
+      : undefined
+    : view.focusedWorkspaceId;
+  return workspaceId && workspaceId !== USER_SCOPE_SELECTOR
+    ? { kind: "project", workspaceId }
+    : null;
 }

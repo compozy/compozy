@@ -1,7 +1,11 @@
 import { toast } from "@compozy/ui";
 import { useEffect, useState } from "react";
 import { isRemoteComputerId } from "@/lib/computer-scope";
-import { computerCanOperateSessions, useComputers } from "@/systems/computers";
+import {
+  computerCanOperateSessions,
+  useComputers,
+  type ComputerPayload,
+} from "@/systems/computers";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import {
@@ -28,12 +32,13 @@ export function useSessionWindowController(windowId: string) {
   const deletionPending = useSessionDeletionPending(sessionId, computerId);
   const archivePending = useSessionArchivePending(windowId);
   const deletedByOperator = useSessionDeletedByOperator(sessionId, computerId);
+  const mayReadSession = !deletedByOperator && !deletionPending;
   const resolution = useSessionWindowResolution({
     computerId,
     sessionId,
     focusedScope,
-    enabled: sessionId !== null && !deletedByOperator && !deletionPending,
-    liveTailEnabled: liveTailEnabled && !deletedByOperator && !deletionPending,
+    enabled: sessionId !== null && mayReadSession,
+    liveTailEnabled: liveTailEnabled && mayReadSession,
   });
   const remote = isRemoteComputerId(computerId);
   const instanceKey = sessionId === null ? null : sessionWindowInstanceKey(sessionId, computerId);
@@ -48,31 +53,22 @@ export function useSessionWindowController(windowId: string) {
   const effectiveLiveTailEnabled =
     liveTailEnabled && !deletionPending && !deletedLocally && !resolution.crossesWorkspace;
   const { computers } = useComputers({ enabled: remote, passive: true });
-  const computer = computers.find(row => row.id === computerId);
-  const canReportPresence =
-    !remote ||
-    (computer?.status === "connected" && computerCanOperateSessions(computer.scopes, false));
   useSessionPresence(
     resolution.workspaceId,
     sessionId,
-    canReportPresence &&
-      presenceEnabled &&
-      !deletionPending &&
-      sessionPresenceAllowed(resolution, deletedLocally),
+    sessionPresenceAllowed(resolution, { deletedLocally, deletionPending, presenceEnabled }) &&
+      computerCanReportPresence(computers, computerId, remote),
     ...(remote ? ([computerId] as const) : [])
   );
   // A document's project lens cannot remove a valid shared window. Only a confirmed
   // missing session, one this client deleted, or one archived while open retires it;
   // scope mismatches render a local notice.
-  useRetireSessionWindow(
-    windowId,
-    instanceKey,
-    sessionId !== null && !deletionPending && (deletedLocally || archivedWhileOpen),
-    // The list's delete already retired this window; if that retarget was refused, retire it
-    // again here without announcing an operator-deleted session as missing. An archived
-    // session is not missing either.
-    !deletedByOperator && !archivedWhileOpen
-  );
+  useRetireSessionWindow(windowId, instanceKey, {
+    deletionPending,
+    deletedLocally,
+    archivedWhileOpen,
+    deletedByOperator,
+  });
 
   return {
     ...resolution,
@@ -101,9 +97,23 @@ function sessionRemotelyGone(
   return aggregate || resolution.foreign.status === "missing";
 }
 
-function sessionPresenceAllowed(resolution: SessionWindowResolution, deletedLocally: boolean) {
-  if (resolution.session === undefined || resolution.scopedMiss || deletedLocally) return false;
+function sessionPresenceAllowed(
+  resolution: SessionWindowResolution,
+  state: { deletedLocally: boolean; deletionPending: boolean; presenceEnabled: boolean }
+) {
+  if (!state.presenceEnabled || state.deletionPending || state.deletedLocally) return false;
+  if (resolution.session === undefined || resolution.scopedMiss) return false;
   return !resolution.crossesWorkspace && resolution.foreign.status !== "loading";
+}
+
+function computerCanReportPresence(
+  computers: readonly ComputerPayload[],
+  computerId: string,
+  remote: boolean
+): boolean {
+  if (!remote) return true;
+  const computer = computers.find(row => row.id === computerId);
+  return computer?.status === "connected" && computerCanOperateSessions(computer.scopes, false);
 }
 
 /**
@@ -129,10 +139,21 @@ function useSessionArchivedWhileOpen(
 function useRetireSessionWindow(
   windowId: string,
   sessionId: string | null,
-  retire: boolean,
-  announce: boolean
+  state: {
+    deletionPending: boolean;
+    deletedLocally: boolean;
+    archivedWhileOpen: boolean;
+    deletedByOperator: boolean;
+  }
 ) {
   const { coordinator } = useOsShell();
+  const retire =
+    sessionId !== null &&
+    !state.deletionPending &&
+    (state.deletedLocally || state.archivedWhileOpen);
+  // A refused retarget can leave the window open after a delete. Retire it
+  // without a missing-session alert, as with a session archived while open.
+  const announce = !state.deletedByOperator && !state.archivedWhileOpen;
   useEffect(() => {
     if (!retire || sessionId === null) return;
     if (announce) toast.error("Session not found");

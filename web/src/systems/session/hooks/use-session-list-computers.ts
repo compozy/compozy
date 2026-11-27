@@ -8,7 +8,10 @@ import { computerRegistryKeys, patchComputer } from "@/systems/computers";
 import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
-import { useComputerSessionsSources } from "./use-computer-sessions-sources";
+import {
+  useComputerSessionsSources,
+  type ComputerSessionsSource,
+} from "./use-computer-sessions-sources";
 import { useMultiComputerPinned } from "./use-multi-computer-pinned";
 import { useSessionComputerScope } from "./use-session-computer-scope";
 import type { SessionListViewModel } from "./use-session-list-view";
@@ -51,13 +54,6 @@ export function useSessionListComputers(view: SessionListViewModel) {
     sort: view.sort,
   });
 
-  const scopedOfflineComputer =
-    scopedRemoteSource &&
-    (scopedRemoteSource.read === "offline" || scopedRemoteSource.read === "offline_empty") &&
-    "lastConnectedLabel" in scopedRemoteSource.computer
-      ? scopedRemoteSource.computer
-      : null;
-
   const reconnectScopedComputer = (computerId: string) => {
     setReconnectingScoped(true);
     void patchComputer(computerId, { enabled: true })
@@ -79,7 +75,14 @@ export function useSessionListComputers(view: SessionListViewModel) {
     multiComputerVisible,
     reconnectingScoped,
     reconnectScopedComputer,
-    scopedOfflineComputer,
+    scopedOfflineComputer: offlineComputer(scopedRemoteSource),
     scopedRemoteSource,
   };
+}
+
+function offlineComputer(source: ComputerSessionsSource | null) {
+  if (source === null || (source.read !== "offline" && source.read !== "offline_empty")) {
+    return null;
+  }
+  return "lastConnectedLabel" in source.computer ? source.computer : null;
 }

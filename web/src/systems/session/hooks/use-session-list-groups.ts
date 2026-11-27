@@ -82,12 +82,10 @@ export function useSessionListGroups({
   matchedWorkspaceIds,
 }: SessionListGroupsInput): SessionListGroupsModel {
   const remote = isRemoteComputerId(computerId);
-  const emptyRemoteMatch =
-    remote &&
-    scope?.kind === "project" &&
-    matchedWorkspaceIds != null &&
-    matchedWorkspaceIds.length === 0;
-  const grouped = enabled && groupBy !== "none" && scope !== null && !emptyRemoteMatch;
+  const grouped = shouldReadSessionListGroups(
+    { enabled, groupBy, scope, matchedWorkspaceIds },
+    remote
+  );
   const facets = useQuery({
     ...sessionFacetsOptions(
       {
@@ -129,6 +127,19 @@ export function useSessionListGroups({
     loading: grouped && (facets.isLoading || (byProfile && profiles.isLoading)),
     error: groupsFailure(grouped, facets, byProfile ? profiles : null),
   };
+}
+
+function shouldReadSessionListGroups(
+  {
+    enabled,
+    groupBy,
+    scope,
+    matchedWorkspaceIds,
+  }: Pick<SessionListGroupsInput, "enabled" | "groupBy" | "scope" | "matchedWorkspaceIds">,
+  remote: boolean
+): boolean {
+  if (!enabled || groupBy === "none" || scope === null) return false;
+  return !(remote && scope.kind === "project" && matchedWorkspaceIds?.length === 0);
 }
 
 function resolveGroups(

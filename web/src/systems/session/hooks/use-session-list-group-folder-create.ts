@@ -71,23 +71,21 @@ export function useSessionListGroupFolderCreate(target: {
   const projectWorkspaces = remote
     ? (remoteWorkspaces.data ?? []).filter(workspace => !workspace.archived_at)
     : active.projectWorkspaces;
-  const projectOptions =
-    target.workspaceId === null ? sessionProjectOptions(projectWorkspaces) : [];
-  const profileOptions = target.profile === null ? sessionProfileOptions(profiles.data ?? []) : [];
-  const workspaceId = groupFolderWorkspace(target.workspaceId, picks.project, projectOptions);
-  const fallbackProfile = remote
-    ? (profileOptions[0]?.value ?? "default")
-    : profileScope.destination;
-  const profile = target.profile ?? picks.profile ?? fallbackProfile;
+  const project = groupFolderProject(target.workspaceId, picks.project, projectWorkspaces);
+  const { workspaceId } = project;
+  const profile = groupFolderProfile(
+    target.profile,
+    picks.profile,
+    profiles.data,
+    remote,
+    profileScope.destination
+  );
   const folders = useSessionFolders({
     workspaceId,
-    profile,
-    enabled: open && workspaceId !== null && profile !== "",
+    profile: profile.value,
+    enabled: open && workspaceId !== null && profile.value !== "",
     computerId: target.computerId,
   });
-  const projectLabel =
-    projectOptions.find(option => option.value === workspaceId)?.label ??
-    projectWorkspaces.find(workspace => workspace.id === workspaceId)?.name;
 
   return {
     open,
@@ -96,7 +94,7 @@ export function useSessionListGroupFolderCreate(target: {
     project:
       target.workspaceId === null
         ? ({
-            options: projectOptions,
+            options: project.options,
             value: workspaceId ?? "",
             onChange: value => store.trigger.projectPicked({ value }),
           } satisfies SessionGroupFolderAxis)
@@ -104,15 +102,43 @@ export function useSessionListGroupFolderCreate(target: {
     profile:
       target.profile === null
         ? ({
-            options: profileOptions,
-            value: profile,
+            options: profile.options,
+            value: profile.value,
             onChange: value => store.trigger.profilePicked({ value }),
           } satisfies SessionGroupFolderAxis)
         : undefined,
     /** Creates the folder in the settled pair; refuses until that pair's folders loaded. */
     create: (name: string) =>
-      createGroupFolder(folders, name, [projectLabel, target.profile === null ? profile : null]),
+      createGroupFolder(folders, name, [
+        project.label,
+        target.profile === null ? profile.value : null,
+      ]),
   };
+}
+
+function groupFolderProject(
+  target: string | null,
+  picked: string | null,
+  workspaces: Parameters<typeof sessionProjectOptions>[0]
+) {
+  const options = target === null ? sessionProjectOptions(workspaces) : [];
+  const workspaceId = groupFolderWorkspace(target, picked, options);
+  const label =
+    options.find(option => option.value === workspaceId)?.label ??
+    workspaces.find(workspace => workspace.id === workspaceId)?.name;
+  return { workspaceId, label, options };
+}
+
+function groupFolderProfile(
+  target: string | null,
+  picked: string | null,
+  profiles: Parameters<typeof sessionProfileOptions>[0] | undefined,
+  remote: boolean,
+  localDestination: string
+) {
+  const options = target === null ? sessionProfileOptions(profiles ?? []) : [];
+  const fallback = remote ? (options[0]?.value ?? "default") : localDestination;
+  return { options, value: target ?? picked ?? fallback };
 }
 
 async function createGroupFolder(

@@ -61,12 +61,10 @@ export function useSessionListBulkFolders(options: {
   onMoved: () => void;
 }) {
   const { source } = options;
-  const move = sessionBulkMove(options.sessions, options.selectedIds, options.visibleOrder);
+  const { move, selectionPair, pairBlockedReason } = bulkFolderSelection(options);
   const [pending, setPending] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [preview, setPreview] = useState<HTMLElement | null>(null);
-  const pairs = selectionPairs(move.sessions, source.pairOf);
-  const selectionPair = pairs.length === 1 ? (pairs[0] ?? null) : null;
   const owned = useSessionFolders({
     workspaceId: selectionPair?.workspaceId ?? null,
     profile: selectionPair?.profile ?? "",
@@ -74,31 +72,13 @@ export function useSessionListBulkFolders(options: {
     enabled: source.layout === undefined && selectionPair !== null,
   });
   const layout = source.layout ?? owned.layout;
-  const distinctComputers = new Set(
-    move.sessions.map(session => {
-      const pair = source.pairOf?.(sessionRowKeyFor(session));
-      return normalizeComputerId(pair?.computerId ?? sessionComputerOf(session));
-    })
-  );
-  const differentComputers = distinctComputers.size > 1;
-  const mixed = source.pairOf !== undefined && pairs.length > 1;
-  const blockedReason = differentComputers
-    ? SESSION_BULK_MOVE_DIFFERENT_COMPUTERS
-    : mixed
-      ? SESSION_BULK_MOVE_MIXED_PAIRS
-      : sessionBulkMoveBlockedReason(move);
   if (!layout) {
     // A grouped list still says why a selection across groups or computers cannot move.
-    if (differentComputers || mixed) {
-      return blockedFolderMove(
-        differentComputers ? SESSION_BULK_MOVE_DIFFERENT_COMPUTERS : SESSION_BULK_MOVE_MIXED_PAIRS,
-        options.selectedIds,
-        move.sessions.length,
-        setPreview
-      );
-    }
-    return null;
+    return pairBlockedReason
+      ? blockedFolderMove(pairBlockedReason, options.selectedIds, move.sessions.length, setPreview)
+      : null;
   }
+  const blockedReason = pairBlockedReason ?? sessionBulkMoveBlockedReason(move);
   const folderIds = move.sessions.map(sessionFolderId);
   /** Writes the move of every selected root not already in `folderId`; resolves once settled. */
   const run = (target: SessionListLayout, folderId: string | null, name?: string) => {
@@ -165,6 +145,34 @@ export function useSessionListBulkFolders(options: {
     previewCount: move.sessions.length,
     setPreview,
   };
+}
+
+function bulkFolderSelection({
+  source,
+  sessions,
+  selectedIds,
+  visibleOrder,
+}: {
+  source: SessionBulkFolderSource;
+  sessions: readonly SessionPayload[];
+  selectedIds: ReadonlySet<string>;
+  visibleOrder: readonly string[];
+}) {
+  const move = sessionBulkMove(sessions, selectedIds, visibleOrder);
+  const pairs = selectionPairs(move.sessions, source.pairOf);
+  const distinctComputers = new Set(
+    move.sessions.map(session => {
+      const pair = source.pairOf?.(sessionRowKeyFor(session));
+      return normalizeComputerId(pair?.computerId ?? sessionComputerOf(session));
+    })
+  );
+  const pairBlockedReason =
+    distinctComputers.size > 1
+      ? SESSION_BULK_MOVE_DIFFERENT_COMPUTERS
+      : pairs.length > 1
+        ? SESSION_BULK_MOVE_MIXED_PAIRS
+        : null;
+  return { move, selectionPair: pairs.length === 1 ? (pairs[0] ?? null) : null, pairBlockedReason };
 }
 
 /** The distinct pairs of the movable selection; an unowned row counts as its own pair. */

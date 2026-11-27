@@ -1,7 +1,7 @@
 import type { MenuTreeNode } from "@compozy/ui";
 import { use } from "react";
 
-import { isRemoteComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 
 import { SessionClearContext } from "../contexts/session-clear-context-value";
 import { SessionDeriveContext } from "../contexts/session-derive-context-value";
@@ -10,9 +10,10 @@ import { SessionMenuOpenContext } from "../contexts/session-menu-open-context-va
 import type { SessionMenuSourceData } from "../contexts/session-menu-source-context-value";
 import { SessionProfileMoveContext } from "../contexts/session-profile-move-context-value";
 import { copySessionText } from "../lib/session-copy";
+import type { SessionMenuLinkedWork } from "../lib/session-menu-linked-work";
 import { sessionMenuTree, type SessionRowLayoutMenu } from "../lib/session-menu-tree";
 import { sessionComputerOf } from "../lib/session-row-ref";
-import type { SessionPayload } from "../types";
+import type { SessionListTarget, SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./session-lifecycle-types";
 import { requestSessionLinkDialog } from "./use-session-link-dialog";
 import { requestSessionParentPicker } from "./use-session-parent-picker";
@@ -34,6 +35,43 @@ function summaryLinkedWork(session: SessionPayload): SessionMenuSourceData["link
   return summary?.lead ? { items: [summary.lead], total: summary.total, refreshing: false } : null;
 }
 
+function linkedWorkMenu(
+  session: SessionPayload,
+  options: SessionRowMenuOptions,
+  openSession: ((target: SessionListTarget) => void) | null,
+  computerId: ComputerId
+): SessionMenuLinkedWork | null {
+  const work = options.linkedWork ?? summaryLinkedWork(session);
+  if (!work) return null;
+  const { onOpen } = options;
+  const remote = isRemoteComputerId(computerId);
+  return {
+    ...work,
+    ...(onOpen
+      ? {
+          // The link dialog lives in the session's window: open it, then ask for the dialog.
+          onLink: () => {
+            onOpen();
+            requestSessionLinkDialog(session.id);
+          },
+          onShowAll: onOpen,
+        }
+      : {}),
+    // A rolled-up item's child shares the session's project; its agent resolves on open.
+    ...(openSession
+      ? {
+          onOpenSession: (id: string) =>
+            openSession({
+              id,
+              agent_name: "",
+              workspace_id: session.workspace_id,
+              ...(remote ? { computerId } : {}),
+            }),
+        }
+      : {}),
+  };
+}
+
 /**
  * One session's menu tree for its row or card, `…` or right-click: the session's verbs, plus the
  * Continue, Fork, Move to profile and Clear conversation entries the surrounding host provides,
@@ -49,10 +87,8 @@ export function useSessionRowMenuTree(
   const clear = use(SessionClearContext);
   const profileMove = use(SessionProfileMoveContext);
   const openSession = use(SessionMenuOpenContext);
-  const { onOpen } = options;
   const computerId = sessionComputerOf(session);
   const remote = isRemoteComputerId(computerId);
-  const work = options.linkedWork ?? summaryLinkedWork(session);
   return sessionMenuTree({
     session,
     actions,
@@ -70,33 +106,7 @@ export function useSessionRowMenuTree(
       ? { onMoveUnder: (source: SessionPayload) => requestSessionParentPicker(source.id) }
       : {}),
     ...(options.layout ? { layout: options.layout } : {}),
-    linkedWork: work
-      ? {
-          ...work,
-          ...(onOpen
-            ? {
-                // The link dialog lives in the session's window: open it, then ask for the dialog.
-                onLink: () => {
-                  onOpen();
-                  requestSessionLinkDialog(session.id);
-                },
-                onShowAll: onOpen,
-              }
-            : {}),
-          // A rolled-up item's child shares the session's project; its agent resolves on open.
-          ...(openSession
-            ? {
-                onOpenSession: (id: string) =>
-                  openSession({
-                    id,
-                    agent_name: "",
-                    workspace_id: session.workspace_id,
-                    ...(remote ? { computerId } : {}),
-                  }),
-              }
-            : {}),
-        }
-      : null,
+    linkedWork: linkedWorkMenu(session, options, openSession, computerId),
     onCopy: (text, kind) => void copySessionText(text, kind),
   });
 }
