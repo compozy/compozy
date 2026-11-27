@@ -133,6 +133,7 @@ function buildRemoteFacetsQuerySpec(input: {
           });
   const canQuery =
     enabled &&
+    scope !== null &&
     computer.status === "connected" &&
     (scope?.kind !== "project" || (matched !== null && matched.length > 0));
   return {
@@ -224,7 +225,8 @@ function buildRemoteSource(input: {
     wsQuery?.isSuccess === true &&
     matchedWorkspaceIds !== null &&
     matchedWorkspaceIds.length === 0;
-  const facets = matchedWorkspaceIds?.length === 0 ? undefined : facetsQuery?.data;
+  const facets =
+    scope === null || matchedWorkspaceIds?.length === 0 ? undefined : facetsQuery?.data;
   const hasCached = facets !== undefined || hasCachedRowsForComputer(queryClient, computer.id);
   const read = resolveRemoteSourceRead({
     computer,

@@ -82,7 +82,11 @@ export function useComputerSectionSearch(input: {
     localLens: input.localLens ?? DEFAULT_LOCAL_LENS,
   });
   const onlineSearchEnabled =
-    filtering && input.source.read === "ok" && !probe.skip && contextClient !== undefined;
+    filtering &&
+    input.scope !== null &&
+    input.source.read === "ok" &&
+    !probe.skip &&
+    contextClient !== undefined;
   const searchQuery = useQuery(
     {
       ...sessionCatalogFirstPageOptions(probe.filters, input.source.key),
@@ -97,6 +101,7 @@ export function useComputerSectionSearch(input: {
       headerCount: isComputerCounted(input.source.read) ? input.source.count : null,
     };
   }
+  if (input.scope === null) return { hidden: false, headerCount: null };
   if (input.source.read === "offline") {
     const matches = probe.skip
       ? []

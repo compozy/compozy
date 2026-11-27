@@ -20,8 +20,8 @@ export interface SessionRowComputerInfo {
 /**
  * Provides remote-computer provenance (`name`, `platform`, `offline`) to session rows
  * and board cards without threading extra props through every intermediate folder/thread list.
- * Keys use `sessionRowKey({ computerId, sessionId })` (with a bare `sessionId` fallback for
- * prototype fixtures). Local rows are absent so they render no computer label (`_uiux.md` U5).
+ * Keys use `sessionRowKey({ computerId, sessionId })`. Local rows are absent
+ * so they render no computer label (`_uiux.md` U5).
  */
 export const SessionWritableComputersContext = createContext<ReadonlySet<ComputerId> | undefined>(
   undefined
