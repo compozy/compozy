@@ -226,8 +226,11 @@ func (m *Manager) prepareCreatorWake(ctx context.Context, info *Info, badge Badg
 		}
 	} else if reason == SpawnWakeReasonCompleted && info.Lineage.NotifyCreator &&
 		m.spawnWakeCovered(info.Lineage.ParentSessionID, info, badge) {
-		m.logSpawnWakeSuppressed(ctx, info.Lineage.ParentSessionID, event, "session_monitor_covers", nil)
-		return event, false
+		queue, err := m.InputQueueSummary(ctx, info.ID)
+		if err == nil && queue.PendingInputs == 0 {
+			m.logSpawnWakeSuppressed(ctx, info.Lineage.ParentSessionID, event, "session_monitor_covers", nil)
+			return event, false
+		}
 	}
 	if !m.reserveSpawnWakeEvent(event.WakeEventID) {
 		return event, false

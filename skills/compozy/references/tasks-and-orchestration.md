@@ -66,6 +66,8 @@ other session finishes.
 A creator can collect a child's settled turn with a session monitor that includes `idle` (the
 default includes it) or a reply watch for that turn. The unseen result reads `done`. A session
 monitor that covers completion carries the wake, including when `notify_creator` is enabled.
+With queued input, the monitor waits for the queue to drain and the opt-in completion wake can
+still report the finished turn.
 A child that ends a turn without answering its creator or delivering a linked pull request raises
 `needs-attention` with `attention: "ended_early"` if it has no open work or pending interaction and
 the creator has neither form of coverage. An answer after the latest creator message consumed by

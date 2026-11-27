@@ -241,13 +241,10 @@ func (m *Manager) finishPromptPump(
 		activity.stop()
 	}
 	m.revalidateSettledWorkSignals(lifecycleCtx, session)
-	if activity != nil {
-		activity.finish(m.now())
-	}
 	if fatalPromptFailure == nil {
 		m.recordTurnEndedEarly(lifecycleCtx, session, turnState)
 	}
-	m.settlePromptAttention(lifecycleCtx, session, before, turnState)
+	m.settlePromptAttention(lifecycleCtx, session, before, turnState, activity)
 	if session != nil {
 		session.supervisionInspectMu.Unlock()
 	}
@@ -328,12 +325,17 @@ func (m *Manager) settlePromptAttention(
 	target *Session,
 	before *Info,
 	turnState *promptTurnDispatchState,
+	activity *promptActivitySupervisor,
 ) {
 	if target == nil {
 		return
 	}
 	if err := m.settleSessionAttention(ctx, target.ID, m.now().UTC()); err != nil {
 		m.sessionLogger(target).Error("session: persist terminal attention failed", "error", err)
+	}
+	// A session monitor must see the new settled revision when activity clears.
+	if activity != nil {
+		activity.finish(m.now())
 	}
 	m.publishLifecycleAttentionTransitionWake(ctx, before, target.Info(),
 		!promptTurnWasCanceled(target, turnState), promptTurnID(turnState))

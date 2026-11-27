@@ -257,8 +257,10 @@ still only one wake. Start another turn after the watch fires and let it end wit
 The earlier monitor outcome cannot cover this turn. Confirm `needs-attention`, one early-stop
 wake and the reason on the web row and in the header's **Mark as seen** tooltip. A monitor
 configured only for `needs-attention` still receives the early-stop alarm. Repeat with a question,
-permission request or failure and confirm genuine attention remains visible. The session-layer
-regression lives in `TestManagerEarlyStopSupervision`.
+permission request or failure and confirm genuine attention remains visible. With a queued
+follow-up, a completion monitor waits for the queue to drain and the opt-in wake still reports
+the finished turn. `TestManagerEarlyStopSupervision` and `TestManagerDispatchSpawnWake` cover
+the session behavior. `TestSessionWorkSourcesMonitors` covers the real monitor filter.
 
 Review-round coverage for #1566: deliver the alarm synchronously while the child's settling
 turn is still registered and its creator is idle; that current-turn alarm must reach the

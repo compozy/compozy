@@ -285,6 +285,9 @@ func TestSessionWorkSourcesMonitors(t *testing.T) {
 		if !sources.creatorMonitorCovers("creator", child, session.BadgeNeedsAttention) {
 			t.Fatal("creator's active watch did not cover the child's alarm")
 		}
+		if sources.creatorMonitorCovers("creator", child, session.BadgeDone) {
+			t.Fatal("an attention-only watch covered the child's normal completion")
+		}
 		if sources.creatorMonitorCovers("other", child, session.BadgeNeedsAttention) ||
 			sources.creatorMonitorCovers("creator", &session.Info{ID: "other"}, session.BadgeNeedsAttention) ||
 			sources.creatorMonitorCovers("creator", child, session.BadgeWaitingForInput) {
@@ -295,6 +298,15 @@ func TestSessionWorkSourcesMonitors(t *testing.T) {
 		}
 		if sources.creatorMonitorCovers("creator", child, session.BadgeNeedsAttention) {
 			t.Fatal("a canceled monitor covered the child's alarm")
+		}
+		if _, err := service.Create(t.Context(), monitor.Spec{
+			WorkspaceID: "ws", ProfileID: store.DefaultProfileID, SessionID: "creator",
+			Kind: monitor.KindSession, Description: "wait for the child to settle", Targets: []string{"child"},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if !sources.creatorMonitorCovers("creator", child, session.BadgeDone) {
+			t.Fatal("the default watch did not cover the child's upcoming completion")
 		}
 	})
 

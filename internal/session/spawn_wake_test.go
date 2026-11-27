@@ -485,6 +485,31 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 		}
 	})
 
+	t.Run("Should deliver an opted-in completion when queued input keeps the monitor waiting", func(t *testing.T) {
+		t.Parallel()
+		db := openManagerInputQueueStore(t)
+		notifier := &recordingSpawnWakeNotifier{}
+		h := newHarness(t, WithSessionInputQueueStore(db), WithSessionCatalog(db), WithSpawnWakeNotifier(notifier))
+		registerManagerInputQueueWorkspace(t, db, h)
+		cleanupTestManager(t, h.manager)
+		parent := createSession(t, h)
+		child, err := h.manager.Create(t.Context(), &CreateOpts{AgentName: "coder", Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{ParentSessionID: parent.ID, NotifyCreator: true}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := db.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "queued-follow-up", SessionID: child.ID, Text: "follow up", QueueCap: 2, Now: h.manager.now(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		h.manager.ConfigureSpawnWakeCoverage(func(string, *Info, Badge) bool { return true })
+		h.manager.dispatchSpawnWakeForTurn(t.Context(), child.Info(), BadgeDone, "turn-completed")
+		if _, events := notifier.calls(); len(events) != 1 || events[0].Reason != SpawnWakeReasonCompleted {
+			t.Fatalf("creator wakes = %#v, want the completed turn's wake", events)
+		}
+	})
+
 	t.Run("Should still wake for a completed turn a queued reply watch does not cover", func(t *testing.T) {
 		t.Parallel()
 
@@ -1637,7 +1662,15 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 		matchesCompletion := func(creatorID string, info *Info, badge Badge) bool {
 			return creatorID == parent.ID && info.ID == child.ID && badge == BadgeDone
 		}
-		h.manager.ConfigureSpawnWakeCoverage(matchesCompletion)
+		h.manager.ConfigureSpawnWakeCoverage(func(creatorID string, info *Info, badge Badge) bool {
+			if !matchesCompletion(creatorID, info, badge) {
+				return false
+			}
+			observed := child.Info()
+			// A monitor can fire as soon as the child reads as settled, fencing it to that revision.
+			return BadgeForInfo(observed) == BadgeRunning ||
+				(info.LastSettledRevision != 0 && info.LastSettledRevision == observed.LastSettledRevision)
+		})
 
 		promptChild(t, h, child)
 
