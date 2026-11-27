@@ -72,8 +72,8 @@ corrections or explains specific exceptions grounded in your approved design sys
 
 The review skill supplies a limit of three complete passes, stopping earlier when approved.
 For a direct Loop invocation, pass `config_overrides` with `iteration_cap: 3`
-and `reattempt_strategy: full_body`; runtime defaults can otherwise
-override the definition's declared values. The Loop's status
+and `reattempt_strategy: full_body` to keep the three-pass cap across local configuration and
+rerun the full body after an action failure. The Loop's status
 and findings use the existing CompozyOS run inspector. If it exhausts or fails, the latest HTML
 remains on disk with the unresolved outcome; there is no automatic version rollback. Ordinary
 design requests and `_uiux.md` input do not start the Loop automatically.

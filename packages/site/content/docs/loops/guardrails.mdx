@@ -160,7 +160,8 @@ beyond its effective cap. A positive contract cap applies before the configured 
 yields to [per-Loop and per-run overrides](/docs/loops/configure#how-it-stores-and-merges).
 A definition containing `watch-source` selects the watch fallback. A definition containing only
 `watch-events` among watch sources selects the delivery fallback. An effective cap of `0` renders
-as `∞`. Budgets are opt-in. Set a nonzero budget to cap spend.
+as `∞`. To cap spend, set a nonzero token or wall-clock budget in the matching defaults,
+per-Loop config, or per-run overrides. The matching defaults take precedence over authored budgets.
 Fan-out logical width is bounded by the node's required positive `max_fan_out`; only the
 `max_parallel` window materializes at once.
 

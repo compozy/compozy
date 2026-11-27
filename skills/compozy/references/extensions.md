@@ -134,8 +134,9 @@ It requires Node.js, preserves original findings, reports file digests, and neve
 Its `passed` means zero original P0 findings. The optional review Loop uses an independent
 critic session and verifies the approved file digests before completion. Its optional `target`
 input (`auto`, `html`, `library`) binds the designer; a library result must list its prototype sources. Its skill passes per-run
-`config_overrides` of `iteration_cap: 3` and `reattempt_strategy: full_body` so runtime defaults
-cannot replace the workflow limits. Use the same overrides for direct invocations. The critic considers findings and
+`config_overrides` of `iteration_cap: 3` and `reattempt_strategy: full_body` to keep the three-pass
+cap across local configuration and rerun the full body after an action failure. Use the same
+overrides for direct invocations. The critic considers findings and
 specific source-backed exceptions. A normal design request does not start the Loop automatically.
 Use its skill and this reference's normal lifecycle surfaces to inspect or operate it.
 

@@ -537,6 +537,27 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		}
 	})
 
+	t.Run("Should apply an authored iteration cap to a watch-source Loop", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := &loop.ResolvedDefinition{Definition: dsl.Definition{
+			Contract: dsl.Contract{IterationCap: 2},
+			Graph: dsl.Graph{Nodes: []dsl.Node{{
+				ID: "watch", Class: dsl.NodeClassSource, Kind: string(dsl.SourceWatchSource),
+			}}},
+		}}
+		effective, err := loop.ResolveEffectiveConfig(resolved, loop.DefaultLoopDefaults(), nil, loop.LoopConfig{})
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+		}
+		if got := effective.IterationCap; got != 2 {
+			t.Fatalf("watch IterationCap = %d, want 2", got)
+		}
+		if got := effective.Sources["/iteration_cap"]; got != loop.EffectiveConfigSourceDefinition {
+			t.Fatalf("watch iteration source = %q, want definition", got)
+		}
+	})
+
 	t.Run("Should select watch runtime defaults only for watch definitions", func(t *testing.T) {
 		t.Parallel()
 
