@@ -1457,13 +1457,12 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 			name            string
 			loadTimeout     bool
 			replayFails     bool
-			wantRemint      bool
 			wantRebindError bool
 		}{
-			{name: "timed out load replays with a re-minted hosted launch", loadTimeout: true, wantRemint: true},
+			{name: "timed out load replays with a re-minted hosted launch", loadTimeout: true},
 			{name: "timed out load reports a typed error when replay startup fails",
-				loadTimeout: true, replayFails: true, wantRemint: true, wantRebindError: true},
-			{name: "non-timeout load failure re-mints the hosted launch before replay", wantRemint: true},
+				loadTimeout: true, replayFails: true, wantRebindError: true},
+			{name: "non-timeout load failure re-mints the hosted launch before replay"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				hostedServer := compozyconfig.MCPServer{
@@ -1492,6 +1491,9 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 				acpSessionID := target.Info().ACPSessionID
 				superviseFor(t, h, clock, advance, 3)
 				requestsBefore := len(hosted.launchRequests())
+				hosted.mu.Lock()
+				cancelsBefore := len(hosted.cancels)
+				hosted.mu.Unlock()
 
 				loadCause := errors.New("provider refused to load the stored session")
 				if tc.loadTimeout {
@@ -1530,20 +1532,23 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 				}
 
 				requests := hosted.launchRequests()
-				wantRequests := requestsBefore + 1
-				if tc.wantRemint {
-					wantRequests++
-					last := requests[len(requests)-1]
-					if last != (HostedMCPLaunchRequest{
-						EagerTools: true, SessionID: target.ID, ProfileID: store.DefaultProfileID,
-						WorkspaceID: h.workspaceID, AgentName: "coder",
-					}) {
-						t.Fatalf("replay launch request = %+v, want same session launch identity", last)
-					}
-				}
-				if len(requests) != wantRequests {
+				if wantRequests := requestsBefore + 2; len(requests) != wantRequests {
 					t.Fatalf("hosted launch request count = %d, want %d; requests = %+v",
 						len(requests), wantRequests, requests)
+				}
+				if last := requests[len(requests)-1]; last != (HostedMCPLaunchRequest{
+					EagerTools: true, SessionID: target.ID, ProfileID: store.DefaultProfileID,
+					WorkspaceID: h.workspaceID, AgentName: "coder",
+				}) {
+					t.Fatalf("replay launch request = %+v, want same session launch identity", last)
+				}
+				hosted.mu.Lock()
+				canceled := slices.Clone(hosted.cancels[cancelsBefore:])
+				hosted.mu.Unlock()
+				if tc.replayFails && (!slices.Equal(canceled, []string{target.ID}) ||
+					target.Info().RuntimeStatus != RuntimeStatusUnbound) {
+					t.Fatalf("failed replay left runtime %s with canceled launches %v",
+						target.Info().RuntimeStatus, canceled)
 				}
 
 				h.driver.mu.Lock()

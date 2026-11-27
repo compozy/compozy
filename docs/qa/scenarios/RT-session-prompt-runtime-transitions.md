@@ -63,4 +63,5 @@ reduced effort, while durable intent remains unchanged. The supervision suite ow
 QA impact 2026-11-26 (#2021): released-session load timeouts now get a 90-second control budget, and a
 failed transcript-replay fallback returns a retryable 504 with Continue/Fork guidance instead of a
 generic server error. Re-walk the provider-backed idle-release and retained-draft flow; this change's
-automated regressions do not verify the live provider scenario.
+automated regressions do not verify the live provider scenario. Repeat the timeout through
+`compozy__session_prompt` and verify its structured error has the same code and retry guidance.

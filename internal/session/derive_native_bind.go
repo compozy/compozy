@@ -85,34 +85,47 @@ func (m *Manager) launchPromptRuntimeCandidate(
 	}
 	plan.spec.acpSessionID = ""
 	plan.spec.resumeReplay = true
-	loadTimedOut := acp.IsLoadSessionTimeout(err)
-	replayFailure := func(fallbackErr error) error {
-		if loadTimedOut && ctx.Err() == nil {
-			return &RebindTimeoutError{LoadTimeout: err, Fallback: fallbackErr}
-		}
-		return errors.Join(err, fallbackErr)
+	candidate, replayErr := m.launchPromptRuntimeReplay(ctx, session, plan, runtime)
+	if replayErr == nil {
+		return candidate, nil
 	}
-	if remintErr := m.remintHostedMCPForReplay(ctx, plan, runtime); remintErr != nil {
-		return nil, replayFailure(remintErr)
+	if reload && acp.IsLoadSessionTimeout(err) && ctx.Err() == nil {
+		return nil, &RebindTimeoutError{LoadTimeout: err, Fallback: replayErr}
 	}
-	startOpts, prepareErr := m.prepareSessionLaunch(ctx, &plan.spec, session, runtime, nil)
-	if prepareErr != nil {
-		return nil, replayFailure(prepareErr)
+	return nil, errors.Join(err, replayErr)
+}
+
+func (m *Manager) launchPromptRuntimeReplay(
+	ctx context.Context,
+	session *Session,
+	plan *promptRuntimePlan,
+	runtime *sessionStartRuntime,
+) (_ *AgentProcess, err error) {
+	renewed, err := m.remintHostedMCPForReplay(ctx, plan, runtime)
+	if err != nil {
+		return nil, err
 	}
-	candidate, fallbackErr := m.startAgentProcess(ctx, &plan.spec, startOpts)
-	if fallbackErr != nil {
-		return nil, replayFailure(fallbackErr)
+	if renewed {
+		defer func() {
+			if err != nil {
+				m.hostedMCP.CancelLaunch(session.ID)
+			}
+		}()
 	}
-	return candidate, nil
+	startOpts, err := m.prepareSessionLaunch(ctx, &plan.spec, session, runtime, nil)
+	if err != nil {
+		return nil, err
+	}
+	return m.startAgentProcess(ctx, &plan.spec, startOpts)
 }
 
 func (m *Manager) remintHostedMCPForReplay(
 	ctx context.Context,
 	plan *promptRuntimePlan,
 	runtime *sessionStartRuntime,
-) error {
+) (bool, error) {
 	if m.hostedMCP == nil {
-		return nil
+		return false, nil
 	}
 	for index, server := range runtime.mcpServers {
 		if server.Name != toolmeta.HostedServerName ||
@@ -129,16 +142,16 @@ func (m *Manager) remintHostedMCPForReplay(
 			AgentName:   runtime.agent.Name,
 		})
 		if err != nil {
-			return errors.Join(
+			return false, errors.Join(
 				ErrHostedMCPUnavailable,
 				fmt.Errorf("session: re-mint hosted MCP launch for transcript replay: %w", err),
 			)
 		}
 		runtime.mcpServers = append([]compozyconfig.MCPServer(nil), runtime.mcpServers...)
 		runtime.mcpServers[index] = hosted
-		return nil
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
 
 // nativeCloneLoadFailed reports a clone the child's own process could not load (ADR-003):

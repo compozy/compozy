@@ -221,6 +221,21 @@ func (n *daemonNativeTools) sessionPrompt(
 		if target != nil && errors.Is(err, store.ErrInstancePromptTargetChanged) {
 			continue
 		}
+		if refusal, ok := errors.AsType[*session.RebindTimeoutError](err); ok &&
+			core.StatusForSessionError(err) == http.StatusGatewayTimeout {
+			message := refusal.Error()
+			toolErr := toolspkg.NewToolError(
+				toolspkg.ErrorCode(session.SessionRebindTimeoutCode),
+				req.ToolID,
+				message,
+				err,
+			)
+			toolErr.HTTPStatus = http.StatusGatewayTimeout
+			toolErr.PublicMessage = message
+			toolErr.Retryable = true
+			toolErr.ProviderError = refusal.ProviderError()
+			return result, toolErr
+		}
 		return result, err
 	}
 }
