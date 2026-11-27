@@ -61,6 +61,10 @@ Steps:
    `region` (accepted, now `set`; only that workspace's runtime restarts), then write `project`
    (already `set`): refused with `extension_input_overwrite_denied` listing `project`, nothing
    written. The global instance and other workspaces stay unchanged.
+8. Install a workspace-only copy with its required inputs set in the selected profile. Disable it
+   and re-enable it with `-o json`. Enable succeeds and the subprocess starts with the stored
+   inputs. Another profile without those inputs still gets `extension_inputs_required` on enable.
+   Unbind a required input so the workspace runtime reports an error, then verify disable succeeds.
 
 Pass: values never appear in output, logs, events, SSE or transcripts; the installed version,
 attachments and enablement never change.

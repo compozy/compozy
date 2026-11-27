@@ -25,6 +25,26 @@ func (target extensionMutationTarget) key(name string) extensionpkg.InstanceKey 
 	}
 }
 
+func (s *daemonExtensionService) defaultProfileExtensionTargets(
+	ctx context.Context, name string,
+) ([]extensionMutationTarget, error) {
+	profile := extensionDefaultProfileLens()
+	workspaces, err := s.extensionEnablementWorkspaces(ctx, name, profile.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(workspaces) == 0 {
+		return []extensionMutationTarget{{profile: profile}}, nil
+	}
+	targets := make([]extensionMutationTarget, 0, len(workspaces))
+	for _, workspaceID := range workspaces {
+		targets = append(targets, extensionMutationTarget{
+			scope: extensionpkg.InstallationScope{WorkspaceID: workspaceID}, profile: profile,
+		})
+	}
+	return targets, nil
+}
+
 func (s *daemonExtensionService) resolveExtensionScope(
 	ctx context.Context, scope, workspaceID, profileName string, actor taskpkg.ActorContext,
 ) (extensionMutationTarget, error) {

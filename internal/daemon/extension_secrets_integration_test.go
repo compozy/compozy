@@ -25,6 +25,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/extensionmcp"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -38,6 +39,8 @@ func TestExtensionSecrets(t *testing.T) {
 	t.Run("Should remove all installation state after the second input secret write fails [IT-020]",
 		testExtensionInputInstallRollback)
 	t.Run("Should inject a global binding only after enable", testExtensionSecretBindingEnableInjection)
+	t.Run("Should reuse only the required inputs of each workspace and profile on enable",
+		testWorkspaceExtensionInputEnablement)
 	t.Run(
 		"Should prefer a development binding and fall back to the profile binding",
 		testExtensionSecretDevBindingIsolation,
@@ -1086,6 +1089,153 @@ func testExtensionSecretBindingEnableInjection(t *testing.T) {
 		string(mustExtensionTransportJSON(t, events)),
 		[]string{secretValue},
 	)
+}
+
+func testWorkspaceExtensionInputEnablement(t *testing.T) {
+	t.Parallel()
+
+	const (
+		name      = "workspace-input-kit"
+		workspace = "ws-input-kit"
+		other     = "ws-unconfigured"
+		secret    = "workspace-input-fixture-secret"
+	)
+	ctx := t.Context()
+	harness := newExtensionSecretIntegrationHarness(t, extensionSecretIntegrationHarnessOptions{
+		actorReason: "workspace input enablement", workspaceID: workspace, allowUnverified: true,
+	})
+	service := harness.service
+	profiles, err := profilepkg.NewManager(profilepkg.WithStore(harness.db),
+		profilepkg.WithHomePaths(service.homePaths), profilepkg.WithLogger(discardLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.profiles = profiles
+	marketing, err := profiles.Create(ctx, profilepkg.CreateInput{Name: "marketing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stamp := store.FormatTimestamp(service.now())
+	for id, root := range map[string]string{workspace: harness.workspaceRoot, other: t.TempDir()} {
+		if _, err := harness.db.DB().ExecContext(ctx, `INSERT INTO workspaces
+			(id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`, id, root, id, stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dir := writeBoundSecretExtensionFixture(t, t.TempDir(), name)
+	manifestPath := filepath.Join(dir, "extension.toml")
+	manifest, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest = bytes.Replace(
+		manifest,
+		[]byte(`min_compozy_version = "0.5.0"`),
+		[]byte(`min_compozy_version = "0.7.9"`),
+		1,
+	)
+	manifest = append(manifest, []byte(`
+[[inputs]]
+id = "token"
+prompt = "Token"
+type = "secret"
+required = true
+binding = { type = "env", name = "BOUND_SECRET" }
+`)...)
+	if err := os.WriteFile(manifestPath, manifest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	actor := harness.actor
+	actor.ReadScope = store.ReadScope{AllProfiles: true}
+	installed, err := service.Install(ctx, contract.InstallExtensionRequest{
+		Source: contract.InstallExtensionSourceLocalPath, Ref: dir, AllowUnverified: true,
+		WorkspaceID: workspace, Inputs: setupValues("token", secret),
+	}, actor)
+	if err != nil || installed.PID == 0 || len(installed.MissingEnv) != 0 {
+		t.Fatalf("workspace install: pid=%d missing=%v error=%v", installed.PID, installed.MissingEnv, err)
+	}
+	setEnabled := func(profile string, enabled bool) error {
+		t.Helper()
+		result, err := service.SetEnablement(ctx, name, contract.SetExtensionEnablementRequest{
+			Profile: profile, Enabled: enabled,
+		}, actor)
+		if err == nil && (result.Profile != profile || result.Enabled != enabled) {
+			t.Fatalf("enablement result = %#v, want %s enabled=%t", result, profile, enabled)
+		}
+		return err
+	}
+	assertMissing := func(err error) {
+		t.Helper()
+		required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
+		if !ok || len(required.MissingEnv) != 1 || required.MissingEnv[0] != "BOUND_SECRET" {
+			t.Fatalf("enablement error = %v, want required BOUND_SECRET", err)
+		}
+		assertSecretsAbsent(t, "input refusal", err.Error(), []string{secret})
+	}
+	otherProfile := extensionpkg.InstallationScope{ProfileID: marketing.ID, WorkspaceID: other}
+	if err := service.registry.AttachInstallation(ctx, name, otherProfile); err != nil {
+		t.Fatal(err)
+	}
+	if err := setEnabled("default", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := setEnabled("default", true); err != nil {
+		t.Fatal(err)
+	}
+	active, err := service.installedTargetStatus(ctx, name, extensionMutationTarget{
+		scope: extensionpkg.InstallationScope{WorkspaceID: workspace}, profile: extensionDefaultProfileLens(),
+	})
+	if err != nil || !active.Enabled || active.PID == 0 {
+		t.Fatalf("profile re-enable: enabled=%t pid=%d error=%v", active.Enabled, active.PID, err)
+	}
+	if err := service.registry.DetachInstallation(ctx, name, otherProfile); err != nil {
+		t.Fatal(err)
+	}
+	if err := setEnabled("marketing", false); err != nil {
+		t.Fatal(err)
+	}
+	assertMissing(setEnabled("marketing", true))
+
+	foreign := extensionpkg.InstallationScope{ProfileID: store.DefaultProfileID, WorkspaceID: other}
+	if err := service.registry.AttachInstallation(ctx, name, foreign); err != nil {
+		t.Fatal(err)
+	}
+	if err := setEnabled("default", false); err != nil {
+		t.Fatal(err)
+	}
+	assertMissing(setEnabled("default", true))
+	preview, err := service.Preview(ctx, name)
+	if err != nil || len(preview.MissingEnv) != 1 || preview.MissingEnv[0] != "BOUND_SECRET" {
+		t.Fatalf("enable preview = %#v, error = %v", preview, err)
+	}
+	if err := service.registry.DetachInstallation(ctx, name, foreign); err != nil {
+		t.Fatal(err)
+	}
+	enabled, err := service.Enable(ctx, name, contract.EnableExtensionRequest{}, actor)
+	if err != nil || !enabled.Extension.Enabled || enabled.Extension.PID == 0 {
+		t.Fatalf("enable after detaching unconfigured workspace: enabled=%t pid=%d error=%v",
+			enabled.Extension.Enabled, enabled.Extension.PID, err)
+	}
+	assertSecretsAbsent(t, "enable result", string(mustExtensionTransportJSON(t, enabled)), []string{secret})
+
+	// Keep another profile enabled so the shared workspace runtime attempts to start.
+	if err := service.registry.SetEnabledForProfile(name, marketing.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.DeleteExtensionSecret(ctx, name, "BOUND_SECRET",
+		newExtensionSecretIntegrationActor(t, workspace, "unbind workspace input")); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.reloadExtensions(ctx, name); !errors.Is(err, extensionpkg.ErrExtensionInputsRequired) {
+		t.Fatalf("unconfigured runtime reload = %v, want required input failure", err)
+	}
+	if err := setEnabled("default", false); err != nil {
+		t.Fatalf("disable unconfigured workspace install: %v", err)
+	}
+	otherEnabled, err := service.registry.IsEnabledForProfileContext(ctx, name, marketing.ID)
+	if err != nil || !otherEnabled {
+		t.Fatalf("disable changed other profile: enabled=%t error=%v", otherEnabled, err)
+	}
 }
 
 func writeBoundSecretExtensionFixture(t *testing.T, root, name string) string {

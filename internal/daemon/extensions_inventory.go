@@ -61,18 +61,16 @@ func (s *daemonExtensionService) Preview(
 	if err := s.checkReady(); err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
-	return s.previewExtension(ctx, name)
-}
-
-func (s *daemonExtensionService) previewExtension(
-	ctx context.Context,
-	name string,
-) (contract.ExtensionEnablePreviewPayload, error) {
-	return s.previewExtensionTarget(ctx, name, extensionMutationTarget{profile: extensionDefaultProfileLens()})
+	targets, err := s.defaultProfileExtensionTargets(ctx, name)
+	if err != nil {
+		return contract.ExtensionEnablePreviewPayload{}, err
+	}
+	return s.previewExtensionTarget(ctx, name, targets[0], targets[1:]...)
 }
 
 func (s *daemonExtensionService) previewExtensionTarget(
 	ctx context.Context, name string, target extensionMutationTarget,
+	additionalTargets ...extensionMutationTarget,
 ) (contract.ExtensionEnablePreviewPayload, error) {
 	ext, desired, err := s.desiredExtensionKitTarget(ctx, name, target)
 	if err != nil {
@@ -86,6 +84,17 @@ func (s *daemonExtensionService) previewExtensionTarget(
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
+	missingInputs, missingEnv := slices.Clone(status.MissingInputs), slices.Clone(status.MissingEnv)
+	for _, extra := range additionalTargets {
+		item, err := s.installedTargetStatus(ctx, name, extra)
+		if err != nil {
+			return contract.ExtensionEnablePreviewPayload{}, err
+		}
+		missingInputs = append(missingInputs, item.MissingInputs...)
+		missingEnv = append(missingEnv, item.MissingEnv...)
+	}
+	slices.Sort(missingInputs)
+	slices.Sort(missingEnv)
 	conflicts, err := s.extensionAgentConflicts(ctx, ext)
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
@@ -102,8 +111,8 @@ func (s *daemonExtensionService) previewExtensionTarget(
 		Extension:          ext.Info.Name,
 		Changes:            changes,
 		AgentConflicts:     conflicts,
-		MissingEnv:         slices.Clone(status.MissingEnv),
-		MissingInputs:      slices.Clone(status.MissingInputs),
+		MissingEnv:         slices.Compact(missingEnv),
+		MissingInputs:      slices.Compact(missingInputs),
 		AutomationStarting: automationStarting,
 	}, nil
 }

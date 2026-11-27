@@ -12,14 +12,14 @@ import (
 func (s *daemonExtensionService) enableTargetUnlocked(
 	ctx context.Context, name string, actor taskpkg.ActorContext,
 	target extensionMutationTarget,
+	additionalTargets ...extensionMutationTarget,
 ) (contract.ExtensionEnableResult, error) {
 	var result contract.ExtensionEnableResult
-	info, getErr := s.registry.Get(name)
+	previous, getErr := s.registry.IsEnabledForProfileContext(ctx, name, extensionDefaultProfileLens().ID)
 	if getErr != nil {
 		return result, getErr
 	}
-	snapshot := snapshotGlobalExtensionLifecycle(info)
-	preview, previewErr := s.previewExtensionTarget(ctx, name, target)
+	preview, previewErr := s.previewExtensionTarget(ctx, name, target, additionalTargets...)
 	if previewErr != nil {
 		return result, previewErr
 	}
@@ -32,14 +32,14 @@ func (s *daemonExtensionService) enableTargetUnlocked(
 		return result, &extensionpkg.AgentConflictError{Agents: slices.Clone(preview.AgentConflicts)}
 	}
 	if enableErr := s.registry.Enable(name); enableErr != nil {
-		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, enableErr)
+		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, previous, enableErr)
 	}
-	if reloadErr := s.reloadExtensions(ctx, name); reloadErr != nil {
-		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, reloadErr)
+	if reloadErr := s.reloadExtensionProfile(ctx, name, extensionDefaultProfileLens().ID, true); reloadErr != nil {
+		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, previous, reloadErr)
 	}
 	item, statusErr := s.installedTargetStatus(ctx, name, target)
 	if statusErr != nil {
-		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, statusErr)
+		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, previous, statusErr)
 	}
 	automationStarted := slices.Clone(preview.AutomationStarting)
 	result = contract.ExtensionEnableResult{Extension: item, AutomationStarted: automationStarted}
@@ -48,7 +48,7 @@ func (s *daemonExtensionService) enableTargetUnlocked(
 		actor,
 		&result,
 	); eventErr != nil {
-		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, eventErr)
+		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, previous, eventErr)
 	}
 	return result, nil
 }

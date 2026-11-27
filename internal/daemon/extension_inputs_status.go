@@ -13,11 +13,7 @@ import (
 func (s *daemonExtensionService) checkProfileEnablementInputs(
 	ctx context.Context,
 	name, profileID string,
-	enabled bool,
 ) error {
-	if !enabled {
-		return nil
-	}
 	ext, err := s.runtime.InspectPackageResources(ctx, name)
 	if err != nil {
 		return err
@@ -28,13 +24,40 @@ func (s *daemonExtensionService) checkProfileEnablementInputs(
 	if len(ext.Manifest.Inputs) == 0 {
 		return nil
 	}
-	state, err := s.inputReader().load(ctx, extensioninput.Instance{
-		Extension: name, ProfileID: profileID,
-	}, ext.Manifest)
+	workspaces, err := s.extensionEnablementWorkspaces(ctx, name, profileID)
 	if err != nil {
 		return err
 	}
-	return extensionpkg.InputReadiness(ext.Manifest, state, s.getenv).RequiredError(ext.Manifest)
+	for _, workspaceID := range workspaces {
+		state, err := s.inputReader().load(ctx, extensioninput.Instance{
+			Extension: ext.Info.Name, ProfileID: profileID, WorkspaceID: workspaceID,
+		}, ext.Manifest)
+		if err != nil {
+			return err
+		}
+		if err := extensionpkg.InputReadiness(ext.Manifest, state, s.getenv).RequiredError(ext.Manifest); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *daemonExtensionService) extensionEnablementWorkspaces(
+	ctx context.Context, name, profileID string,
+) ([]string, error) {
+	installations, err := s.registry.Installations(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	var workspaces []string
+	for _, installation := range installations {
+		scope := installation.Scope
+		if scope.ProfileID == "" || scope.ProfileID == profileID {
+			workspaces = append(workspaces, scope.WorkspaceID)
+		}
+	}
+	// The registry orders attachments by workspace, so profile-specific and shared rows are adjacent.
+	return slices.Compact(workspaces), nil
 }
 
 func (s *daemonExtensionService) populateExtensionInputStatus(
