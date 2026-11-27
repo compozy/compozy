@@ -11,6 +11,7 @@ import {
   normalizeComputerId,
   type ComputerId,
 } from "@/lib/computer-scope";
+import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import type { AgentPayload } from "@/systems/agent";
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { TerminalQuote } from "@/systems/terminal/parts";
@@ -32,7 +33,7 @@ import type { CreateSessionParams } from "../types";
 import { useCreateSession } from "./use-session-actions";
 import type { SessionEnvironmentModel } from "./use-session-environment";
 import type { SessionCreateTarget } from "./use-session-create-target";
-import { useSessionComputerScope } from "./use-session-computer-scope";
+import { resolveSessionWindowOrder, sessionSidebarStore } from "./use-session-sidebar-state";
 import type { SessionWindowComputerScope } from "../lib/session-sidebar-scope";
 
 interface UseSessionCreateSubmitOptions {
@@ -90,8 +91,7 @@ export function useSessionCreateSubmit({
 }: UseSessionCreateSubmitOptions): () => void {
   const navigate = useNavigate();
   const shell = use(OsShellContext);
-  const focusedWindowId = shell?.manager.getState().focusedId ?? undefined;
-  const computerScope = useSessionComputerScope(focusedWindowId);
+  const fallbackScopeId = useWorktreeScopeId();
   const createSession = useCreateSession();
   const scopedComputerId = normalizeComputerId(computerId);
   const scopedProjectComputerId = normalizeComputerId(projectComputerId);
@@ -114,6 +114,7 @@ export function useSessionCreateSubmit({
       return;
     }
     const { agentName, pendingPrompt, request, terminalQuote, workspaceId } = pendingSubmit;
+    const windowScope = landingWindowScope(shell, fallbackScopeId);
     store.trigger.submissionRequested({
       agentName,
       workspaceId,
@@ -137,6 +138,7 @@ export function useSessionCreateSubmit({
             scope,
             currentWorkspaceId: actingWorkspaceId,
             allProjectsTarget,
+            ...windowScope,
           },
           navigate,
           shell
@@ -146,6 +148,7 @@ export function useSessionCreateSubmit({
     allProjectsTarget,
     createSessionAsync,
     environment.status,
+    fallbackScopeId,
     isRemote,
     navigate,
     pendingSubmit,
@@ -188,6 +191,7 @@ export function useSessionCreateSubmit({
       }
     }
     const terminalQuote = claimPendingTerminalQuoteForCreate();
+    const windowScope = landingWindowScope(shell, fallbackScopeId);
     const requestPayload: CreateSessionParams = isAuto
       ? {
           ...stripLocalOnlyAutoFields(validated.request),
@@ -222,13 +226,26 @@ export function useSessionCreateSubmit({
             scope,
             currentWorkspaceId: actingWorkspaceId,
             allProjectsTarget,
-            windowComputerScope: computerScope.scope,
-            onShowInList: () => computerScope.setScope("all"),
+            ...windowScope,
           },
           navigate,
           shell
         ),
     });
+  };
+}
+
+function landingWindowScope(
+  shell: OsShellHandle | null,
+  fallbackScopeId: string
+): Pick<SessionLanding, "windowComputerScope" | "onShowInList"> {
+  const scopeId = shell?.manager.getState().focusedId ?? fallbackScopeId;
+  const { byScope } = sessionSidebarStore.getSnapshot().context;
+  const { computerScope } = resolveSessionWindowOrder(byScope, scopeId);
+  return {
+    windowComputerScope: computerScope,
+    onShowInList: () =>
+      sessionSidebarStore.trigger.computerScopeChanged({ scopeId, computerScope: "all" }),
   };
 }
 
