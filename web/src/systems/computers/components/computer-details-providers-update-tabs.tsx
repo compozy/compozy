@@ -340,7 +340,7 @@ export function ComputerDetailsUpdateTab({
           <TriangleAlert aria-hidden="true" />
           <AlertTitle>Couldn&apos;t verify this CompozyOS release</AlertTitle>
           <AlertDescription>
-            Nothing was installed on {computer.name}. Check that it can reach{" "}
+            Nothing was installed on {computer.name}. Check that this CompozyOS app can reach{" "}
             <a
               className="font-medium underline underline-offset-3"
               href="https://github.com/compozy/compozy/releases"

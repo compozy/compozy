@@ -90,6 +90,7 @@ describe("ComputerDetailsPanel", () => {
         placement="pane"
       />
     );
+    expect(screen.getByRole("alert")).toHaveTextContent("Check that this CompozyOS app can reach");
     expect(screen.getByRole("link", { name: "CompozyOS releases on GitHub" })).toHaveAttribute(
       "href",
       "https://github.com/compozy/compozy/releases"

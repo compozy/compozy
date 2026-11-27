@@ -177,6 +177,11 @@ assert_signed_out_runtime() (
         fi
         case "${account_gate}:${protected_status}" in
           grace:200) return 0 ;;
+          enforced:200)
+            # Grace can expire between the workspace and account reads.
+            sleep 1
+            continue
+            ;;
           enforced:401)
             jq -e '.code == "sign_in_required"' "${signed_out_home}/read.json" >/dev/null && return 0
             ;;
@@ -188,7 +193,7 @@ assert_signed_out_runtime() (
     kill -0 "${signed_out_pid}" 2>/dev/null || return 1
     sleep 1
   done
-  echo "desktop release smoke: signed-out runtime did not serve its API" >&2
+  echo "desktop release smoke: timed out confirming the signed-out gate (workspaces HTTP ${protected_status:-unavailable}, gate ${account_gate:-unknown})" >&2
   return 1
 )
 
