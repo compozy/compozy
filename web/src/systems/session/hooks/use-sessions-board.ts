@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import type { ScopedComputerFailureItem } from "@/systems/computers";
 import { useProfileReadScope } from "@/systems/profiles";
 import {
@@ -30,11 +31,17 @@ import {
   type SessionListSort,
 } from "../lib/session-list-preferences";
 import { sessionListShelfFilters } from "../lib/session-list-shelf";
-import type { SessionListFilters, SessionPayload } from "../types";
-import { useRemoteSessionsFanout } from "./use-remote-sessions-fanout";
+import type { SessionListFilters } from "../types";
 import { useSessionGroupFolds } from "./use-session-group-folds";
 import { useSessionListGroups } from "./use-session-list-groups";
+import {
+  useSessionsBoardComputers,
+  type SessionsBoardComputerBand,
+} from "./use-sessions-board-computers";
+import { useSessionWindowOrder } from "./use-session-window-order";
 import { useProjectFolderGroups } from "./use-workspace-layout";
+
+export type { SessionsBoardComputerBand } from "./use-sessions-board-computers";
 
 /**
  * Which read of a page failed. `initial`: nothing loaded, so the error takes
@@ -83,10 +90,12 @@ export interface SessionsBoardLane {
 }
 
 export interface SessionsBoardView {
-  /** The ungrouped board's columns; empty and unread while the board is grouped. */
+  /** The ungrouped board's columns; empty and unread while the board is grouped or banded. */
   columns: SessionsBoardColumnView[];
-  /** Group-by swimlanes from server facets; `null` while the board is ungrouped. */
+  /** Group-by swimlanes from server facets; `null` while ungrouped or banded. */
   lanes: SessionsBoardLane[] | null;
+  /** Computer bands under All computers + Separate (`F13`, `K2`, `K3`); `null` elsewhere. */
+  computerBands?: SessionsBoardComputerBand[] | null;
   lanesLoading: boolean;
   lanesError?: { retry: () => void };
   /** The saved project order failed to load: lanes stay, in the served order, until a retry. */
@@ -103,18 +112,22 @@ export interface SessionsBoardView {
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
   /** The board's one concrete scope for its top row; `null` under All projects. */
   focusedWorkspaceId: string | null;
-  /** The board's identity for its selection: breadth, profile lens and grouping. */
+  /** The board's identity for its selection: scope, layer, breadth, profile lens and grouping. */
   selectionKey: string;
-  /** Remote-computer provenance by session ID for merged multi-computer cards (`_uiux.md` U5). */
+  /** Remote-computer provenance for multi-computer cards (`_uiux.md` U5, `K7`). */
   computerBySessionId?: ReadonlyMap<string, SessionRowComputerInfo>;
-  /** Remote computers whose board fan-out failed, rendered in a compact strip above columns. */
+  /** Remote computers whose board read failed (Together mode strip only, `K6`). */
   failedComputers?: readonly ScopedComputerFailureItem[];
   /** True when at least one remote computer is enabled for this window (`F9`, `F13`). */
   hasRemoteComputers?: boolean;
 }
 
-function useSessionsBoardPage(filters: SessionListFilters, enabled: boolean): SessionsBoardPage {
-  const page = useInfiniteQuery({ ...sessionBoardPageOptions(filters), enabled });
+function useSessionsBoardPage(
+  filters: SessionListFilters,
+  enabled: boolean,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+): SessionsBoardPage {
+  const page = useInfiniteQuery({ ...sessionBoardPageOptions(filters, computerId), enabled });
   const failure: SessionsBoardFailure | null = !page.isError
     ? null
     : page.data === undefined
@@ -133,7 +146,6 @@ function useSessionsBoardPage(filters: SessionListFilters, enabled: boolean): Se
     loadMore: () => {
       if (!page.isFetching) void page.fetchNextPage({ cancelRefetch: false });
     },
-    // A failed next page is fetched again; any other failure re-reads the loaded pages.
     retry: () => {
       if (page.isFetching) return;
       if (failure === "more") void page.fetchNextPage();
@@ -144,27 +156,26 @@ function useSessionsBoardPage(filters: SessionListFilters, enabled: boolean): Se
 }
 
 /**
- * The four derived columns for one catalog query: each column is its own read
- * filtered by the daemon's `board_column` before pagination, and the counts come
- * from `facets.board`, so they include cards that are not loaded yet. The
- * ungrouped board reads one set; each swimlane reads its own.
+ * The five derived columns for one catalog query on one daemon: each column is its own
+ * read filtered by `board_column` before pagination, and counts come from `facets.board`.
  */
 export function useSessionsBoardColumns(
   base: SessionListFilters,
-  active: boolean
+  active: boolean,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
 ): SessionsBoardColumnView[] {
   const column = (id: SessionBoardColumnId): SessionListFilters => ({
     ...base,
     board_column: [id],
     skip_total: true,
   });
-  const needsYou = useSessionsBoardPage(column("needs_you"), active);
-  const working = useSessionsBoardPage(column("working"), active);
-  const waiting = useSessionsBoardPage(column("waiting"), active);
-  const inReview = useSessionsBoardPage(column("in_review"), active);
-  const done = useSessionsBoardPage(column("done"), active);
+  const needsYou = useSessionsBoardPage(column("needs_you"), active, computerId);
+  const working = useSessionsBoardPage(column("working"), active, computerId);
+  const waiting = useSessionsBoardPage(column("waiting"), active, computerId);
+  const inReview = useSessionsBoardPage(column("in_review"), active, computerId);
+  const done = useSessionsBoardPage(column("done"), active, computerId);
   const facets = useQuery({
-    ...sessionFacetsOptions(base),
+    ...sessionFacetsOptions(base, computerId),
     refetchInterval: SESSION_BOARD_REFETCH_MS,
     enabled: active,
   });
@@ -179,14 +190,7 @@ export function useSessionsBoardColumns(
 }
 
 /**
- * The Sessions board read model for a data scope (`_uiux.md` S4). Columns read
- * in the window's sort (a List-only `manual` reads `last_activity`). Grouped by
- * project or profile, the board becomes swimlanes: membership comes from the
- * same facets the List groups use, and each lane reads its own columns. Archived
- * sessions appear only in the Archive bar and parked ones only in the Later
- * bar; both stay ungrouped. All reads live
- * under the catalog list family, so stream wakes and the 60 s visible re-read
- * keep them current.
+ * The Sessions board read model for a data scope (`_uiux.md` S4, `F13`).
  */
 export function useSessionsBoard({
   scope,
@@ -209,6 +213,7 @@ export function useSessionsBoard({
 }): SessionsBoardView {
   const { params, aggregate } = useProfileReadScope();
   const { registeredWorkspaces } = useActiveWorkspace();
+  const order = useSessionWindowOrder();
   const active = enabled && scope !== null;
   const breadth = { allProjects: scope?.kind === "all", allProfiles: aggregate };
   const effectiveGroupBy = effectiveSessionListGroupBy(groupBy, breadth);
@@ -219,117 +224,106 @@ export function useSessionsBoard({
     ...sessionListShelfFilters("active", showAutomation),
     sort: sessionBoardSort(sort),
   };
-  const base = sessionCatalogScopedFilters(scope, shared, params);
-  const columns = useSessionsBoardColumns(base, active && !grouped);
-  const remote = useRemoteSessionsFanout({
-    enabled: active && !grouped,
-    filters: shared,
+
+  const multi = useSessionsBoardComputers({
+    scope,
+    shared,
+    localLens: params,
+    groupBy: effectiveGroupBy,
+    showAutomation,
+    enabled: active,
   });
-  const mergedColumns = mergeRemoteSessionsIntoBoardColumns(
-    columns,
-    remote.remoteSessions.map(row => row.session)
-  );
+
+  const targetComputerId: ComputerId = multi.scopedRemoteSource?.key ?? LOCAL_COMPUTER_ID;
+  const isRemoteScoped = isRemoteComputerId(targetComputerId);
+  const targetLens = isRemoteScoped ? { all_profiles: true } : params;
+  const targetWorkspaces = multi.scopedRemoteSource
+    ? multi.scopedRemoteSource.workspaces
+    : registeredWorkspaces;
+  const matchedWorkspaceIds = multi.scopedRemoteSource?.matchedWorkspaceIds ?? null;
+  const base = sessionCatalogScopedFilters(scope, shared, targetLens);
+
+  const banded = multi.computerBands !== null;
+  const togetherGrouped = multi.togetherLanes !== null;
+  const singleColumnsActive = active && !grouped && !banded;
+  const columns = useSessionsBoardColumns(base, singleColumnsActive, targetComputerId);
+
+  const singleGroupingActive = active && grouped && !banded && !togetherGrouped;
   const grouping = useSessionListGroups({
     groupBy: effectiveGroupBy,
     scope,
-    lens: params,
-    workspaces: registeredWorkspaces,
+    lens: targetLens,
+    workspaces: targetWorkspaces,
     shelf: "active",
     showAutomation,
-    enabled: active,
-    // Lane membership and totals count the rows the lane's columns read.
+    enabled: singleGroupingActive,
     population,
-    // An empty lane reads no columns: its total is what notices the first session.
     refetchInterval: SESSION_BOARD_REFETCH_MS,
+    computerId: targetComputerId,
+    matchedWorkspaceIds,
   });
   const arranged = useProjectFolderGroups({
     groups: grouping.groups,
     groupBy: effectiveGroupBy,
-    breadth,
-    lens: params,
-    workspaces: registeredWorkspaces,
+    breadth: { allProjects: breadth.allProjects, allProfiles: isRemoteScoped ? true : breadth.allProfiles },
+    lens: targetLens,
+    workspaces: targetWorkspaces,
     showEmptyProjects,
-    enabled: active,
+    enabled: singleGroupingActive,
+    computerId: targetComputerId,
   });
-  const folds = useSessionGroupFolds(scope, effectiveGroupBy);
-  const archive = useSessionsBoardPage({ ...base, ...sessionListShelfFilters("archive") }, active);
-  const later = useSessionsBoardPage({ ...base, ...sessionListShelfFilters("later") }, active);
-  const names = new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]));
+  const folds = useSessionGroupFolds(scope, effectiveGroupBy, isRemoteScoped ? targetComputerId : undefined);
+  const localShelfActive = active && !multi.multiArchive;
+  const archive = useSessionsBoardPage(
+    { ...base, ...sessionListShelfFilters("archive") },
+    localShelfActive,
+    targetComputerId
+  );
+  const later = useSessionsBoardPage(
+    { ...base, ...sessionListShelfFilters("later") },
+    localShelfActive,
+    targetComputerId
+  );
+  const names = new Map(targetWorkspaces.map(workspace => [workspace.id, workspace.name]));
   const allProjects = scope?.kind === "all";
+
+  const lanes: SessionsBoardLane[] | null = banded
+    ? null
+    : togetherGrouped
+      ? multi.togetherLanes
+      : grouped
+        ? arranged.groups.map(group => ({
+            group,
+            filters: sessionCatalogScopedFilters(group.scope, shared, group.lens),
+            collapsed: folds.isCollapsed(group.key),
+            onToggle: () => folds.toggle(group.key),
+          }))
+        : null;
 
   return {
     focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
-    columns: grouped ? [] : mergedColumns,
-    lanes: grouped
-      ? arranged.groups.map(group => ({
-          group,
-          filters: sessionCatalogScopedFilters(group.scope, shared, group.lens),
-          collapsed: folds.isCollapsed(group.key),
-          onToggle: () => folds.toggle(group.key),
-        }))
-      : null,
-    lanesLoading: grouping.loading,
-    lanesError: grouping.error,
-    layoutError: arranged.loadError,
+    columns: grouped || banded ? [] : columns,
+    lanes,
+    computerBands: multi.computerBands,
+    lanesLoading: singleGroupingActive ? grouping.loading : false,
+    lanesError: singleGroupingActive ? grouping.error : undefined,
+    layoutError: singleGroupingActive ? arranged.loadError : undefined,
     groupBy: effectiveGroupBy,
     groupByOptions: availableSessionListGroupBys(breadth),
-    archive: { ...archive, count: archive.total },
-    later: { ...later, count: later.total },
-    workspaceNameOf: session =>
-      allProjects ? workspaceBadgeIdentity(session.workspace_id, names).name : null,
-    selectionKey: JSON.stringify([scope, params, effectiveGroupBy]),
-    computerBySessionId: remote.computerBySessionId,
-    failedComputers: remote.failedComputers,
-    hasRemoteComputers: remote.hasRemoteComputers,
+    archive: multi.multiArchive ?? { ...archive, count: archive.total },
+    later: multi.multiLater ?? { ...later, count: later.total },
+    workspaceNameOf: multi.hasRemoteComputers
+      ? multi.workspaceNameOf
+      : session => (allProjects ? workspaceBadgeIdentity(session.workspace_id, names).name : null),
+    selectionKey: JSON.stringify([
+      multi.effectiveScope,
+      order.computers,
+      scope,
+      params,
+      effectiveGroupBy,
+    ]),
+    computerBySessionId: multi.computerBySessionId,
+    failedComputers: multi.failedComputers,
+    hasRemoteComputers: multi.hasRemoteComputers,
   };
-}
-
-function deriveBoardColumnForRemote(session: SessionPayload): SessionBoardColumnId {
-  const column = (session as Partial<SessionBoardPayload>).board_column;
-  if (
-    column === "needs_you" ||
-    column === "working" ||
-    column === "waiting" ||
-    column === "in_review" ||
-    column === "done"
-  ) {
-    return column;
-  }
-  if (
-    session.badge === "needs-attention" ||
-    session.badge === "waiting-for-input" ||
-    session.badge === "waiting-for-auth"
-  ) {
-    return "needs_you";
-  }
-  if (session.badge === "running" || session.state === "starting") return "working";
-  if (session.badge === "waiting") return "waiting";
-  return "done";
-}
-
-function mergeRemoteSessionsIntoBoardColumns(
-  columns: SessionsBoardColumnView[],
-  remoteSessions: readonly SessionPayload[]
-): SessionsBoardColumnView[] {
-  if (remoteSessions.length === 0) return columns;
-  const byColumn = new Map<SessionBoardColumnId, SessionBoardPayload[]>();
-  for (const session of remoteSessions) {
-    const columnId = deriveBoardColumnForRemote(session);
-    const list = byColumn.get(columnId) ?? [];
-    list.push({ ...session, board_column: columnId } as SessionBoardPayload);
-    byColumn.set(columnId, list);
-  }
-  return columns.map(column => {
-    const extras = byColumn.get(column.id);
-    if (!extras || extras.length === 0) return column;
-    const seen = new Set(column.sessions.map(item => item.id));
-    const combined = [...column.sessions, ...extras.filter(item => !seen.has(item.id))].sort(
-      (left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at)
-    );
-    return {
-      ...column,
-      sessions: combined,
-      count: column.count !== undefined ? column.count + extras.length : combined.length,
-    };
-  });
 }

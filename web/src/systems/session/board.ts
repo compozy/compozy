@@ -28,3 +28,5 @@ export { sessionCatalogOptions, sessionFacetsOptions } from "./lib/session-catal
 export { fetchSessionFacets } from "./adapters/session-catalog-api";
 export { requestSessionParentPicker } from "./hooks/use-session-parent-picker";
 export { SessionParentPickerHost } from "./components/session-parent-picker-host";
+export { lookupSessionComputer } from "./lib/session-list-computer";
+export { sessionComputerOf } from "./lib/session-row-ref";

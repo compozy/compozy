@@ -1,10 +1,13 @@
 import { TriangleAlert } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
-import { Alert, AlertActions, AlertDescription, Button } from "@compozy/ui";
+import { Alert, AlertActions, AlertDescription, Button, cn } from "@compozy/ui";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
-import type { SessionsBoardView as SessionsBoardModel } from "../../hooks/use-sessions-board";
+import type {
+  SessionsBoardComputerBand,
+  SessionsBoardView as SessionsBoardModel,
+} from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionsBoardShelfBar } from "./sessions-board-shelf-bar";
 import {
@@ -38,12 +41,18 @@ export interface SessionsBoardViewProps {
     lane: NonNullable<SessionsBoardModel["lanes"]>[number],
     row: SessionsBoardRow
   ) => ReactNode;
+  /** One computer band per enabled computer under Separate (`F13`). */
+  renderBand?: (
+    band: SessionsBoardComputerBand,
+    row: SessionsBoardRow,
+    rank: number
+  ) => ReactNode;
 }
 
 /**
  * The Sessions board's presentation (`_uiux.md` S4): the derived columns in a horizontally
  * scrolling row on the canvas, plus the Later and Archive bars, or one swimlane per group through
- * `renderLane`. Cards come from `SessionBoardCardSlot`, so this view reads no query itself.
+ * `renderLane`, or computer bands through `renderBand`.
  */
 export function SessionsBoardView({
   board,
@@ -54,6 +63,7 @@ export function SessionsBoardView({
   onColumnCollapsedChange,
   header,
   renderLane,
+  renderBand,
 }: SessionsBoardViewProps) {
   const row: SessionsBoardRow = {
     actions,
@@ -63,11 +73,16 @@ export function SessionsBoardView({
     onOpen,
     workspaceNameOf: board.workspaceNameOf,
   };
+  const bands = board.computerBands ?? null;
   return (
     <div className={SESSIONS_BOARD_FRAME} data-testid="sessions-board">
       <div className={SESSIONS_BOARD_SCROLLER}>
         {header}
-        {board.lanes === null ? (
+        {bands !== null ? (
+          <div className={cn(SESSIONS_BOARD_LANES, "gap-4")} data-testid="sessions-board-bands">
+            {bands.map((band, index) => renderBand?.(band, row, index))}
+          </div>
+        ) : board.lanes === null ? (
           <SessionsBoardColumnsRow
             {...row}
             columns={board.columns}

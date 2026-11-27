@@ -2,6 +2,8 @@ import { ChevronRight } from "@compozy/ui/icons";
 
 import { Icon, StatusDot, cn } from "@compozy/ui";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
+import { ComputerMark } from "@/systems/computers";
 import { openContextMenuFromKeyboard } from "@/systems/os";
 
 import { useSessionsBoardColumns, type SessionsBoardLane } from "../../hooks/use-sessions-board";
@@ -11,6 +13,7 @@ import {
   sessionListGroupEmptyMessage,
   sessionListGroupSignalLabel,
 } from "../../lib/session-list-groups";
+import { SessionListDisclosureMark } from "../session-list/session-list-disclosure-mark";
 import {
   SessionListGroupIdentity,
   SessionListGroupSignal,
@@ -51,11 +54,18 @@ export function SessionsBoardSwimlane({
 }) {
   const empty = lane.group.total === 0;
   const open = !lane.collapsed && !empty;
-  const columns = useSessionsBoardColumns(lane.filters, open);
+  const computerId = lane.group.computerId;
+  const columns = useSessionsBoardColumns(
+    lane.filters,
+    open && lane.group.offline !== true,
+    computerId
+  );
   const name = laneName(lane);
   const testId = `sessions-board-lane-${lane.group.key}`;
   const alwaysOnScope =
-    lane.group.kind === "project" ? sessionListGroupTarget(lane.group).workspaceId : null;
+    lane.group.kind === "project" && !isRemoteComputerId(computerId)
+      ? sessionListGroupTarget(lane.group).workspaceId
+      : null;
   // The lane's select-all covers the cards its columns show; a folded column shows none.
   const shownIds = open
     ? columns.flatMap(column =>
@@ -118,6 +128,13 @@ function SessionsBoardLaneToggle({
   const waiting = lane.group.instancesNeedingAttention;
   const projectLane = lane.group.kind === "project" && lane.group.scope.kind === "project";
   const signal = lane.collapsed ? sessionListGroupSignalLabel(lane.group) : null;
+  const mark =
+    lane.group.computerName && lane.group.computerPlatform && lane.group.computerIconKind ? (
+      <ComputerMark
+        iconKind={lane.group.computerIconKind}
+        platform={lane.group.computerPlatform}
+      />
+    ) : undefined;
   return (
     <SessionListGroupProjectMenu group={lane.group}>
       <header className="min-w-0">
@@ -125,7 +142,7 @@ function SessionsBoardLaneToggle({
           aria-expanded={!lane.collapsed}
           className={cn(
             SESSIONS_BOARD_LANE_HEADER,
-            "rounded-sm transition-colors outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring"
+            "group/disclosure rounded-sm transition-colors outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring"
           )}
           data-testid={`${testId}-header`}
           onClick={lane.onToggle}
@@ -137,14 +154,22 @@ function SessionsBoardLaneToggle({
               }
             : {})}
         >
-          <Icon
-            as={ChevronRight}
-            className={cn(
-              "shrink-0 text-faint transition-transform",
-              !lane.collapsed && "rotate-90"
-            )}
-            size="sm"
-          />
+          {mark ? (
+            <SessionListDisclosureMark
+              mark={mark}
+              open={!lane.collapsed}
+              signal={{ needsYou: lane.group.needsYou, working: lane.group.working, slot: "session-group" }}
+            />
+          ) : (
+            <Icon
+              as={ChevronRight}
+              className={cn(
+                "shrink-0 text-faint transition-transform",
+                !lane.collapsed && "rotate-90"
+              )}
+              size="sm"
+            />
+          )}
           <SessionListGroupIdentity group={lane.group} />
           {lane.collapsed ? <SessionListGroupSignal group={lane.group} /> : null}
           <span className={SESSIONS_BOARD_LANE_COUNT} data-testid={`${testId}-count`}>

@@ -3,6 +3,8 @@ import { useRef } from "react";
 
 import { notifyUser } from "@/lib/user-feedback";
 import {
+  lookupSessionComputer,
+  sessionComputerOf,
   sessionDetailOptions,
   setSessionWindowView,
   useSessionCreateActions,
@@ -80,7 +82,10 @@ export function useSessionBoardWindow(
   const onOpen = (session: SessionBoardPayload) => {
     const request = ++openRequest.current;
     const workspaceId = session.workspace_id ?? "";
-    const computerId = board.computerBySessionId?.get(session.id)?.id;
+    const rowComputer = sessionComputerOf(session);
+    const computerId =
+      (rowComputer && rowComputer !== "local" ? rowComputer : undefined) ??
+      lookupSessionComputer(board.computerBySessionId, session.id, rowComputer)?.id;
     const open = (agentName: string) =>
       openInDrawer({ sessionId: session.id, agentName, workspaceId, computerId });
     if (session.agent_name.trim()) {

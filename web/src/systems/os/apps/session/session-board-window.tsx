@@ -90,7 +90,7 @@ export function SessionBoardWindow({
     ),
     actions: (
       <>
-        {board.lanes === null ? null : (
+        {board.lanes === null && (board.computerBands ?? null) === null ? null : (
           <SessionFoldAllButton
             allCollapsed={sidebar.foldAll === "collapsed"}
             onAllCollapsedChange={collapsed =>

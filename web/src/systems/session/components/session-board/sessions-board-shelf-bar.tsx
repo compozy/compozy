@@ -12,6 +12,7 @@ import {
 } from "../../hooks/use-sessions-board-view-selection";
 import type { SessionsBoardShelf } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
+import { sessionComputerOf, sessionRowKey } from "../../lib/session-row-ref";
 import { SessionBoardCardSlot, slottedCard } from "./session-board-card-slot";
 import { SessionsBoardLoadMore, SessionsBoardReadError } from "./sessions-board-column";
 import { SESSIONS_BOARD_SHELF_BAR, SESSIONS_BOARD_SHELF_FRAME } from "./sessions-board-frame";
@@ -139,17 +140,24 @@ export function SessionsBoardShelfBar({
               testId={`sessions-board-read-error-${shelf}`}
             />
           ) : null}
-          {page.sessions.map(session => (
-            <div className="w-66 shrink-0" key={session.id}>
-              <BoardCard
-                actions={actions}
-                archived={shelf === "archive"}
-                onOpen={onOpen}
-                session={session}
-                workspaceName={workspaceNameOf(session)}
-              />
-            </div>
-          ))}
+          {page.sessions.map(session => {
+            const computerId = sessionComputerOf(session);
+            return (
+              <div
+                className="w-66 shrink-0"
+                key={sessionRowKey({ computerId, sessionId: session.id })}
+              >
+                <BoardCard
+                  actions={actions}
+                  archived={shelf === "archive"}
+                  computerId={computerId}
+                  onOpen={onOpen}
+                  session={session}
+                  workspaceName={workspaceNameOf(session)}
+                />
+              </div>
+            );
+          })}
           {page.failure === "more" ? (
             <SessionsBoardReadError
               className="w-66"

@@ -9,6 +9,7 @@ import type { SessionListTarget } from "../../types";
 import { AlwaysOnListTop } from "../always-on/always-on-list-top";
 import { SessionBoardCard } from "./session-board-card";
 import { SessionBoardCardSlot } from "./session-board-card-slot";
+import { SessionsBoardComputerBandView } from "./sessions-board-computer-band";
 import { SessionsBoardSwimlane } from "./sessions-board-swimlane";
 import { SessionsBoardView } from "./sessions-board-view";
 
@@ -31,6 +32,7 @@ export function SessionsBoard(props: SessionsBoardProps) {
   const folds = useSessionBoardColumnFolds();
   // A card's menu opens a rolled-up item's child session in the drawer, like a card click.
   const openTarget = (session: SessionListTarget) => props.onOpen(session as SessionBoardPayload);
+  const banded = (props.board.computerBands ?? null) !== null;
   return (
     <SessionListComputerContext value={props.board.computerBySessionId}>
       <SessionMenuOpenContext value={openTarget}>
@@ -40,17 +42,27 @@ export function SessionsBoard(props: SessionsBoardProps) {
             collapsedColumns={folds.collapsed}
             onColumnCollapsedChange={folds.setCollapsed}
             header={
-              <>
-                <AlwaysOnListTop
-                  currentSessionId={props.currentSessionId}
-                  groupBy={props.board.groupBy}
-                  onOpenSession={openTarget}
-                  surface="ring-canvas"
-                  workspaceId={props.board.focusedWorkspaceId}
-                />
-                <ScopedComputerBoardFailureStrip failures={props.board.failedComputers ?? []} />
-              </>
+              banded ? null : (
+                <>
+                  <AlwaysOnListTop
+                    currentSessionId={props.currentSessionId}
+                    groupBy={props.board.groupBy}
+                    onOpenSession={openTarget}
+                    surface="ring-canvas"
+                    workspaceId={props.board.focusedWorkspaceId}
+                  />
+                  <ScopedComputerBoardFailureStrip failures={props.board.failedComputers ?? []} />
+                </>
+              )
             }
+            renderBand={(band, row, rank) => (
+              <SessionsBoardComputerBandView
+                band={band}
+                key={band.source.key}
+                rank={rank}
+                row={row}
+              />
+            )}
             renderLane={(lane, row) => (
               <SessionsBoardSwimlane {...row} key={lane.group.key} lane={lane} />
             )}
