@@ -1,5 +1,6 @@
 import { createContext } from "react";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { mergeSessionPages, type MergedSessionRow } from "@/systems/computers/lib/merge-sessions";
 import type {
   ComputerIconKind,
@@ -7,6 +8,7 @@ import type {
 } from "@/systems/computers/mocks/remote-computers-types";
 
 import { buildSessionListThreads, type SessionThreadModel } from "./session-list-threads";
+import { sessionRowKey } from "./session-row-ref";
 import type { SessionPayload } from "../types";
 
 export interface SessionRowComputerInfo {
@@ -20,11 +22,26 @@ export interface SessionRowComputerInfo {
 /**
  * Provides remote-computer provenance (`name`, `platform`, `offline`) to session rows
  * and board cards without threading extra props through every intermediate folder/thread list.
- * Local rows are absent from the map so they render no computer label (`_uiux.md` U5).
+ * Keys use `sessionRowKey({ computerId, sessionId })` (with a bare `sessionId` fallback for
+ * prototype fixtures). Local rows are absent so they render no computer label (`_uiux.md` U5).
  */
 export const SessionListComputerContext = createContext<
   ReadonlyMap<string, SessionRowComputerInfo> | undefined
 >(undefined);
+
+/** Resolves a row's computer label without colliding identical session ids across computers. */
+export function lookupSessionComputer(
+  map: ReadonlyMap<string, SessionRowComputerInfo> | undefined,
+  sessionId: string,
+  computerId?: ComputerId
+): SessionRowComputerInfo | undefined {
+  if (!map) return undefined;
+  if (computerId !== undefined) {
+    if (!isRemoteComputerId(computerId)) return undefined;
+    return map.get(sessionRowKey({ computerId, sessionId })) ?? map.get(sessionId);
+  }
+  return map.get(sessionId);
+}
 
 /** Merges local thread sessions with remote fan-out rows ordered by `updated_at` desc. */
 export function mergeLocalAndRemoteThreads(

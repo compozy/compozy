@@ -1,8 +1,10 @@
 import { toast } from "@compozy/ui";
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import type { SessionPayload } from "../types";
 import { sessionBatchFailureMessage, type SessionBatchResult } from "./session-batch";
 import { BATCH_CHILD_SKIP, type BatchVerb } from "./session-batch-eligibility";
 import { getSessionDisplayTitle } from "./session-display-title";
+import { sessionComputerOf } from "./session-row-ref";
 
 type FeedbackVerb = BatchVerb | "mark-seen" | "make-top-level" | "move-under";
 
@@ -50,7 +52,8 @@ export function reportBatch(
   action: FeedbackVerb,
   results: readonly SessionBatchResult[],
   sessions: readonly SessionPayload[],
-  skipped: ReadonlyMap<string, number>
+  skipped: ReadonlyMap<string, number>,
+  computerNameOf?: (computerId: ComputerId) => string | undefined
 ): void {
   const verb = batchVerbPast(action);
   const done = results.filter(result => result.status === "done").length;
@@ -61,14 +64,43 @@ export function reportBatch(
     return;
   }
   const byId = new Map(sessions.map(session => [session.id, session]));
-  const description = failures
-    .map(result => {
+  const hasRemoteFailure = failures.some(result => {
+    const session = byId.get(result.id);
+    const computer = result.computerId ?? (session ? sessionComputerOf(session) : LOCAL_COMPUTER_ID);
+    return isRemoteComputerId(computer);
+  });
+  let failureDetails: string;
+  if (hasRemoteFailure) {
+    // Group failures per computer so the operator sees which machine refused which session (R12).
+    const grouped = new Map<ComputerId, string[]>();
+    for (const result of failures) {
       const session = byId.get(result.id);
+      const computer =
+        result.computerId ?? (session ? sessionComputerOf(session) : LOCAL_COMPUTER_ID);
       const title = session ? getSessionDisplayTitle(session) : result.id;
-      return `${title}: ${result.error ?? sessionBatchFailureMessage(action)}`;
-    })
-    .join("; ")
-    .concat(skipNote ? ` ${skipNote}` : "");
+      const entry = `${title}: ${result.error ?? sessionBatchFailureMessage(action)}`;
+      const bucket = grouped.get(computer) ?? [];
+      bucket.push(entry);
+      grouped.set(computer, bucket);
+    }
+    failureDetails = [...grouped.entries()]
+      .map(([computerId, entries]) => {
+        const name = isRemoteComputerId(computerId)
+          ? (computerNameOf?.(computerId) ?? computerId)
+          : "This computer";
+        return `${name} — ${entries.join("; ")}`;
+      })
+      .join("; ");
+  } else {
+    failureDetails = failures
+      .map(result => {
+        const session = byId.get(result.id);
+        const title = session ? getSessionDisplayTitle(session) : result.id;
+        return `${title}: ${result.error ?? sessionBatchFailureMessage(action)}`;
+      })
+      .join("; ");
+  }
+  const description = failureDetails.concat(skipNote ? ` ${skipNote}` : "");
   const title =
     done > 0
       ? `${sessionCount(done)} ${verb}, ${failures.length} failed`

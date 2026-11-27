@@ -24,9 +24,11 @@ import {
   TooltipTrigger,
 } from "@compozy/ui";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import { cn } from "@/lib/utils";
 import { ComputerMetaLabel } from "@/systems/computers/components/computer-chip";
 import {
+  lookupSessionComputer,
   SessionListComputerContext,
   type SessionRowComputerInfo,
 } from "../../lib/session-list-computer";
@@ -83,6 +85,8 @@ type CardIntentHandlers = Pick<
 
 export interface SessionBoardCardViewProps extends CardIntentHandlers {
   session: SessionBoardPayload;
+  /** The computer owning this card; omitted falls back to context lookup. */
+  computerId?: ComputerId;
   /** All projects: the workspace name, shown in the meta row when the card has no PR. */
   workspaceName?: string | null;
   current?: boolean;
@@ -151,6 +155,7 @@ function sessionBoardCardLabel({
  */
 export function SessionBoardCardView({
   session,
+  computerId,
   workspaceName = null,
   current = false,
   archived = false,
@@ -165,7 +170,11 @@ export function SessionBoardCardView({
   ...intentHandlers
 }: SessionBoardCardViewProps) {
   const selected = selection?.selected === true;
-  const computer = useContext(SessionListComputerContext)?.get(session.id);
+  const computer = lookupSessionComputer(
+    useContext(SessionListComputerContext),
+    session.id,
+    computerId
+  );
   const title = getSessionDisplayTitle(session);
   const untitled = title === UNTITLED_SESSION_TITLE;
   const status = sessionBoardCardStatus(session);

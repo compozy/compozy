@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@compozy/ui";
 
-import { isRemoteComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 
 import {
   moveSessionToLater,
@@ -16,6 +16,7 @@ import {
   runSessionBatch,
   sessionBatchFailureMessage,
 } from "../lib/session-batch";
+import { sessionComputerOf } from "../lib/session-row-ref";
 import type { SessionBatchAdmission } from "./use-session-batch-admission";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import type { SessionPayload } from "../types";
@@ -125,14 +126,22 @@ export function useSessionLaterActions({
   busy,
   batchRunning,
   onMovedToLater,
+  computerOf,
+  computerNameOf,
 }: {
   busy: boolean;
   batchRunning: SessionBatchAdmission;
   /** Each session this host moved to Later, single or batched, once the daemon confirmed it. */
   onMovedToLater?: (session: SessionPayload) => void;
+  computerOf?: (session: SessionPayload) => ComputerId | undefined;
+  computerNameOf?: (computerId: ComputerId) => string | undefined;
 }) {
   const move = useMoveSessionToLater();
   const back = useResumeSessionFromLater();
+  const withComputer = (session: SessionPayload) => {
+    const targetComputer = computerOf?.(session) ?? sessionComputerOf(session);
+    return isRemoteComputerId(targetComputer) ? { ...session, computerId: targetComputer } : session;
+  };
   const [target, setTarget] = useState<{
     sessions: readonly SessionPayload[];
     skipped: ReadonlyMap<string, number>;
@@ -171,7 +180,7 @@ export function useSessionLaterActions({
       onProgress: results => setBatch({ action, runningIds: runningSessionIds(results) }),
     })
       .then(results => {
-        reportBatch(action, results, sessions, skipped);
+        reportBatch(action, results, sessions, skipped, computerNameOf);
         return results;
       })
       .finally(() => {
@@ -186,7 +195,7 @@ export function useSessionLaterActions({
     if (sessions.length === 1 && skipped.size === 0) {
       const session = sessions[0]!;
       move.mutate(
-        { ...session, body },
+        { ...withComputer(session), body },
         {
           onError: error => reportError("later", error),
           onSuccess: () => {
@@ -198,7 +207,7 @@ export function useSessionLaterActions({
       return;
     }
     void runBatch("later", sessions, skipped, async session => {
-      await move.mutateAsync({ ...session, body });
+      await move.mutateAsync({ ...withComputer(session), body });
       onMovedToLater?.(session);
     }).then(results => {
       // A partial failure keeps the dialog open on the sessions still to move,
@@ -224,13 +233,17 @@ export function useSessionLaterActions({
       },
       onBackFromLater: (session: SessionPayload) => {
         if (!locked())
-          back.mutate(session, { onError: error => reportError("back-from-later", error) });
+          back.mutate(withComputer(session), {
+            onError: error => reportError("back-from-later", error),
+          });
       },
       onBackFromLaterMany: (sessions: readonly SessionPayload[]) => {
         if (locked()) return;
         const { eligible, skipped } = eligibleFor("back-from-later", sessions);
         if (eligible.length > 0) {
-          void runBatch("back-from-later", eligible, skipped, session => back.mutateAsync(session));
+          void runBatch("back-from-later", eligible, skipped, session =>
+            back.mutateAsync(withComputer(session))
+          );
         }
       },
     },

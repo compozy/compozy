@@ -1,7 +1,10 @@
 import { createStoreLogic } from "@xstate/store";
 
+import { LOCAL_COMPUTER_ID, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import type { SessionPayload } from "../types";
 import type { SessionListPair } from "./session-list-groups";
+import { recordSessionComputer, sessionRowKey } from "./session-row-ref";
 
 /**
  * What one rendered group contributes to the selection spanning the groups — a
@@ -10,6 +13,8 @@ import type { SessionListPair } from "./session-list-groups";
 export interface SessionListGroupRows {
   /** Position among the groups, as zero-padded dotted indexes ("0002.0001"); sorts as on screen. */
   rank: string;
+  /** The computer owning every row in this group; defaults to this computer. */
+  computerId?: ComputerId;
   sessions: readonly SessionPayload[];
   visibleOrder: readonly string[];
   pair: SessionListPair | null;
@@ -27,6 +32,8 @@ function sameRows(left: SessionListGroupRows | undefined, right: SessionListGrou
   return (
     left !== undefined &&
     left.rank === right.rank &&
+    normalizeComputerId(left.computerId) === normalizeComputerId(right.computerId) &&
+    normalizeComputerId(left.pair?.computerId) === normalizeComputerId(right.pair?.computerId) &&
     left.pair?.workspaceId === right.pair?.workspaceId &&
     left.pair?.profile === right.pair?.profile &&
     (left.fetching ?? false) === (right.fetching ?? false) &&
@@ -66,12 +73,26 @@ export function sessionListGroupedRows(groups: Readonly<Record<string, SessionLi
   const ordered = Object.values(groups).sort((left, right) => left.rank.localeCompare(right.rank));
   const pairs = new Map<string, SessionListPair | null>();
   for (const group of ordered) {
-    for (const session of group.sessions) pairs.set(session.id, group.pair);
+    const computerId = normalizeComputerId(group.computerId ?? group.pair?.computerId);
+    const pair = group.pair
+      ? { ...group.pair, computerId: normalizeComputerId(group.pair.computerId ?? computerId) }
+      : null;
+    for (const session of group.sessions) {
+      recordSessionComputer(session, computerId);
+      const rowKey = sessionRowKey({ computerId, sessionId: session.id });
+      pairs.set(rowKey, pair);
+      if (computerId === LOCAL_COMPUTER_ID) pairs.set(session.id, pair);
+    }
   }
   return {
     sessions: ordered.flatMap(group => group.sessions),
-    visibleOrder: ordered.flatMap(group => group.visibleOrder),
-    pairOf: (sessionId: string) => pairs.get(sessionId) ?? null,
+    visibleOrder: ordered.flatMap(group => {
+      const computerId = normalizeComputerId(group.computerId ?? group.pair?.computerId);
+      return group.visibleOrder.map(id =>
+        id.includes("\u0000") ? id : sessionRowKey({ computerId, sessionId: id })
+      );
+    }),
+    pairOf: (sessionIdOrRowKey: string) => pairs.get(sessionIdOrRowKey) ?? null,
     /** Some group is re-reading; a session missing from every group may only be moving. */
     fetching: ordered.some(group => group.fetching === true),
     failed: ordered.some(group => group.failed === true),
@@ -83,7 +104,9 @@ export function sessionListGroupRank(path: readonly number[]): string {
   return path.map(index => String(index).padStart(4, "0")).join(".");
 }
 
-/** Stable identity of a pair for comparisons; `null` without one. */
+/** Stable identity of a (computer, workspace, profile) pair for comparisons; `null` without one. */
 export function sessionListPairKey(pair: SessionListPair | null): string | null {
-  return pair ? `${pair.workspaceId}\u0000${pair.profile}` : null;
+  return pair
+    ? `${normalizeComputerId(pair.computerId)}\u0000${pair.workspaceId}\u0000${pair.profile}`
+    : null;
 }

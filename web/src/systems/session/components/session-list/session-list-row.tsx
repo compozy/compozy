@@ -1,5 +1,6 @@
 import { useSessionEntryPreload } from "../../hooks/use-session-entry-preload";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
+import { sessionComputerOf, sessionRowKey } from "../../lib/session-row-ref";
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu } from "../session-row-context-menu";
 import { SessionListPinButton } from "./session-list-pin-button";
@@ -14,10 +15,16 @@ export type { SessionListRowProps } from "./session-list-row-view";
  * and the always-on agent that started a session show inside the session, not on its row (#1191).
  */
 export function SessionListRow(props: SessionListRowProps) {
-  const { session, current = false, selection, sessionActions, layoutMenu, onSelect } = props;
+  const { session, computerId, current = false, selection, sessionActions, layoutMenu, onSelect } =
+    props;
   const runtime = useSessionRowRuntimeLabel(session);
   const preloadHandlers = useSessionEntryPreload(session, !current && !selection?.mode);
-  const selected = selection?.selectedIds.has(session.id) ?? false;
+  const rowKey = sessionRowKey({
+    computerId: computerId ?? sessionComputerOf(session),
+    sessionId: session.id,
+  });
+  const selected =
+    (selection?.selectedIds.has(rowKey) || selection?.selectedIds.has(session.id)) ?? false;
   // A row inside a multi-selection offers the selection's verbs; one selected row keeps its own.
   const verbs = selected && selection?.verbs && selection.verbs.count > 1 ? selection.verbs : null;
   return (

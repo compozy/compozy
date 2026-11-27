@@ -1,10 +1,12 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
 import type { SessionPayload } from "../types";
 import { sessionDescendantsOptions } from "./query-options";
 import { readCurrentSessions } from "./session-batch";
 import { isSubagentSession } from "./session-hierarchy";
 import { sessionsRunningProcesses } from "./session-processes";
+import { recordSessionsComputer, sessionComputerOf } from "./session-row-ref";
 
 export type SessionTreeAction = "archive" | "delete";
 
@@ -89,13 +91,17 @@ export async function readSessionTrees(
 ) {
   const reads = await Promise.allSettled(
     sessions.map(async session => {
-      const options = sessionDescendantsOptions(session);
+      const computerId = sessionComputerOf(session);
+      const options = isRemoteComputerId(computerId)
+        ? sessionDescendantsOptions(session, computerId)
+        : sessionDescendantsOptions(session);
       // An already-running read may predate the click; let it settle before refreshing.
       const existing = queryClient
         .getQueryCache()
         .find({ queryKey: options.queryKey, exact: true });
       if (existing?.state.fetchStatus === "fetching") await existing.promise?.catch(() => {});
-      return queryClient.fetchQuery({ ...options, staleTime: 0 });
+      const descendants = await queryClient.fetchQuery({ ...options, staleTime: 0 });
+      return recordSessionsComputer(descendants, computerId);
     })
   );
   const trees = new Map<string, readonly SessionPayload[]>();

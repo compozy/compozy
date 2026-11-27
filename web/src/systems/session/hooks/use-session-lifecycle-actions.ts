@@ -1,3 +1,4 @@
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useSessionBatchMenuActions } from "@/systems/session/hooks/use-session-batch-menu-actions";
 import { batchSkipNote, batchVerbPast, reportBatch } from "../lib/session-batch-feedback";
@@ -12,6 +13,7 @@ import {
   runSessionBatch,
   type SessionBatchResult,
 } from "../lib/session-batch";
+import { sessionComputerOf } from "../lib/session-row-ref";
 
 import {
   sessionBatchCoverage,
@@ -67,17 +69,36 @@ export function useSessionLifecycleActions(
     onArchiveSuccess?: (session: SessionPayload) => void | Promise<void>;
     /** Each session this host moved to Later, single or batched, once the daemon confirmed it. */
     onLaterSuccess?: (session: SessionPayload) => void;
+    /** Resolves which computer owns a session row; defaults to row provenance or local. */
+    computerOf?: (session: SessionPayload) => ComputerId | undefined;
+    /** Display name for a remote computer id when reporting multi-computer batch failures. */
+    computerNameOf?: (computerId: ComputerId) => string | undefined;
   } = {}
 ): UseSessionLifecycleActionsResult {
   const queryClient = useQueryClient();
-  const computerId = useCurrentComputerId();
-  const { archiveRequestOwnerId, onArchiveSuccess, onLaterSuccess, ...deleteOptions } = options;
+  const windowComputerId = useCurrentComputerId();
+  const {
+    archiveRequestOwnerId,
+    onArchiveSuccess,
+    onLaterSuccess,
+    computerOf,
+    computerNameOf,
+    ...deleteOptions
+  } = options;
+  const rowComputerId = (session: SessionPayload): ComputerId | undefined => {
+    const resolved = computerOf?.(session) ?? sessionComputerOf(session);
+    return isRemoteComputerId(resolved) ? resolved : undefined;
+  };
+  const withComputer = <T extends SessionPayload>(session: T): T & { computerId?: ComputerId } => {
+    const targetComputer = rowComputerId(session);
+    return targetComputer ? { ...session, computerId: targetComputer } : session;
+  };
   const stop = useStopSession();
   const archive = useArchiveSession({ requestOwnerId: archiveRequestOwnerId });
   const unarchive = useUnarchiveSession();
   const remove = useDeleteSession(deleteOptions);
   const rename = useRenameSession();
-  const deleteConfirmationState = useSessionDeleteTarget(queryClient, computerId);
+  const deleteConfirmationState = useSessionDeleteTarget(queryClient, windowComputerId);
   const {
     target: deleteTarget,
     setTarget: setDeleteTarget,
@@ -114,13 +135,17 @@ export function useSessionLifecycleActions(
     busy: ownPending !== null,
     batchRunning,
     onMovedToLater: onLaterSuccess,
+    computerOf: rowComputerId,
+    computerNameOf,
   });
-  const markSeen = useMarkSessionSeenAction();
+  const markSeen = useMarkSessionSeenAction(rowComputerId);
   const menuBatch = useSessionBatchMenuActions(
     ownPending !== null || later.pendingAction !== null,
     batchRunning,
     setBatchAction,
-    setBatchResults
+    setBatchResults,
+    rowComputerId,
+    computerNameOf
   );
   const pendingAction = ownPending ?? later.pendingAction;
   const pendingSessionIds = lifecyclePendingSessionIds({
@@ -162,9 +187,13 @@ export function useSessionLifecycleActions(
           await settleTreeTarget(action, coveredBy.has(id), async () => {
             if (readErrors.has(id)) throw readErrors.get(id);
             if (action === "delete")
-              await remove.mutateAsync({ ...session, ...policy, ...descendantsOf(session, trees) });
+              await remove.mutateAsync({
+                ...withComputer(session),
+                ...policy,
+                ...descendantsOf(session, trees),
+              });
             else {
-              await archive.mutateAsync(archiveTarget(session, processes, trees));
+              await archive.mutateAsync(archiveTarget(withComputer(session), processes, trees));
               await notifyArchived(session, trees);
             }
           });
@@ -172,10 +201,10 @@ export function useSessionLifecycleActions(
         }
         if (readErrors.has(id)) throw readErrors.get(id);
         if (action === "unarchive")
-          await unarchive.mutateAsync(sessions.find(session => session.id === id)!);
+          await unarchive.mutateAsync(withComputer(sessions.find(session => session.id === id)!));
         else {
           const outcome = await stop.mutateAsync({
-            ...sessions.find(session => session.id === id)!,
+            ...withComputer(sessions.find(session => session.id === id)!),
             wait: true,
             ...policy,
           });
@@ -212,7 +241,7 @@ export function useSessionLifecycleActions(
       trees?: SessionTrees
     ) => {
       void runBatch(action, eligible, [], processes, readErrors, trees).then(results => {
-        if (results) reportBatch(action, results, eligible, skipped);
+        if (results) reportBatch(action, results, eligible, skipped, computerNameOf);
       });
     };
     if (action === "unarchive") run();
@@ -280,7 +309,7 @@ export function useSessionLifecycleActions(
     const { id } = deleteSession;
     const policy = deletePolicy.current ? { processes: deletePolicy.current } : {};
     remove.mutate(
-      { ...deleteSession, ...policy, ...descendantsOf(deleteSession, trees) },
+      { ...withComputer(deleteSession), ...policy, ...descendantsOf(deleteSession, trees) },
       {
         onError: error => reportActionError("delete", error),
         onSuccess: () => {
@@ -344,7 +373,7 @@ export function useSessionLifecycleActions(
     if (!renameTarget || rename.isPending) return;
     const { id } = renameTarget;
     rename.mutate(
-      { ...renameTarget, name },
+      { ...withComputer(renameTarget), name },
       {
         onError: error => reportActionError("rename", error),
         onSuccess: () => {
@@ -368,20 +397,22 @@ export function useSessionLifecycleActions(
       onStop: session =>
         void askAboutProcesses("stop", [session], processes =>
           stop.mutate(
-            { ...session, ...(processes ? { processes } : {}) },
+            { ...withComputer(session), ...(processes ? { processes } : {}) },
             { onError: error => reportActionError("stop", error) }
           )
         ),
       onArchive: session =>
         void askAboutProcesses("archive", [session], (processes, _readErrors, trees) =>
-          archive.mutate(archiveTarget(session, processes, trees), {
+          archive.mutate(archiveTarget(withComputer(session), processes, trees), {
             onError: error => reportActionError("archive", error),
             onSuccess: () => void notifyArchived(session, trees),
           })
         ),
       onUnarchive: session => {
         cancelDeletePrepare();
-        unarchive.mutate(session, { onError: error => reportActionError("unarchive", error) });
+        unarchive.mutate(withComputer(session), {
+          onError: error => reportActionError("unarchive", error),
+        });
       },
       onDelete: session => prepareDelete([session], false),
       onStopMany: sessions => actOnMany("stop", sessions),

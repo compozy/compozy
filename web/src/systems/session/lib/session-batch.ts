@@ -1,12 +1,16 @@
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { settleBounded } from "@/lib/settle-bounded";
 import type { QueryClient } from "@tanstack/react-query";
 import type { SessionPayload } from "../types";
 import { sessionScopedDetailOptions } from "./query-options";
+import { recordSessionComputer, sessionComputerOf } from "./session-row-ref";
 
 export interface SessionBatchResult {
   id: string;
   status: "pending" | "running" | "done" | "failed";
   error?: string;
+  /** Present when the target runs on a remote computer, for per-computer failure reporting (R12). */
+  computerId?: ComputerId;
 }
 
 export type SessionBatchAction =
@@ -66,25 +70,35 @@ export async function runSessionBatch({
   };
   onProgress([...results]);
   const byId = new Map(sessions.map(session => [session.id, session]));
+  const computerOf = (id: string): ComputerId | undefined => {
+    const session = byId.get(id);
+    if (!session) return undefined;
+    const computer = sessionComputerOf(session);
+    return isRemoteComputerId(computer) ? computer : undefined;
+  };
   const lanes = new Map<string, string[]>();
   for (const id of ids) {
     const session = byId.get(coveredBy.get(id) ?? id);
+    const computer = session ? sessionComputerOf(session) : "local";
     const root = session?.lineage?.root_session_id || (coveredBy.get(id) ?? id);
-    const key = JSON.stringify([session?.workspace_id, session?.profile_id, root]);
+    const key = JSON.stringify([computer, session?.workspace_id, session?.profile_id, root]);
     const lane = lanes.get(key) ?? [];
     lane.push(id);
     lanes.set(key, lane);
   }
   await settleBounded([...lanes.values()], 3, async lane => {
     for (const id of lane) {
-      update({ id, status: "running" });
+      const computerId = computerOf(id);
+      const computerField = computerId ? { computerId } : {};
+      update({ id, status: "running", ...computerField });
       try {
         await execute(id);
-        update({ id, status: "done" });
+        update({ id, status: "done", ...computerField });
       } catch (error) {
         update({
           id,
           status: "failed",
+          ...computerField,
           error:
             error instanceof Error && error.message
               ? error.message
@@ -103,13 +117,17 @@ export async function readCurrentSessions(
 ) {
   const reads = await Promise.allSettled(
     sessions.map(async session => {
-      const options = sessionScopedDetailOptions(session.id, { profile: session.profile_name });
+      const computerId = sessionComputerOf(session);
+      const options = isRemoteComputerId(computerId)
+        ? sessionScopedDetailOptions(session.id, { profile: session.profile_name }, { computerId })
+        : sessionScopedDetailOptions(session.id, { profile: session.profile_name });
       // An already-running read may predate the click; let it settle before refreshing.
       const existing = queryClient
         .getQueryCache()
         .find({ queryKey: options.queryKey, exact: true });
       if (existing?.state.fetchStatus === "fetching") await existing.promise?.catch(() => {});
-      return queryClient.fetchQuery({ ...options, staleTime: 0 });
+      const fresh = await queryClient.fetchQuery({ ...options, staleTime: 0 });
+      return recordSessionComputer(fresh, computerId);
     })
   );
 

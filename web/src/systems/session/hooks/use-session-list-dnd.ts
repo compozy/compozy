@@ -1,10 +1,16 @@
 import { useState, type DragEvent } from "react";
 import { toast } from "@compozy/ui";
 
+import { LOCAL_COMPUTER_ID, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import { placeId } from "../lib/session-folders";
 import { sessionAdoptRefusal } from "../lib/session-reparent";
+import { sessionDragComputerStore, sessionRowKey } from "../lib/session-row-ref";
 import type { SessionPayload } from "../types";
 import type { SessionListLayout } from "./use-session-folders";
+
+/** Refusal reason shown when a dragged session hovers another computer (Q10). */
+export const SESSION_DROP_CROSS_COMPUTER_REASON = "Sessions stay on the computer that runs them.";
 
 export type SessionDropPosition = "before" | "after";
 
@@ -22,13 +28,14 @@ export interface SessionRowNestTarget {
 
 /** What the operator is dragging: a root session row, the selection, or a folder header. */
 export type SessionDragItem =
-  | { kind: "session"; id: string; folderId: string | null }
+  | { kind: "session"; id: string; folderId: string | null; computerId?: ComputerId }
   | {
       kind: "selection";
       ids: readonly string[];
       folderIds: readonly (string | null)[];
+      computerId?: ComputerId;
     }
-  | { kind: "folder"; id: string };
+  | { kind: "folder"; id: string; computerId?: ComputerId };
 
 /** The selection a drag from one of its rows carries into a folder or the root. */
 export interface SessionSelectionDrag {
@@ -117,11 +124,14 @@ const DRAG_MIME = "application/x-compozy-session-layout";
  */
 export function useSessionListDnd(
   layout: SessionDropLayout | undefined,
-  options: { manual: boolean; reorderable: boolean }
+  options: { manual: boolean; reorderable: boolean; computerId?: ComputerId }
 ): SessionListDnd {
   const [dragging, setDragging] = useState<SessionDragItem | null>(null);
   const [indicator, setIndicator] = useState<SessionDropIndicator | null>(null);
+  const computerId = normalizeComputerId(options.computerId ?? LOCAL_COMPUTER_ID);
   const rowReorder = layout !== undefined && options.manual && options.reorderable;
+  const sameComputer = (item: SessionDragItem | null) =>
+    item !== null && normalizeComputerId(item.computerId) === computerId;
 
   const start = (item: SessionDragItem) => (event: DragEvent<HTMLElement>) => {
     event.stopPropagation();
@@ -129,9 +139,11 @@ export function useSessionListDnd(
     event.dataTransfer?.setData(DRAG_MIME, id);
     event.dataTransfer?.setData("text/plain", id);
     if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-    setDragging(item);
+    sessionDragComputerStore.trigger.started({ computerId });
+    setDragging({ ...item, computerId });
   };
   const end = () => {
+    sessionDragComputerStore.trigger.ended();
     setDragging(null);
     setIndicator(null);
   };
@@ -160,6 +172,7 @@ export function useSessionListDnd(
       kind: "selection",
       ids: selection.sessions.map(session => session.id),
       folderIds: selection.sessions.map(session => session.folderId),
+      computerId,
     })(event);
   };
 
@@ -167,8 +180,10 @@ export function useSessionListDnd(
     dragging,
     indicator,
     sessionRow: (sessionId, container, selection, nest, targetOnly = false) => {
+      const rowKey = sessionRowKey({ computerId, sessionId });
       const edge = (event: DragEvent<HTMLElement>): SessionRowDropEdge | null => {
-        if (dragging?.kind !== "session" || dragging.id === sessionId) return null;
+        if (!sameComputer(dragging) || dragging?.kind !== "session" || dragging.id === sessionId)
+          return null;
         return rowDropZone(
           event,
           rowReorder && container.orderable !== false && !targetOnly,
@@ -179,9 +194,9 @@ export function useSessionListDnd(
         draggable: !targetOnly,
         onDragStart: targetOnly
           ? undefined
-          : selection?.selectedIds.has(sessionId)
+          : selection?.selectedIds.has(rowKey) || selection?.selectedIds.has(sessionId)
             ? startSelection(selection)
-            : start({ kind: "session", id: sessionId, folderId: container.folderId }),
+            : start({ kind: "session", id: sessionId, folderId: container.folderId, computerId }),
         onDragEnd: end,
         onDragOver: event => {
           const position = edge(event);
@@ -214,9 +229,10 @@ export function useSessionListDnd(
         ? {}
         : {
             draggable: true,
-            onDragStart: start({ kind: "folder", id: folderId }),
+            onDragStart: start({ kind: "folder", id: folderId, computerId }),
             onDragEnd: end,
             onDragOver: event => {
+              if (!sameComputer(dragging)) return;
               if (dragging?.kind === "session") {
                 if (dragging.folderId !== folderId) {
                   accept(event, { kind: "folder", folderId, position: "into" });
@@ -228,6 +244,7 @@ export function useSessionListDnd(
               }
             },
             onDrop: event => {
+              if (!sameComputer(dragging)) return;
               if (dragging?.kind === "session" && dragging.folderId !== folderId) {
                 const moved = dragging.id;
                 finish(event, () => layout.moveSession(moved, folderId));
@@ -253,7 +270,7 @@ export function useSessionListDnd(
         ? {}
         : {
             onDragOver: event => {
-              if (selectionDrops(dragging, selection, folderId)) {
+              if (sameComputer(dragging) && selectionDrops(dragging, selection, folderId)) {
                 accept(event, { kind: "folder", folderId, position: "into" });
               }
             },
@@ -265,7 +282,7 @@ export function useSessionListDnd(
               }
             },
             onDrop: event => {
-              if (selection && selectionDrops(dragging, selection, folderId)) {
+              if (sameComputer(dragging) && selection && selectionDrops(dragging, selection, folderId)) {
                 finish(event, () => selection.move(folderId));
               }
             },
@@ -275,6 +292,7 @@ export function useSessionListDnd(
         ? {}
         : {
             onDragOver: event => {
+              if (!sameComputer(dragging)) return;
               if (
                 (dragging?.kind === "session" && dragging.folderId !== null) ||
                 selectionDrops(dragging, selection, null)
@@ -288,6 +306,7 @@ export function useSessionListDnd(
               }
             },
             onDrop: event => {
+              if (!sameComputer(dragging)) return;
               if (dragging?.kind === "session" && dragging.folderId !== null) {
                 const moved = dragging.id;
                 finish(event, () => layout.moveSession(moved, null));

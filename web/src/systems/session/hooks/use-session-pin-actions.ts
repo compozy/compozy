@@ -7,6 +7,7 @@ import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { setSessionPinned } from "../adapters/session-pin-api";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
+import { sessionComputerOf } from "../lib/session-row-ref";
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./session-lifecycle-types";
 import { requireWorkspace } from "./session-action-workspace";
@@ -103,20 +104,23 @@ export function useSessionListPin(
   testIdPrefix: string
 ) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const pin = useSessionPinActions((sessionId, pinned) => {
-    requestAnimationFrame(() => {
-      const list = contentRef.current;
-      if (!list) return;
-      const row = list.querySelector<HTMLElement>(
-        `[data-testid="${testIdPrefix}-session-${sessionId}"]`
-      );
-      const header = pinned
-        ? list.querySelector<HTMLElement>(`[data-testid="${testIdPrefix}-pinned-toggle"]`)
-        : null;
-      const filter = list.querySelector<HTMLElement>('input[aria-label="Filter sessions"]');
-      (row ?? header ?? filter)?.focus();
-    });
-  });
+  const pin = useSessionPinActions(
+    (sessionId, pinned) => {
+      requestAnimationFrame(() => {
+        const list = contentRef.current;
+        if (!list) return;
+        const row = list.querySelector<HTMLElement>(
+          `[data-testid="${testIdPrefix}-session-${sessionId}"]`
+        );
+        const header = pinned
+          ? list.querySelector<HTMLElement>(`[data-testid="${testIdPrefix}-pinned-toggle"]`)
+          : null;
+        const filter = list.querySelector<HTMLElement>('input[aria-label="Filter sessions"]');
+        (row ?? header ?? filter)?.focus();
+      });
+    },
+    session => sessionComputerOf(session)
+  );
   const pending = pin.pending;
   return {
     contentRef,

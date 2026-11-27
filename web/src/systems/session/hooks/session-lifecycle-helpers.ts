@@ -21,8 +21,8 @@ import { sessionsRunningProcesses } from "../lib/session-processes";
  * first, and a stopped parent whose subagent session is still live (until the
  * reaper stops it) archives too. A fully stopped family archives as before.
  */
-export function archiveTarget(
-  session: SessionPayload,
+export function archiveTarget<T extends SessionPayload>(
+  session: T,
   processes?: SessionProcessPolicy,
   trees?: SessionTrees
 ) {

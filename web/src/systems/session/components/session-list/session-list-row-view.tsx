@@ -4,6 +4,7 @@ import { Pin } from "@compozy/ui/icons";
 import { Checkbox, Icon, Time, formatAbsoluteTime } from "@compozy/ui";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import { cn } from "@/lib/utils";
 
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
@@ -44,9 +45,11 @@ import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
 import type { WorkspaceBadgeIdentity } from "@/systems/workspace/lib/workspace-badge-identity";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
 import {
+  lookupSessionComputer,
   SessionListComputerContext,
   type SessionRowComputerInfo,
 } from "../../lib/session-list-computer";
+import { sessionComputerOf, sessionRowKey } from "../../lib/session-row-ref";
 import { ComputerMetaLabel } from "@/systems/computers/components/computer-chip";
 import {
   sessionCheckboxGesture,
@@ -56,6 +59,8 @@ import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-v
 
 export interface SessionListRowProps {
   session: SessionPayload;
+  /** The computer owning this row; omitted defaults to the session's recorded provenance or local. */
+  computerId?: ComputerId;
   /**
    * The row's profile, supplied only while the aggregate is on and only where it
    * adds information: a scoped list already answers "whose work is this", and a
@@ -108,9 +113,17 @@ export interface SessionListRowViewProps extends SessionListRowProps {
  * `SessionListRow` binds the live runtime label and entry preload to this view.
  */
 export function SessionListRowView(props: SessionListRowViewProps) {
-  const { session, showActions = true, wrapRow, selection } = props;
-  const selected = selection?.selectedIds.has(session.id) ?? false;
-  const computer = useContext(SessionListComputerContext)?.get(session.id);
+  const { session, showActions = true, wrapRow, selection, computerId } = props;
+  const effectiveComputerId = computerId ?? sessionComputerOf(session);
+  const rowKey = sessionRowKey({ computerId: effectiveComputerId, sessionId: session.id });
+  const selected =
+    (selection?.selectedIds.has(rowKey) || selection?.selectedIds.has(session.id)) ?? false;
+  const computer = lookupSessionComputer(
+    useContext(SessionListComputerContext),
+    session.id,
+    computerId
+  );
+  const canAct = showActions && !computer?.offline;
   const row = (
     <SessionRowDragFrame
       className={cn(
@@ -119,27 +132,28 @@ export function SessionListRowView(props: SessionListRowViewProps) {
         (selected || props.current) && "bg-selected",
         computer?.offline && "opacity-70"
       )}
-      data-computer-id={computer?.id}
+      data-computer-id={computer?.id ?? (computerId !== "local" ? computerId : undefined)}
       data-computer-offline={computer?.offline ? "true" : undefined}
       data-slot="session-list-row"
-      drag={props.drag}
+      drag={computer?.offline ? undefined : props.drag}
       dropEdge={props.dropEdge ?? null}
       dragging={props.dragging ?? false}
       dropTestId={`${props.testIdPrefix}-drop-${props.dropEdge}-${session.id}`}
       onContextMenu={() => {
         // Finder's rule: a context click outside the selection makes that row the selection.
-        if (selection?.mode && !selected) selection.selectOnly(session.id);
+        if (selection?.mode && !selected) selection.selectOnly(rowKey);
       }}
     >
-      <SessionListRowBody {...props} />
+      <SessionListRowBody {...props} showActions={canAct} />
     </SessionRowDragFrame>
   );
-  if (!showActions || !wrapRow) return row;
+  if (!canAct || !wrapRow) return row;
   return wrapRow(row);
 }
 
 function SessionListRowBody({
   session,
+  computerId,
   owner,
   inheritsProject = false,
   current = false,
@@ -154,7 +168,10 @@ function SessionListRowBody({
   rowActions,
   descendantsRunning,
 }: SessionListRowViewProps) {
-  const selected = selection?.selectedIds.has(session.id) ?? false;
+  const effectiveComputerId = computerId ?? sessionComputerOf(session);
+  const rowKey = sessionRowKey({ computerId: effectiveComputerId, sessionId: session.id });
+  const selected =
+    (selection?.selectedIds.has(rowKey) || selection?.selectedIds.has(session.id)) ?? false;
   const title = getSessionDisplayTitle(session);
   const signal = sessionBadgeSignal(session.badge, sessionWaitingOn(session));
   const { keyboardFocus, focusHandlers } = useKeyboardFocusToken();
@@ -166,10 +183,14 @@ function SessionListRowBody({
   const agentLabel = session.agent_name ? agent.label : "";
   const meta = rowMeta({ session, agentLabel, runtime, signal, orphanedSubagent });
   const badgeOf = useContext(SessionListBadgeContext);
-  const computer = useContext(SessionListComputerContext)?.get(session.id);
+  const computer = lookupSessionComputer(
+    useContext(SessionListComputerContext),
+    session.id,
+    computerId
+  );
   const badge = inheritsProject ? undefined : badgeOf?.(session);
   const activate = (event: React.MouseEvent<HTMLElement>) =>
-    activateSessionRow(event, session.id, selection, onSelect);
+    activateSessionRow(event, rowKey, selection, onSelect);
   return (
     <>
       <SessionRowTarget
@@ -195,7 +216,7 @@ function SessionListRowBody({
       {selection ? (
         <SessionRowCheckbox
           title={title}
-          sessionId={session.id}
+          sessionId={rowKey}
           selected={selected}
           selection={selection}
         />
