@@ -1,0 +1,74 @@
+{
+  "source_commit": "2d279cfe2b81cf0a0b51c693ee9af4759743e011",
+  "old_version": "0.7.8",
+  "new_version": "0.8.0",
+  "schema_before": {
+    "global": 218,
+    "telemetry": 5
+  },
+  "schema_after": {
+    "global": 233,
+    "telemetry": 5
+  },
+  "online_gate": {
+    "fresh": {
+      "pre_account_install": false,
+      "gate": "enforced",
+      "state": "signed_out"
+    },
+    "upgraded": {
+      "pre_account_install": true,
+      "gate": "enforced",
+      "state": "signed_out"
+    }
+  },
+  "offline_gate": {
+    "fresh": {
+      "pre_account_install": false,
+      "gate": "enforced",
+      "state": "signed_out"
+    },
+    "upgraded": {
+      "pre_account_install": true,
+      "gate": "grace",
+      "state": "signed_out"
+    },
+    "upgraded_after_restart": {
+      "pre_account_install": true,
+      "gate": "grace",
+      "state": "signed_out"
+    },
+    "upgraded_after_reconnection": {
+      "pre_account_install": true,
+      "gate": "enforced",
+      "state": "signed_out"
+    },
+    "source": "offline",
+    "deadline_utc": "2026-12-04T13:35:29.539415+00:00",
+    "deadline_survived_restart": true,
+    "computers_required_sign_in": true
+  },
+  "upgrade_readback": {
+    "workspace_fields_equal": {
+      "id": true,
+      "name": true,
+      "root_dir": true
+    },
+    "worktree_fields_equal": {
+      "id": true,
+      "name": true,
+      "branch": true,
+      "path": true,
+      "created_head": true,
+      "workspace_id": true
+    },
+    "session_fields_equal": {
+      "id": true,
+      "name": true,
+      "workspace_id": true
+    },
+    "original_history_events": 2,
+    "original_history_events_present": 2,
+    "default_provider_preserved": true
+  }
+}

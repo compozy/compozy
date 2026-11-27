@@ -4,7 +4,7 @@ area: RT
 title: Pricing page, legal links, browser Pro checkout with promotion code, and Why sign in docs
 persona: Eva
 journey: J-buy-pro-from-site
-expected: Visitors can inspect /pricing across desktop and mobile viewports (dark theme pinned on compozy.com; OS light/dark preference checked), switch between annual and monthly billing, open /legal/terms, /legal/privacy, and /legal/refunds from the header/footer/FAQ, complete a Stripe test-mode purchase with a promotion code through Get Pro to cloud.compozy.com/billing/upgrade, land on the Pro success page, sign in to the app showing Pro, and follow U0's Why sign in? link to /docs/account/sign-in.
+expected: Visitors can inspect /pricing across desktop and mobile viewports (dark theme pinned on compozy.com; OS light/dark preference checked), switch between annual and monthly billing, open /legal/terms, /legal/privacy, and /legal/refunds from the header/footer/FAQ, verify the public Get Pro destination and complete a Stripe test-mode purchase with a promotion code on staging, land on the Pro success page, sign in to the app showing Pro, and follow U0's Why sign in? link to /docs/account/sign-in.
 entry_points: https://compozy.com/; https://compozy.com/pricing; https://compozy.com/legal/terms; https://compozy.com/legal/privacy; https://compozy.com/legal/refunds; https://compozy.com/docs/account/sign-in; https://cloud.compozy.com/billing/upgrade; desktop/web U0 sign-in screen
 qa_status: untested
 bug_ids:
