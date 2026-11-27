@@ -4047,7 +4047,11 @@ func testDaemonMCPSettingsCheckRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	active := createBoundFixtureBackedSession(t, ctx, harness, agent, "mcp-check")
-	retained := retainActivationCatalog(t, ctx, harness, agent, active.ID)
+	retained := retainActivationCatalog(t, ctx, harness, agent, active.ID, &sdkmcp.ClientOptions{
+		Capabilities: &sdkmcp.ClientCapabilities{},
+		// MCP 2026 list caches invalidate through an opted-in change subscription.
+		ToolListChangedHandler: func(context.Context, *sdkmcp.ToolListChangedRequest) {},
+	})
 	mcpPath := "/api/workspaces/" + active.WorkspaceID + "/sessions/" + active.ID + "/mcp"
 	catalogReportsFailure := func() bool {
 		var body compozycontract.SessionMCPResponse
@@ -4157,10 +4161,14 @@ func activationPromptHTTP(
 // The protocol test owns the provider-side client and acknowledges the initial catalog
 // before changing sources, so the next prompt compares against tools actually served.
 func retainActivationCatalog(
-	t *testing.T, ctx context.Context, harness *e2etest.RuntimeHarness, agent, id string,
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	agent, id string,
+	options ...*sdkmcp.ClientOptions,
 ) *sdkmcp.ClientSession {
 	t.Helper()
-	client := activationHostedClient(t, ctx, harness, agent, id)
+	client := activationHostedClient(t, ctx, harness, agent, id, options...)
 	t.Cleanup(func() {
 		if err := client.Close(); err != nil {
 			t.Error(err)
@@ -4177,6 +4185,7 @@ func activationHostedClient(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	agent, id string,
+	options ...*sdkmcp.ClientOptions,
 ) *sdkmcp.ClientSession {
 	t.Helper()
 	registration, ok := harness.MockAgentRegistration(agent)
@@ -4192,7 +4201,7 @@ func activationHostedClient(
 		t,
 		ctx,
 		requireHostedMCPStdioServer(t, records, hostedMCPServerLatest),
-		&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+		options...,
 	)
 }
 
