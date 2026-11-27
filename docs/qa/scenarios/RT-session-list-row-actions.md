@@ -6,10 +6,10 @@ persona: Cora
 journey: J-archive-session-without-deleting
 expected: Every eligible session row exposes an accessible three-dot menu whose Archive, Unarchive, and Delete actions operate without first opening the session; opening or using the menu does not trigger row navigation, destructive deletion keeps its confirmation, archived rows render in a separate catalog section, and pointer, keyboard, compact, and desktop interactions remain usable.
 entry_points: Web agent session list; global session catalog; session row actions menu
-qa_status: pass
+qa_status: pending
 bug_ids: BUG-20260805-session-delete-dialog-disappears
 fix_status: fixed
-retest_status: pass
+retest_status: pending
 fix_commits: PR-309-coderabbit-remediation
 evidence: /Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/journey-log.jsonl;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/screenshots/session-catalog-desktop.png;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/screenshots/agent-sessions-narrow.png;/Users/pedronauck/dev/qa-labs/compozy-session-archive-review-20260805-060247-848289-lab/qa-artifacts/qa/journey-log.jsonl;docs/qa/evidence/2026-08-05-session-archive-coderabbit/CH-archive-session-catalog-delete-pending-fixed.png;docs/qa/evidence/2026-08-05-session-archive-coderabbit/session-catalog-visual.png
 last_report: docs/qa/reports/2026-08-05-session-archive-coderabbit.md
@@ -124,3 +124,11 @@ when idle. Automated coverage: `session-delete-request-host.test.tsx` (request l
 single/batch forwarding), `use-session-window-sidebar.test.tsx` (rail delegation), and
 `session-delete-dialog.test.tsx` (pending dismissal guard). Reset for a focused live re-walk of the
 window rail's delete confirmation with a slow DELETE.
+
+QA impact 2026-11-26 (#2024): session delete confirmations now open after scoped detail, descendant
+trees, and single-target side chats have settled, preventing transient description and checkbox
+changes. Empty child trees never show an include checkbox; an unreadable tree exposes retry instead.
+Confirming an include-children delete re-reads descendant trees and re-asks if unconfirmed children
+or running processes appeared. Closing retains the target in both hosts while the UI primitive hides
+its content. The lifecycle, dialog, board-host, and sessions-host suites own these states; CI
+verification and a focused live catalog re-walk remain pending.

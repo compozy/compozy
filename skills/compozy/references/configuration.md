@@ -716,6 +716,7 @@ sets it fails to load (`provider_usage settings are global-only`) and profile ov
 | `provider_usage.refresh_interval`                 | `5m`    | Background cadence, `1m`–`1h`.                                                                          |
 | `provider_usage.providers.<id>.enabled`           | `true`  | Canonical built-in or configured provider ID; `false` hides that provider.                              |
 | `provider_usage.providers.claude.keychain_access` | `false` | macOS consent for Keychain reads; interactive authorization is local-only; revocation clears the token. |
+| `provider_usage.providers.agy.keychain_access`    | `false` | macOS consent to read the Antigravity CLI's Keychain login; same rules as `claude`.                     |
 
 Use `compozy config set provider_usage.<key> <value>` or `GET/PATCH /api/settings/provider-usage`
 (the PATCH body carries the complete `config` section; the response adds read-only
@@ -725,7 +726,7 @@ Use `compozy config set provider_usage.<key> <value>` or `GET/PATCH /api/setting
 reread the routed Keychain item through `security` after a noninteractive metadata check. Unsafe
 metadata prevents the read. An item change racing that check can briefly prompt; a 1.5-second
 background timeout terminates the reader and reports `keychain_read_timeout`. Explicit local
-refreshes may request OS authorization; agents cannot request interactive refreshes. CompozyOS never exchanges Claude Code refresh tokens.
+refreshes may request OS authorization; agents cannot request interactive refreshes. CompozyOS never exchanges Claude Code or Antigravity refresh tokens. `keychain_access` under any other provider is rejected with `is only valid for agy or claude`.
 
 ## OpenTelemetry Export
 

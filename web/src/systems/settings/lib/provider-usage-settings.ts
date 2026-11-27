@@ -30,10 +30,18 @@ export const PROVIDER_USAGE_COLLECTOR_IDS: readonly string[] = [
   "kimi-cli",
   "cursor",
   "gemini",
+  "agy",
 ];
 
 /** Collectors that read the provider CLI's own sign-in; the rest read a bound `api_key`. */
-const NATIVE_CLI_COLLECTOR_IDS = new Set(["codex", "claude", "kimi-cli", "cursor", "gemini"]);
+const NATIVE_CLI_COLLECTOR_IDS = new Set([
+  "codex",
+  "claude",
+  "kimi-cli",
+  "cursor",
+  "gemini",
+  "agy",
+]);
 
 export interface ProviderUsageFamilySettings {
   runtime_provider?: string;
@@ -60,7 +68,8 @@ export function providerUsageCollectorFamily(
   return mode === "bound_secret" && slots.some(slot => slot.name === "api_key") ? runtime : null;
 }
 
-export const PROVIDER_USAGE_KEYCHAIN_PROVIDER = "claude";
+/** Collectors that read their CLI's login from the macOS Keychain and need consent first. */
+export const PROVIDER_USAGE_KEYCHAIN_PROVIDERS: readonly string[] = ["claude", "agy"];
 
 /**
  * The option a stored interval matches. The daemon echoes Go durations
@@ -94,20 +103,23 @@ export function withProviderUsageProviderEnabled(
   };
 }
 
-export function providerUsageKeychainAccess(config: ProviderUsageSettingsConfig): boolean {
-  return config.providers[PROVIDER_USAGE_KEYCHAIN_PROVIDER]?.keychain_access ?? false;
+export function providerUsageKeychainAccess(
+  config: ProviderUsageSettingsConfig,
+  providerId: string
+): boolean {
+  return config.providers[providerId]?.keychain_access ?? false;
 }
 
 export function withProviderUsageKeychainAccess(
   config: ProviderUsageSettingsConfig,
+  providerId: string,
   keychainAccess: boolean
 ): ProviderUsageSettingsConfig {
-  const id = PROVIDER_USAGE_KEYCHAIN_PROVIDER;
   return {
     ...config,
     providers: {
       ...config.providers,
-      [id]: { ...config.providers[id], keychain_access: keychainAccess },
+      [providerId]: { ...config.providers[providerId], keychain_access: keychainAccess },
     },
   };
 }
@@ -130,5 +142,7 @@ export function sameProviderUsageConfig(
       return false;
     }
   }
-  return providerUsageKeychainAccess(left) === providerUsageKeychainAccess(right);
+  return PROVIDER_USAGE_KEYCHAIN_PROVIDERS.every(
+    id => providerUsageKeychainAccess(left, id) === providerUsageKeychainAccess(right, id)
+  );
 }

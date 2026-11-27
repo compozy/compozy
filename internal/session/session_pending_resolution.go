@@ -90,7 +90,7 @@ func (m *Manager) ApprovePermission(
 		if winner.Status == store.PendingInteractionStatusPending {
 			return ApprovalResult{}, mappedErr
 		}
-		return m.resolveOrphanedPermission(ctx, target, winner, req.Decision)
+		return m.resolveOrphanedPermission(ctx, winner, req.Decision)
 	}
 	return ApprovalResult{
 		Outcome:   store.PendingInteractionOutcomeApplied,
@@ -124,7 +124,7 @@ func (m *Manager) approveStoredPermission(
 				return ApprovalResult{}, true, settleErr
 			}
 			if commit.Interaction != nil && commit.Interaction.Status == store.PendingInteractionStatusResolved {
-				result, winnerErr := m.resolveOrphanedPermission(ctx, target, *commit.Interaction, decision)
+				result, winnerErr := m.resolveOrphanedPermission(ctx, *commit.Interaction, decision)
 				return result, true, winnerErr
 			}
 		}
@@ -133,7 +133,7 @@ func (m *Manager) approveStoredPermission(
 	if interaction.Status == store.PendingInteractionStatusPending {
 		return ApprovalResult{}, false, nil
 	}
-	result, err := m.resolveOrphanedPermission(ctx, target, interaction, decision)
+	result, err := m.resolveOrphanedPermission(ctx, interaction, decision)
 	return result, true, err
 }
 
@@ -172,7 +172,6 @@ func approvalError(sessionID string, err error) error {
 
 func (m *Manager) resolveOrphanedPermission(
 	ctx context.Context,
-	sessionID string,
 	interaction store.PendingInteraction,
 	decision string,
 ) (ApprovalResult, error) {
@@ -181,7 +180,6 @@ func (m *Manager) resolveOrphanedPermission(
 	}
 	result, err := m.resolveOrphanedInteraction(
 		ctx,
-		sessionID,
 		interaction,
 		decision,
 		resolvedByFromContext(ctx, "operator:control"),
@@ -241,7 +239,6 @@ func (m *Manager) ResolveOrphanedClarification(
 	}
 	resolution, err := m.resolveOrphanedInteraction(
 		ctx,
-		sessionID,
 		interaction,
 		answer.Resolution(question),
 		resolvedByFromContext(ctx, "operator:control"),
@@ -281,7 +278,6 @@ func answerForStoredResolution(
 
 func (m *Manager) resolveOrphanedInteraction(
 	ctx context.Context,
-	sessionID string,
 	interaction store.PendingInteraction,
 	resolution string,
 	resolvedBy string,
@@ -297,25 +293,11 @@ func (m *Manager) resolveOrphanedInteraction(
 		At:            m.now().UTC(),
 	}
 	if interaction.Status == store.PendingInteractionStatusOrphaned {
-		if m.inputQueue == nil {
-			return PendingInteractionResolution{}, errors.New("session: input queue is required")
-		}
-		generation, err := m.currentInputGeneration(ctx, sessionID)
+		insert, err := m.prepareInteractionContinuation(ctx, interaction, resolution)
 		if err != nil {
 			return PendingInteractionResolution{}, err
 		}
-		insert, err := m.inputQueue.PrepareQueue(inputqueue.InputRequest{
-			SessionID:  sessionID,
-			Text:       orphanResolutionPrompt(interaction, resolution),
-			Generation: generation,
-		})
-		if err != nil {
-			return PendingInteractionResolution{}, err
-		}
-		if insert.Origin, err = m.orphanAnswerOrigin(ctx); err != nil {
-			return PendingInteractionResolution{}, err
-		}
-		transition.OrphanInput = &insert
+		transition.ContinuationInput = insert
 	}
 	commit, err := m.transitionPendingInteraction(ctx, interaction.SessionID, transition)
 	if errors.Is(err, store.ErrSessionInputQueueFull) {
@@ -336,6 +318,13 @@ func (m *Manager) resolveOrphanedInteraction(
 		if err := permissionResolutionError(resolved, m.now()); err != nil {
 			return PendingInteractionResolution{}, err
 		}
+	} else if resolved.Status == store.PendingInteractionStatusTimedOut ||
+		resolved.Status == store.PendingInteractionStatusCanceled {
+		return PendingInteractionResolution{}, fmt.Errorf(
+			"%w: %s",
+			toolspkg.ErrClarifyCanceled,
+			resolved.ProviderRequestID,
+		)
 	}
 	return PendingInteractionResolution{
 		Outcome:       commit.Outcome,
@@ -345,10 +334,36 @@ func (m *Manager) resolveOrphanedInteraction(
 	}, nil
 }
 
-// orphanAnswerOrigin attributes an agent's orphan answer to that agent, so its continuation is queued as
+func (m *Manager) prepareInteractionContinuation(
+	ctx context.Context,
+	interaction store.PendingInteraction,
+	resolution string,
+) (*store.SessionInputQueueInsert, error) {
+	if m.inputQueue == nil {
+		return nil, errors.New("session: input queue is required")
+	}
+	generation, err := m.currentInputGeneration(ctx, interaction.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	insert, err := m.inputQueue.PrepareQueue(inputqueue.InputRequest{
+		SessionID:  interaction.SessionID,
+		Text:       interactionResolutionPrompt(interaction, resolution),
+		Generation: generation,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if insert.Origin, err = m.interactionAnswerOrigin(ctx); err != nil {
+		return nil, err
+	}
+	return new(insert), nil
+}
+
+// interactionAnswerOrigin attributes an agent's answer to that agent, so its continuation is queued as
 // agent input: held while the lineage is paused, counted rather than resetting the brake, and never human
 // provenance for a child it spawns. Only an operator answer, with no acting session, stays human input.
-func (m *Manager) orphanAnswerOrigin(ctx context.Context) (json.RawMessage, error) {
+func (m *Manager) interactionAnswerOrigin(ctx context.Context) (json.RawMessage, error) {
 	actorID := actingSessionID(ctx)
 	if actorID == "" {
 		return nil, nil
@@ -406,7 +421,7 @@ func (m *Manager) interactionForResolution(
 	return store.PendingInteraction{}, fmt.Errorf("%w: %s", store.ErrPendingInteractionNotFound, target)
 }
 
-func orphanResolutionPrompt(interaction store.PendingInteraction, resolution string) string {
+func interactionResolutionPrompt(interaction store.PendingInteraction, resolution string) string {
 	title := strings.TrimSpace(interaction.Title)
 	if title == "" {
 		title = strings.TrimSpace(interaction.Kind) + " request " + strings.TrimSpace(interaction.ProviderRequestID)

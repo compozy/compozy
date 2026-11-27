@@ -222,11 +222,26 @@ func TestDaemonLoopAPIServiceShouldReadEffectiveConfigFromPinnedRunSnapshot(t *t
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 26, 12, 0, 0, 0, time.UTC)
+	const pinnedCap = 50
 	run := looppkg.Run{
 		ID: "run-pinned-effective-config", WorkspaceID: "ws-pinned", LoopName: "release",
-		Inputs: map[string]any{},
+		Inputs: map[string]any{}, IterationCap: pinnedCap,
 	}
 	applyLoopRunPinningForTest(t, &run, now)
+	resolved, err := looppkg.LoadExecutedDefinitionSnapshot(run.DefinitionSnapshot, run.DefinitionDigest)
+	if err != nil {
+		t.Fatalf("LoadExecutedDefinitionSnapshot() error = %v", err)
+	}
+	// Simulate a run admitted when the delivery default shadowed an authored cap.
+	resolved.EffectiveConfig.IterationCap = pinnedCap
+	resolved.EffectiveConfig.Sources["/iteration_cap"] = looppkg.EffectiveConfigSourceDeliveryDefaults
+	run.DefinitionSnapshot, run.DefinitionDigest, err = looppkg.BuildExecutedDefinitionSnapshot(
+		resolved,
+		resolved.EffectiveConfig,
+	)
+	if err != nil {
+		t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+	}
 	persistence := &loopRunHistoryPersistenceStub{definitionSnapshot: &looppkg.DefinitionSnapshot{
 		WorkspaceID: run.WorkspaceID,
 		Digest:      run.DefinitionDigest,
@@ -234,9 +249,13 @@ func TestDaemonLoopAPIServiceShouldReadEffectiveConfigFromPinnedRunSnapshot(t *t
 		Definition:  append(json.RawMessage(nil), run.DefinitionSnapshot...),
 	}}
 	service := &daemonLoopAPIService{persistence: persistence}
-	_, _, effective, err := service.loadExecutedLoopDefinition(t.Context(), run.WorkspaceID, &run)
+	_, materialized, effective, err := service.loadExecutedLoopDefinition(t.Context(), run.WorkspaceID, &run)
 	if err != nil {
 		t.Fatalf("loadExecutedLoopDefinition() error = %v", err)
+	}
+	if materialized.IterationCap != 1 || effective.IterationCap != pinnedCap {
+		t.Fatalf("iteration caps = authored:%d pinned:%d, want 1 and %d",
+			materialized.IterationCap, effective.IterationCap, pinnedCap)
 	}
 	if got := effective.Sources["/iteration_cap"]; got != looppkg.EffectiveConfigSourceDeliveryDefaults {
 		t.Fatalf("pinned iteration source = %q, want delivery defaults", got)

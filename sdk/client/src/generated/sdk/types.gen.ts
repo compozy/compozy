@@ -42621,7 +42621,7 @@ export type AnswerSessionClarificationErrors = {
    */
   409: ErrorPayload;
   /**
-   * Clarification broker is not configured
+   * Clarification broker is unavailable or the input queue is full
    */
   503: ErrorPayload;
 };

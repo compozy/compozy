@@ -100,7 +100,7 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 				id,
 				target.CollectorID,
 				provider,
-				cfg.ProviderUsage.ClaudeKeychainAccess(),
+				cfg.ProviderUsage.KeychainAccess(target.CollectorID),
 			)
 			target.Route, target.RouteFingerprint = route, fingerprint
 			if routeErr != nil {
@@ -158,7 +158,7 @@ func (r *providerUsageResolver) route(
 	route := providerusage.ResolvedRoute{
 		Env:            env,
 		BoundSecrets:   map[string]string{},
-		KeychainAccess: collectorID == nativeProviderClaude && keychain,
+		KeychainAccess: keychain,
 	}
 	if err := r.bindSecrets(ctx, profileName, id, provider, &route); err != nil {
 		return route, "", err

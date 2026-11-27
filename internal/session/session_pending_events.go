@@ -119,53 +119,55 @@ func (m *Manager) applyClarifyAttentionEvent(
 	ctx context.Context,
 	target *Session,
 	event toolspkg.ClarifyEvent,
-) (bool, error) {
+	askingScope toolspkg.Scope,
+	deliverAnswer func(),
+) (bool, bool, error) {
 	target.interactionLifecycleMu.Lock()
-	commit, handled, err := m.commitApplyClarifyAttentionEvent(ctx, target, event)
+	commit, queued, err := m.commitApplyClarifyAttentionEvent(ctx, target, event, askingScope)
+	recorded := commit.Interaction != nil
+	if err == nil && !recorded && event.Status == toolspkg.ClarifyStatusPending {
+		recorded = pendingInteractionByProviderRequest(
+			target.Info(), store.PendingInteractionKindClarify, strings.TrimSpace(event.Request.RequestID),
+		) != nil
+	}
+	if deliverAnswer != nil && err == nil && commit.Interaction != nil &&
+		commit.Interaction.Status == store.PendingInteractionStatusResolved {
+		deliverAnswer()
+	}
 	target.interactionLifecycleMu.Unlock()
 	if err == nil && commit.Interaction != nil {
 		m.publishAttentionCommit(ctx, target.ID, commit)
+		if event.Status == toolspkg.ClarifyStatusResolved &&
+			commit.Interaction.Status != store.PendingInteractionStatusResolved {
+			return recorded, false, toolspkg.ErrClarifyCanceled
+		}
 	}
-	return handled, err
+	return recorded, queued, err
 }
 
 func (m *Manager) commitApplyClarifyAttentionEvent(
 	ctx context.Context,
 	target *Session,
 	event toolspkg.ClarifyEvent,
+	askingScope toolspkg.Scope,
 ) (store.SessionAttentionCommit, bool, error) {
 	requestID := strings.TrimSpace(event.Request.RequestID)
 	if event.Status == toolspkg.ClarifyStatusPending {
-		info := target.Info()
-		if info.State == StateStopping || info.State == StateStopped {
-			return store.SessionAttentionCommit{}, true, nil
-		}
-		if pendingInteractionByProviderRequest(info, store.PendingInteractionKindClarify, requestID) != nil {
-			return store.SessionAttentionCommit{}, true, nil
-		}
-		commit, err := m.commitCreatePendingInteraction(ctx, store.PendingInteractionCreate{
-			SessionID:         target.ID,
-			Kind:              store.PendingInteractionKindClarify,
-			ProviderRequestID: requestID,
-			TurnID:            "clarify:" + requestID,
-			Title:             event.Request.Question,
-			Payload: store.PendingInteractionPayload{
-				Choices: event.Request.Choices,
-			},
-			CreatedAt: event.At,
-			ExpiresAt: clarifyDeadline(event.Request.Deadline),
-		})
-		if errors.Is(err, store.ErrPendingInteractionConflict) {
-			return store.SessionAttentionCommit{}, true, m.refreshPendingInteractions(ctx, target.ID)
-		}
-		return commit, err == nil, err
+		commit, err := m.commitPendingClarification(ctx, target, event, requestID)
+		return commit, false, err
 	}
+	info := target.Info()
+	trackedAnswer := event.Status == toolspkg.ClarifyStatusResolved &&
+		askingScope.RunID != "" && askingScope.Generation > 0
 	interaction := pendingInteractionByProviderRequest(
-		target.Info(),
+		info,
 		store.PendingInteractionKindClarify,
 		requestID,
 	)
 	if interaction == nil {
+		if trackedAnswer {
+			return store.SessionAttentionCommit{}, false, toolspkg.ErrClarifyCanceled
+		}
 		return store.SessionAttentionCommit{}, false, nil
 	}
 	status, err := clarifyInteractionStatus(event.Status)
@@ -184,9 +186,59 @@ func (m *Manager) commitApplyClarifyAttentionEvent(
 		}
 		transition.Resolution = event.Answer.Resolution(question)
 		transition.ResolvedBy = event.ResolvedBy
+		if trackedAnswer {
+			if info.State == StateStopping || info.State == StateStopped {
+				return store.SessionAttentionCommit{}, false, toolspkg.ErrClarifyCanceled
+			}
+			run, active := m.activePromptRunSnapshot(target.ID)
+			if !active || run.RunID != askingScope.RunID || run.Generation != askingScope.Generation {
+				transition.ContinuationInput, err = m.prepareInteractionContinuation(
+					ctx,
+					*interaction,
+					transition.Resolution,
+				)
+				if err != nil {
+					return store.SessionAttentionCommit{}, false, err
+				}
+			}
+		}
 	}
 	commit, err := m.commitTransitionPendingInteraction(ctx, interaction.SessionID, transition)
-	return commit, err == nil, err
+	queued := err == nil && transition.ContinuationInput != nil &&
+		(commit.Outcome == store.PendingInteractionStatusResolved ||
+			commit.Outcome == store.PendingInteractionOutcomeResolvedAfterRestart)
+	return commit, queued, err
+}
+
+func (m *Manager) commitPendingClarification(
+	ctx context.Context,
+	target *Session,
+	event toolspkg.ClarifyEvent,
+	requestID string,
+) (store.SessionAttentionCommit, error) {
+	info := target.Info()
+	if info.State == StateStopping || info.State == StateStopped {
+		return store.SessionAttentionCommit{}, nil
+	}
+	if pendingInteractionByProviderRequest(info, store.PendingInteractionKindClarify, requestID) != nil {
+		return store.SessionAttentionCommit{}, nil
+	}
+	commit, err := m.commitCreatePendingInteraction(ctx, store.PendingInteractionCreate{
+		SessionID:         target.ID,
+		Kind:              store.PendingInteractionKindClarify,
+		ProviderRequestID: requestID,
+		TurnID:            "clarify:" + requestID,
+		Title:             event.Request.Question,
+		Payload: store.PendingInteractionPayload{
+			Choices: event.Request.Choices,
+		},
+		CreatedAt: event.At,
+		ExpiresAt: clarifyDeadline(event.Request.Deadline),
+	})
+	if errors.Is(err, store.ErrPendingInteractionConflict) {
+		return store.SessionAttentionCommit{}, m.refreshPendingInteractions(ctx, target.ID)
+	}
+	return commit, err
 }
 
 func clarifyDeadline(deadline time.Time) *time.Time {

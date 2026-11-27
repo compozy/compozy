@@ -154,7 +154,8 @@ func (s *Scheduler) escalateNeedsAttention(
 	_, err := s.escalator.MarkRunNeedsAttention(
 		ctx,
 		runID,
-		starvationDiagnostic(queuedAge, mutation)+capacityWaitDiagnostic(capacityReason),
+		starvationDiagnostic(queuedAge, mutation)+capacityWaitDiagnostic(capacityReason)+
+			fmt.Sprintf(". To queue a continuation, run compozy task run recover %s", runID),
 	)
 	if err != nil && !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
 		return false, []error{fmt.Errorf("scheduler: mark run needs attention %q: %w", runID, err)}

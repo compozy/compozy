@@ -6,7 +6,6 @@ import {
   groupLoopCatalog,
   hasActiveLoopFilters,
   hasHumanGate,
-  isUnboundedCap,
   iterationCapLabel,
   type LoopCatalogFilter,
   loopCategory,
@@ -41,14 +40,12 @@ describe("loop-catalog", () => {
     expect(loopCategory(blank)).toBeNull();
   });
 
-  it("Should count declared inputs and distinguish bounded review loops", () => {
+  it("Should count declared inputs", () => {
     expect(loopInputCount(delivery)).toBe(9);
     expect(loopInputCount(review)).toBe(4);
-    expect(isUnboundedCap(review)).toBe(false);
-    expect(isUnboundedCap(delivery)).toBe(false);
   });
 
-  it("Should render iteration cap 0 as the unbounded glyph", () => {
+  it("Should render an effective iteration cap of zero as the unbounded glyph", () => {
     expect(iterationCapLabel(0)).toBe("∞");
     expect(iterationCapLabel(50)).toBe("50");
   });

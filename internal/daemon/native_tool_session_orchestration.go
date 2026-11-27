@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -251,6 +253,14 @@ func nativeSessionOrchestrationError(id toolspkg.ToolID, err error) error {
 	}
 	status := core.StatusForSessionError(err)
 	switch {
+	case id == toolspkg.ToolIDSessionClarifyAnswer && errors.Is(err, store.ErrSessionInputQueueFull):
+		refusal := toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable, id, "The session input queue is full. Retry when it has capacity.",
+			errors.Join(toolspkg.ErrToolUnavailable, err), toolspkg.ReasonCode("queue_full"),
+		)
+		refusal.HTTPStatus = http.StatusServiceUnavailable
+		refusal.Retryable = true
+		return refusal
 	case errors.Is(err, session.ErrApprovalOutsideLineage):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeDenied,

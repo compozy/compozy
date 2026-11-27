@@ -223,12 +223,15 @@ func (m *Manager) finishPromptPump(
 	fatal *promptPumpFatal,
 ) {
 	outcome, outcomeErr := promptTurnOutcome(turnState, fatal)
+	identity, identityErr := promptRunIdentity(session, turnState)
+	if identityErr == nil {
+		m.clearActivePromptRun(session, identity)
+	}
 	var before *Info
 	if session != nil {
 		session.supervisionInspectMu.Lock()
 		before = session.Info()
 	}
-	identity, identityErr := promptRunIdentity(session, turnState)
 	m.releaseHostedPromptRun(session, turnState)
 	var fatalPromptFailure *store.SessionFailure
 	if fatal != nil {
@@ -241,13 +244,10 @@ func (m *Manager) finishPromptPump(
 		activity.stop()
 	}
 	m.revalidateSettledWorkSignals(lifecycleCtx, session)
-	if activity != nil {
-		activity.finish(m.now())
-	}
 	if fatalPromptFailure == nil {
 		m.recordTurnEndedEarly(lifecycleCtx, session, turnState)
 	}
-	m.settlePromptAttention(lifecycleCtx, session, before, turnState)
+	m.settlePromptAttention(lifecycleCtx, session, before, turnState, activity)
 	if session != nil {
 		session.supervisionInspectMu.Unlock()
 	}
@@ -256,9 +256,6 @@ func (m *Manager) finishPromptPump(
 		m.dispatchTurnEnd(lifecycleCtx, turnState, time.Time{})
 	}
 	m.finishManagedInputPrompt(lifecycleCtx, session, turnState)
-	if identityErr == nil {
-		m.clearActivePromptRun(identity)
-	}
 	if turnState != nil {
 		clearPromptState(session, turnState.turnID)
 	}
@@ -328,12 +325,17 @@ func (m *Manager) settlePromptAttention(
 	target *Session,
 	before *Info,
 	turnState *promptTurnDispatchState,
+	activity *promptActivitySupervisor,
 ) {
 	if target == nil {
 		return
 	}
 	if err := m.settleSessionAttention(ctx, target.ID, m.now().UTC()); err != nil {
 		m.sessionLogger(target).Error("session: persist terminal attention failed", "error", err)
+	}
+	// A session monitor must see the new settled revision when activity clears.
+	if activity != nil {
+		activity.finish(m.now())
 	}
 	m.publishLifecycleAttentionTransitionWake(ctx, before, target.Info(),
 		!promptTurnWasCanceled(target, turnState), promptTurnID(turnState))
