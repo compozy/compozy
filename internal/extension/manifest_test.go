@@ -1197,6 +1197,13 @@ func TestLoadManifest_ValidationErrors(t *testing.T) {
 		wantField     string
 	}{
 		{
+			name:          "Should classify a TOML type mismatch as an invalid manifest",
+			daemonVersion: "0.6.0",
+			fileName:      manifestTOMLFileName,
+			content:       "[extension]\nname = 1\n",
+			wantErr:       ErrManifestInvalid,
+		},
+		{
 			name:          "missing name",
 			daemonVersion: "0.6.0",
 			fileName:      manifestTOMLFileName,

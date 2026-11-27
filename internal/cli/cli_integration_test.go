@@ -1571,7 +1571,8 @@ func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 
 		runtime := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
 		dir := t.TempDir()
-		writeExtensionManifest(t, filepath.Join(dir, "extension.toml"), `[extension]
+		manifestPath := filepath.Join(dir, "extension.toml")
+		writeExtensionManifest(t, manifestPath, `[extension]
 name = "broken"
 [[requires.extensions]]
 ref = "/x"\nmin_version = "9.0.0"
@@ -1596,7 +1597,7 @@ ref = "/x"\nmin_version = "9.0.0"
 		if response.StatusCode != http.StatusUnprocessableEntity {
 			t.Fatalf("preview = HTTP %d %s, want 422", response.StatusCode, body)
 		}
-		assertMalformedExtensionManifestPayload(t, body)
+		assertMalformedExtensionManifestPayload(t, body, "extension.toml")
 
 		client, err := NewClient(LocalClientTarget(runtime.Config.Daemon.Socket))
 		if err != nil {
@@ -1607,7 +1608,7 @@ ref = "/x"\nmin_version = "9.0.0"
 		if !ok || validationErr.statusCode != http.StatusUnprocessableEntity {
 			t.Fatalf("install through daemon = %v, want 422 validation error", err)
 		}
-		assertMalformedExtensionManifestPayload(t, mustJSON(t, validationErr.payload))
+		assertMalformedExtensionManifestPayload(t, mustJSON(t, validationErr.payload), "extension.toml")
 
 		args := []string{"extension", "install", dir, "--allow-unverified", "--yes"}
 		stdout, stderr, err := runtime.CLI.Run(t.Context(), args...)
@@ -1619,7 +1620,7 @@ ref = "/x"\nmin_version = "9.0.0"
 		if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 1 || stdout != "" {
 			t.Fatalf("JSON install = stdout %q, stderr %q, error %v", stdout, stderr, err)
 		}
-		assertMalformedExtensionManifestPayload(t, []byte(stderr))
+		assertMalformedExtensionManifestPayload(t, []byte(stderr), manifestPath)
 	})
 
 	t.Run("Should install an extension and round-trip profile enablement", func(t *testing.T) {
@@ -1724,13 +1725,14 @@ ref = "/x"\nmin_version = "9.0.0"
 	})
 }
 
-func assertMalformedExtensionManifestPayload(t *testing.T, body []byte) {
+func assertMalformedExtensionManifestPayload(t *testing.T, body []byte, manifestPath string) {
 	t.Helper()
 	var payload contract.ExtensionValidationErrorPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatalf("decode manifest validation payload %q: %v", body, err)
 	}
-	if !strings.Contains(payload.Error, "extension.toml") || !strings.Contains(payload.Error, "toml: line 4") ||
+	if !strings.Contains(payload.Error, fmt.Sprintf("decode manifest %q", manifestPath)) ||
+		!strings.Contains(payload.Error, "toml: line 4") ||
 		len(payload.Issues) != 1 || payload.Issues[0].Path != "extension.toml" ||
 		payload.Issues[0].Line != 4 || payload.Issues[0].Column < 1 ||
 		payload.Issues[0].Severity != contract.IssueSeverityError || payload.Issues[0].Message == "" {

@@ -215,7 +215,7 @@ func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err err
 		return
 	}
 	if errors.Is(err, extensionpkg.ErrManifestInvalid) {
-		c.JSON(status, ExtensionValidationErrorPayload(ErrorPayloadForStatus(status, err, mask), err))
+		c.JSON(status, ExtensionValidationErrorPayload(status, err, mask))
 		return
 	}
 	if item, ok := ExtensionGitDependencyDiagnostic(err); ok {
@@ -230,13 +230,21 @@ func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err err
 // ExtensionValidationErrorPayload builds the positioned validation payload of a manifest validation failure, the
 // same on every public transport, naming the dependency it belongs to.
 func ExtensionValidationErrorPayload(
-	payload contract.ErrorPayload, err error,
+	status int, err error, maskInternalErrors bool,
 ) contract.ExtensionValidationErrorPayload {
+	payload := ErrorPayloadForStatus(status, err, maskInternalErrors)
 	message := diagnosticspkg.Redact(taskpkg.RedactClaimTokens(payload.Error))
 	issue := contract.ValidationIssue{Message: message, Severity: contract.IssueSeverityError}
-	if decodeErr, ok := errors.AsType[*extensionpkg.ManifestDecodeError](err); ok {
-		issue = decodeErr.Issue(message)
-	} else if validationErr, ok := errors.AsType[*extensionpkg.ManifestValidationError](err); ok && validationErr != nil {
+	if decodeErr, ok := errors.AsType[*extensionpkg.ManifestDecodeError](
+		err,
+	); ok &&
+		status < http.StatusInternalServerError {
+		payload.Error = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(decodeErr.PackageMessage()))
+		issue = decodeErr.Issue(payload.Error)
+	} else if validationErr, ok := errors.AsType[*extensionpkg.ManifestValidationError](
+		err,
+	); ok &&
+		validationErr != nil {
 		issue.Field = strings.TrimSpace(validationErr.Field)
 	}
 	validation := contract.ExtensionValidationErrorPayload{

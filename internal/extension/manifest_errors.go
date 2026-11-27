@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -29,16 +30,25 @@ type ManifestDecodeError struct {
 var _ error = (*ManifestDecodeError)(nil)
 
 func (e *ManifestDecodeError) Error() string {
-	return fmt.Sprintf("extension: decode manifest %q: %v", e.path, e.cause)
+	return e.message(e.path)
 }
 
 func (e *ManifestDecodeError) Is(target error) bool { return target == ErrManifestInvalid }
 
 func (e *ManifestDecodeError) Unwrap() error { return e.cause }
 
+// PackageMessage identifies the manifest by its package-relative filename.
+func (e *ManifestDecodeError) PackageMessage() string { return e.message(filepath.Base(e.path)) }
+
+func (e *ManifestDecodeError) message(path string) string {
+	return fmt.Sprintf("extension: decode manifest %q: %v", path, e.cause)
+}
+
 // Issue combines the source location with the caller's redacted message.
 func (e *ManifestDecodeError) Issue(message string) ValidationIssue {
-	return ValidationIssue{Path: e.path, Line: e.line, Column: e.column, Message: message, Severity: IssueSeverityError}
+	return ValidationIssue{
+		Path: filepath.Base(e.path), Line: e.line, Column: e.column, Message: message, Severity: IssueSeverityError,
+	}
 }
 
 // ManifestCompatibilityError describes a daemon-version compatibility failure.
