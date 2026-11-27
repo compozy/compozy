@@ -3,9 +3,12 @@ name: merge-gate
 display_name: Merge Gate
 description: Verifies handed-off pull requests and merges them into main, one at a time.
 kind: always_on
-provider: claude
-model: claude-opus-5-5
-reasoning_effort: medium
+provider: codex
+model: gpt-6.2-sol
+reasoning_effort: xhigh
+acp_options:
+  - id: mode
+    value_id: agent-full-access
 permissions: approve-all
 category_path:
   - CompozyOS

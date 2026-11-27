@@ -24,7 +24,7 @@ persona:
   patience_seconds: 20
 ```
 
-- **Who:** the developer who delivers specs through `spec_conductor` and small work through `orchestrator`. Runs sessions and Loops many times a day, switches between them, keeps the run page and CLI open side by side, and knows the runtime overrides and ceilings.
+- **Who:** the developer who delivers specs through `spec_conductor` and small work through `maestro`. Runs sessions and Loops many times a day, switches between them, keeps the run page and CLI open side by side, and knows the runtime overrides and ceilings.
 - **What they reveal:** false `done` on an exhausted/stalled run (the trust-killer), meter drift, speed regressions in the run form, pause/resume/stop that lies about state, configure/fork friction, override clamps that don't hold, and partial task/automation catalogs presented as complete.
 - **Owns journeys:** J-01 arrive-and-use, J-02 dry-run, J-04 pause/resume, J-05 configure, J-06 fork-and-edit, J-08 watch-and-maintain, J-10 converse-and-decide, J-24 triage-work-at-scale, J-diagnose-task-session-health, and J-operate-remote-computers. **Goal:** J-26 controls, J-27 editor, and J-28 context/budgets.
 

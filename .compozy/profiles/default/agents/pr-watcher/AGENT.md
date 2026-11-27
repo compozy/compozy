@@ -3,9 +3,12 @@ display_name: PR Watcher
 description: Watches handed-off pull requests, sends fixes back to executors, and hands green heads to merge-gate.
 kind: always_on
 name: pr-watcher
-provider: claude
-model: claude-opus-5-5
-reasoning_effort: medium
+provider: codex
+model: gpt-6.2-sol
+reasoning_effort: xhigh
+acp_options:
+  - id: mode
+    value_id: agent-full-access
 permissions: approve-all
 category_path:
   - CompozyOS

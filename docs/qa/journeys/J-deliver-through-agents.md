@@ -1,7 +1,7 @@
 # J-deliver-through-agents — Deliver a spec and small work by choosing an agent
 
 The operator delivers an approved spec by starting `spec_conductor`, and small work by talking to the
-always-on `orchestrator`. No Loop, tool, or pasted procedure is involved. Spec files stay in the
+always-on `maestro`. No Loop, tool, or pasted procedure is involved. Spec files stay in the
 workspace root, and every session reads them by absolute path.
 
 ```mermaid
@@ -14,9 +14,9 @@ flowchart TD
     E -->|verified| F[Squash into integration with Spec-Slice trailer and _run.md record]
     F --> G[reviewer sessions write findings files]
     G --> H[Project instructions decide the handoff]
-    B -->|small item| I[orchestrator records a work log entry]
+    B -->|small item| I[maestro records a work log entry]
     I --> J[Executor runs in a worktree derived from the entry ID]
-    J --> K[orchestrator verifies and closes the entry with evidence]
+    J --> K[maestro verifies and closes the entry with evidence]
     I -.->|never dispatched| L[Heartbeat work_log surfaces the stale entry]
     C -.->|conductor restarted| M[Git history wins over _run.md; no integrated slice repeats]
 ```
@@ -30,7 +30,7 @@ journey:
   entry_points:
     - url: "CLI: compozy session new --agent spec_conductor --workspace <workspace> --name <name>"
       origin: direct
-    - url: "CLI: compozy agent instance create orchestrator --workspace <workspace>"
+    - url: "CLI: compozy agent instance create maestro --workspace <workspace>"
       origin: direct
     - url: "CLI: compozy session prompt <session> <request>"
       origin: direct
@@ -42,7 +42,7 @@ journey:
       verb: "Let slices finish, and interrupt the conductor once"
       expected_observable: "Each verified slice is squashed once; a replacement conductor resumes from Git history"
     - step: 3
-      verb: "Hand a small item to orchestrator"
+      verb: "Hand a small item to maestro"
       expected_observable: "An open entry exists before dispatch, and it closes with evidence after verification"
   goal:
     observable: "Integrated branch and closed work log entry, each backed by evidence"
