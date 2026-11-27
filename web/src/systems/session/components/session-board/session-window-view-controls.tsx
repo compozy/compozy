@@ -1,3 +1,4 @@
+import { WindowScopeContext } from "@/hooks/use-window-scope";
 import { ComputerScopePicker, useComputers, type ComputerScopeCount } from "@/systems/computers";
 
 import { useSessionWindowComputerControls } from "../../hooks/use-session-window-computer-controls";
@@ -5,6 +6,7 @@ import type { SessionWindowViewMode } from "../../lib/session-sidebar-scope";
 import { SessionViewToggle } from "./session-view-toggle";
 
 export interface SessionWindowViewControlsProps {
+  windowScopeId: string;
   value: SessionWindowViewMode;
   onValueChange: (next: SessionWindowViewMode) => void;
   /** Optional handler to open Settings → Computers from the scope picker footer. */
@@ -18,20 +20,18 @@ export interface SessionWindowViewControlsProps {
  * firing workspace or profile reads.
  */
 export function SessionWindowViewControls({
-  value,
-  onValueChange,
-  onManageComputers,
+  windowScopeId,
+  ...props
 }: SessionWindowViewControlsProps) {
   const { canRead, enabledComputers } = useComputers({ passive: true });
   if (!canRead || enabledComputers.length === 0) {
-    return <SessionViewToggle onValueChange={onValueChange} value={value} />;
+    return <SessionViewToggle onValueChange={props.onValueChange} value={props.value} />;
   }
+  // The topbar renders this slot outside the publishing window's context.
   return (
-    <SessionWindowMultiComputerControls
-      onManageComputers={onManageComputers}
-      onValueChange={onValueChange}
-      value={value}
-    />
+    <WindowScopeContext value={windowScopeId}>
+      <SessionWindowMultiComputerControls {...props} />
+    </WindowScopeContext>
   );
 }
 
@@ -39,7 +39,7 @@ function SessionWindowMultiComputerControls({
   value,
   onValueChange,
   onManageComputers,
-}: SessionWindowViewControlsProps) {
+}: Omit<SessionWindowViewControlsProps, "windowScopeId">) {
   const { computerSources, handleReconnect, reconnectingIds, scopeState, upgradeSheet } =
     useSessionWindowComputerControls();
 

@@ -3,6 +3,7 @@ import { AgentAvatar, Pill, StateGlyph, useTopbarSlot } from "@compozy/ui";
 
 import { isRemoteComputerId } from "@/lib/computer-scope";
 import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { useOptionalUpgradeSheetActions } from "@/systems/account";
 import { ComputerChip, findComputerById, toComputerView, useComputers } from "@/systems/computers";
 import { OsShellContext, useOpenProjectFiles } from "@/systems/os";
@@ -395,6 +396,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { session } = input;
   const actions = sessionTopbarActions(input);
   const view = useSessionWindowViewState();
+  const windowScopeId = useWorktreeScopeId();
   // Over the board the drawer owns its chrome: no rail to toggle, and the board is the view.
   const inWindow = useSessionWindowPresentation() === "window";
   // The slot consumer (the OS head) renders outside this window's session
@@ -457,7 +459,11 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     actionsDivider: !instance,
     // Per-session verbs live in the session list row menus; the head keeps only the view toggle.
     overflow: inWindow ? (
-      <SessionWindowViewControls onValueChange={view.setView} value={view.view} />
+      <SessionWindowViewControls
+        onValueChange={view.setView}
+        value={view.view}
+        windowScopeId={windowScopeId}
+      />
     ) : undefined,
   });
 }

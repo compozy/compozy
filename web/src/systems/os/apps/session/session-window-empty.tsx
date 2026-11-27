@@ -42,6 +42,7 @@ export function SessionWindowEmpty({ windowId }: { windowId: string }) {
         onManageComputers={() => launcher.openSettingsSection("computers")}
         onValueChange={view.setView}
         value={view.view}
+        windowScopeId={windowId}
       />
     ),
     start: <SessionPanelToggle panel="sidebar" open={sidebar.open} onToggle={sidebar.toggle} />,

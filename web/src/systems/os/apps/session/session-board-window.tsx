@@ -87,6 +87,7 @@ export function SessionBoardWindow({
         onManageComputers={() => launcher.openSettingsSection("computers")}
         onValueChange={setView}
         value={view.view}
+        windowScopeId={windowId}
       />
     ),
     actions: (
