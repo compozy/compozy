@@ -5,10 +5,10 @@ import { fetchSessionSides } from "../adapters/session-side-api";
 import { sessionKeys } from "./query-keys";
 
 /**
- * A session's side chats. The list is complete and small (bounded by the operator's own actions),
- * so it is one read; the catalog stream's `session_side_changed` for this parent rereads it.
+ * A session's side chats in raw `{ sides }` response form. Shared by `sessionSidesOptions` and
+ * imperative `fetchQuery` callers (which bypass `select` and receive the raw response).
  */
-export function sessionSidesOptions(
+export function sessionSidesRawOptions(
   workspaceId: string,
   sessionId: string,
   options: { archived?: boolean; enabled?: boolean; computerId?: ComputerId } = {}
@@ -20,9 +20,23 @@ export function sessionSidesOptions(
       .sidesList(workspaceId, sessionId, archived),
     queryFn: ({ signal }) =>
       fetchSessionSides(workspaceId, sessionId, { archived }, signal, options.computerId),
-    select: data => data.sides,
     staleTime: 30_000,
     enabled: (options.enabled ?? true) && sessionId.trim() !== "",
+  });
+}
+
+/**
+ * A session's side chats. The list is complete and small (bounded by the operator's own actions),
+ * so it is one read; the catalog stream's `session_side_changed` for this parent rereads it.
+ */
+export function sessionSidesOptions(
+  workspaceId: string,
+  sessionId: string,
+  options: { archived?: boolean; enabled?: boolean; computerId?: ComputerId } = {}
+) {
+  return queryOptions({
+    ...sessionSidesRawOptions(workspaceId, sessionId, options),
+    select: data => data.sides,
   });
 }
 

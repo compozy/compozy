@@ -29,6 +29,8 @@ export interface SessionDeleteDialogProps {
   isDeleting: boolean;
   /** Present when the targets have child sessions; absent keeps the dialog unchanged. */
   childSessions?: SessionChildrenChoice;
+  /** The prepared target process count is stable for this dialog lifetime. */
+  processCount?: number;
   /** The session has side chats (closed ones included): deleting it deletes them too (S5). */
   sideChats?: boolean;
   /** `processes` answers what happens to running processes; absent when none run. */
@@ -45,6 +47,7 @@ export function SessionDeleteDialog({
   onRetry,
   isDeleting,
   childSessions,
+  processCount,
   sideChats = false,
   onConfirm,
 }: SessionDeleteDialogProps) {
@@ -58,18 +61,52 @@ export function SessionDeleteDialog({
         onRetry={onRetry}
         isDeleting={isDeleting}
         childSessions={childSessions}
+        processCount={processCount}
         onConfirm={onConfirm}
       />
     );
   }
   const session = sessions?.[0] ?? singleSession;
   if (!session) return null;
+  return (
+    <SingleSessionDeleteDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      session={session}
+      results={results}
+      onRetry={onRetry}
+      isDeleting={isDeleting}
+      childSessions={childSessions}
+      processCount={processCount}
+      sideChats={sideChats}
+      onConfirm={onConfirm}
+    />
+  );
+}
+
+type SingleSessionDeleteDialogProps = Omit<SessionDeleteDialogProps, "session"> & {
+  session: SessionPayload;
+};
+
+function SingleSessionDeleteDialog({
+  open,
+  onOpenChange,
+  session,
+  results,
+  onRetry,
+  isDeleting,
+  childSessions,
+  processCount,
+  sideChats = false,
+  onConfirm,
+}: SingleSessionDeleteDialogProps) {
+  const childrenPending = childSessions?.pending === true;
   const failure = results?.find(result => result.id === session.id && result.status === "failed");
   const retrying = failure !== undefined && !isDeleting;
-  const processCount =
-    sessionRunningProcesses(session) + (childSessions?.includedProcessCount ?? 0);
+  const targetProcessCount = processCount ?? sessionRunningProcesses(session);
+  const runningProcessCount = targetProcessCount + (childSessions?.includedProcessCount ?? 0);
   const processChoice =
-    processCount > 0 ? sessionProcessChoiceCopy("delete", 1, processCount) : null;
+    runningProcessCount > 0 ? sessionProcessChoiceCopy("delete", 1, runningProcessCount) : null;
   return (
     <Dialog
       open={open}
@@ -88,36 +125,99 @@ export function SessionDeleteDialog({
         <DialogHeader>
           <DialogTitle>Delete session</DialogTitle>
           <DialogDescription>
-            This permanently removes <strong>{session.name?.trim() || session.id}</strong>,
-            including its transcript and history, and removes it from the session list.
-            {processChoice ? ` ${processChoice.description}` : null}
-            {sideChats ? ` ${SIDE_CHAT_COPY.deleteLine}` : null}
+            <SessionDeleteDescription
+              session={session}
+              processDescription={processChoice?.description}
+              sideChats={sideChats}
+            />
           </DialogDescription>
         </DialogHeader>
-        {childSessions ? (
-          <SessionChildrenCheckbox action="delete" choice={childSessions} disabled={isDeleting} />
-        ) : null}
-        {retrying ? (
-          <p role="alert" className="text-small-body text-destructive">
-            Couldn't delete: {failure.error}
-          </p>
-        ) : null}
-        <DialogFooter className="flex-wrap gap-2">
-          <SessionDeleteActions
-            childrenPending={childSessions?.pending === true}
-            askOnRetry={(childSessions?.includedProcessCount ?? 0) > 0}
-            isDeleting={isDeleting}
-            retrying={retrying}
-            processChoice={processChoice}
-            deleteLabel="Delete session"
-            deletingLabel="Deleting"
-            retryLabel="Retry 1"
-            onClose={() => onOpenChange(false)}
-            onConfirm={onConfirm}
-            onRetry={onRetry}
-          />
-        </DialogFooter>
+        <SessionDeleteDetails
+          childSessions={childSessions}
+          childrenPending={childrenPending}
+          isDeleting={isDeleting}
+          retrying={retrying}
+          failureError={failure?.error}
+          processChoice={processChoice}
+          onOpenChange={onOpenChange}
+          onConfirm={onConfirm}
+          onRetry={onRetry}
+        />
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SessionDeleteDescription({
+  session,
+  processDescription,
+  sideChats,
+}: {
+  session: SessionPayload;
+  processDescription?: string;
+  sideChats: boolean;
+}) {
+  return (
+    <>
+      This permanently removes <strong>{session.name?.trim() || session.id}</strong>, including its
+      transcript and history, and removes it from the session list.
+      {processDescription ? ` ${processDescription}` : null}
+      {sideChats ? ` ${SIDE_CHAT_COPY.deleteLine}` : null}
+    </>
+  );
+}
+
+function SessionDeleteDetails({
+  childSessions,
+  childrenPending,
+  isDeleting,
+  retrying,
+  failureError,
+  processChoice,
+  onOpenChange,
+  onConfirm,
+  onRetry,
+}: {
+  childSessions?: SessionChildrenChoice;
+  childrenPending: boolean;
+  isDeleting: boolean;
+  retrying: boolean;
+  failureError?: string;
+  processChoice: ReturnType<typeof sessionProcessChoiceCopy> | null;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (processes?: SessionProcessPolicy) => void;
+  onRetry?: () => void;
+}) {
+  return (
+    <>
+      {childSessions ? (
+        <SessionChildrenCheckbox
+          action="delete"
+          choice={childSessions}
+          disabled={isDeleting || childrenPending}
+          showCheckbox={childSessions.count > 0}
+        />
+      ) : null}
+      {retrying ? (
+        <p role="alert" className="text-small-body text-destructive">
+          Couldn't delete: {failureError}
+        </p>
+      ) : null}
+      <DialogFooter className="flex-wrap gap-2">
+        <SessionDeleteActions
+          childrenPending={childrenPending}
+          askOnRetry={(childSessions?.includedProcessCount ?? 0) > 0}
+          isDeleting={isDeleting}
+          retrying={retrying}
+          processChoice={processChoice}
+          deleteLabel="Delete session"
+          deletingLabel="Deleting"
+          retryLabel="Retry 1"
+          onClose={() => onOpenChange(false)}
+          onConfirm={onConfirm}
+          onRetry={onRetry}
+        />
+      </DialogFooter>
+    </>
   );
 }

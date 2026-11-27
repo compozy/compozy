@@ -158,16 +158,17 @@ export function SessionBoardWindow({
               </div>
             </SessionsBoardSelection>
           </SessionBoardDrawer>
-          {deleteDialog.open && deleteDialog.session ? (
+          {deleteDialog.session ? (
             <Suspense fallback={null}>
               <SessionDeleteDialog
                 isDeleting={deleteDialog.isDeleting}
+                processCount={deleteDialog.processCount}
                 childSessions={deleteDialog.childSessions}
                 sideChats={deleteDialog.sideChats}
                 onConfirm={deleteDialog.onConfirm}
                 onOpenChange={deleteDialog.onOpenChange}
                 onRetry={deleteDialog.onRetry}
-                open
+                open={deleteDialog.open}
                 results={deleteDialog.results}
                 session={deleteDialog.session}
                 sessions={deleteDialog.sessions}
