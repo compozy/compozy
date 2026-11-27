@@ -26,7 +26,7 @@ const (
 
 type StripeConfig struct {
 	SecretKey, WebhookSecret string
-	Endpoint                 string
+	Endpoint, PortalConfigID string
 }
 
 type Stripe struct {
@@ -37,6 +37,9 @@ type Stripe struct {
 func NewStripe(cfg StripeConfig) (*Stripe, error) {
 	if cfg.SecretKey == "" || cfg.WebhookSecret == "" {
 		return nil, errors.New("Stripe API key and webhook signing secret are required")
+	}
+	if !validStripeID(cfg.PortalConfigID, "bpc_") {
+		return nil, errors.New("invalid Stripe Customer Portal configuration ID")
 	}
 	if cfg.Endpoint == "" {
 		cfg.Endpoint = "https://api.stripe.com"
@@ -187,7 +190,9 @@ func (s *Stripe) portal(ctx context.Context, customer, returnURL string) (string
 	var result struct {
 		URL string `json:"url"`
 	}
-	params := url.Values{"customer": {customer}, "return_url": {returnURL}}
+	params := url.Values{
+		"customer": {customer}, "return_url": {returnURL}, "configuration": {s.config.PortalConfigID},
+	}
 	err := s.request(ctx, http.MethodPost, "/v1/billing_portal/sessions", params, "", &result)
 	if err == nil && !s.validRedirect(result.URL, "billing.stripe.com") {
 		err = errors.New("invalid Stripe Customer Portal URL")

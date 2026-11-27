@@ -19,5 +19,6 @@ qa_status: pending
 7. With an annual payment made five days ago, delete the account from a trusted admin device. Check the immediate sign-out, the full refund, and the cancellation before the computers are unlinked. Repeat with a payment more than fourteen days old and confirm cancellation with no refund.
 8. Open monthly and annual Checkout from separate clients on the same Free account. Verify that Stripe expires the earlier link. Repeat with payment completing while Stripe is expiring the earlier link and verify the account becomes Pro without another payable link.
 9. Repeat the in-window deletion with refunds temporarily unavailable. Verify Stripe cancels immediately. Restore refunds and confirm the deletion job completes the refund and continues account cleanup.
+10. In staging, open **Manage billing** on the Pro account and confirm the portal allows switching between the staging monthly and annual prices, updating the payment method, and scheduling cancellation.
 
 Use IT-111 for deletion and IT-060 through IT-066, IT-074, IT-082, IT-109, E2E-012, and E2E-013 as the integration evidence.

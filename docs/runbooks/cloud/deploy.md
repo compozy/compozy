@@ -24,6 +24,10 @@ Set these secrets in each GitHub deploy environment. Wrangler stores them separa
 
 Use GitHub environment variables for `COMPOZY_CLOUD_GOOGLE_CLIENT_ID`, `COMPOZY_CLOUD_GITHUB_CLIENT_ID`, `COMPOZY_CLOUD_TURNSTILE_SITE_KEY`, `COMPOZY_CLOUD_CLOUDFLARE_ACCOUNT_ID`, `COMPOZY_CLOUD_CLOUDFLARE_RUN_ZONE_ID`, `STRIPE_PRICE_PRO_MONTHLY`, `STRIPE_PRICE_PRO_ANNUAL`, `COMPOZY_CLOUD_RESEND_NEWS_SEGMENT`, `COMPOZY_CLOUD_GRAFANA_PROM_URL` and `COMPOZY_CLOUD_GRAFANA_PROM_USER`. Set the Access and product news variables listed in the [cloud admin and product news runbook](admin-and-product-news.md) on the same GitHub environment.
 
+| Required GitHub environment variable | Worker and container binding |
+| --- | --- |
+| `COMPOZY_CLOUD_STRIPE_PORTAL_CONFIG_ID` | `COMPOZY_CLOUD_STRIPE_PORTAL_CONFIG_ID` holds the `bpc_…` configuration ID for the same Stripe environment as the prices. |
+
 Generate the Ed25519 configuration with `compozy-cloud keys generate <kid>` and save the output directly to the environment secret. Generate independent 32-byte random values for the PKCE encryption and unsubscribe keys. Encode both as base64url without padding. Rotate non-signing secrets yearly and after suspected exposure. Rotate the vendor credential, deploy and verify with the replacement, then revoke the previous credential. For PKCE, expect in-flight sign-ins to restart. For unsubscribe links, coordinate the change with the contact sync and current broadcast links.
 
 ## Before public launch

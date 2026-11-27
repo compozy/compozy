@@ -42,7 +42,7 @@ To scrape account counts, set `COMPOZY_CLOUD_METRICS_TOKEN` and send it as a bea
 
 - Set `STRIPE_PRICE_PRO_MONTHLY` and `STRIPE_PRICE_PRO_ANNUAL` to the same environment's recurring Managed Payments prices. Supply `COMPOZY_CLOUD_STRIPE_SECRET_KEY` to the cloud containers.
 - Register `https://<cloud-host>/v1/billing/stripe-webhook` with Stripe and set `COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET` to that endpoint's signing secret. Subscribe it to `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, and `checkout.session.completed`.
-- Configure the Customer Portal to switch between both prices, update payment methods, and cancel at the end of the period. Configure Smart Retries to cancel after the final failed attempt.
+- Set `COMPOZY_CLOUD_STRIPE_PORTAL_CONFIG_ID` to the environment's dedicated Customer Portal configuration (`bpc_…`). Configure it to switch between both prices, update payment methods, and cancel at the end of the period. Configure Smart Retries to cancel after the final failed attempt.
 
 Apply the billing migration before starting the containers. Use test-mode Checkout to walk the standalone purchase and the retained-hostname purchase before enabling live billing.
 
