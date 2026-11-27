@@ -1465,27 +1465,7 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 			{name: "non-timeout load failure re-mints the hosted launch before replay"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				hostedServer := compozyconfig.MCPServer{
-					Name:      toolmeta.HostedServerName,
-					Transport: compozyconfig.MCPServerTransportStdio,
-					Command:   "/bin/compozy",
-					Args: []string{
-						"tool", "mcp", "--session", "placeholder", toolmeta.HostedBindNonceFlag, "nonce",
-					},
-				}
-				hosted := &recordingHostedMCPLauncher{
-					server: hostedServer,
-					serverForLaunch: func(_ HostedMCPLaunchRequest, sequence int) compozyconfig.MCPServer {
-						launched := hostedServer
-						launched.Args = slices.Clone(hostedServer.Args)
-						for index, arg := range launched.Args {
-							if arg == toolmeta.HostedBindNonceFlag && index+1 < len(launched.Args) {
-								launched.Args[index+1] = fmt.Sprintf("nonce-%d", sequence)
-							}
-						}
-						return launched
-					},
-				}
+				hosted := newRecordingReplayLauncher()
 				h, target, clock, advance := idleReleaseHarness(t, nil, WithHostedMCPLauncher(hosted))
 				t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
 				acpSessionID := target.Info().ACPSessionID

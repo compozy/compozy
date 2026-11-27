@@ -34,7 +34,8 @@ import {
 import {
   dismissSessionPromptNotSent,
   notifySessionPromptNotSent,
-  sessionPromptRefusalReason,
+  parseSessionPromptRefusal,
+  SESSION_REBIND_TIMEOUT_CODE,
 } from "../lib/session-prompt-refusal";
 import { sessionStore } from "../stores/session-store";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
@@ -44,6 +45,7 @@ import { useSessionAttachmentAdapter } from "./use-session-attachment-adapter";
 import { useOptionalSessionPromptRuntimeContext } from "./use-session-prompt-runtime-context";
 import { loopsKeys } from "@/systems/loops";
 import { fetchSessionTranscript } from "../adapters/session-api";
+import { SessionApiError } from "../adapters/session-api-errors";
 import { sessionTranscriptOptions } from "../lib/session-transcript-options";
 import {
   reconcileAdmittedPrompt,
@@ -99,14 +101,21 @@ function settleDetachedPrompt(
         await response.body?.cancel().catch(() => undefined);
         return;
       }
-      if (response.status >= 500) {
+      if (response.status >= 500 && response.status !== 504) {
         // A 5xx may follow durable acceptance: not a refusal. With no composer left to hold
         // a retryable pending-ack row, the draft returns as unconfirmed instead of being lost.
         await response.body?.cancel().catch(() => undefined);
         outcome.notSent(messageId, null);
         return;
       }
-      outcome.notSent(messageId, sessionPromptRefusalReason(await response.text().catch(() => "")));
+      const refusal = parseSessionPromptRefusal(
+        response.status,
+        await response.text().catch(() => "")
+      );
+      outcome.notSent(
+        messageId,
+        response.status < 500 || refusal.rebindTimeout ? refusal.reason : null
+      );
     },
     () => outcome.notSent(messageId, null)
   );
@@ -370,13 +379,20 @@ export function useSessionChatRuntime({
     // may have followed durable acceptance — may still have been recorded: the
     // identity is retained as pending-ack and the tail reopens at once (Part II
     // topology). A 2xx accepted the turn (it continues detached if the body
-    // breaks later; the draft was already consumed) and a 4xx refused it (the
-    // draft comes back): both are outcomes, never unconfirmed.
+    // breaks later; the draft was already consumed). A 4xx or a structured
+    // rebind timeout refused it before admission, so the draft comes back.
     const prompt = promptDispatch.getSnapshot().context.prompt;
     const answered = prompt?.answeredStatus ?? null;
     const messageId = prompt?.envelope.identity.messageId ?? null;
+    const refused =
+      answered !== null &&
+      ((answered >= 400 && answered < 500) ||
+        (error instanceof SessionApiError && error.code === SESSION_REBIND_TIMEOUT_CODE));
     const unconfirmed =
-      prompt !== null && (answered === null || answered >= 500) && isSendAcknowledgmentLost(error);
+      prompt !== null &&
+      !refused &&
+      (answered === null || answered >= 500) &&
+      isSendAcknowledgmentLost(error);
     promptDispatch.trigger.promptFailed();
     if (unconfirmed) {
       // The app-scoped owner keeps the identity for Retry even when this
@@ -385,13 +401,10 @@ export function useSessionChatRuntime({
       consumeDraft(messageId);
       return;
     }
-    if (answered !== null && answered >= 400 && answered < 500) {
+    if (refused) {
       // Only an authoritative refusal can evict the optimistic user message.
       void discardRefusedPromptMessage(runtime, messageId);
-      promptOutcome.notSent(
-        messageId,
-        sessionPromptRefusalReason(error instanceof Error ? error.message : "")
-      );
+      promptOutcome.notSent(messageId, error.message.trim() || null);
       return;
     }
     restoreDraft(messageId);

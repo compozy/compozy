@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/toolmeta"
 	"github.com/compozy/compozy/internal/toolruntime"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -1000,6 +1001,26 @@ type recordingHostedMCPLauncher struct {
 	arms              []string
 	cancels           []string
 	releases          []string
+}
+
+func newRecordingReplayLauncher() *recordingHostedMCPLauncher {
+	return &recordingHostedMCPLauncher{
+		serverForLaunch: func(request HostedMCPLaunchRequest, sequence int) compozyconfig.MCPServer {
+			return compozyconfig.MCPServer{
+				Name:      toolmeta.HostedServerName,
+				Transport: compozyconfig.MCPServerTransportStdio,
+				Command:   "/bin/compozy",
+				Args: []string{
+					"tool",
+					"mcp",
+					"--session",
+					request.SessionID,
+					toolmeta.HostedBindNonceFlag,
+					fmt.Sprintf("nonce-%d", sequence),
+				},
+			}
+		},
+	}
 }
 
 func (l *recordingHostedMCPLauncher) ArmLaunch(_ context.Context, sessionID string) error {

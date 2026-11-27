@@ -2354,6 +2354,46 @@ describe("SessionChatRuntimeProvider", () => {
     expect(unconfirmed).toEqual([]);
   });
 
+  it.each([false, true])(
+    "Should restore the draft after an explicit rebind timeout (runtime closed: %s)",
+    async runtimeClosed => {
+      const answer = createDeferred<Response>();
+      promptResponsePromise = answer.promise;
+      render(<Toaster duration={5_000} />);
+      const unconfirmed: string[] = [];
+      const user = userEvent.setup();
+      const first = renderSessionThread({
+        onUnconfirmedSend: messageId => unconfirmed.push(messageId),
+      });
+
+      await screen.findByTestId("composer-input");
+      await setComposerText("The next step after release");
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+      if (runtimeClosed) first.unmount();
+      answer.resolve(
+        jsonResponse(
+          {
+            error:
+              "The provider session took too long to reload. Retry, or use Continue/Fork to keep the transcript on a fresh provider thread. Your message wasn't sent. (session_rebind_timeout)",
+            code: "session_rebind_timeout",
+            retryable: true,
+          },
+          { status: 504 }
+        )
+      );
+
+      expect(
+        await screen.findByText(
+          "Message not sent: The provider session took too long to reload. Retry, or use Continue/Fork to keep the transcript on a fresh provider thread. Your draft was kept."
+        )
+      ).toBeInTheDocument();
+      if (runtimeClosed) renderSessionThread();
+      await waitFor(() => expect(composerText()).toBe("The next step after release"));
+      expect(unconfirmed).toEqual([]);
+    }
+  );
+
   it("Should name the daemon's reason when it refuses a prompt", async () => {
     promptResponsePromise = Promise.resolve(
       jsonResponse({ error: "session is archived" }, { status: 409 })

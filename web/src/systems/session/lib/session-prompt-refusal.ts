@@ -11,30 +11,32 @@ const MAX_REFUSAL_REASON_LENGTH = 400;
 export const MCP_RELOAD_FAILED_CODE = "session_mcp_reload_failed";
 export const SESSION_REBIND_TIMEOUT_CODE = "session_rebind_timeout";
 
-/**
- * The daemon's reason for refusing a prompt, read from the body of its error
- * response (the AI SDK transport surfaces that body as the error message).
- */
-export function sessionPromptRefusalReason(body: string): string | null {
+/** Reads the visible reason and identifies a rebind failure that preceded prompt admission. */
+export function parseSessionPromptRefusal(
+  status: number,
+  body: string
+): { reason: string | null; rebindTimeout: boolean } {
   const trimmed = body.trim();
-  if (trimmed.length === 0) return null;
+  if (trimmed.length === 0) return { reason: null, rebindTimeout: false };
   try {
     const payload: unknown = JSON.parse(trimmed);
-    if (typeof payload === "object" && payload !== null && "error" in payload) {
-      const reason = payload.error;
-      if (typeof reason === "string" && reason.trim().length > 0) {
-        if ("code" in payload && payload.code === MCP_RELOAD_FAILED_CODE) {
-          return codedRefusalReason(reason.trim(), MCP_RELOAD_FAILED_CODE);
-        }
-        if ("code" in payload && payload.code === SESSION_REBIND_TIMEOUT_CODE) {
-          return codedRefusalReason(reason.trim(), SESSION_REBIND_TIMEOUT_CODE);
-        }
-        return readableReason(reason.trim());
-      }
+    if (typeof payload !== "object" || payload === null)
+      return { reason: null, rebindTimeout: false };
+    const code = "code" in payload ? payload.code : null;
+    const rebindTimeout =
+      status === 504 &&
+      code === SESSION_REBIND_TIMEOUT_CODE &&
+      "retryable" in payload &&
+      payload.retryable === true;
+    const reason =
+      "error" in payload && typeof payload.error === "string" ? payload.error.trim() : "";
+    if (!reason) return { reason: null, rebindTimeout };
+    if (code === MCP_RELOAD_FAILED_CODE || code === SESSION_REBIND_TIMEOUT_CODE) {
+      return { reason: codedRefusalReason(reason, code), rebindTimeout };
     }
-    return null;
+    return { reason: readableReason(reason), rebindTimeout };
   } catch {
-    return readableReason(trimmed);
+    return { reason: readableReason(trimmed), rebindTimeout: false };
   }
 }
 

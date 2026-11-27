@@ -28,9 +28,9 @@ func contextErr(ctx context.Context, id ToolID) error {
 }
 
 func normalizeBackendError(id ToolID, err error) error {
-	// Dispatch has already checked the caller context. A transport-specific
-	// refusal can wrap a provider deadline without being a tool-call deadline.
-	if toolErr, ok := errors.AsType[*ToolError](err); ok && toolErr.HTTPStatus != 0 {
+	// Dispatch has already checked the caller context. A rebind refusal can
+	// wrap a provider deadline without being a tool-call deadline.
+	if toolErr, ok := errors.AsType[*ToolError](err); ok && toolErr.Code == ErrorCodeSessionRebindTimeout {
 		return normalizeToolError(id, toolErr)
 	}
 	if contextError := contextErrFromError(id, err); contextError != nil {

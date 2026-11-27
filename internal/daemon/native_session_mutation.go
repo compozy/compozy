@@ -225,7 +225,7 @@ func (n *daemonNativeTools) sessionPrompt(
 			core.StatusForSessionError(err) == http.StatusGatewayTimeout {
 			message := refusal.Error()
 			toolErr := toolspkg.NewToolError(
-				toolspkg.ErrorCode(session.SessionRebindTimeoutCode),
+				toolspkg.ErrorCodeSessionRebindTimeout,
 				req.ToolID,
 				message,
 				err,

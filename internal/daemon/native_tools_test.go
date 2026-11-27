@@ -1364,7 +1364,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				`"message_id":"msg-native","idempotency_key":"idem-native"}`),
 		})
 		refusal, ok := errors.AsType[*toolspkg.ToolError](err)
-		if !ok || refusal.Code != toolspkg.ErrorCode(session.SessionRebindTimeoutCode) ||
+		if !ok || refusal.Code != toolspkg.ErrorCodeSessionRebindTimeout ||
 			refusal.HTTPStatus != http.StatusGatewayTimeout || !refusal.Retryable ||
 			!strings.Contains(refusal.PublicMessage, "Retry") {
 			t.Fatalf("native prompt error = %+v, want retryable rebind timeout", err)

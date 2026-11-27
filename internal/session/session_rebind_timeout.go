@@ -4,10 +4,11 @@ import (
 	"errors"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 // SessionRebindTimeoutCode names the retryable load-and-replay refusal on public transports.
-const SessionRebindTimeoutCode = "session_rebind_timeout"
+const SessionRebindTimeoutCode = string(tools.ErrorCodeSessionRebindTimeout)
 
 // RebindTimeoutError reports that loading a released provider session timed out
 // and the transcript-replay fallback could not start.

@@ -1,7 +1,8 @@
 import { AssistantChatTransport } from "@assistant-ui/react-ai-sdk";
 import type { UIMessage } from "ai";
 
-import { sessionPromptRefusalReason } from "./session-prompt-refusal";
+import { SessionApiError } from "../adapters/session-api-errors";
+import { parseSessionPromptRefusal, SESSION_REBIND_TIMEOUT_CODE } from "./session-prompt-refusal";
 
 import { createClientId } from "@/lib/client-id";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
@@ -55,8 +56,19 @@ export function createSessionPromptChatTransport({
     fetch: async (input, init) => {
       const response = await fetch(input, init);
       if (response.ok) return response;
-      // The AI SDK renders non-2xx response text directly as its error message.
-      const reason = sessionPromptRefusalReason(await response.text());
+      const { reason, rebindTimeout } = parseSessionPromptRefusal(
+        response.status,
+        await response.text()
+      );
+      if (rebindTimeout) {
+        throw new SessionApiError(
+          reason ?? "The provider session took too long to reload",
+          response.status,
+          undefined,
+          { code: SESSION_REBIND_TIMEOUT_CODE }
+        );
+      }
+      // The AI SDK renders other non-2xx response text directly as its error message.
       return new Response(reason ?? "Couldn't send the message. Your draft was kept.", {
         status: response.status,
         statusText: response.statusText,

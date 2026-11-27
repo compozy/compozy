@@ -49,7 +49,8 @@ func (m *Manager) prepareNativeBootstrapBind(
 // the launch runs session/load of the clone id and settles the bootstrap: loaded on
 // success; failed when the clone cannot load (see nativeCloneLoadFailed), after which the
 // launch restarts on the carried context. A released idle runtime reloads its own ACP
-// session the same way and replays the transcript when the load fails. Other errors surface.
+// session the same way and replays the transcript when the load fails. Either replay
+// renews the hosted MCP launch consumed by the failed attempt. Other errors surface.
 func (m *Manager) launchPromptRuntimeCandidate(
 	ctx context.Context,
 	session *Session,
