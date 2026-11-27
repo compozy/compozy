@@ -1795,7 +1795,7 @@ func TestCooperativePromptCancellation(t *testing.T) {
 
 	t.Run("Should settle the provider turn after canceling its pending question", func(t *testing.T) {
 		t.Parallel()
-		driver := New()
+		driver := New(WithProviderPreStarter(&recordingProviderPreStarter{}))
 		asked := make(chan struct{})
 		proc := startHelperProcess(t, driver, "cooperative_cancel_question", "", StartOpts{
 			ProviderName: "agy",

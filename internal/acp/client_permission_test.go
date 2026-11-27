@@ -422,7 +422,8 @@ func TestTriagePolicy(t *testing.T) {
 		if !errors.Is(err, ErrTriageUnsupported) {
 			t.Fatal(err)
 		}
-		if active, err := p.beginPrompt(t.Context(), "later", 16); !errors.Is(err, ErrTriageUnsupported) || active != nil {
+		active, err := p.beginPrompt(t.Context(), "later", 16)
+		if !errors.Is(err, ErrTriageUnsupported) || active != nil {
 			t.Fatalf("later prompt=%v error=%v", active, err)
 		}
 	})
