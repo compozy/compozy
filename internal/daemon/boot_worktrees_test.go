@@ -321,6 +321,68 @@ func TestDaemonSessionWorktreeResolver(t *testing.T) {
 	}
 }
 
+func TestDaemonWorktreeAdaptersGuardTypedNilService(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	state := &bootState{}
+
+	resolver := daemonSessionWorktreeResolver{state: state}
+	if _, _, err := resolver.ResolveSessionWorktree(ctx, "ws-1", "target"); err == nil ||
+		!strings.Contains(err.Error(), "unavailable") {
+		t.Fatalf("ResolveSessionWorktree(nil state.worktrees) error = %v, want unavailable error", err)
+	}
+	if _, _, err := resolver.ResolveSessionWorktreeForProfile(ctx, "profile-1", "ws-1", "target"); err == nil ||
+		!strings.Contains(err.Error(), "unavailable") {
+		t.Fatalf("ResolveSessionWorktreeForProfile(nil state.worktrees) error = %v, want unavailable error", err)
+	}
+	if _, _, _, err := resolver.AcquireSessionWorktreeBinding(ctx, "ws-1", "target", "sess-1"); err == nil ||
+		!strings.Contains(err.Error(), "unavailable") {
+		t.Fatalf("AcquireSessionWorktreeBinding(nil state.worktrees) error = %v, want unavailable error", err)
+	}
+	if _, err := resolver.AcquireSessionWorktreeUnbinding(ctx, "ws-1", "target", "sess-1"); err == nil ||
+		!strings.Contains(err.Error(), "unavailable") {
+		t.Fatalf("AcquireSessionWorktreeUnbinding(nil state.worktrees) error = %v, want unavailable error", err)
+	}
+	if _, err := resolver.InspectProfileMoveWorktree(ctx, "ws-1", "wt-1"); err == nil ||
+		!strings.Contains(err.Error(), "unavailable") {
+		t.Fatalf("InspectProfileMoveWorktree(nil state.worktrees) error = %v, want unavailable error", err)
+	}
+
+	execWorktrees := executionWorktreesForState(state)
+	if _, err := execWorktrees.Get(ctx, "ws-1", "wt-1"); !errors.Is(err, worktree.ErrNotFound) {
+		t.Fatalf("executionWorktreesForState.Get(nil state.worktrees) error = %v, want %v", err, worktree.ErrNotFound)
+	}
+	if _, _, err := execWorktrees.AcquireUsage(ctx, "ws-1", "wt-1"); !errors.Is(err, worktree.ErrNotFound) {
+		t.Fatalf(
+			"executionWorktreesForState.AcquireUsage(nil state.worktrees) error = %v, want %v",
+			err,
+			worktree.ErrNotFound,
+		)
+	}
+	if _, err := execWorktrees.MaterializeForRun(
+		ctx,
+		"ws-1",
+		worktree.RunWorktreeRequest{TaskSlug: "task", RunID: "run-1"},
+	); !errors.Is(err, worktree.ErrPerRunMaterialization) {
+		t.Fatalf(
+			"executionWorktreesForState.MaterializeForRun(nil state.worktrees) error = %v, want %v",
+			err,
+			worktree.ErrPerRunMaterialization,
+		)
+	}
+	if err := execWorktrees.RollbackRunMaterialization(ctx, "ws-1", "wt-1", "run-1"); !errors.Is(
+		err,
+		worktree.ErrPerRunMaterialization,
+	) {
+		t.Fatalf(
+			"executionWorktreesForState.RollbackRunMaterialization(nil state.worktrees) error = %v, want %v",
+			err,
+			worktree.ErrPerRunMaterialization,
+		)
+	}
+}
+
 func TestWorktreeTurnRefreshNotifier(t *testing.T) {
 	t.Parallel()
 

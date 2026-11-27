@@ -23,7 +23,7 @@ type daemonExecutionWorktrees struct {
 
 func executionWorktreesForState(state *bootState) daemonExecutionWorktrees {
 	return daemonExecutionWorktrees{lookup: func() executionWorktreeService {
-		if state == nil {
+		if state == nil || state.worktrees == nil {
 			return nil
 		}
 		return state.worktrees
