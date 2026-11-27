@@ -281,8 +281,26 @@ func resolveWorkspaceSessionAgentForType(
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
 	agentResolver AgentResolver,
 ) (compozyconfig.ResolvedAgent, error) {
+	agentDef, err := resolveWorkspaceSessionAgentDefinition(agentName, sessionType, resolvedWorkspace, agentResolver)
+	if err != nil {
+		return compozyconfig.ResolvedAgent{}, err
+	}
+	resolved, err := resolvedWorkspace.Config.ResolveSessionAgent(agentDef, provider)
+	if err != nil {
+		return compozyconfig.ResolvedAgent{}, err
+	}
+	resolved.ProfileName = strings.TrimSpace(resolvedWorkspace.ProfileName)
+	return resolved, nil
+}
+
+func resolveWorkspaceSessionAgentDefinition(
+	agentName string,
+	sessionType Type,
+	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
+	agentResolver AgentResolver,
+) (compozyconfig.AgentDef, error) {
 	if resolvedWorkspace == nil {
-		return compozyconfig.ResolvedAgent{}, errors.New("session: resolved workspace is required")
+		return compozyconfig.AgentDef{}, errors.New("session: resolved workspace is required")
 	}
 
 	var (
@@ -296,21 +314,16 @@ func resolveWorkspaceSessionAgentForType(
 	}
 	if err != nil {
 		if !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
-			return compozyconfig.ResolvedAgent{}, err
+			return compozyconfig.AgentDef{}, err
 		}
 		fallback, ok := builtinSessionAgentDef(agentName, sessionType)
 		if !ok {
-			return compozyconfig.ResolvedAgent{}, err
+			return compozyconfig.AgentDef{}, err
 		}
 		agentDef = fallback
 	}
 
-	resolved, err := resolvedWorkspace.Config.ResolveSessionAgent(agentDef, provider)
-	if err != nil {
-		return compozyconfig.ResolvedAgent{}, err
-	}
-	resolved.ProfileName = strings.TrimSpace(resolvedWorkspace.ProfileName)
-	return resolved, nil
+	return agentDef, nil
 }
 
 func builtinSessionAgentDef(agentName string, sessionType Type) (compozyconfig.AgentDef, bool) {
