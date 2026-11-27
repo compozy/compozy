@@ -6,20 +6,133 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-// errStarvationSpawnUnresolvable reports that no agent covers a starved run's required
-// capabilities. The escalation adapter maps it to scheduler.ErrSpawnUnresolvable so Tier2 spawn
-// is skipped without failing the cycle while Tier3/Tier4 escalation still proceed.
-var errStarvationSpawnUnresolvable = errors.New("daemon: starvation spawn has no capable agent")
+// An unresolvable worker leaves the remaining escalation tiers available.
+var errStarvationSpawnUnresolvable = errors.New("daemon: starvation has no eligible replacement worker")
 
 // starvationSpawner resolves a deterministic capability-matched agent for a starved run, reusing
 // the same workspace + agent resolution stack the review router uses.
 type starvationSpawner struct {
 	workspaces reviewRouterWorkspaceResolver
 	agents     reviewRouterAgentResolver
+}
+
+func (r *taskRoleRuntime) resumeStarvationOwner(
+	ctx context.Context,
+	taskRecord taskpkg.Task,
+	run taskpkg.Run,
+	spawner starvationSpawner,
+) error {
+	ownerID := strings.TrimSpace(taskRecord.Owner.Ref)
+	if ownerID == "" {
+		return errStarvationSpawnUnresolvable
+	}
+	owner, err := storedSessionStatus(ctx, r.sessions, ownerID)
+	if errors.Is(err, session.ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotFound) ||
+		errors.Is(err, store.ErrSessionSuperseded) {
+		return errStarvationSpawnUnresolvable
+	}
+	if err != nil {
+		return fmt.Errorf("daemon: read starvation owner %q: %w", ownerID, err)
+	}
+	if owner == nil || owner.ID != ownerID || !starvationOwnerResumable(taskRecord, owner) {
+		return errStarvationSpawnUnresolvable
+	}
+	if required := trimmedNonEmptyStrings(run.RequiredCapabilities); len(required) > 0 {
+		resolved, err := resolveWorkspaceForSpawn(ctx, spawner.workspaces, owner.WorkspaceID)
+		if err != nil {
+			return fmt.Errorf("daemon: resolve starvation owner workspace: %w", err)
+		}
+		covered, err := agentCoversCapabilities(spawner.agents, resolved, owner.AgentName, required)
+		if errors.Is(err, workspacepkg.ErrAgentNotAvailable) || (err == nil && !covered) {
+			return errStarvationSpawnUnresolvable
+		}
+		if err != nil {
+			return fmt.Errorf("daemon: resolve starvation owner capabilities: %w", err)
+		}
+	}
+	resumer, ok := r.sessions.(interface {
+		ResumeIdleSessionAfterRestart(context.Context, string) error
+	})
+	if !ok {
+		r.logger.DebugContext(ctx, "daemon: starvation owner resumer unavailable",
+			"session_id", ownerID, daemonLogRunIDKey, run.ID,
+		)
+		return errStarvationSpawnUnresolvable
+	}
+	// Restart recovery validates the durable binding. The next scheduler wake dispatches the run.
+	err = resumer.ResumeIdleSessionAfterRestart(admission.WithBackgroundWork(ctx), ownerID)
+	if err != nil {
+		if starvationOwnerResumeRefused(err) {
+			r.logger.DebugContext(ctx, "daemon: starvation owner resume refused",
+				"session_id", ownerID, daemonLogRunIDKey, run.ID, "error", err,
+			)
+			return errStarvationSpawnUnresolvable
+		}
+		return fmt.Errorf("daemon: resume starvation owner %q: %w", ownerID, err)
+	}
+	r.logger.InfoContext(ctx, "daemon: starvation owner resumed",
+		"session_id", ownerID, taskRoleRuntimeTaskIDKey, taskRecord.ID,
+		daemonLogRunIDKey, run.ID, "agent_name", owner.AgentName,
+	)
+	return nil
+}
+
+func starvationOwnerResumeRefused(err error) bool {
+	// A joined error can include a failure stopping a resumed session, which must surface.
+	if joined, ok := errors.AsType[interface {
+		error
+		Unwrap() []error
+	}](err); ok {
+		for _, cause := range joined.Unwrap() {
+			if !starvationOwnerResumeRefused(cause) {
+				return false
+			}
+		}
+		return true
+	}
+	_, ineligible := errors.AsType[*session.MonitorOwnerIneligibleError](err)
+	return ineligible || errors.Is(err, session.ErrMonitorOwnerStopped) ||
+		errors.Is(err, session.ErrRestartContinuationSkipped) ||
+		errors.Is(err, session.ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotAttachable) ||
+		errors.Is(err, store.ErrSessionNotFound) || errors.Is(err, store.ErrSessionSuperseded) ||
+		errors.Is(err, session.ErrSessionInLater) || errors.Is(err, session.ErrSessionArchived) ||
+		errors.Is(err, session.ErrPromptInProgress) ||
+		errors.Is(err, admission.ErrDraining) || errors.Is(err, admission.ErrStarting)
+}
+
+func starvationOwnerResumable(taskRecord taskpkg.Task, owner *session.Info) bool {
+	if owner.State != session.StateStopped || owner.Type != session.SessionTypeUser ||
+		owner.StopReason != store.StopShutdown ||
+		owner.ArchivedAt != nil || owner.Later != nil || owner.StopVerificationFailed ||
+		(owner.Lineage != nil && (owner.Lineage.AutoStopOnParent || owner.Lineage.TTLExpiresAt != nil)) {
+		return false
+	}
+	if firstNonEmpty(
+		owner.ProfileID,
+		store.DefaultProfileID,
+	) != firstNonEmpty(
+		taskRecord.ProfileID,
+		store.DefaultProfileID,
+	) {
+		return false
+	}
+	workspaceID := strings.TrimSpace(owner.WorkspaceID)
+	switch taskRecord.Scope.Normalize() {
+	case taskpkg.ScopeWorkspace:
+		return workspaceID != "" && workspaceID == strings.TrimSpace(taskRecord.WorkspaceID)
+	case taskpkg.ScopeGlobal:
+		return workspaceID == ""
+	default:
+		return false
+	}
 }
 
 // resolveAgent returns the lexicographically-first agent whose capabilities cover required. ok is

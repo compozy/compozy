@@ -7,7 +7,7 @@ import type { SessionProcessChoiceCopy } from "../lib/session-process-choice";
 
 export interface SessionDeleteActionsProps {
   isDeleting: boolean;
-  /** Included children are still being read, so the confirm waits for their count. */
+  /** The child tree is unresolved, so confirm and process answers wait for its count. */
   childrenPending?: boolean;
   /** Included children add processes the earlier answer never covered, so a retry asks again. */
   askOnRetry?: boolean;

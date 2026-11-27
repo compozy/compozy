@@ -2597,6 +2597,7 @@ describe("SessionList Mark as seen", () => {
       badge: "needs-attention",
       attention: "ended_early",
       attention_dismissible: true,
+      returned_from_later_at: "2026-10-30T09:00:00Z",
     };
     const asking: SessionPayload = {
       ...primarySessionFixture,
@@ -2605,7 +2606,21 @@ describe("SessionList Mark as seen", () => {
       badge: "waiting-for-input",
       attention_dismissible: false,
     };
-    const { actions } = renderList({ sessions: [endedEarly, asking] });
+    const done: SessionPayload = {
+      ...primarySessionFixture,
+      id: "done",
+      name: "Report ready",
+      badge: "done",
+      attention_dismissible: false,
+    };
+    const { actions } = renderList({ sessions: [endedEarly, asking, done] });
+    const earlyStopRow = screen.getByTestId("session-sidebar-session-ended-early");
+    expect(earlyStopRow.title).toContain("Stopped before delivering");
+    expect(earlyStopRow.title).toContain("Back from Later");
+    expect(screen.getByTestId("session-sidebar-session-done")).toHaveAttribute(
+      "data-status",
+      "done"
+    );
 
     await user.click(screen.getByTestId("session-row-actions-ended-early"));
     const markSeen = await screen.findByTestId("session-row-mark-seen-ended-early");
@@ -2616,6 +2631,11 @@ describe("SessionList Mark as seen", () => {
     await user.click(screen.getByTestId("session-row-actions-asking"));
     expect(await screen.findByTestId("session-row-rename-asking")).toBeInTheDocument();
     expect(screen.queryByTestId("session-row-mark-seen-asking")).not.toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("session-row-actions-done"));
+    expect(await screen.findByTestId("session-row-rename-done")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-mark-seen-done")).not.toBeInTheDocument();
   });
 });
 

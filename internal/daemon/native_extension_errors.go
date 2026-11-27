@@ -173,9 +173,7 @@ func nativeExtensionValidationError(id toolspkg.ToolID, err error) error {
 		return result
 	}
 	// A manifest failure carries the HTTP validation payload: its field issue and the dependency it belongs to.
-	payload := core.ExtensionValidationErrorPayload(
-		core.ErrorPayloadForStatus(http.StatusBadRequest, err, false), err,
-	)
+	payload := core.ExtensionValidationErrorPayload(http.StatusBadRequest, err, false)
 	partial, encodeErr := structuredResult(payload, payload.Error)
 	if encodeErr != nil {
 		return errors.Join(result, encodeErr)

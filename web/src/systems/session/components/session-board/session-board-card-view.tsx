@@ -32,6 +32,7 @@ import {
 } from "../../lib/session-list-computer";
 
 import type { SessionRuntimeLabel } from "../../hooks/use-session-runtime-label";
+import { ENDED_EARLY_ATTENTION, sessionAttentionReason } from "../../lib/session-attention-reason";
 import {
   sessionBoardCardLineage,
   sessionBoardCardMeta,
@@ -168,6 +169,10 @@ export function SessionBoardCardView({
   const title = getSessionDisplayTitle(session);
   const untitled = title === UNTITLED_SESSION_TITLE;
   const status = sessionBoardCardStatus(session);
+  const attention =
+    session.attention === ENDED_EARLY_ATTENTION
+      ? sessionAttentionReason(session, session.badge)
+      : null;
   const meta = sessionBoardCardMeta(session, workspaceName);
   const waiting = sessionBoardCardWaiting(session);
   const rollup = sessionBoardCardRollup(session);
@@ -208,6 +213,7 @@ export function SessionBoardCardView({
       data-workspace-id={session.workspace_id ?? ""}
       onClick={event => (onActivate ? onActivate(event) : onOpen(session))}
       {...intentHandlers}
+      title={attention?.detail}
       type="button"
     >
       <SessionBoardCardMetaRow

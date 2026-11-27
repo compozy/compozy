@@ -63,13 +63,18 @@ stop of a hung turn), the reply resumes you; an operator stop waits for the oper
 Ask with `notify_on_complete` whenever you need the answer: without it nothing wakes you when the
 other session finishes.
 
-A child session (any session with a parent) that ends a turn without answering its creator, with no linked pull request,
-no open work signal (monitor, subagent, reply watch, task lease, Loop run, scheduled wait), no pending
-interaction, and no reply watch from you on that turn is marked `needs-attention` with
-`attention: "ended_early"` instead of `done`. An answer after the latest creator message consumed by that turn counts as delivery, even for a follow-up without `notify_on_complete`; an earlier turn's answer does not cover it. The parent receives one wake with the child's final
-answer even when the child was created with `notify_creator: false`, unless the parent has a
-session monitor covering that child and the needs-attention state. In that case the monitor is the
-only wake path. The alarm asks the parent to review the answer without assuming code or PR delivery.
+A creator can collect a child's settled turn with an active session monitor that includes `idle` (the
+default includes it) or a reply watch for that turn. The unseen result reads `done`. A session
+monitor that covers completion carries the wake, including when `notify_creator` is enabled.
+With queued input, the monitor waits for the queue to drain and the opt-in completion wake can
+still report the finished turn.
+A child that ends a turn without answering its creator or delivering a linked pull request raises
+`needs-attention` with `attention: "ended_early"` if it has no open work or pending interaction and
+the creator has neither form of coverage. An answer after the latest creator message consumed by
+that turn counts as delivery, even for a follow-up without `notify_on_complete`. The parent receives
+one wake with the child's final answer even when the child was created with `notify_creator: false`.
+A session monitor configured only for `needs-attention` still receives this alarm and is the sole
+wake path. The alarm asks the parent to review the answer without assuming code or PR delivery.
 A queued alarm is discarded if the child starts another turn or its early-stop occurrence is
 cleared or replaced. Viewing the child alone does not cancel the parent's alarm.
 Prompt the child again or stop it; its next prompt clears the mark. Subagents report through `compozy__subagent_status`
@@ -184,6 +189,8 @@ For a non-leased run with an active session, direct `task run complete`, `task r
 
 When the scheduler's convergence backstop cannot get a claimable run picked up, it parks the run as `needs_attention` — a non-claimable run status — and emits `task.run_needs_attention`. `compozy task run recover <run-id> [--reason <reason>] -o json` is the operator/agent recovery path: it terminalizes the parked run and queues a fresh linked child (`previous_run_id`, next attempt) for re-dispatch. Recover applies only to `needs_attention` runs; a still-queued or failed run returns a deterministic `task_run_not_recoverable` diagnostic (use `compozy task retry` for a failed run). This run-level recovery is distinct from task-level `compozy task recover <task-id>`, which clears a task escalated by the unblock-loop breaker (see Task Blocks And Escalation).
 
+The continuation uses the same task owner. If the owner is an `agent_session`, the scheduler targets that exact session ID. It can resume a user session stopped by daemon shutdown when its recorded restart binding still qualifies and automatic continuation is enabled. Resume a deliberately stopped owner before recovering the run. If the original owner has a dead runtime or its session record is gone, assign the task to an eligible owner and then recover the run.
+
 For a Loop-owned worker, run-level recovery also advances the exact bound node cell to the linked
 child with the next attempt and epoch. It preserves the Loop run, workspace, designation, worktree,
 capability selectors, and node metadata; clears node attention; and emits the matching Loop
@@ -207,7 +214,8 @@ Governed child sessions have the parallel session-level feedback path. `compozy 
 the parent when the child completes a turn, stops, fails, or enters a needs-you state. A canceled
 child turn sends no completed wake. When the parent holds an open reply watch on the child (a spawn
 `prompt`, or `session_prompt` with `notify_on_complete`), the reply watch carries the child's answer and any
-follow-up and the bare completed wake is skipped. Otherwise the completed wake points at
+follow-up. A session monitor that covers the child's completion also carries the wake unless the
+child has queued input. The standalone completed wake points at
 `compozy__session_history` for the answer; pass `type: "agent_message"` and the reply's `turn_id`
 to omit tool payloads. Use CLI
 `--no-notify-creator` or explicit `notify_creator: false` on the API/tool request for a child that
@@ -233,7 +241,7 @@ to recover that selection uses the route's Retry action rather than querying the
 
 Scheduler controls affect dispatch, not task truth. They do not complete work, approve reviews, or transfer ownership.
 
-A claimable run that no eligible session claims past `[autonomy.scheduler].min_queued_age` escalates on a bounded ladder: fan-out wake to every eligible session, then a capability-matched worker spawn, then the `task.run_starved` event (once), then `needs_attention`. Compatible sessions that are starting, prompting, already processing a run, or reserved for an earlier run in the same scheduler cycle are capacity, not absence. Their queued work remains queued without consuming the escalation budget; the daemon records `scheduler.capacity_waiting` diagnostics until capacity becomes available.
+A claimable run that no eligible session claims past `[autonomy.scheduler].min_queued_age` escalates on a bounded ladder: fan-out wake to every eligible session, then worker activation, then the `task.run_starved` event (once), then `needs_attention`. At worker activation, `agent_session` ownership restricts dispatch to the recorded owner ID, and the scheduler skips this tier when that owner cannot be resumed. Compatible sessions that are starting, prompting, already processing a run, or reserved for an earlier run in the same scheduler cycle are capacity, not absence. Their queued work remains queued without consuming the escalation budget; the daemon records `scheduler.capacity_waiting` diagnostics until capacity becomes available.
 
 `compozy scheduler status -o json` surfaces `starved_run_count` as the number of queued, claimable runs with an active durable escalation episode. Queue age alone does not increment it, and capacity-waiting runs remain visible through `queued_run_count`. `needs_attention_run_count` reports runs already parked by the ladder. The scheduler never claims — spawned `system` workers self-claim through the hosted `compozy__task_run_claim_next` tool and are TTL-reaped. Tune the ladder under `[autonomy.scheduler]`.
 

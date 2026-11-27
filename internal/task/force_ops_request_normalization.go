@@ -30,7 +30,7 @@ func requireForceFailStatus(run Run) error {
 			"Task run needs recovery",
 			fmt.Sprintf("Run %s is needs_attention; recover it before forcing another terminal action.", run.ID),
 			diagnosticcontract.SeverityError,
-			fmt.Sprintf("compozy task run recover %s --reason %q", run.ID, "operator recovery"),
+			runRecoveryCommand(run.ID),
 			map[string]any{runEvidenceIDKey: run.ID, leaseStatusKey: run.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)
@@ -49,6 +49,17 @@ func requireForceFailStatus(run Run) error {
 			ErrInvalidStatusTransition,
 		)
 	}
+}
+
+func runRecoveryCommand(runID string) string {
+	return fmt.Sprintf("compozy task run recover %s --reason %q", runID, "operator recovery")
+}
+
+func forceRunSuggestedCommand(run Run) string {
+	if run.Status.Normalize() == TaskRunStatusNeedsAttention {
+		return runRecoveryCommand(run.ID)
+	}
+	return fmt.Sprintf("compozy task inspect %s", run.ID)
 }
 
 func (m *Service) requireRetryChainDepth(ctx context.Context, source Run) error {

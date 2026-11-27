@@ -61,8 +61,8 @@ the configured provider key.
 | `XAI_API_KEY`        | `xai`               | unset   | Provider-specific token. | Default CompozyOS-managed credential target for the xAI wrapper.                      |
 
 `COMPOZY_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, CompozyOS creates
-`$COMPOZY_HOME/vault.key` with `0600` permissions the first time it needs to encrypt or decrypt a
-vault-backed secret.
+`$COMPOZY_HOME/vault.key` the first time it needs to encrypt or decrypt a vault-backed secret. On Unix,
+CompozyOS creates the file with `0600` permissions. On Windows, filesystem access controls govern access to the file.
 
 Use [Vault](/docs/configuration/vault) for CompozyOS-managed encrypted values that should be
 written through CLI, HTTP, UDS, or web surfaces. Use `env:NAME` when the service manager or shell

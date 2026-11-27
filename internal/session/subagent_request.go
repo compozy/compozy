@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -202,32 +203,21 @@ func subagentInherited(info *Info) SubagentTarget {
 	}
 }
 
-// resolveSubagentTarget applies provider-scoped defaults while keeping inherited
-// reasoning effort attached to its original model. Explicit child effort wins.
-func resolveSubagentTarget(inherited, requested, defaults SubagentTarget) SubagentTarget {
+func resolveSubagentTarget(inherited, requested, defaults SubagentTarget, namedRuntime bool) SubagentTarget {
 	target := requested
-	if target.Agent == "" {
-		target.Agent = inherited.Agent
-	}
-	if target.Provider == "" {
-		target.Provider = inherited.Provider
-	}
+	target.Agent = cmp.Or(requested.Agent, inherited.Agent)
+	target.Provider = cmp.Or(defaults.Provider, requested.Provider, inherited.Provider)
 	base := defaults
-	if target.Provider == inherited.Provider {
+	// Preserve omitted selections on the caller's provider for callers without a configured target runtime.
+	if !namedRuntime && compozyconfig.CanonicalProviderName(target.Provider) ==
+		compozyconfig.CanonicalProviderName(inherited.Provider) {
 		base = inherited
 	}
-	if target.Model == "" {
-		target.Model = base.Model
+	target.Model = cmp.Or(requested.Model, base.Model)
+	if target.Model == base.Model {
+		target.ReasoningEffort = cmp.Or(requested.ReasoningEffort, base.ReasoningEffort)
 	}
-	if target.ReasoningEffort == "" && target.Model == base.Model {
-		target.ReasoningEffort = base.ReasoningEffort
-	}
-	if target.Speed == "" {
-		target.Speed = base.Speed
-		if target.Speed == "" {
-			target.Speed = string(speedpkg.SpeedNormal)
-		}
-	}
+	target.Speed = cmp.Or(requested.Speed, base.Speed, string(speedpkg.SpeedNormal))
 	if target.ACPOptions == nil {
 		target.ACPOptions = acp.CloneSessionConfigOptionSelections(base.ACPOptions)
 	}

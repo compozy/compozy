@@ -1229,6 +1229,28 @@ describe("session actions", () => {
       expect(result.current.processDialog.processCount).toBe(0);
     });
 
+    it("ignores repeated delete clicks while the target is being prepared", async () => {
+      let resolveTree!: (sessions: SessionPayload[]) => void;
+      vi.mocked(listSessionDescendants).mockImplementation(
+        () =>
+          new Promise(resolve => {
+            resolveTree = resolve;
+          })
+      );
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(treeClient()),
+      });
+      act(() => {
+        result.current.actions.onDelete(createdSession);
+        result.current.actions.onDelete(createdSession);
+      });
+      expect(result.current.deleteDialog.open).toBe(false);
+      await waitFor(() => expect(listSessionDescendants).toHaveBeenCalledOnce());
+      await act(async () => resolveTree([]));
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+      expect(listSessionDescendants).toHaveBeenCalledOnce();
+    });
+
     // UT-062 (US-010.AC-3): the delete line counts closed side chats, so the host reads them too.
     it("names the session's side chats, closed ones included, in a single delete", async () => {
       vi.mocked(fetchSessionSides).mockResolvedValue({ sides: [sideChatIdleFixture] });
@@ -1236,7 +1258,9 @@ describe("session actions", () => {
         wrapper: createWrapper(treeClient()),
       });
       act(() => result.current.actions.onDelete(createdSession));
+      expect(result.current.deleteDialog.open).toBe(false);
       await waitFor(() => expect(result.current.deleteDialog.sideChats).toBe(true));
+      expect(result.current.deleteDialog.open).toBe(true);
       expect(fetchSessionSides).toHaveBeenCalledWith(
         createdSession.workspace_id,
         createdSession.id,
@@ -1265,6 +1289,7 @@ describe("session actions", () => {
         await waitFor(() => expect(dialog().childSessions?.onRetryRead).toBeDefined());
         expect(dialog().open).toBe(true);
         expect(dialog().childSessions?.pending).toBe(true);
+        if (action === "delete") expect(result.current.deleteDialog.childSessions?.count).toBe(0);
         act(() =>
           action === "archive"
             ? result.current.processDialog.onChoose()
@@ -1309,7 +1334,7 @@ describe("session actions", () => {
       ]);
     });
 
-    it("sends a plain delete when the checked choice is no longer on screen", async () => {
+    it("keeps its prepared child choice on background refetches and re-checks on confirm", async () => {
       vi.mocked(listSessionDescendants).mockResolvedValue([child]);
       const client = treeClient();
       const { result } = renderHook(() => useSessionLifecycleActions(), {
@@ -1324,42 +1349,168 @@ describe("session actions", () => {
           queryKey: sessionKeys.descendants(createdSession.id, createdSession.profile_name),
         })
       );
-      await waitFor(() => expect(result.current.deleteDialog.childSessions).toBeUndefined());
+      expect(result.current.deleteDialog.childSessions?.count).toBe(1);
       act(() => result.current.deleteDialog.onConfirm());
       await waitFor(() => expect(deleteSession).toHaveBeenCalledTimes(1));
       expect(deleteSessionTree).not.toHaveBeenCalled();
     });
+
+    // Invariant: confirm-time tree re-read prevents deleting unconfirmed children that spawned after open.
+    // Owner: lifecycle confirmation hook; canonical suite: use-session-actions.
+    it("re-asks on confirm when included child sessions grow after the dialog opens", async () => {
+      const secondChild = { ...createdSession, id: "sess-child-2", name: "Second child" };
+      const onDeleteSuccess = vi.fn();
+      vi.mocked(deleteSessionTree).mockResolvedValue(undefined);
+      vi.mocked(listSessionDescendants).mockResolvedValue([child]);
+      const client = treeClient();
+      const { result } = renderHook(() => useSessionLifecycleActions({ onDeleteSuccess }), {
+        wrapper: createWrapper(client),
+      });
+      act(() => result.current.actions.onDelete(createdSession));
+      await waitFor(() => expect(result.current.deleteDialog.childSessions?.pending).toBe(false));
+      act(() => result.current.deleteDialog.childSessions?.onIncludedChange(true));
+
+      vi.mocked(listSessionDescendants).mockResolvedValue([child, secondChild]);
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(result.current.deleteDialog.childSessions?.count).toBe(2));
+      expect(deleteSessionTree).not.toHaveBeenCalled();
+      expect(deleteSession).not.toHaveBeenCalled();
+
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(deleteSessionTree).toHaveBeenCalledOnce());
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
+      expect(onDeleteSuccess.mock.calls.map(call => call[0].id)).toEqual([
+        createdSession.id,
+        child.id,
+        secondChild.id,
+      ]);
+    });
+
+    it("keeps readable bulk trees when another target fails and supports retrying a failed retry", async () => {
+      const second = { ...createdSession, id: "sess-second", name: "Second target" };
+      let secondFails = true;
+      vi.mocked(fetchSessionById).mockImplementation(async id =>
+        id === second.id ? second : createdSession
+      );
+      vi.mocked(listSessionDescendants).mockImplementation(async (_workspace, id) => {
+        if (id === createdSession.id) return [child];
+        if (secondFails) throw new Error("Tree unavailable");
+        return [];
+      });
+      const client = treeClient();
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(client),
+      });
+
+      act(() => result.current.actions.onDeleteMany?.([createdSession, second]));
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+      expect(result.current.deleteDialog.childSessions).toMatchObject({
+        count: 1,
+        pending: true,
+      });
+      expect(result.current.deleteDialog.childSessions?.onRetryRead).toBeDefined();
+
+      act(() => result.current.deleteDialog.onConfirm());
+      expect(deleteSession).not.toHaveBeenCalled();
+      expect(deleteSessionTree).not.toHaveBeenCalled();
+
+      // First retry also fails: retry remains available and confirm stays blocked.
+      const callsBeforeRetry = vi.mocked(listSessionDescendants).mock.calls.length;
+      act(() => result.current.deleteDialog.childSessions?.onRetryRead?.());
+      await waitFor(() =>
+        expect(vi.mocked(listSessionDescendants).mock.calls.length).toBeGreaterThan(
+          callsBeforeRetry
+        )
+      );
+      await waitFor(() =>
+        expect(result.current.deleteDialog.childSessions?.onRetryRead).toBeDefined()
+      );
+      expect(result.current.deleteDialog.childSessions?.pending).toBe(true);
+
+      secondFails = false;
+      act(() => result.current.deleteDialog.childSessions?.onRetryRead?.());
+      await waitFor(() => expect(result.current.deleteDialog.childSessions?.pending).toBe(false));
+      expect(result.current.deleteDialog.childSessions?.count).toBe(1);
+      expect(result.current.deleteDialog.childSessions?.onRetryRead).toBeUndefined();
+
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
+      expect(deleteSession).toHaveBeenCalledTimes(2);
+    });
+
+    it("cancels in-flight delete preparation when another lifecycle action starts", async () => {
+      let resolveTree!: (sessions: SessionPayload[]) => void;
+      vi.mocked(listSessionDescendants).mockImplementation(
+        () =>
+          new Promise(resolve => {
+            resolveTree = resolve;
+          })
+      );
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(treeClient()),
+      });
+
+      act(() => result.current.actions.onDelete(createdSession));
+      await waitFor(() => expect(listSessionDescendants).toHaveBeenCalledOnce());
+
+      act(() => result.current.actions.onRename(createdSession));
+      expect(result.current.renameDialog.open).toBe(true);
+
+      await act(async () => resolveTree([]));
+      expect(result.current.deleteDialog.open).toBe(false);
+    });
   });
 
-  // Invariant: deletion choices follow newer detail evidence, not a frozen catalog row.
+  // Invariant: confirmation copy is prepared once and unaffected by later cache updates.
   // Owner: lifecycle confirmation hook; canonical suite: use-session-actions.
-  it("updates an open delete confirmation when the detail cache reports running processes", async () => {
-    vi.mocked(fetchSessionById).mockImplementation(() => new Promise(() => {}));
+  it("freezes prepared session details against background query updates", async () => {
+    const fresh = { ...createdSession, name: "Prepared session" };
+    vi.mocked(fetchSessionById).mockResolvedValue(fresh);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { result } = renderHook(() => useSessionLifecycleActions(), {
       wrapper: createWrapper(client),
     });
     act(() => result.current.actions.onDelete(createdSession));
-    const current = withSessionProcessSummary(createdSession);
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+    expect(result.current.deleteDialog.session?.name).toBe("Prepared session");
     act(() =>
       client.setQueryData(
         sessionScopedDetailOptions(createdSession.id, { profile: createdSession.profile_name })
           .queryKey,
-        current
+        { ...withSessionProcessSummary(fresh), name: "Background update" }
       )
     );
-    await waitFor(() =>
-      expect(result.current.deleteDialog.session?.process_summary).toEqual(current.process_summary)
-    );
-    expect(result.current.deleteDialog.sessions?.[0]?.process_summary).toEqual(
-      current.process_summary
-    );
+    expect(result.current.deleteDialog.session?.name).toBe("Prepared session");
+    expect(result.current.deleteDialog.processCount).toBe(0);
     client.clear();
+  });
+
+  it("uses the fresh pre-delete read to surface a newly running process choice", async () => {
+    const running = withSessionProcessSummary(createdSession);
+    vi.mocked(fetchSessionById)
+      .mockResolvedValueOnce(createdSession)
+      .mockResolvedValueOnce(running)
+      .mockResolvedValueOnce(running);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(client),
+    });
+    act(() => result.current.actions.onDelete(createdSession));
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+    expect(result.current.deleteDialog.processCount).toBe(0);
+
+    act(() => result.current.deleteDialog.onConfirm());
+    await waitFor(() => expect(result.current.deleteDialog.processCount).toBeGreaterThan(0));
+    expect(deleteSession).not.toHaveBeenCalled();
+
+    act(() => result.current.deleteDialog.onConfirm("keep"));
+    await waitFor(() => expect(deleteSession).toHaveBeenCalledOnce());
+    expect(vi.mocked(deleteSession).mock.calls[0]?.[4]).toBe("keep");
   });
 
   // Invariant: old zero-process details cannot suppress choices from a newer list/read.
   // Owner: lifecycle confirmation hook; canonical suite: use-session-actions.
-  it("refreshes old details before archiving and preserves the newer delete row while reading", async () => {
+  it("waits for delete preparation, retains the closed target, and refreshes before archiving", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const key = sessionScopedDetailOptions(createdSession.id, {
       profile: createdSession.profile_name,
@@ -1377,9 +1528,14 @@ describe("session actions", () => {
       wrapper: createWrapper(client),
     });
     act(() => result.current.actions.onDelete(running));
-    expect(result.current.deleteDialog.session?.process_summary).toEqual(running.process_summary);
+    expect(result.current.deleteDialog.open).toBe(false);
+    expect(result.current.deleteDialog.session).toBeNull();
     await act(async () => resolveRead(running));
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+    expect(result.current.deleteDialog.session?.process_summary).toEqual(running.process_summary);
     act(() => result.current.deleteDialog.onOpenChange(false));
+    expect(result.current.deleteDialog.open).toBe(false);
+    expect(result.current.deleteDialog.session?.id).toBe(running.id);
     client.setQueryData(key, createdSession, { updatedAt: 1 });
     act(() => {
       void result.current.actions.onArchive(running);
@@ -1711,6 +1867,7 @@ describe("session actions", () => {
       wrapper: createWrapper(client),
     });
     act(() => result.current.actions.onDelete(createdSession));
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
     act(() => result.current.deleteDialog.onConfirm());
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Detail unavailable"));
     expect(deleteSession).not.toHaveBeenCalled();
@@ -1719,32 +1876,59 @@ describe("session actions", () => {
     client.clear();
   });
 
-  // Invariant: dismissal or replacement revokes an in-flight delete confirmation.
+  // Invariant: dismissal cancels the current read, duplicate confirms share one read, and a
+  // replacement target can still confirm.
   // Owning layer/canonical suite: lifecycle actions; only detail adapter I/O is deferred.
   it.each([false, true])(
-    "Should discard a pending delete read after dismissal with replacement=%s",
+    "Should cancel a pre-read, deduplicate confirmation, and handle replacement=%s",
     async replace => {
-      let resolveDetail!: (session: SessionPayload) => void;
-      const detail = new Promise<SessionPayload>(resolve => {
-        resolveDetail = resolve;
+      vi.mocked(deleteSession).mockResolvedValue(undefined);
+      let resolveConfirm!: (session: SessionPayload) => void;
+      const confirmationRead = new Promise<SessionPayload>(resolve => {
+        resolveConfirm = resolve;
       });
-      vi.mocked(fetchSessionById).mockReturnValue(detail);
+      vi.mocked(fetchSessionById)
+        .mockResolvedValueOnce(createdSession)
+        .mockReturnValueOnce(confirmationRead);
+      if (replace)
+        vi.mocked(fetchSessionById).mockResolvedValueOnce({
+          ...createdSession,
+          id: "replacement",
+        });
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       const { result, unmount } = renderHook(() => useSessionLifecycleActions(), {
         wrapper: createWrapper(client),
       });
       act(() => result.current.actions.onDelete(createdSession));
-      act(() => result.current.deleteDialog.onConfirm());
-      await waitFor(() => expect(fetchSessionById).toHaveBeenCalled());
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+      act(() => {
+        result.current.deleteDialog.onConfirm();
+        result.current.deleteDialog.onConfirm();
+      });
+      await waitFor(() => expect(fetchSessionById).toHaveBeenCalledTimes(2));
+      // A second click while the detail reread is pending must not schedule another reread.
+      expect(fetchSessionById).toHaveBeenCalledTimes(2);
       act(() => result.current.deleteDialog.onOpenChange(false));
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
       if (replace)
         act(() => result.current.actions.onDelete({ ...createdSession, id: "replacement" }));
+      if (replace) {
+        await waitFor(() => expect(fetchSessionById).toHaveBeenCalledTimes(3));
+        await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+      }
       await act(async () => {
-        resolveDetail(createdSession);
-        await detail;
+        resolveConfirm(createdSession);
+        await confirmationRead;
       });
       expect(deleteSession).not.toHaveBeenCalled();
+      await waitFor(() => expect(fetchSessionById).toHaveBeenCalledTimes(replace ? 3 : 2));
       expect(result.current.deleteDialog.open).toBe(replace);
+      if (replace) expect(result.current.deleteDialog.session?.id).toBe("replacement");
+      if (replace) {
+        act(() => result.current.deleteDialog.onConfirm());
+        await waitFor(() => expect(deleteSession).toHaveBeenCalledOnce());
+        expect(vi.mocked(deleteSession).mock.calls[0]?.[1]).toBe("replacement");
+      }
       unmount();
       client.clear();
     }
@@ -1768,7 +1952,7 @@ describe("session actions", () => {
     act(() => {
       result.current.actions.onDelete(createdSession);
     });
-    expect(result.current.deleteDialog.open).toBe(true);
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
 
     act(() => result.current.deleteDialog.onConfirm());
 
@@ -1781,7 +1965,7 @@ describe("session actions", () => {
 
     await act(async () => resolveDelete());
     await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
-    expect(result.current.deleteDialog.session).toBeNull();
+    expect(result.current.deleteDialog.session?.id).toBe(createdSession.id);
   });
 
   it("keeps the rename dialog open until the durable rename succeeds", async () => {
@@ -2365,7 +2549,9 @@ describe("session lifecycle batches", () => {
       if (bulk) result.current.actions.onDeleteMany?.([createdSession]);
       else result.current.actions.onDelete(createdSession);
     });
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
     act(() => result.current.deleteDialog.onConfirm());
+    await waitFor(() => expect(deleteSession).toHaveBeenCalledOnce());
     await waitFor(() => expect(result.current.deleteDialog.isDeleting).toBe(false));
     expect(onDeleteSuccess).not.toHaveBeenCalled();
     vi.mocked(deleteSession).mockResolvedValue(undefined);
@@ -2384,9 +2570,13 @@ describe("session lifecycle batches", () => {
         workspace_id: "ws_personal",
       },
     ];
+    vi.mocked(fetchSessionById).mockImplementation(
+      async id => targets.find(session => session.id === id) ?? { ...createdSession, id }
+    );
     vi.mocked(deleteSession).mockResolvedValue(undefined);
     const { result } = lifecycle();
     act(() => result.current.actions.onDeleteMany?.(targets));
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
     act(() => result.current.deleteDialog.onConfirm());
     await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
     expect(vi.mocked(deleteSession).mock.calls).toEqual([
@@ -2408,6 +2598,7 @@ describe("session lifecycle batches", () => {
       vi.mocked(deleteSession).mockResolvedValue(undefined);
       const { result } = lifecycle();
       act(() => result.current.actions.onDeleteMany?.([unavailable, createdSession]));
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
       act(() => result.current.deleteDialog.onConfirm());
       await waitFor(() =>
         expect(result.current.batchResults).toEqual([
@@ -2472,6 +2663,7 @@ describe("session lifecycle batches", () => {
     const selectionChanged = vi.fn();
     const { result } = lifecycle();
     act(() => result.current.actions.onDeleteMany?.(targets, selectionChanged));
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
     act(() => {
       result.current.deleteDialog.onConfirm();
       result.current.deleteDialog.onConfirm();
@@ -2521,6 +2713,71 @@ describe("session lifecycle batches", () => {
     expect(toast.success).toHaveBeenCalledTimes(1);
   });
 
+  it("recounts processes from the remaining targets after a partial delete", async () => {
+    const withProcesses = { ...createdSession, id: "processful" };
+    const withoutProcesses = {
+      ...createdSession,
+      id: "processless",
+      process_summary: {
+        supported: true,
+        background: 0,
+        terminals: 0,
+        total: 0,
+        ports: [],
+      },
+    };
+    vi.mocked(fetchSessionById).mockImplementation(async id =>
+      id === withProcesses.id ? withSessionProcessSummary(withProcesses) : withoutProcesses
+    );
+    vi.mocked(deleteSession).mockImplementation(async (_workspaceId, id) => {
+      if (id === withoutProcesses.id) throw new Error("Session is locked");
+    });
+    const { result } = lifecycle();
+
+    act(() => result.current.actions.onDeleteMany?.([withProcesses, withoutProcesses]));
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+    expect(result.current.deleteDialog.processCount).toBe(3);
+
+    act(() => result.current.deleteDialog.onConfirm("keep"));
+
+    await waitFor(() =>
+      expect(result.current.deleteDialog.results).toEqual([
+        { id: withProcesses.id, status: "done" },
+        { id: withoutProcesses.id, status: "failed", error: "Session is locked" },
+      ])
+    );
+    expect(result.current.deleteDialog.processCount).toBe(0);
+  });
+
+  it("uses confirm-time refreshed rows when recounting remaining processes after a partial delete", async () => {
+    const first = { ...createdSession, id: "first-target" };
+    const second = { ...createdSession, id: "second-target" };
+    let secondRunning = false;
+    vi.mocked(fetchSessionById).mockImplementation(async id => {
+      if (id === first.id) return withSessionProcessSummary(first);
+      return secondRunning ? withSessionProcessSummary(second) : second;
+    });
+    vi.mocked(deleteSession).mockImplementation(async (_workspaceId, id) => {
+      if (id === second.id) throw new Error("Session is locked");
+    });
+    const { result } = lifecycle();
+
+    act(() => result.current.actions.onDeleteMany?.([first, second]));
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+    expect(result.current.deleteDialog.processCount).toBe(3);
+
+    secondRunning = true;
+    act(() => result.current.deleteDialog.onConfirm("keep"));
+
+    await waitFor(() =>
+      expect(result.current.deleteDialog.results).toEqual([
+        { id: first.id, status: "done" },
+        { id: second.id, status: "failed", error: "Session is locked" },
+      ])
+    );
+    expect(result.current.deleteDialog.processCount).toBe(3);
+  });
+
   // Feedback invariant: one lifetime-total toast on Close; row errors remain in the dialog.
   // Owner: lifecycle batch coordinator, this existing suite at the adapter I/O boundary.
   it.each([0, 1, 2])(
@@ -2540,12 +2797,14 @@ describe("session lifecycle batches", () => {
           selectionChanged
         )
       );
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
       act(() => result.current.deleteDialog.onConfirm());
-      await waitFor(() => expect(result.current.deleteDialog.isDeleting).toBe(false));
-      expect(result.current.deleteDialog.results).toEqual([
-        ...deleted.map(session => ({ id: session.id, status: "done" })),
-        { id: "failed", status: "failed", error: "Busy" },
-      ]);
+      await waitFor(() =>
+        expect(result.current.deleteDialog.results).toEqual([
+          ...deleted.map(session => ({ id: session.id, status: "done" })),
+          { id: "failed", status: "failed", error: "Busy" },
+        ])
+      );
       expect(result.current.deleteDialog.open).toBe(true);
       expect(toast.success).not.toHaveBeenCalled();
       expect(toast.error).not.toHaveBeenCalled();

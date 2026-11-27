@@ -20,6 +20,13 @@ Walk explicit zero and false overrides, delivery and watch defaults, stored Loop
 config. Confirm paths such as `/iteration_cap` and `/runtime_defaults/worker/model` name the logical
 winning source and that changing current config cannot rewrite an existing run's status.
 
+For #1946, start a delivery Loop with `contract.iteration_cap: 1` and a `stop_when` that stays
+false. Confirm that `loop inspect -o json` reports cap `1` from `definition`, that
+`loop status -o json` reports the same pinned cap, and that the run ends `exhausted` at
+generation `1`. Set `iteration_cap=2` through `loop configure` and repeat with a new run.
+Confirm the new run uses cap `2` from `loop_config` and the original run still reports `1`.
+A delivery definition with an omitted cap uses the configured fallback, which ships as `50`.
+
 QA 2026-08-26: CLI inspect and configure covered built-in and stored sources, while dry-run
 preserved explicit zero and false overrides with `per_run` sources. After current config changed,
 the admitted run kept its pinned source map across CLI, HTTP, and the native status tool. The fresh

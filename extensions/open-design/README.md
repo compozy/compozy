@@ -45,9 +45,10 @@ For a complete independent review, ask the designer to use `open-design-review`.
 runs designer → OpenDesign-derived lint → independent critic → digest verification. It completes only
 after the critic approves the exact checked files; rejection starts another full pass. The skill
 supplies a per-run limit of three passes, allowing at most two refinements.
-CompozyOS runtime defaults can override values declared by a Loop; when starting it directly,
-supply `iteration_cap: 3` and `reattempt_strategy: full_body` through
-`config_overrides` (or the CLI's `--config-file`). The optional `target` input (`auto`, `html`,
+The definition sets the cap to three. When starting the Loop directly, supply `iteration_cap: 3`
+and `reattempt_strategy: full_body` through `config_overrides` (or the CLI's `--config-file`) to
+keep the cap across local configuration and rerun the full body after an action failure.
+The optional `target` input (`auto`, `html`,
 `library`) binds the designer; a library result must list its prototype sources and is reviewed
 for library fidelity. The loop never changes the prototyping environment. The critic covers craft, purpose/states, brand,
 accessibility, and copy. It must resolve

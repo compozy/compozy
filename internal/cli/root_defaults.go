@@ -34,6 +34,7 @@ func (d commandDeps) withClientTimeoutDefaults() commandDeps {
 		d.getenv = os.Getenv
 	}
 	if d.newClient == nil {
+		d.defaultNewClient = true
 		d.newClient = func(target ClientTarget) (DaemonClient, error) {
 			timeout, err := resolveClientRequestTimeout(d.getenv, d.loadConfig)
 			if err != nil {
@@ -47,6 +48,7 @@ func (d commandDeps) withClientTimeoutDefaults() commandDeps {
 
 func (d commandDeps) withRegistryDefaults() commandDeps {
 	if d.loadConfig == nil {
+		d.defaultLoadConfig = true
 		d.loadConfig = func() (compozyconfig.Config, error) {
 			return compozyconfig.Load(d.windowManagerWarning)
 		}

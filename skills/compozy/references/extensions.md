@@ -27,6 +27,11 @@ in v0.3.0-beta.31. Omit `profile` to retain the previous all-profile visibility.
 
 Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--profile <name>` on the CLI; HTTP/UDS accepts `?workspace=<id>&profile=<name>` to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, and placements without changing state.
 
+A malformed `extension.toml` returns HTTP 422 from install preview and install. The validation
+issue names the manifest file and includes the line and column when the decoder supplies a
+position. `compozy extension install <path> -o json` writes the validation error to stderr when
+the local manifest fails to decode.
+
 In extension detail, `created_by_extension: true` confirms that this extension created the current
 profile ID. `false` covers existing-profile bindings and historical declarations whose creator was
 not recorded. An upgrade preserves those markers without inferring authorship or reseeding defaults.
@@ -134,8 +139,9 @@ It requires Node.js, preserves original findings, reports file digests, and neve
 Its `passed` means zero original P0 findings. The optional review Loop uses an independent
 critic session and verifies the approved file digests before completion. Its optional `target`
 input (`auto`, `html`, `library`) binds the designer; a library result must list its prototype sources. Its skill passes per-run
-`config_overrides` of `iteration_cap: 3` and `reattempt_strategy: full_body` so runtime defaults
-cannot replace the workflow limits. Use the same overrides for direct invocations. The critic considers findings and
+`config_overrides` of `iteration_cap: 3` and `reattempt_strategy: full_body` to keep the three-pass
+cap across local configuration and rerun the full body after an action failure. Use the same
+overrides for direct invocations. The critic considers findings and
 specific source-backed exceptions. A normal design request does not start the Loop automatically.
 Use its skill and this reference's normal lifecycle surfaces to inspect or operate it.
 

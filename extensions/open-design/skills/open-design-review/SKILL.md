@@ -15,7 +15,7 @@ Supply a concise `brief` and a workspace-relative `artifact_path` under `docs/de
 
 Set `target` to `html` or `library` when the user chose one; otherwise omit it so the designer follows the `open-design` skill. For a library prototype, `artifact_path` names its rendered evidence, and `docs/design/prototyping.md` must already work: run `open-design-setup` with the user before starting the loop, because the loop never changes the prototyping environment. The designer also returns the prototype sources and preview URL; completion requires at least one source path for the library target.
 
-Pass the following `config_overrides` on both calls. CompozyOS runtime defaults override definition values, so the definition alone does not enforce this workflow's limit. `full_body` also reruns the complete workflow after an action failure. A rejected review always starts a fresh generation.
+Pass the following `config_overrides` on both calls. The per-run cap of three takes precedence over stored Loop config. `full_body` reruns the complete workflow after an action failure. A rejected review always starts a fresh generation.
 
 Dry-run with `compozy__loop_run` using `dry: true`, verify effective `iteration_cap: 3` and `reattempt_strategy: full_body`, then execute with the same inputs and overrides without `dry`:
 
