@@ -33,8 +33,11 @@ report's session matrix in a future QA cycle.
 
 QA impact 2026-10-07 (memory removal): a fresh boot creates no memory root at all, neither `$COMPOZY_HOME/memory/` nor `profiles/<name>/memory/`, and status and doctor name no memory path. Markdown memory files left by an earlier release stay on disk and are never read. The memory-root move and its fail-closed guard described above no longer exist. Stale verdict reset to untested; the 2026-10-05 skip was specific to that cycle; no QA session ran.
 
-QA impact 2026-11-26 (issue #1979, restart scenario pending). In an isolated CompozyOS home, run
-`compozy daemon start` as a non-elevated user and store a disposable Vault secret with the file key
-provider. Stop and start the daemon with the same home. Status must report a ready daemon with the
-original `mcp-digest.key` and `vault.key`, and the stored secret must remain usable. The native
-Windows CI lane exercises key creation and reopening through `TestFileKeyProviderLoadsEnvAndCreatesKeyFile`.
+QA impact 2026-11-26 (issue #1979, restart scenario pending). On native Windows, run
+`compozy daemon start` as a non-elevated user in an isolated CompozyOS home and store a disposable
+Vault secret with the file key provider. Stop and start the daemon with the same home. Confirm
+`compozy status` reports readiness, then compare `mcp-digest.key` and `vault.key` locally with their
+pre-restart contents. Both files must match. Verify the secret still resolves through a
+[declared launch environment](ET-terminal-session-block-handoff.md#declared-launch-environment-828)
+without printing its value. Native Windows CI exercises key creation and reopening through
+`TestFileKeyProviderLoadsEnvAndCreatesKeyFile`.
