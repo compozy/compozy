@@ -22,6 +22,37 @@ function profileFoldIdentity(profile: {
   return profile.destinationOwner?.id ?? `name:${profile.key}`;
 }
 
+export function sessionGroupFoldLens(
+  scope: DataScope | null,
+  profile: { aggregate: boolean; key: string; destinationOwner: { id: string } | null },
+  groupBy: SessionListGroupBy
+): string {
+  return JSON.stringify([scope, profileFoldIdentity(profile), groupBy]);
+}
+
+export function qualifySessionGroupFoldKey(
+  foldLens: string,
+  key: string,
+  computerId?: ComputerId
+): string {
+  const normalizedComputer = normalizeComputerId(computerId);
+  if (!isRemoteComputerId(normalizedComputer)) return `${foldLens}\u0000${key}`;
+  if (
+    key.startsWith(`project:${normalizedComputer}:`) ||
+    key.startsWith(`profile:${normalizedComputer}:`) ||
+    key.startsWith("computer:")
+  ) {
+    return `${foldLens}\u0000${key}`;
+  }
+  if (key.startsWith("project:")) {
+    return `${foldLens}\u0000project:${normalizedComputer}:${key.slice("project:".length)}`;
+  }
+  if (key.startsWith("profile:")) {
+    return `${foldLens}\u0000profile:${normalizedComputer}:${key.slice("profile:".length)}`;
+  }
+  return `${foldLens}\u0000project:${normalizedComputer}:${key}`;
+}
+
 export interface SessionGroupFolds {
   isCollapsed: (key: string) => boolean;
   toggle: (key: string) => void;
@@ -42,7 +73,7 @@ export function useSessionGroupFolds(
   const sidebar = useSessionSidebarState();
   const normalizedComputer = normalizeComputerId(computerId);
   const remote = isRemoteComputerId(normalizedComputer);
-  const foldLens = JSON.stringify([scope, profileFoldIdentity(profile), groupBy]);
+  const foldLens = sessionGroupFoldLens(scope, profile, groupBy);
   const fallbackLens = JSON.stringify([scope, `name:${profile.key}`, groupBy]);
   const resolvedProfile = !profile.aggregate && profile.destinationOwner !== null;
   useEffect(() => {
@@ -50,14 +81,7 @@ export function useSessionGroupFolds(
       sessionSidebarStore.trigger.groupLensResolved({ from: fallbackLens, to: foldLens });
     }
   }, [resolvedProfile, remote, fallbackLens, foldLens]);
-  const qualify = (key: string) => {
-    if (!remote) return key;
-    if (key.startsWith(`project:${normalizedComputer}:`) || key.startsWith("computer:")) return key;
-    if (key.startsWith("project:"))
-      return `project:${normalizedComputer}:${key.slice("project:".length)}`;
-    return `project:${normalizedComputer}:${key}`;
-  };
-  const groupId = (key: string) => `${foldLens}\u0000${qualify(key)}`;
+  const groupId = (key: string) => qualifySessionGroupFoldKey(foldLens, key, computerId);
   return {
     // The commit that resolves the profile still reads the fold stored under its name, so a
     // folded lane does not open and read its columns until `groupLensResolved` moves it.

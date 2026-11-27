@@ -58,6 +58,7 @@ export function SessionsBoard(props: SessionsBoardProps) {
             renderBand={(band, row, rank) => (
               <SessionsBoardComputerBandView
                 band={band}
+                focusedWorkspaceId={props.board.focusedWorkspaceId}
                 key={band.source.key}
                 rank={rank}
                 row={row}

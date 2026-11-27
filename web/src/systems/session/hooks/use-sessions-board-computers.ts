@@ -1,40 +1,46 @@
-import { useQueries } from "@tanstack/react-query";
-
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import type { ScopedComputerFailureItem } from "@/systems/computers";
-import type { ProfileScopeParams } from "@/systems/profiles";
+import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
 import { workspaceBadgeIdentity, type DataScope, type WorkspacePayload } from "@/systems/workspace";
 
-import { fetchSessionCatalogPage } from "../adapters/session-catalog-api";
-import {
-  SESSION_BOARD_PAGE_SIZE,
-  SESSION_BOARD_STALE_MS,
-  sessionBoardPageOptions,
-} from "../lib/session-catalog-options";
-import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import type { SessionBoardColumnId, SessionBoardPayload } from "../lib/session-board-contract";
 import type { SessionRowComputerInfo } from "../lib/session-list-computer";
 import { computerWorkspaceBadgeIdentity } from "../lib/session-list-computer-filter";
-import { projectSessionGroups, type SessionListGroupSpec } from "../lib/session-list-groups";
-import type { SessionListGroupBy } from "../lib/session-list-preferences";
-import { normalizeSessionListFilters } from "../lib/session-list-query";
-import { sessionListShelfFilters } from "../lib/session-list-shelf";
-import { buildTogetherProjectGroups } from "../lib/session-list-together";
 import {
-  sessionComputerOf,
-  sessionRowKey,
-  withSessionsComputer,
-} from "../lib/session-row-ref";
-import { computerFoldKey } from "../lib/session-sidebar-scope";
+  profileSessionGroups,
+  projectSessionGroups,
+  type SessionListGroupSpec,
+} from "../lib/session-list-groups";
+import type { SessionListGroupBy, SessionListSort } from "../lib/session-list-preferences";
+import {
+  buildTogetherProfileGroups,
+  buildTogetherProjectGroups,
+} from "../lib/session-list-together";
+import { sessionComputerOf, sessionRowKey } from "../lib/session-row-ref";
+import { computerFoldKey, resolveComputerSectionFold } from "../lib/session-sidebar-scope";
+import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import type { SessionListFilters } from "../types";
 import {
   useComputerSessionsSources,
   type ComputerSessionsSource,
 } from "./use-computer-sessions-sources";
 import { useSessionComputerScope } from "./use-session-computer-scope";
+import {
+  qualifySessionGroupFoldKey,
+  sessionGroupFoldLens,
+} from "./use-session-group-folds";
 import { useSessionSidebarState } from "./use-session-sidebar-state";
 import { useSessionWindowOrder } from "./use-session-window-order";
-import type { SessionsBoardLane, SessionsBoardShelf } from "./use-sessions-board";
+import type {
+  SessionsBoardColumnView,
+  SessionsBoardLane,
+  SessionsBoardShelf,
+} from "./use-sessions-board";
+import {
+  boardFiltersForSource,
+  useMultiComputerBoardShelf,
+} from "./use-sessions-board-multi-pages";
+import { useTogetherBoardColumns } from "./use-together-board-columns";
 
 export interface SessionsBoardComputerBand {
   source: ComputerSessionsSource;
@@ -42,7 +48,9 @@ export interface SessionsBoardComputerBand {
   onToggle: () => void;
   /** Filters this band's ungrouped columns read. */
   baseFilters: SessionListFilters;
-  /** Project swimlanes inside this band; `null` when the board is ungrouped. */
+  /** True when topbar focuses a project absent on this remote computer (`Opus 5`, `Astra 10`). */
+  emptyRemoteMatch?: boolean;
+  /** Project or profile swimlanes inside this band; `null` when the board is ungrouped. */
   lanes: SessionsBoardLane[] | null;
   /** Exact server counts for the 5 columns from `facets.board`; undefined when unknown (`K3`, `K5`). */
   boardCounts: Record<SessionBoardColumnId, number> | undefined;
@@ -58,8 +66,10 @@ export interface MultiComputerBoardModel {
   scopedRemoteSource: ComputerSessionsSource | null;
   /** Non-null in All computers + Separate mode (`K2`, `K3`). */
   computerBands: SessionsBoardComputerBand[] | null;
-  /** Non-null in All computers + Together + Project mode (`K1`, `F6`). */
+  /** Non-null in All computers + Together + Project/Profile mode (`K1`, `F6`, `Opus 3`). */
   togetherLanes: SessionsBoardLane[] | null;
+  /** Non-null in All computers + Together + None mode (`Opus 4`, `Astra 9`). */
+  togetherColumns: SessionsBoardColumnView[] | null;
   /** Combined provenance map for Together / multi-computer shelf cards (`K7`). */
   computerBySessionId: ReadonlyMap<string, SessionRowComputerInfo>;
   /** Failures for the compact strip (Together mode only; Separate shows them in bands, `K6`). */
@@ -70,29 +80,6 @@ export interface MultiComputerBoardModel {
   multiLater?: SessionsBoardShelf;
   /** Multi-computer project name resolver (`P1`). */
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
-}
-
-function boardFiltersForSource(
-  source: ComputerSessionsSource,
-  scope: DataScope | null,
-  shared: SessionListFilters,
-  localLens: ProfileScopeParams
-): SessionListFilters {
-  if (source.isLocal) {
-    return sessionCatalogScopedFilters(scope, shared, localLens);
-  }
-  if (scope?.kind === "project") {
-    const matched = source.matchedWorkspaceIds ?? [];
-    return {
-      ...shared,
-      all_workspaces: true,
-      all_profiles: true,
-      ...(matched.length > 0 ? { workspace_ids: [...matched] } : {}),
-    };
-  }
-  return sessionCatalogScopedFilters(scope?.kind === "user" ? scope : { kind: "all" }, shared, {
-    all_profiles: true,
-  });
 }
 
 function defaultBandFolded(source: ComputerSessionsSource): boolean {
@@ -114,97 +101,126 @@ function workspaceNameResolverFor(
       : workspaceBadgeIdentity(session.workspace_id, names).name;
 }
 
-function useMultiComputerBoardShelf(
-  sources: readonly ComputerSessionsSource[],
+function laneFiltersForGroup(
+  group: SessionListGroupSpec,
+  source: ComputerSessionsSource,
   scope: DataScope | null,
-  shared: SessionListFilters,
-  localLens: ProfileScopeParams,
-  shelf: "archive" | "later",
-  enabled: boolean
-): SessionsBoardShelf | undefined {
-  const shelfFilters = sessionListShelfFilters(shelf);
-  const answered = enabled
-    ? sources.filter(source => source.read === "ok" || source.read === "offline")
-    : [];
-  const queries = useQueries({
-    queries: answered.map(source => {
-      const filters = {
-        ...boardFiltersForSource(source, scope, shared, localLens),
-        ...shelfFilters,
-      };
-      const emptyRemoteMatch =
-        !source.isLocal &&
-        scope?.kind === "project" &&
-        (source.matchedWorkspaceIds?.length ?? 0) === 0;
-      const opts = sessionBoardPageOptions(filters, source.key);
-      const normalized = normalizeSessionListFilters({
-        ...filters,
-        limit: SESSION_BOARD_PAGE_SIZE,
-      });
-      return {
-        queryKey: [...opts.queryKey, "shelf-first"] as const,
-        queryFn: async ({ signal }: { signal: AbortSignal }) => {
-          const page = isRemoteComputerId(source.key)
-            ? await fetchSessionCatalogPage(normalized, signal, source.key)
-            : await fetchSessionCatalogPage(normalized, signal);
-          return isRemoteComputerId(source.key)
-            ? { ...page, sessions: withSessionsComputer(page.sessions, source.key) }
-            : page;
-        },
-        enabled: enabled && source.read === "ok" && !emptyRemoteMatch && scope !== null,
-        staleTime: SESSION_BOARD_STALE_MS,
-        retry: false as const,
-      };
-    }),
-  });
-  if (!enabled) return undefined;
-
-  const sessions: SessionBoardPayload[] = [];
-  let total = 0;
-  let hasTotal = false;
-  let loading = false;
-  let fetching = false;
-  let allFailed = answered.length > 0;
-
-  for (let index = 0; index < answered.length; index++) {
-    const query = queries[index];
-    const source = answered[index]!;
-    if (query?.isLoading && source.read === "ok") loading = true;
-    if (query?.isFetching) fetching = true;
-    if (!query?.isError) allFailed = false;
-    const page = query?.data;
-    if (!page) continue;
-    for (const session of page.sessions) sessions.push(session as SessionBoardPayload);
-    if (page.page.total != null) {
-      hasTotal = true;
-      total += page.page.total;
-    } else if (shelf === "later") {
-      hasTotal = true;
-      total += source.laterCount;
-    }
+  shared: SessionListFilters
+): SessionListFilters {
+  if (group.kind === "profile" && !source.isLocal && scope?.kind === "project") {
+    const matched = source.matchedWorkspaceIds ?? [];
+    return {
+      ...shared,
+      all_workspaces: true,
+      ...(matched.length > 0 ? { workspace_ids: [...matched] } : {}),
+      ...group.lens,
+    };
   }
-  sessions.sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at));
+  return sessionCatalogScopedFilters(group.scope, shared, group.lens);
+}
+
+function buildLane(input: {
+  group: SessionListGroupSpec;
+  source: ComputerSessionsSource;
+  scope: DataScope | null;
+  shared: SessionListFilters;
+  foldLens: string;
+  sidebar: ReturnType<typeof useSessionSidebarState>;
+}): SessionsBoardLane {
+  const { group, source, scope, shared, foldLens, sidebar } = input;
+  const foldKey = qualifySessionGroupFoldKey(foldLens, group.key, source.key);
+  const collapsed = sidebar.groupFlag(foldKey) ?? sidebar.groupFolds.has(foldKey);
   return {
-    sessions,
-    loading: loading && sessions.length === 0,
-    failure: allFailed && sessions.length === 0 ? "initial" : null,
-    retrying: false,
-    fetching,
-    hasMore: false,
-    loadingMore: false,
-    loadMore: () => undefined,
-    retry: () => {
-      for (const query of queries) void query.refetch();
-    },
-    total: hasTotal ? total : undefined,
-    count: hasTotal ? total : undefined,
+    group,
+    filters: laneFiltersForGroup(group, source, scope, shared),
+    collapsed,
+    onToggle: () => sidebar.toggleGroup(foldKey),
   };
+}
+
+function buildBandLanes(input: {
+  source: ComputerSessionsSource;
+  groupBy: SessionListGroupBy;
+  scope: DataScope | null;
+  localLens: ProfileScopeParams;
+  shared: SessionListFilters;
+  foldLens: string;
+  sidebar: ReturnType<typeof useSessionSidebarState>;
+}): SessionsBoardLane[] | null {
+  const { source, groupBy, scope, localLens, shared, foldLens, sidebar } = input;
+  if (groupBy === "none") return null;
+  if (source.read !== "ok" && source.read !== "offline") return null;
+  if (groupBy === "project") {
+    const lens: ProfileScopeParams = source.isLocal ? localLens : { all_profiles: true };
+    return projectSessionGroups(source.facets, {
+      workspaces: source.workspaces,
+      lens,
+      computerId: source.key,
+      offline: source.read === "offline",
+    }).map(group => buildLane({ group, source, scope, shared, foldLens, sidebar }));
+  }
+  const emptyRemoteProject =
+    !source.isLocal && scope?.kind === "project" && (source.matchedWorkspaceIds?.length ?? 0) === 0;
+  if (emptyRemoteProject) return [];
+  const profileScope: DataScope =
+    !source.isLocal && scope?.kind === "project" ? { kind: "all" } : (scope ?? { kind: "all" });
+  return profileSessionGroups(source.facets, {
+    profiles: source.profiles ?? [],
+    scope: profileScope,
+    computerId: source.key,
+    offline: source.read === "offline",
+  }).map(group => buildLane({ group, source, scope, shared, foldLens, sidebar }));
+}
+
+function buildTogetherLanes(input: {
+  enabled: boolean;
+  groupBy: SessionListGroupBy;
+  sources: readonly ComputerSessionsSource[];
+  sourcesById: ReadonlyMap<ComputerId, ComputerSessionsSource>;
+  scope: DataScope | null;
+  localLens: ProfileScopeParams;
+  shared: SessionListFilters;
+  foldLens: string;
+  sidebar: ReturnType<typeof useSessionSidebarState>;
+}): SessionsBoardLane[] | null {
+  const { enabled, groupBy, sources, sourcesById, scope, localLens, shared, foldLens, sidebar } =
+    input;
+  if (!enabled || groupBy === "none") return null;
+  const specs =
+    groupBy === "project"
+      ? buildTogetherProjectGroups(sources, localLens)
+      : buildTogetherProfileGroups(sources, scope ?? { kind: "all" });
+  return specs.flatMap(group => {
+    const source = sourcesById.get(group.computerId ?? LOCAL_COMPUTER_ID);
+    return source ? [buildLane({ group, source, scope, shared, foldLens, sidebar })] : [];
+  });
+}
+
+function addShelfProvenance(
+  target: Map<string, SessionRowComputerInfo>,
+  shelf: SessionsBoardShelf | undefined,
+  sourcesById: ReadonlyMap<ComputerId, ComputerSessionsSource>
+): void {
+  if (!shelf) return;
+  for (const session of shelf.sessions) {
+    const computerId = sessionComputerOf(session);
+    if (!isRemoteComputerId(computerId)) continue;
+    const source = sourcesById.get(computerId);
+    if (!source) continue;
+    target.set(sessionRowKey({ computerId: source.key, sessionId: session.id }), {
+      id: source.key,
+      name: source.name,
+      platform: source.computer.platform,
+      iconKind: source.computer.iconKind,
+      offline: source.read === "offline",
+    });
+  }
 }
 
 /**
  * Multi-computer projection for Kanban (`F13`, `K1`–`K7`):
- * - Separate: computer bands holding project lanes or columns, with folded 5-column facet counts.
- * - Together: flat `project · computer` lanes with computer marks, or merged columns.
+ * - Separate: computer bands holding project/profile lanes or columns, with folded 5-column counts.
+ * - Together: `project · computer` / `profile · computer` lanes, or merged columns (`Opus 3`, `Opus 4`).
  * - Scoped: one computer's board with no band header.
  */
 export function useSessionsBoardComputers(options: {
@@ -212,12 +228,15 @@ export function useSessionsBoardComputers(options: {
   shared: SessionListFilters;
   localLens: ProfileScopeParams;
   groupBy: SessionListGroupBy;
+  sort: SessionListSort;
   showAutomation: boolean;
+  population?: Pick<SessionListFilters, "children">;
   enabled: boolean;
 }): MultiComputerBoardModel {
-  const { scope, shared, localLens, groupBy, showAutomation, enabled } = options;
+  const { scope, shared, localLens, groupBy, sort, showAutomation, population, enabled } = options;
   const order = useSessionWindowOrder();
   const sidebar = useSessionSidebarState();
+  const profile = useProfileReadScope();
   const allProjects = scope?.kind === "all";
 
   const sourcesResult = useComputerSessionsSources({
@@ -225,19 +244,23 @@ export function useSessionsBoardComputers(options: {
     lens: localLens,
     shelf: "active",
     showAutomation,
+    population,
+    includeProfiles: groupBy === "profile",
     enabled,
   });
   const scopeState = useSessionComputerScope();
   const hasRemote = sourcesResult.hasRemoteComputers;
   const effectiveScope = hasRemote ? scopeState.scope : "all";
+  const sourcesById = new Map<ComputerId, ComputerSessionsSource>(
+    sourcesResult.sources.map(source => [source.key, source])
+  );
   const scopedRemoteSource =
     hasRemote && isRemoteComputerId(effectiveScope)
-      ? (sourcesResult.sources.find(source => source.key === effectiveScope) ?? null)
+      ? (sourcesById.get(effectiveScope) ?? null)
       : null;
   const multiVisible = hasRemote && effectiveScope === "all";
   const separate = multiVisible && order.computers === "separate";
   const together = multiVisible && order.computers === "together";
-
   const activeSources = scopedRemoteSource
     ? [scopedRemoteSource]
     : multiVisible
@@ -260,83 +283,39 @@ export function useSessionsBoardComputers(options: {
     "later",
     enabled && multiVisible
   );
+  const togetherBoard = useTogetherBoardColumns({
+    sources: activeSources,
+    scope,
+    shared,
+    localLens,
+    sort,
+    enabled: enabled && together && groupBy === "none",
+  });
 
-  const computerBySessionId = new Map<string, SessionRowComputerInfo>();
-  const namesByComputer = new Map<ComputerId, ReadonlyMap<string, string>>();
-  for (const source of sourcesResult.sources) {
-    namesByComputer.set(
-      source.key,
-      new Map(source.workspaces.map(workspace => [workspace.id, workspace.name]))
-    );
-  }
-  const addShelfProvenance = (shelf: SessionsBoardShelf | undefined) => {
-    if (!shelf) return;
-    for (const session of shelf.sessions) {
-      const computerId = sessionComputerOf(session);
-      if (!isRemoteComputerId(computerId)) continue;
-      const source = sourcesResult.sources.find(item => item.key === computerId);
-      if (!source) continue;
-      const info: SessionRowComputerInfo = {
-        id: source.key,
-        name: source.name,
-        platform: source.computer.platform,
-        iconKind: source.computer.iconKind,
-        offline: source.read === "offline",
-      };
-      computerBySessionId.set(
-        sessionRowKey({ computerId: source.key, sessionId: session.id }),
-        info
-      );
-      computerBySessionId.set(session.id, info);
-    }
-  };
-  addShelfProvenance(multiArchive);
-  addShelfProvenance(multiLater);
+  const computerBySessionId = new Map<string, SessionRowComputerInfo>(
+    togetherBoard.computerBySessionId
+  );
+  addShelfProvenance(computerBySessionId, multiArchive, sourcesById);
+  addShelfProvenance(computerBySessionId, multiLater, sourcesById);
 
-  const makeLane = (
-    group: SessionListGroupSpec,
-    source: ComputerSessionsSource
-  ): SessionsBoardLane => {
-    const foldKey = `board:${source.key}:${group.key}`;
-    const explicit = sidebar.groupFolds.has(foldKey);
-    const collapsed = sidebar.foldAll === "collapsed" ? !explicit : explicit;
-    return {
-      group,
-      filters: sessionCatalogScopedFilters(group.scope, shared, group.lens),
-      collapsed,
-      onToggle: () => sidebar.toggleGroup(foldKey),
-    };
-  };
-
+  const foldLens = sessionGroupFoldLens(scope, profile, groupBy);
   const computerBands: SessionsBoardComputerBand[] | null = separate
     ? sourcesResult.sources.map(source => {
         const foldKey = computerFoldKey(source.key);
-        const explicit = sidebar.groupFolds.has(foldKey);
         const defaultFolded = defaultBandFolded(source);
-        const collapsed =
-          sidebar.foldAll === "collapsed"
-            ? !explicit
-            : sidebar.foldAll === "groups"
-              ? explicit
-              : defaultFolded
-                ? !explicit
-                : explicit;
-        const lens: ProfileScopeParams = source.isLocal ? localLens : { all_profiles: true };
-        const lanes =
-          groupBy === "project" && (source.read === "ok" || source.read === "offline")
-            ? projectSessionGroups(source.facets, {
-                workspaces: source.workspaces,
-                lens,
-                computerId: source.key,
-                offline: source.read === "offline",
-              }).map(group => makeLane(group, source))
-            : null;
+        const collapsed = resolveComputerSectionFold({
+          flag: sidebar.groupFlag(foldKey),
+          foldAll: sidebar.foldAll,
+          defaultFolded,
+        });
+        const filterSpec = boardFiltersForSource(source, scope, shared, localLens);
         return {
           source,
           collapsed,
-          onToggle: () => sidebar.toggleGroup(foldKey),
-          baseFilters: boardFiltersForSource(source, scope, shared, localLens),
-          lanes,
+          onToggle: () => sidebar.toggleGroup(foldKey, defaultFolded),
+          baseFilters: filterSpec.filters,
+          emptyRemoteMatch: filterSpec.emptyRemoteMatch,
+          lanes: buildBandLanes({ source, groupBy, scope, localLens, shared, foldLens, sidebar }),
           boardCounts: source.facets?.facets.board,
           workspaceNameOf: workspaceNameResolverFor(
             source.workspaces,
@@ -347,26 +326,32 @@ export function useSessionsBoardComputers(options: {
       })
     : null;
 
-  const togetherLanes: SessionsBoardLane[] | null =
-    together && groupBy === "project"
-      ? buildTogetherProjectGroups(sourcesResult.sources, localLens).map(group => {
-          const source =
-            sourcesResult.sources.find(
-              item => item.key === (group.computerId ?? LOCAL_COMPUTER_ID)
-            ) ?? sourcesResult.sources[0]!;
-          return makeLane(group, source);
-        })
-      : null;
+  const togetherLanes = buildTogetherLanes({
+    enabled: together,
+    groupBy,
+    sources: sourcesResult.sources,
+    sourcesById,
+    scope,
+    localLens,
+    shared,
+    foldLens,
+    sidebar,
+  });
 
-  const failedComputers: ScopedComputerFailureItem[] = [];
-  if (together) {
-    for (const source of sourcesResult.sources) {
-      if (source.read === "failed") {
-        failedComputers.push({ id: source.key, name: source.name, retry: source.retry });
-      }
-    }
-  }
+  const failedComputers: ScopedComputerFailureItem[] = together
+    ? sourcesResult.sources.flatMap(source =>
+        source.read === "failed"
+          ? [{ id: source.key, name: source.name, retry: source.retry }]
+          : []
+      )
+    : [];
 
+  const namesByComputer = new Map<ComputerId, ReadonlyMap<string, string>>(
+    sourcesResult.sources.map(source => [
+      source.key,
+      new Map(source.workspaces.map(workspace => [workspace.id, workspace.name])),
+    ])
+  );
   const workspaceNameOf = (session: SessionBoardPayload): string | null => {
     if (!allProjects) return null;
     const computerId = sessionComputerOf(session) ?? LOCAL_COMPUTER_ID;
@@ -382,6 +367,7 @@ export function useSessionsBoardComputers(options: {
     scopedRemoteSource,
     computerBands,
     togetherLanes,
+    togetherColumns: togetherBoard.columns,
     computerBySessionId,
     failedComputers,
     multiArchive,

@@ -32,10 +32,12 @@ import {
 } from "../lib/session-list-preferences";
 import { sessionListShelfFilters } from "../lib/session-list-shelf";
 import type { SessionListFilters } from "../types";
+import { scopedCatalogFilters } from "./use-session-catalog";
 import { useSessionGroupFolds } from "./use-session-group-folds";
 import { useSessionListGroups } from "./use-session-list-groups";
 import {
   useSessionsBoardComputers,
+  type MultiComputerBoardModel,
   type SessionsBoardComputerBand,
 } from "./use-sessions-board-computers";
 import { useSessionWindowOrder } from "./use-session-window-order";
@@ -189,6 +191,52 @@ export function useSessionsBoardColumns(
   }));
 }
 
+function emptyBoardShelf(): SessionsBoardShelf {
+  return {
+    sessions: [],
+    loading: false,
+    failure: null,
+    retrying: false,
+    fetching: false,
+    hasMore: false,
+    loadingMore: false,
+    loadMore: () => undefined,
+    retry: () => undefined,
+    total: 0,
+    count: 0,
+  };
+}
+
+function resolveBoardColumns(input: {
+  grouped: boolean;
+  banded: boolean;
+  multi: MultiComputerBoardModel;
+  singleColumns: SessionsBoardColumnView[];
+}): SessionsBoardColumnView[] {
+  if (input.grouped || input.banded) return [];
+  return input.multi.togetherColumns ?? input.singleColumns;
+}
+
+function resolveBoardLanes(input: {
+  banded: boolean;
+  togetherGrouped: boolean;
+  grouped: boolean;
+  multi: MultiComputerBoardModel;
+  arrangedGroups: readonly SessionListGroupSpec[];
+  shared: SessionListFilters;
+  folds: ReturnType<typeof useSessionGroupFolds>;
+}): SessionsBoardLane[] | null {
+  if (input.banded) return null;
+  if (input.togetherGrouped) return input.multi.togetherLanes;
+  if (!input.grouped) return null;
+  return input.arrangedGroups.map(group => ({
+    group,
+    filters: sessionCatalogScopedFilters(group.scope, input.shared, group.lens),
+    collapsed: input.folds.isCollapsed(group.key),
+    onToggle: () => input.folds.toggle(group.key),
+  }));
+}
+
 /**
  * The Sessions board read model for a data scope (`_uiux.md` S4, `F13`).
  */
@@ -230,7 +278,9 @@ export function useSessionsBoard({
     shared,
     localLens: params,
     groupBy: effectiveGroupBy,
+    sort,
     showAutomation,
+    population,
     enabled: active,
   });
 
@@ -241,14 +291,22 @@ export function useSessionsBoard({
     ? multi.scopedRemoteSource.workspaces
     : registeredWorkspaces;
   const matchedWorkspaceIds = multi.scopedRemoteSource?.matchedWorkspaceIds ?? null;
-  const base = sessionCatalogScopedFilters(scope, shared, targetLens);
+  const { scoped: base, emptyRemoteMatch } = scopedCatalogFilters(
+    scope,
+    shared,
+    targetLens,
+    targetComputerId,
+    matchedWorkspaceIds
+  );
 
   const banded = multi.computerBands !== null;
   const togetherGrouped = multi.togetherLanes !== null;
-  const singleColumnsActive = active && !grouped && !banded;
+  const togetherFlat = multi.togetherColumns !== null;
+  const singleColumnsActive = active && !grouped && !banded && !togetherFlat && !emptyRemoteMatch;
   const columns = useSessionsBoardColumns(base, singleColumnsActive, targetComputerId);
 
-  const singleGroupingActive = active && grouped && !banded && !togetherGrouped;
+  const singleGroupingActive =
+    active && grouped && !banded && !togetherGrouped && !emptyRemoteMatch;
   const grouping = useSessionListGroups({
     groupBy: effectiveGroupBy,
     scope,
@@ -280,7 +338,7 @@ export function useSessionsBoard({
     effectiveGroupBy,
     isRemoteScoped ? targetComputerId : undefined
   );
-  const localShelfActive = active && !multi.multiArchive;
+  const localShelfActive = active && !multi.multiArchive && !emptyRemoteMatch;
   const archive = useSessionsBoardPage(
     { ...base, ...sessionListShelfFilters("archive") },
     localShelfActive,
@@ -294,31 +352,26 @@ export function useSessionsBoard({
   const names = new Map(targetWorkspaces.map(workspace => [workspace.id, workspace.name]));
   const allProjects = scope?.kind === "all";
 
-  const lanes: SessionsBoardLane[] | null = banded
-    ? null
-    : togetherGrouped
-      ? multi.togetherLanes
-      : grouped
-        ? arranged.groups.map(group => ({
-            group,
-            filters: sessionCatalogScopedFilters(group.scope, shared, group.lens),
-            collapsed: folds.isCollapsed(group.key),
-            onToggle: () => folds.toggle(group.key),
-          }))
-        : null;
-
   return {
     focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
-    columns: grouped || banded ? [] : columns,
-    lanes,
+    columns: resolveBoardColumns({ grouped, banded, multi, singleColumns: columns }),
+    lanes: resolveBoardLanes({
+      banded,
+      togetherGrouped,
+      grouped,
+      multi,
+      arrangedGroups: arranged.groups,
+      shared,
+      folds,
+    }),
     computerBands: multi.computerBands,
     lanesLoading: singleGroupingActive ? grouping.loading : false,
     lanesError: singleGroupingActive ? grouping.error : undefined,
     layoutError: singleGroupingActive ? arranged.loadError : undefined,
     groupBy: effectiveGroupBy,
     groupByOptions: availableSessionListGroupBys(breadth),
-    archive: multi.multiArchive ?? { ...archive, count: archive.total },
-    later: multi.multiLater ?? { ...later, count: later.total },
+    archive: multi.multiArchive ?? (emptyRemoteMatch ? emptyBoardShelf() : { ...archive, count: archive.total }),
+    later: multi.multiLater ?? (emptyRemoteMatch ? emptyBoardShelf() : { ...later, count: later.total }),
     workspaceNameOf: multi.hasRemoteComputers
       ? multi.workspaceNameOf
       : session => (allProjects ? workspaceBadgeIdentity(session.workspace_id, names).name : null),

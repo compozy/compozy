@@ -12,7 +12,8 @@ import {
 
 import { useSessionsBoardColumns } from "../../hooks/use-sessions-board";
 import type { SessionsBoardComputerBand } from "../../hooks/use-sessions-board-computers";
-import { SESSION_BOARD_COLUMNS, type SessionBoardColumnId } from "../../lib/session-board-contract";
+import { SESSION_BOARD_COLUMNS, type SessionBoardColumnId, type SessionBoardPayload } from "../../lib/session-board-contract";
+import { AlwaysOnListTop } from "../always-on/always-on-list-top";
 import { SessionListComputerStateNotice } from "../session-list/session-list-computer-note";
 import { SessionsBoardColumnGlyph } from "./sessions-board-column-glyph";
 import { SessionsBoardColumnsRow } from "./sessions-board-columns-row";
@@ -66,7 +67,7 @@ function BandColumnsRow({
 }) {
   const columns = useSessionsBoardColumns(
     band.baseFilters,
-    band.source.read === "ok",
+    band.source.read === "ok" && !band.emptyRemoteMatch,
     band.source.key
   );
   return (
@@ -86,10 +87,12 @@ function BandBody({
   band,
   row,
   rank,
+  focusedWorkspaceId,
 }: {
   band: SessionsBoardComputerBand;
   row: SessionsBoardRow;
   rank: number;
+  focusedWorkspaceId?: string | null;
 }) {
   const upgradeSheet = useOptionalUpgradeSheetActions();
   const { source } = band;
@@ -156,7 +159,16 @@ function BandBody({
     );
   }
   return (
-    <div className={cn("pl-6", dim)}>
+    <div className={cn("flex flex-col gap-2 pl-6", dim)}>
+      {source.isLocal ? (
+        <AlwaysOnListTop
+          currentSessionId={row.currentSessionId}
+          groupBy="none"
+          onOpenSession={session => row.onOpen(session as SessionBoardPayload)}
+          surface="ring-canvas"
+          workspaceId={focusedWorkspaceId ?? null}
+        />
+      ) : null}
       <BandColumnsRow band={band} rank={rank} row={row} />
     </div>
   );
@@ -167,10 +179,12 @@ export function SessionsBoardComputerBandView({
   band,
   row,
   rank,
+  focusedWorkspaceId,
 }: {
   band: SessionsBoardComputerBand;
   row: SessionsBoardRow;
   rank: number;
+  focusedWorkspaceId?: string | null;
 }) {
   const { source, collapsed, onToggle } = band;
   const counted = isComputerCounted(source.read);
@@ -230,7 +244,7 @@ export function SessionsBoardComputerBandView({
           />
         ) : null
       ) : (
-        <BandBody band={band} rank={rank} row={row} />
+        <BandBody band={band} focusedWorkspaceId={focusedWorkspaceId} rank={rank} row={row} />
       )}
     </section>
   );
