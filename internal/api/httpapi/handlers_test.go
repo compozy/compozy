@@ -1635,7 +1635,18 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	settingsService := &stubSettingsService{}
+	settingsService := &stubSettingsService{
+		GetSectionFn: func(_ context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
+			envelope := settingsTestSectionEnvelope(req.Section, req.Scope, req.WorkspaceID)
+			if req.Section == settingspkg.SectionShell {
+				cfg := compozyconfig.DefaultShellConfig()
+				cfg.Sessions.Computers = compozyconfig.ShellSessionComputersTogether
+				cfg.Sessions.ComputersExplicit = true
+				envelope.Shell = &settingspkg.ShellSection{Config: cfg}
+			}
+			return envelope, nil
+		},
+	}
 	restartController := &stubSettingsRestartController{}
 	var (
 		installedReq   contract.InstallExtensionRequest
@@ -1701,6 +1712,22 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 						settingsService.LastUpdateSectionRequest.Section,
 						settingspkg.SectionGeneral,
 					)
+				}
+			},
+		},
+		{
+			name:       "Should return the explicit shell computer layout over HTTP",
+			method:     http.MethodGet,
+			path:       "/api/settings/shell",
+			wantStatus: http.StatusOK,
+			assertBody: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+				var response contract.SettingsShellResponse
+				decodeJSONResponse(t, recorder, &response)
+				layout := response.Config.Sessions.Computers
+				if response.Section != contract.SettingsSectionShell ||
+					layout == nil || *layout != contract.SettingsShellSessionComputersTogether {
+					t.Fatalf("shell response = %#v, want computers=together", response)
 				}
 			},
 		},

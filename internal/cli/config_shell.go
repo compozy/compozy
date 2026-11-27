@@ -11,6 +11,7 @@ import (
 const (
 	configShellKey           = "shell"
 	configShellSessionsKey   = "sessions"
+	configShellComputersKey  = "computers"
 	configShellSortKey       = "sort"
 	configShellAppearanceKey = "appearance"
 	configShellUIFontKey     = "ui_font"
@@ -22,6 +23,7 @@ const (
 func shellConfigSetPathKinds() map[string]configSetValueKind {
 	return map[string]configSetValueKind{
 		"shell.sessions.group_by": configSetString,
+		configShellKey + "." + configShellSessionsKey + "." + configShellComputersKey:  configSetString,
 		configShellKey + "." + configShellSessionsKey + "." + configShellSortKey:       configSetString,
 		configShellKey + "." + configShellSessionsKey + "." + automationScopeKey:       configSetString,
 		configShellKey + "." + configShellAppearanceKey + "." + configShellUIFontKey:   configSetString,
@@ -51,6 +53,9 @@ func applyShellConfigValue(cfg *compozyconfig.ShellConfig, path []string, value 
 	case "group_by":
 		cfg.Sessions.GroupBy = compozyconfig.ShellSessionGroupBy(text)
 		cfg.Sessions.GroupByExplicit = true
+	case configShellComputersKey:
+		cfg.Sessions.Computers = compozyconfig.ShellSessionComputers(text)
+		cfg.Sessions.ComputersExplicit = true
 	case configShellSortKey:
 		cfg.Sessions.Sort = compozyconfig.ShellSessionSort(text)
 	case automationScopeKey:
@@ -107,6 +112,8 @@ func settingsShellUpdatePayload(cfg compozyconfig.ShellConfig, path []string) co
 		sessions.Scope = contract.SettingsShellSessionScope(cfg.Sessions.Scope)
 	case "group_by":
 		sessions.GroupBy = contract.SettingsShellSessionGroupBy(cfg.Sessions.GroupBy)
+	case configShellComputersKey:
+		sessions.Computers = new(contract.SettingsShellSessionComputers(cfg.Sessions.Computers))
 	}
 	return contract.SettingsShellPayload{Sessions: sessions}
 }

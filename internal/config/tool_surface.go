@@ -143,6 +143,7 @@ var (
 		"skills.poll_interval":                                     ConfigValueDuration,
 		"shell.sessions.sort":                                      ConfigValueString,
 		"shell.sessions.group_by":                                  ConfigValueString,
+		"shell.sessions.computers":                                 ConfigValueString,
 		"shell.sessions.scope":                                     ConfigValueString,
 		"cmd_palette.fallback_targets":                             ConfigValueStringSlice,
 		"cmd_palette.personalization":                              ConfigValueBool,

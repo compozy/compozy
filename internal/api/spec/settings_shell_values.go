@@ -19,6 +19,13 @@ func settingsShellSessionScopeValues() []string {
 	}
 }
 
+func settingsShellSessionComputersValues() []string {
+	return []string{
+		string(contract.SettingsShellSessionComputersTogether),
+		string(contract.SettingsShellSessionComputersSeparate),
+	}
+}
+
 func settingsShellTextSizeValues() []string {
 	return []string{
 		string(contract.SettingsShellTextSizeSmall),

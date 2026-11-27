@@ -13,9 +13,10 @@ type shellAppearanceOverlay struct {
 }
 
 type shellSessionsOverlay struct {
-	GroupBy *ShellSessionGroupBy `toml:"group_by"`
-	Sort    *ShellSessionSort    `toml:"sort"`
-	Scope   *ShellSessionScope   `toml:"scope"`
+	Computers *ShellSessionComputers `toml:"computers"`
+	GroupBy   *ShellSessionGroupBy   `toml:"group_by"`
+	Sort      *ShellSessionSort      `toml:"sort"`
+	Scope     *ShellSessionScope     `toml:"scope"`
 }
 
 func (o shellOverlay) Apply(dst *ShellConfig) {
@@ -45,6 +46,10 @@ func (o shellOverlay) Apply(dst *ShellConfig) {
 	if o.Sessions.GroupBy != nil {
 		dst.Sessions.GroupBy = *o.Sessions.GroupBy
 		dst.Sessions.GroupByExplicit = true
+	}
+	if o.Sessions.Computers != nil {
+		dst.Sessions.Computers = *o.Sessions.Computers
+		dst.Sessions.ComputersExplicit = true
 	}
 	if o.Sessions.Scope != nil || o.Sessions.GroupBy != nil {
 		dst.Sessions.ResolveGroupBy()

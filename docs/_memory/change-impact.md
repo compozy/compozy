@@ -1,5 +1,31 @@
 # Compozy Change Impact
 
+## Sessions by computer
+
+- **CLI, HTTP, and UDS.** `compozy config get|set shell.sessions.computers` manages the global default.
+  `GET|PATCH /api/settings/shell` adds optional `config.sessions.computers` on both transports.
+  The OpenAPI document and the Go and TypeScript SDKs include the enum.
+- **Native tools.** `compozy__config_get`, `compozy__config_set`, and `compozy__config_list` expose the key.
+  Existing remote session, folder, and project tools accept `computer`. Window choices stay in the Web.
+- **Configuration and compatibility.** `shell.sessions.computers` uses the live lifecycle.
+  Its default is `separate`. The daemon writes this key only when explicitly set.
+  An older daemon that predates the key rejects an explicit entry. The Web writes window state only.
+  The window state normalizer reads older data without a migration. An unset layout follows the config.
+  An unset computer scope starts at **All computers**. Hooks and extension contracts keep their current shapes.
+- **Isolation.** The controller keeps remote rows, folder layouts, and facets in memory.
+  It stores the window's computer ID and layout as view state. Sign-out and account switch clear the remote
+  cache and reset the scope. The remote daemon checks the device's scopes and owns remote writes.
+  Folders stay on one computer. Remote reads use the remote computer's profiles.
+- **Web, docs, and official skill.** **Separate** is the default computer layout.
+  The List and Kanban docs describe the layout, scope, folder ownership, and counts.
+  The global key and window behavior appear in the config reference and the official skill.
+  QA owners are `ET-web-sessions-by-computer-list`, `ET-web-sessions-by-computer-kanban`, and
+  `RT-sessions-by-computer-states`.
+- **Remote version gate.** The controller checks protocol range overlap in `internal/computers/supervisor.go`.
+  Remote Computers first advertised protocol 1 in `d4179ebe9`. That revision already implements the
+  catalog and facets filters, profile selectors, and the five `facets.board` counts used by the views.
+  The existing range of 1 through 1 covers these reads. `RT-computers-operator` covers the remote path.
+
 ## Hosted route TLS readiness (GH-2061)
 
 - **CLI / HTTP / UDS / native tools:** the existing host and controller status fields report public TLS failures. The host uses `retrying` and its existing diagnosis text, and the controller uses `needs_attention` with `hosted_route_tls_failed` when the TLS failure is the most specific connection error. The JSON and OpenAPI shapes are unchanged.

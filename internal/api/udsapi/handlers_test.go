@@ -952,7 +952,10 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 					Toasts: true, Sound: true,
 				}}
 			case settingspkg.SectionShell:
-				envelope.Shell = &settingspkg.ShellSection{Config: compozyconfig.DefaultShellConfig()}
+				cfg := compozyconfig.DefaultShellConfig()
+				cfg.Sessions.Computers = compozyconfig.ShellSessionComputersTogether
+				cfg.Sessions.ComputersExplicit = true
+				envelope.Shell = &settingspkg.ShellSection{Config: cfg}
 			case settingspkg.SectionWindowManager:
 				envelope.WindowManager = &settingspkg.WindowManagerSection{
 					Config: compozyconfig.DefaultWindowManagerConfig(),
@@ -1112,10 +1115,12 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 
 				var response contract.SettingsShellResponse
 				decodeJSONResponse(t, recorder, &response)
+				layout := response.Config.Sessions.Computers
 				if response.Section != contract.SettingsSectionShell ||
 					response.Config.Sessions.Sort != contract.SettingsShellSessionSortCreated ||
-					response.Config.Sessions.Scope != contract.SettingsShellSessionScopeWorkspace {
-					t.Fatalf("shell response = %#v, want default session preferences", response)
+					response.Config.Sessions.Scope != contract.SettingsShellSessionScopeWorkspace ||
+					layout == nil || *layout != contract.SettingsShellSessionComputersTogether {
+					t.Fatalf("shell response = %#v, want computers=together and default sort and scope", response)
 				}
 				if settingsService.LastGetSectionRequest.Section != settingspkg.SectionShell {
 					t.Fatalf(
@@ -1133,8 +1138,9 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			wantStatus: http.StatusOK,
 			body: mustJSONBody(t, contract.UpdateSettingsShellRequest{
 				Config: contract.SettingsShellPayload{Sessions: contract.SettingsShellSessionsPayload{
-					Sort:  contract.SettingsShellSessionSortAttention,
-					Scope: contract.SettingsShellSessionScopeAllWorkspaces,
+					Computers: new(contract.SettingsShellSessionComputersTogether),
+					Sort:      contract.SettingsShellSessionSortAttention,
+					Scope:     contract.SettingsShellSessionScopeAllWorkspaces,
 				}},
 			}),
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
@@ -1148,7 +1154,9 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 				request := settingsService.LastUpdateSectionRequest
 				if request.Section != settingspkg.SectionShell || request.Shell == nil ||
 					request.Shell.Sessions.Sort != compozyconfig.ShellSessionSortAttention ||
-					request.Shell.Sessions.Scope != compozyconfig.ShellSessionScopeAllWorkspaces {
+					request.Shell.Sessions.Scope != compozyconfig.ShellSessionScopeAllWorkspaces ||
+					request.Shell.Sessions.Computers != compozyconfig.ShellSessionComputersTogether ||
+					!request.Shell.Sessions.ComputersExplicit {
 					t.Fatalf("LastUpdateSectionRequest = %#v, want parsed shell config", request)
 				}
 			},

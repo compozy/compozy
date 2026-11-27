@@ -1808,9 +1808,39 @@ func TestUpdateSectionShell(t *testing.T) {
 		}
 		expected := desired
 		expected.Sessions.ScopeExplicit = true
+		expected.Sessions.Computers = compozyconfig.ShellSessionComputersSeparate
 		expected.Sessions.ResolveGroupBy()
 		if !reflect.DeepEqual(loaded.Shell, expected) {
-			t.Fatalf("loaded Shell = %#v, want %#v", loaded.Shell, desired)
+			t.Fatalf("loaded Shell = %#v, want %#v", loaded.Shell, expected)
+		}
+		if strings.Contains(readFile(t, homePaths.ConfigFile), "computers =") {
+			t.Fatal("an omitted computer layout must stay out of config.toml")
+		}
+	})
+
+	t.Run("Should apply an explicit computer layout even when it equals the default", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		desired := compozyconfig.ShellConfig{Sessions: compozyconfig.ShellSessionsConfig{
+			Computers:         compozyconfig.ShellSessionComputersSeparate,
+			ComputersExplicit: true,
+		}}
+		result, err := service.UpdateSection(ctx, SectionUpdateRequest{Section: SectionShell, Shell: &desired})
+		if err != nil {
+			t.Fatalf("UpdateSection(shell) error = %v", err)
+		}
+		if result.Behavior != MutationBehaviorAppliedNow || !result.Applied || result.RestartRequired {
+			t.Fatalf("shell result = %#v, want live applied mutation", result)
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(updated shell) error = %v", err)
+		}
+		if loaded.Shell.Sessions.Computers != desired.Sessions.Computers || !loaded.Shell.Sessions.ComputersExplicit {
+			t.Fatalf("stored sessions = %#v, want explicit separate", loaded.Shell.Sessions)
 		}
 	})
 

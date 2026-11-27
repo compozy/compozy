@@ -3,9 +3,10 @@ package config
 import "fmt"
 
 const (
-	shellConfigInvalidCode = "shell_config_invalid"
-	shellSessionsSortPath  = "shell.sessions.sort"
-	shellSessionsScopePath = "shell.sessions.scope"
+	shellConfigInvalidCode     = "shell_config_invalid"
+	shellSessionsSortPath      = "shell.sessions.sort"
+	shellSessionsScopePath     = "shell.sessions.scope"
+	shellSessionsComputersPath = "shell.sessions.computers"
 )
 
 // ShellSessionSort identifies the operator's preferred session ordering.
@@ -27,6 +28,13 @@ const (
 	ShellSessionScopeAllWorkspaces ShellSessionScope = "all-workspaces"
 )
 
+type ShellSessionComputers string
+
+const (
+	ShellSessionComputersTogether ShellSessionComputers = "together"
+	ShellSessionComputersSeparate ShellSessionComputers = "separate"
+)
+
 // ShellConfig persists operator preferences owned by the web shell.
 type ShellConfig struct {
 	Sessions   ShellSessionsConfig   `toml:"sessions"`
@@ -35,19 +43,22 @@ type ShellConfig struct {
 
 // ShellSessionsConfig persists session-list preferences across shell restarts.
 type ShellSessionsConfig struct {
-	GroupBy         ShellSessionGroupBy `toml:"group_by"`
-	GroupByExplicit bool                `toml:"-"        json:"-"`
-	ScopeExplicit   bool                `toml:"-"        json:"-"`
-	Sort            ShellSessionSort    `toml:"sort"`
-	Scope           ShellSessionScope   `toml:"scope"`
+	GroupBy           ShellSessionGroupBy   `toml:"group_by"`
+	GroupByExplicit   bool                  `toml:"-"         json:"-"`
+	Computers         ShellSessionComputers `toml:"computers"`
+	ComputersExplicit bool                  `toml:"-"         json:"-"`
+	ScopeExplicit     bool                  `toml:"-"         json:"-"`
+	Sort              ShellSessionSort      `toml:"sort"`
+	Scope             ShellSessionScope     `toml:"scope"`
 }
 
 // DefaultShellConfig returns the built-in operator shell preferences.
 func DefaultShellConfig() ShellConfig {
 	return ShellConfig{Sessions: ShellSessionsConfig{
-		Sort:    ShellSessionSortCreated,
-		GroupBy: ShellSessionGroupByProject,
-		Scope:   ShellSessionScopeWorkspace,
+		Sort:      ShellSessionSortCreated,
+		GroupBy:   ShellSessionGroupByProject,
+		Computers: ShellSessionComputersSeparate,
+		Scope:     ShellSessionScopeWorkspace,
 	}}
 }
 
@@ -81,6 +92,15 @@ func (c ShellConfig) Validate() error {
 	case ShellSessionGroupByNone, ShellSessionGroupByProject, ShellSessionGroupByProfile:
 	default:
 		return shellValidationError("shell.sessions.group_by", "must be none, project or profile")
+	}
+	switch c.Sessions.Computers {
+	case "":
+		if c.Sessions.ComputersExplicit {
+			return shellValidationError(shellSessionsComputersPath, "must be together or separate")
+		}
+	case ShellSessionComputersTogether, ShellSessionComputersSeparate:
+	default:
+		return shellValidationError(shellSessionsComputersPath, "must be together or separate")
 	}
 	switch c.Sessions.Scope {
 	case ShellSessionScopeWorkspace, ShellSessionScopeAllWorkspaces:

@@ -5015,6 +5015,94 @@ func TestSettingsProviderUsageHandlers(t *testing.T) {
 }
 
 func TestSettingsShellGrouping(t *testing.T) {
+	t.Run("Should map a partial computer layout update and return the stored layout", func(t *testing.T) {
+		t.Parallel()
+		cfg := compozyconfig.DefaultShellConfig()
+		service := &stubSettingsService{
+			ApplySectionFn: func(_ context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error) {
+				if req.Shell == nil {
+					t.Fatal("missing shell config")
+				}
+				want := compozyconfig.ShellSessionsConfig{
+					Computers:         compozyconfig.ShellSessionComputersTogether,
+					ComputersExplicit: true,
+				}
+				if req.Shell.Sessions != want {
+					t.Fatalf("partial sessions = %#v, want %#v", req.Shell.Sessions, want)
+				}
+				cfg.Sessions.Computers = req.Shell.Sessions.Computers
+				cfg.Sessions.ComputersExplicit = req.Shell.Sessions.ComputersExplicit
+				return settingspkg.ApplyResult{
+					Section: settingspkg.SectionShell,
+					Scope:   settingspkg.ScopeUser,
+					Applied: true,
+				}, nil
+			},
+			GetSectionFn: func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
+				return settingspkg.SectionEnvelope{
+					Section: settingspkg.SectionShell,
+					Scope:   settingspkg.ScopeUser,
+					Shell:   &settingspkg.ShellSection{Config: cfg},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/shell", nil)
+		var before contract.SettingsShellResponse
+		decodeJSON(t, response.Body.Bytes(), &before)
+		if response.Code != http.StatusOK || before.Config.Sessions.Computers != nil {
+			t.Fatalf("GET before update = %d %#v, want omitted computer layout", response.Code, before.Config.Sessions)
+		}
+
+		response = performRequest(
+			t, fixture.Engine, http.MethodPatch, "/api/settings/shell",
+			[]byte(`{"config":{"sessions":{"computers":"together"}}}`),
+		)
+		var mutation contract.SettingsShellMutationResponse
+		decodeJSON(t, response.Body.Bytes(), &mutation)
+		want := before.Config.Sessions
+		want.Computers = new(contract.SettingsShellSessionComputersTogether)
+		if response.Code != http.StatusOK || !mutation.Applied || !reflect.DeepEqual(mutation.Config.Sessions, want) {
+			t.Fatalf("PATCH = %d %#v, want session preferences %#v", response.Code, mutation, want)
+		}
+
+		response = performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/shell", nil)
+		var after contract.SettingsShellResponse
+		decodeJSON(t, response.Body.Bytes(), &after)
+		if response.Code != http.StatusOK || !reflect.DeepEqual(after.Config.Sessions, want) {
+			t.Fatalf("GET after update = %d %#v, want session preferences %#v", response.Code, after, want)
+		}
+	})
+
+	for _, tc := range []struct {
+		name  string
+		value string
+	}{
+		{name: "Should reject an unsupported computer layout before applying settings", value: "merged"},
+		{name: "Should reject an explicit empty computer layout before applying settings", value: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			response := performRequest(
+				t, fixture.Engine, http.MethodPatch, "/api/settings/shell",
+				fmt.Appendf(nil, `{"config":{"sessions":{"computers":%q}}}`, tc.value),
+			)
+			if response.Code != http.StatusBadRequest ||
+				!strings.Contains(response.Body.String(), "shell_config_invalid") ||
+				!strings.Contains(response.Body.String(), "shell.sessions.computers") ||
+				service.ApplySectionCalls != 0 {
+				t.Fatalf(
+					"PATCH = %d %s, apply calls = %d",
+					response.Code,
+					response.Body.String(),
+					service.ApplySectionCalls,
+				)
+			}
+		})
+	}
+
 	t.Run("Should accept partial scope writes and return grouping warnings and legacy revision", func(t *testing.T) {
 		t.Parallel()
 		cfg := compozyconfig.DefaultShellConfig()
