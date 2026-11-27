@@ -332,9 +332,14 @@ export function useHostedBrowserAccess({
     beginAuthorize({ provider, replaceKey: false });
   };
 
+  const openUpgrade = () => {
+    const url = buildUpgradeProUrl(hostname);
+    if (url) openExternal(url);
+  };
+
   const primaryGateAction = () => {
     if (state.kind === "needs_pro") {
-      openExternal(buildUpgradeProUrl(hostname));
+      openUpgrade();
       return;
     }
     if (state.kind === "approval_expired" || state.kind === "not_approved") {
@@ -360,7 +365,7 @@ export function useHostedBrowserAccess({
 
   const secondaryGateAction = () => {
     if (state.kind === "needs_pro") {
-      openExternal(buildUpgradeProUrl(hostname));
+      openUpgrade();
       return;
     }
     clearPendingApproval();

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -109,6 +111,7 @@ func startHostedBrowserEdge(
 					request.Out.Host = host
 					request.Out.Header.Set("X-Forwarded-Proto", "https")
 				},
+				ModifyResponse: exposeBrowserFixtureCloud(cloudURL),
 			}
 			proxy.ServeHTTP(w, r)
 		default:
@@ -116,6 +119,32 @@ func startHostedBrowserEdge(
 		}
 	})
 	return startFixtureHostedEdge(f, handler, "*.compozy.run", "cloud.compozy.com")
+}
+
+// The daemon uses a local Cloud endpoint. Browsers reach the fixture through the HTTPS edge.
+func exposeBrowserFixtureCloud(cloudURL string) func(*http.Response) error {
+	return func(response *http.Response) error {
+		if response.Body == http.NoBody || response.StatusCode != http.StatusOK ||
+			!strings.HasPrefix(response.Header.Get("Content-Type"), "text/html") {
+			return nil
+		}
+		defer response.Body.Close()
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			return err
+		}
+		metadata := []byte(`name="compozy-cloud-origin" content="` + cloudURL + `"`)
+		if !bytes.Contains(body, metadata) {
+			return errors.New("hosted shell lacks the fixture Cloud origin")
+		}
+		body = bytes.Replace(
+			body, metadata, []byte(`name="compozy-cloud-origin" content="https://cloud.compozy.com"`), 1,
+		)
+		response.Body = io.NopCloser(bytes.NewReader(body))
+		response.ContentLength = int64(len(body))
+		response.Header.Set("Content-Length", strconv.Itoa(len(body)))
+		return nil
+	}
 }
 
 func startFixtureHostedEdge(f *fixture, handler http.Handler, hostnames ...string) (int, []string) {

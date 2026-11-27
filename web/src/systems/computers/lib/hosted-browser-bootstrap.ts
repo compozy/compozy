@@ -108,7 +108,7 @@ export async function bootstrapHostedBrowserSession(
     }
   }
 
-  // 1. OAuth callback return from cloud.compozy.com.
+  // 1. OAuth callback from the Cloud environment that owns the route.
   if (typeof window !== "undefined" && window.location.pathname === CALLBACK_PATH) {
     const search = window.location.search;
     window.history.replaceState(null, "", "/");

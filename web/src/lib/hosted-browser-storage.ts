@@ -5,6 +5,7 @@ import {
   exportPublicJwk,
   generateAuthState,
   generateCodeVerifier,
+  hostedCloudOrigin,
   replaceBrowserKeyPair,
   type BrowserPublicJwk,
   type HostedBrowserProvider,
@@ -126,8 +127,9 @@ export async function prepareBrowserAuthorizeRedirect(options: {
   hostname: string;
   provider?: HostedBrowserProvider;
   replaceKey?: boolean;
-  cloudOrigin?: string;
 }): Promise<{ url: string; state: string; codeVerifier: string; publicJwk: BrowserPublicJwk }> {
+  const cloudOrigin = hostedCloudOrigin();
+  if (!cloudOrigin) throw new Error("The hosted route has no trusted Cloud origin.");
   const keyPair = options.replaceKey ? await replaceBrowserKeyPair() : await ensureBrowserKeyPair();
   const publicJwk = await exportPublicJwk(keyPair.publicKey);
   const codeVerifier = generateCodeVerifier();
@@ -145,7 +147,7 @@ export async function prepareBrowserAuthorizeRedirect(options: {
     codeChallenge,
     state,
     provider: options.provider,
-    cloudOrigin: options.cloudOrigin,
+    cloudOrigin,
   });
   return { url, state, codeVerifier, publicJwk };
 }

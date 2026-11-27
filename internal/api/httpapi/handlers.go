@@ -122,11 +122,12 @@ type handlerConfig struct {
 // Handlers expose request/response and SSE endpoints for the Compozy API.
 type Handlers struct {
 	*core.BaseHandlers
-	staticFS       fs.FS
-	resourceAuth   []gin.HandlerFunc
-	Extensions     ExtensionService
-	boundHost      string
-	ingressLimiter *ingress.RateLimiter
+	staticFS        fs.FS
+	hostedCloudMeta []byte
+	resourceAuth    []gin.HandlerFunc
+	Extensions      ExtensionService
+	boundHost       string
+	ingressLimiter  *ingress.RateLimiter
 }
 
 func newHandlers(cfg *handlerConfig) *Handlers {

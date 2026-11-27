@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
+	"html"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -41,7 +42,7 @@ func newStaticFS() (staticSourceFS, error) {
 	return newEmbeddedStaticFS()
 }
 
-func NewHostedAppHandler(logger *slog.Logger, startedAt time.Time) (http.Handler, error) {
+func NewHostedAppHandler(logger *slog.Logger, startedAt time.Time, cloudOrigin string) (http.Handler, error) {
 	source, err := newStaticFS()
 	if err != nil {
 		return nil, err
@@ -49,6 +50,8 @@ func NewHostedAppHandler(logger *slog.Logger, startedAt time.Time) (http.Handler
 	handlers := &Handlers{
 		BaseHandlers: &core.BaseHandlers{Logger: logger, StartedAt: startedAt},
 		staticFS:     source.fs,
+		hostedCloudMeta: []byte(`<head><meta name="compozy-cloud-origin" content="` +
+			html.EscapeString(cloudOrigin) + `">`),
 	}
 	router := ginutil.NewEngine()
 	router.NoRoute(handlers.serveStaticRoute)
@@ -181,6 +184,18 @@ func (h *Handlers) serveAsset(c *gin.Context, asset string) {
 	}
 	if strings.HasSuffix(cleanAsset, ".webmanifest") {
 		c.Header("Content-Type", "application/manifest+json")
+	}
+
+	if cleanAsset == "index.html" && len(h.hostedCloudMeta) != 0 {
+		data, err := io.ReadAll(file)
+		if err != nil {
+			respondNotFound(c)
+			return
+		}
+		c.Header("Cache-Control", "no-store")
+		data = bytes.Replace(data, []byte("<head>"), h.hostedCloudMeta, 1)
+		http.ServeContent(c.Writer, c.Request, cleanAsset, time.Time{}, bytes.NewReader(data))
+		return
 	}
 
 	if seeker, ok := file.(io.ReadSeeker); ok {

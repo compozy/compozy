@@ -61,7 +61,7 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 	if !ok || workers.account == nil {
 		return nil
 	}
-	app, err := httpapi.NewHostedAppHandler(state.logger, state.startedAt)
+	app, err := httpapi.NewHostedAppHandler(state.logger, state.startedAt, workers.cloud.Origin())
 	if err != nil {
 		return fmt.Errorf("daemon: load hosted web app: %w", err)
 	}

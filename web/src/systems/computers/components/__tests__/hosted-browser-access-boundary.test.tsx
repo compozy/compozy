@@ -83,6 +83,8 @@ function DesktopHostedProbe() {
 }
 
 describe("HostedBrowserAccessBoundary & phone layout (UT-072, U8)", () => {
+  let cloudOriginMeta: HTMLMetaElement;
+
   beforeEach(() => {
     resetHostedBrowserAuth();
     sessionStorage.clear();
@@ -90,6 +92,10 @@ describe("HostedBrowserAccessBoundary & phone layout (UT-072, U8)", () => {
     setBrowserKeyStore(createMemoryKeyStore());
     setViewportWide(true);
     window.history.replaceState(null, "", "/");
+    cloudOriginMeta = document.createElement("meta");
+    cloudOriginMeta.name = "compozy-cloud-origin";
+    cloudOriginMeta.content = "https://cloud.compozy.com";
+    document.head.append(cloudOriginMeta);
   });
 
   afterEach(() => {
@@ -100,6 +106,7 @@ describe("HostedBrowserAccessBoundary & phone layout (UT-072, U8)", () => {
     sessionStorage.clear();
     localStorage.clear();
     window.history.replaceState(null, "", "/");
+    cloudOriginMeta.remove();
   });
 
   it("renders its children on non-hosted origins without probing /remote/v1/browser/*", () => {
@@ -119,7 +126,8 @@ describe("HostedBrowserAccessBoundary & phone layout (UT-072, U8)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("renders Sign in to CompozyOS and redirects to /v1/browser/authorize with provider + PKCE", async () => {
+  it("redirects staging browser sign-in to staging Cloud with provider and PKCE", async () => {
+    cloudOriginMeta.content = "https://staging.cloud.compozy.com";
     setHostedBrowserMode(true);
     const navigate = vi.fn<(url: string) => void>();
     const user = userEvent.setup();
@@ -154,7 +162,7 @@ describe("HostedBrowserAccessBoundary & phone layout (UT-072, U8)", () => {
 
     await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1));
     const redirectUrl = new URL(navigate.mock.calls[0]![0]);
-    expect(redirectUrl.origin).toBe("https://cloud.compozy.com");
+    expect(redirectUrl.origin).toBe("https://staging.cloud.compozy.com");
     expect(redirectUrl.pathname).toBe("/v1/browser/authorize");
     expect(redirectUrl.searchParams.get("provider")).toBe("google");
     expect(redirectUrl.searchParams.get("code_challenge_method")).toBe("S256");

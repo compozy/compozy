@@ -138,6 +138,7 @@ func prepareRetainedHost(f *fixture, db *remotetest.Database, m *scenarioManifes
 			request.Out.Host = fixtureHostname
 			request.Out.Header.Set("X-Forwarded-Proto", "https")
 		},
+		ModifyResponse: exposeBrowserFixtureCloud(m.CloudURL),
 	}
 	edgePort, edgeEnv := startFixtureHostedEdge(f, proxy, fixtureHostname)
 	startDaemon(f, host, m.CloudURL, edgeEnv...)

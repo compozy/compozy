@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
 	"path"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/compozy/compozy/internal/remoteproto"
 )
 
 func TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks(t *testing.T) {
@@ -26,6 +29,9 @@ func TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks(t *testing.T) {
 		}
 		if !strings.Contains(rootResp.Body.String(), `<div id="app"></div>`) {
 			t.Fatalf("GET / body = %q, want SPA shell", rootResp.Body.String())
+		}
+		if strings.Contains(rootResp.Body.String(), `name="compozy-cloud-origin"`) {
+			t.Fatal("The local SPA shell contains hosted sign-in metadata")
 		}
 		const expectedContentSecurityPolicy = "default-src 'self'; script-src 'self'; " +
 			"style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; " +
@@ -75,6 +81,26 @@ func TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks(t *testing.T) {
 		}
 		if !strings.Contains(loopTaskResp.Body.String(), `<div id="app"></div>`) {
 			t.Fatalf("GET %s body = %q, want SPA shell", loopTaskPath, loopTaskResp.Body.String())
+		}
+	})
+	t.Run("Should serve the configured Cloud origin on hosted navigation", func(t *testing.T) {
+		t.Setenv(webDistDirEnvVar, "")
+		const origin = "https://staging.cloud.compozy.com"
+		app, err := NewHostedAppHandler(slog.Default(), time.Now(), origin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, requestPath := range []string{"/", "/sessions", remoteproto.BrowserCallbackPath} {
+			resp := performRequest(t, app, http.MethodGet, requestPath, nil)
+			if resp.Code != http.StatusOK {
+				t.Fatalf("GET %s status = %d; want 200", requestPath, resp.Code)
+			}
+			if !strings.Contains(resp.Body.String(), `<meta name="compozy-cloud-origin" content="`+origin+`">`) {
+				t.Fatalf("GET %s does not contain the configured Cloud origin", requestPath)
+			}
+			if got := resp.Header().Get("Cache-Control"); got != "no-store" {
+				t.Fatalf("GET %s Cache-Control = %q; want no-store", requestPath, got)
+			}
 		}
 	})
 }

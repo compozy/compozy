@@ -17,6 +17,7 @@ import {
   isHostedOriginCandidate,
   observeHostedBrowserAccess,
   prepareBrowserAuthorizeRedirect,
+  readPendingPkceState,
   replaceBrowserKeyPair,
   resetHostedBrowserAuth,
   setBrowserKeyStore,
@@ -50,10 +51,16 @@ function createMemoryStore(): BrowserKeyStore {
 }
 
 describe("hosted-browser-auth (UT-072)", () => {
+  let cloudOriginMeta: HTMLMetaElement;
+
   beforeEach(() => {
     resetHostedBrowserAuth();
     sessionStorage.clear();
     setBrowserKeyStore(createMemoryStore());
+    cloudOriginMeta = document.createElement("meta");
+    cloudOriginMeta.name = "compozy-cloud-origin";
+    cloudOriginMeta.content = "https://cloud.compozy.com";
+    document.head.append(cloudOriginMeta);
   });
 
   afterEach(() => {
@@ -61,6 +68,7 @@ describe("hosted-browser-auth (UT-072)", () => {
     vi.restoreAllMocks();
     resetHostedBrowserAuth();
     sessionStorage.clear();
+    cloudOriginMeta.remove();
   });
 
   it("detects hosted compozy.run origins and callback paths while ignoring localhost", () => {
@@ -124,9 +132,24 @@ describe("hosted-browser-auth (UT-072)", () => {
       codeChallenge: await deriveCodeChallenge(verifier),
       state: "state-123",
       provider: "github",
+      cloudOrigin: "https://cloud.compozy.com",
     });
     expect(new URL(directUrl).searchParams.get("provider")).toBe("github");
   });
+
+  it.each([undefined, "https://untrusted.example", "http://cloud.compozy.com"])(
+    "rejects an absent or untrusted Cloud origin (%s)",
+    async origin => {
+      if (origin === undefined) cloudOriginMeta.remove();
+      else cloudOriginMeta.content = origin;
+
+      await expect(
+        prepareBrowserAuthorizeRedirect({ hostname: "studio.compozy.run", provider: "google" })
+      ).rejects.toThrow("The hosted route has no trusted Cloud origin.");
+      expect(readPendingPkceState()).toBeNull();
+      expect(buildUpgradeProUrl("studio.compozy.run")).toBeUndefined();
+    }
+  );
 
   it("rejects callback state mismatch without yielding a redeemable code", async () => {
     await prepareBrowserAuthorizeRedirect({

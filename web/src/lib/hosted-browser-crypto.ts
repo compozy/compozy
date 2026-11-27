@@ -1,6 +1,8 @@
 export type HostedBrowserProvider = "google" | "github";
 
-const DEFAULT_CLOUD_ORIGIN = "https://cloud.compozy.com";
+const PRODUCTION_CLOUD_ORIGIN = "https://cloud.compozy.com";
+const STAGING_CLOUD_ORIGIN = "https://staging.cloud.compozy.com";
+type HostedCloudOrigin = typeof PRODUCTION_CLOUD_ORIGIN | typeof STAGING_CLOUD_ORIGIN;
 
 const IDB_NAME = "compozy-hosted-browser";
 const IDB_VERSION = 1;
@@ -20,20 +22,17 @@ export interface BrowserKeyStore {
   delete: () => Promise<void>;
 }
 
-let cloudOriginOverride: string | undefined;
 let customKeyStore: BrowserKeyStore | null = null;
 let memoryKeyPair: CryptoKeyPair | null = null;
 let cachedKeyPair: CryptoKeyPair | null = null;
 let inflightKeyPair: Promise<CryptoKeyPair> | null = null;
 
-/** Overrides the cloud origin for authorize and billing links (tests only). */
-export function setHostedCloudOrigin(origin: string | undefined): void {
-  cloudOriginOverride = origin;
-}
-
-/** Returns the Compozy Cloud origin used for browser sign-in and billing links. */
-export function hostedCloudOrigin(): string {
-  return cloudOriginOverride ?? DEFAULT_CLOUD_ORIGIN;
+export function hostedCloudOrigin(): HostedCloudOrigin | undefined {
+  const origin = document.querySelector<HTMLMetaElement>(
+    'meta[name="compozy-cloud-origin"]'
+  )?.content;
+  if (origin === PRODUCTION_CLOUD_ORIGIN || origin === STAGING_CLOUD_ORIGIN) return origin;
+  return undefined;
 }
 
 /** Replaces the browser key persistence store (tests only). */
@@ -45,7 +44,6 @@ export function setBrowserKeyStore(store: BrowserKeyStore | null): void {
 
 /** Resets in-memory browser crypto state (tests only). */
 export function resetHostedBrowserCrypto(): void {
-  cloudOriginOverride = undefined;
   customKeyStore = null;
   memoryKeyPair = null;
   cachedKeyPair = null;
@@ -276,9 +274,9 @@ export function buildBrowserAuthorizeUrl(params: {
   codeChallenge: string;
   state: string;
   provider?: HostedBrowserProvider;
-  cloudOrigin?: string;
+  cloudOrigin: HostedCloudOrigin;
 }): string {
-  const url = new URL("/v1/browser/authorize", params.cloudOrigin ?? hostedCloudOrigin());
+  const url = new URL("/v1/browser/authorize", params.cloudOrigin);
   url.searchParams.set("hostname", params.hostname);
   url.searchParams.set("public_jwk", encodePublicJwkParam(params.publicJwk));
   url.searchParams.set("code_challenge", params.codeChallenge);
@@ -290,9 +288,10 @@ export function buildBrowserAuthorizeUrl(params: {
   return url.toString();
 }
 
-/** Builds the Upgrade to Pro link (`https://cloud.compozy.com/billing/upgrade?hostname=...`). */
-export function buildUpgradeProUrl(hostname: string, cloudOrigin?: string): string {
-  const url = new URL("/billing/upgrade", cloudOrigin ?? hostedCloudOrigin());
+export function buildUpgradeProUrl(hostname: string): string | undefined {
+  const cloudOrigin = hostedCloudOrigin();
+  if (!cloudOrigin) return undefined;
+  const url = new URL("/billing/upgrade", cloudOrigin);
   url.searchParams.set("hostname", hostname);
   return url.toString();
 }
