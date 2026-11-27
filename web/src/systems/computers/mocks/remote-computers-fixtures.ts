@@ -4,6 +4,7 @@
  * Canonical preset accounts, devices, pending approvals, computers, SSH hosts,
  * hosted peers, and unified sessions shared across all 7 prototype screens.
  */
+import { OWNER_EMAIL } from "./remote-computers-account-fixtures";
 import { buildScaleComputers } from "./remote-computers-scale";
 import {
   ALL_REMOTE_SCOPES,

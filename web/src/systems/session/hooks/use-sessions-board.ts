@@ -4,7 +4,12 @@ import { QueryClientContext, useInfiniteQuery, useQuery } from "@tanstack/react-
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import type { ScopedComputerFailureItem } from "@/systems/computers";
 import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
-import { useActiveWorkspace, workspaceBadgeIdentity, type DataScope } from "@/systems/workspace";
+import {
+  useActiveWorkspace,
+  workspaceBadgeIdentity,
+  type DataScope,
+  type WorkspacePayload,
+} from "@/systems/workspace";
 
 import {
   SESSION_BOARD_COLUMNS,
@@ -319,7 +324,7 @@ function boardBreadth(scope: DataScope | null, computerScope: ComputerId, aggreg
 
 function boardWorkspaceNames(
   multi: MultiComputerBoardModel,
-  workspaces: ReturnType<typeof useActiveWorkspace>["registeredWorkspaces"],
+  workspaces: readonly WorkspacePayload[],
   allProjects: boolean
 ): SessionsBoardView["workspaceNameOf"] {
   if (multi.hasRemoteComputers) return multi.workspaceNameOf;

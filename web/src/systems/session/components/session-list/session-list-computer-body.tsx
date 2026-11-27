@@ -238,7 +238,7 @@ function SessionListComputerDialogs({
   setProjectFolderDialog,
 }: {
   folders: ReturnType<typeof useSessionListFolderLayout>;
-  projectLayout: NonNullable<SessionListViewModel["projectFolders"]>["layout"];
+  projectLayout?: NonNullable<SessionListViewModel["projectFolders"]>["layout"];
   projectFolderDialog: SessionFolderDialogState<WorkspaceFolderPayload>;
   setProjectFolderDialog: (state: SessionFolderDialogState<WorkspaceFolderPayload>) => void;
 }) {

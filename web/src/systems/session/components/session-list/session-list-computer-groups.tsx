@@ -98,7 +98,9 @@ function TogetherGroupList({
   const { view } = props;
   const sourcesById = new Map(sources.map(source => [source.key, source]));
   const connecting = sources.filter(source => source.read === "connecting");
-  const failed = sources.filter(source => source.read === "failed");
+  const failed = sources.flatMap(source =>
+    source.read === "failed" ? [{ id: source.key, name: source.name, retry: source.retry }] : []
+  );
 
   return (
     <div className="flex flex-col gap-1" data-testid={`${props.testIdPrefix}-together-groups`}>

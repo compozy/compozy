@@ -404,11 +404,12 @@ export function useComputerSessionsSources(options: {
     {
       queries:
         hasRemoteComputers && includeProfiles
-          ? [localView, ...remoteViews].map(computer =>
-              computer.id === LOCAL_COMPUTER_ID
-                ? profilesListOptions(enabled)
-                : profilesListOptions(enabled && computer.status === "connected", computer.id)
-            )
+          ? [
+              profilesListOptions(enabled),
+              ...remoteViews.map(computer =>
+                profilesListOptions(enabled && computer.status === "connected", computer.id)
+              ),
+            ]
           : [],
     },
     queryClient

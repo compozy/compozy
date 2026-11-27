@@ -138,11 +138,13 @@ describe("Multi-computer Kanban columns, shelves, and project-scoped filters", (
       cached
     );
     vi.mocked(fetchSessionCatalogPage).mockResolvedValue(cached);
-    const { result, rerender } = renderHook(
-      ({ scope }: { scope: DataScope }) =>
-        useMultiComputerBoardShelf([remote], scope, {}, lens, "archive", true),
-      { initialProps: { scope: all }, wrapper: wrap(client) }
-    );
+    const { result, rerender } = renderHook<
+      ReturnType<typeof useMultiComputerBoardShelf>,
+      { scope: DataScope }
+    >(({ scope }) => useMultiComputerBoardShelf([remote], scope, {}, lens, "archive", true), {
+      initialProps: { scope: all },
+      wrapper: wrap(client),
+    });
 
     await waitFor(() =>
       expect(result.current?.sessions.map(session => session.id)).toEqual([row.id])
