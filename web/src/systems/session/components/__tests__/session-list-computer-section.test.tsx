@@ -14,10 +14,11 @@ import { LOCAL_COMPUTER } from "@/systems/computers/mocks/remote-computers-fixtu
 
 import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
 import { useSessionListDnd } from "../../hooks/use-session-list-dnd";
+import { buildComputerPopulationFilters } from "../../lib/session-list-computer-filter";
 import { sessionKeys } from "../../lib/query-keys";
 import { primarySessionFixture } from "../../mocks/fixtures";
 import { sessionLifecycleActionsFixture } from "../../mocks/session-row-fixtures";
-import type { SessionCatalogPageResponse } from "../../types";
+import type { SessionCatalogPageResponse, SessionPayload } from "../../types";
 import { SessionListComputerSection } from "../session-list/session-list-computer-section";
 import { SessionListTotals } from "../session-list/session-list-totals";
 
@@ -229,15 +230,31 @@ describe("SessionListComputerSection and Not counted footer (T-F7)", () => {
     expect(container).toBeEmptyDOMElement();
 
     const offlineClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const cachedPage: SessionCatalogPageResponse = {
+    const cachedPage: Omit<SessionCatalogPageResponse, "sessions"> & {
+      sessions: SessionPayload[];
+    } = {
       sessions: [
-        { ...primarySessionFixture, id: "off_1", name: "Retry SPEI webhook", computerId: "cmp_off" },
+        {
+          ...primarySessionFixture,
+          id: "off_1",
+          name: "Retry SPEI webhook",
+          computerId: "cmp_off",
+        },
         { ...primarySessionFixture, id: "off_2", name: "Vacuum archive", computerId: "cmp_off" },
       ],
       page: { has_more: false, next_cursor: "", limit: 50, total: 2 },
     };
     offlineClient.setQueryData(
-      sessionKeys.forComputer("cmp_off").catalogPage({ all_workspaces: true, all_profiles: true }),
+      sessionKeys.forComputer("cmp_off").catalogPage({
+        all_workspaces: true,
+        all_profiles: true,
+        ...buildComputerPopulationFilters({
+          shelf: "active",
+          showAutomation: false,
+          excludePinned: true,
+          search: "webhook",
+        }),
+      }),
       cachedPage
     );
 
@@ -256,7 +273,9 @@ describe("SessionListComputerSection and Not counted footer (T-F7)", () => {
       client: offlineClient,
     });
     expect(matchRender.getByTestId("test-computer-cmp_off")).toBeInTheDocument();
-    expect(matchRender.getByTestId("test-computer-cmp_off-offline-search-note")).toBeInTheDocument();
+    expect(
+      matchRender.getByTestId("test-computer-cmp_off-offline-search-note")
+    ).toBeInTheDocument();
     matchRender.unmount();
 
     const noMatchRender = renderSection(offlineSource, {

@@ -43,7 +43,11 @@ import {
   projectSessionGroup,
   projectSessionGroups,
 } from "../../lib/session-list-groups";
-import { buildProjectGroupTree, projectGroupTreeGroups } from "../../lib/workspace-folders";
+import {
+  buildProjectGroupTree,
+  projectGroupsForView,
+  projectGroupTreeGroups,
+} from "../../lib/workspace-folders";
 import { workspaceFolderFixture } from "../../mocks/workspace-layout-handlers";
 import {
   sessionListCatalogFixture,
@@ -4892,6 +4896,24 @@ describe("SessionList breadth and Group by", () => {
     // No project behind the User group: the click falls through and no project menu opens.
     expect(fireEvent.contextMenu(screen.getByTestId("session-sidebar-group-user"))).toBe(true);
     expect(screen.queryByRole("menuitem", { name: "Archive project" })).not.toBeInTheDocument();
+  });
+
+  it("Should omit controller project mutations from a synthesized empty remote project header", async () => {
+    const groups = projectGroupsForView([], {
+      showEmpty: true,
+      workspaces: WORKSPACES,
+      lens: { profile: "default" },
+      computerId: "cmp_remote",
+    });
+    renderList({ sessions: [], view: grouped({ groups }) });
+
+    const toggle = await screen.findByTestId("session-sidebar-group-project:ws-alpha");
+    await waitFor(() => {
+      fireEvent.contextMenu(toggle);
+      expect(screen.getByRole("menuitem", { name: "New" })).toBeVisible();
+    });
+    expect(screen.queryByRole("menuitem", { name: "Archive project" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Remove project" })).toBeNull();
   });
 
   // US-002.AC-4: the project context menu opens that project's Files window.

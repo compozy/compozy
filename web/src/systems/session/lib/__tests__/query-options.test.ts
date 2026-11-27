@@ -661,7 +661,8 @@ describe("session read invalidation", () => {
     },
     {
       name: "catalog",
-      invalidate: (client: QueryClient, ws: string) => invalidateWorkspaceSessionCatalog(client, ws),
+      invalidate: (client: QueryClient, ws: string) =>
+        invalidateWorkspaceSessionCatalog(client, ws),
       affected: ["catalog", "folders", "aggregate"],
     },
     {

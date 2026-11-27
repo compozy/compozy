@@ -4,11 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionListShelf } from "../../lib/session-list-shelf";
-import {
-  parseSessionRowKey,
-  withSessionComputer,
-  sessionRowKey,
-} from "../../lib/session-row-ref";
+import { parseSessionRowKey, withSessionComputer, sessionRowKey } from "../../lib/session-row-ref";
 import { sessionSelectionCounts, useSessionSelection } from "../use-session-selection";
 
 // Invariant: selection belongs to one list identity and ranges use only rendered order.

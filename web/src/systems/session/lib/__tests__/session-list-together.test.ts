@@ -1,13 +1,16 @@
 // Suite: Together layout grouping, sorting, computer provenance and Load more selection (T-F6)
 // Invariant: Together + Project builds `project · computer` groups and Together + Profile builds
 //            `profile · computer` groups from per-computer facets without merging computers;
-//            Together + None honors the window sort (O1, O2) and selects the oldest-cursor
+//            Together + None honors the window sort (O1, O2) and selects the newest-tail
 //            connected computer for Load more (S10).
 // Owning layer: unit (systems/session/lib)
 import { describe, expect, it } from "vitest";
 
 import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
-import { LOCAL_COMPUTER, makeComputerFixture } from "@/systems/computers/mocks/remote-computers-fixtures";
+import {
+  LOCAL_COMPUTER,
+  makeComputerFixture,
+} from "@/systems/computers/mocks/remote-computers-fixtures";
 
 import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
 import type { SessionPayload } from "../../types";
@@ -205,10 +208,11 @@ describe("Together layout helpers (T-F6)", () => {
       },
     ];
 
-    const byAttention = mergeTogetherFlatRows(entries, "attention");
+    const complete = entries.map(entry => ({ ...entry, hasMore: false, nextCursor: null }));
+    const byAttention = mergeTogetherFlatRows(complete, "attention");
     expect(byAttention.map(row => row.computerId)).toEqual(["cmp_devbox", LOCAL_COMPUTER_ID]);
 
-    const byActivity = mergeTogetherFlatRows(entries, "last_activity");
+    const byActivity = mergeTogetherFlatRows(complete, "last_activity");
     expect(byActivity.map(row => row.computerId)).toEqual([LOCAL_COMPUTER_ID, "cmp_devbox"]);
 
     const computerMap = buildTogetherComputerMap(entries);
@@ -220,9 +224,13 @@ describe("Together layout helpers (T-F6)", () => {
     );
 
     expect(selectNextTogetherComputer(entries)).toEqual({
-      computerId: "cmp_devbox",
-      computerName: "devbox",
-      nextCursor: "cur_devbox",
+      computerId: LOCAL_COMPUTER_ID,
+      computerName: "MacBook Pro",
+      nextCursor: "cur_local",
     });
+    expect(mergeTogetherFlatRows(entries, "last_activity").map(row => row.computerId)).toEqual([
+      LOCAL_COMPUTER_ID,
+    ]);
+    expect(selectNextTogetherComputer(entries, "attention")?.computerId).toBe("cmp_devbox");
   });
 });

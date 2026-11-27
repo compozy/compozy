@@ -20,7 +20,13 @@ import {
   makeComputerFixture,
 } from "@/systems/computers/mocks/remote-computers-fixtures";
 
+import type { DataScope } from "@/systems/workspace";
 import { fetchSessionCatalogPage } from "../../adapters/session-catalog-api";
+import {
+  sessionCatalogPageQueryOptions,
+  SESSION_BOARD_PAGE_SIZE,
+} from "../../lib/session-catalog-options";
+import { sessionListShelfFilters } from "../../lib/session-list-shelf";
 import { sessionRowKey } from "../../lib/session-row-ref";
 import { primarySessionFixture } from "../../mocks/fixtures";
 import type { ComputerSessionsSource } from "../use-computer-sessions-sources";
@@ -74,7 +80,7 @@ describe("Multi-computer Kanban columns, shelves, and project-scoped filters", (
     const matchedSpec = boardFiltersForSource(
       matchedRemote,
       { kind: "project", workspaceId: "ws_local_1" },
-      { sort: "updated_at_desc" },
+      { sort: "last_activity" },
       { profile: "default" }
     );
     expect(matchedSpec.emptyRemoteMatch).toBe(false);
@@ -89,7 +95,7 @@ describe("Multi-computer Kanban columns, shelves, and project-scoped filters", (
     const unmatchedSpec = boardFiltersForSource(
       unmatchedRemote,
       { kind: "project", workspaceId: "ws_local_1" },
-      { sort: "updated_at_desc" },
+      { sort: "last_activity" },
       { profile: "default" }
     );
     expect(unmatchedSpec.emptyRemoteMatch).toBe(true);
@@ -100,7 +106,7 @@ describe("Multi-computer Kanban columns, shelves, and project-scoped filters", (
         useMultiComputerBoardShelf(
           [unmatchedRemote],
           { kind: "project", workspaceId: "ws_local_1" },
-          { sort: "updated_at_desc" },
+          { sort: "last_activity" },
           { profile: "default" },
           "archive",
           true
@@ -111,15 +117,53 @@ describe("Multi-computer Kanban columns, shelves, and project-scoped filters", (
     expect(fetchSessionCatalogPage).not.toHaveBeenCalled();
   });
 
+  it("Should exclude cached archive rows and totals when the remote repository does not match", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const remote = makeSource({ key: "cmp_studio", name: "studio", matchedWorkspaceIds: [] });
+    const row = { ...primarySessionFixture, id: "remote-archived" };
+    const all: DataScope = { kind: "all" };
+    const lens = { all_profiles: true } as const;
+    const filters = {
+      ...boardFiltersForSource(remote, all, {}, lens).filters,
+      ...sessionListShelfFilters("archive"),
+      limit: SESSION_BOARD_PAGE_SIZE,
+      skip_total: false,
+    };
+    const cached = {
+      sessions: [row],
+      page: { total: 9, has_more: true, next_cursor: "other", limit: 50 },
+    };
+    client.setQueryData(
+      sessionCatalogPageQueryOptions(filters, undefined, remote.key).queryKey,
+      cached
+    );
+    vi.mocked(fetchSessionCatalogPage).mockResolvedValue(cached);
+    const { result, rerender } = renderHook(
+      ({ scope }: { scope: DataScope }) =>
+        useMultiComputerBoardShelf([remote], scope, {}, lens, "archive", true),
+      { initialProps: { scope: all }, wrapper: wrap(client) }
+    );
+
+    await waitFor(() =>
+      expect(result.current?.sessions.map(session => session.id)).toEqual([row.id])
+    );
+    expect(result.current?.total).toBe(9);
+    rerender({ scope: { kind: "project", workspaceId: "ws-unmatched" } });
+    expect(result.current?.sessions).toEqual([]);
+    expect(result.current?.total).toBeUndefined();
+    expect(result.current?.hasMore).toBe(false);
+    expect(result.current?.failure).toBeNull();
+  });
+
   it("Should merge Together + None columns, sum facets.board, qualify computer provenance, and page loadMore (Opus 4 / Astra 9 / Opus 11)", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     vi.mocked(fetchSessionCatalogPage).mockImplementation(async (filters, _signal, computerId) => {
-      const col = filters.board_column?.[0];
+      const col = filters?.board_column?.[0];
       if (col !== "working") {
         return { sessions: [], page: { has_more: false, next_cursor: "", limit: 50 } };
       }
       if (computerId === "cmp_devbox") {
-        if (filters.cursor === "cur_dev_2") {
+        if (filters?.cursor === "cur_dev_2") {
           return {
             sessions: [
               {
@@ -201,7 +245,7 @@ describe("Multi-computer Kanban columns, shelves, and project-scoped filters", (
         useTogetherBoardColumns({
           sources: [local, devbox],
           scope: { kind: "all" },
-          shared: { sort: "updated_at_desc" },
+          shared: { sort: "last_activity" },
           localLens: { all_profiles: true },
           sort: "last_activity",
           enabled: true,

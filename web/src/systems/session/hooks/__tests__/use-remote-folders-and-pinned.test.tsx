@@ -8,9 +8,9 @@
 //            over identical session IDs on two computers execute and retry independently.
 // Owning layer: hooks (systems/session/hooks)
 import { QueryClient, QueryClientProvider, useInfiniteQuery } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../adapters/session-folders-api", () => ({
   fetchSessionFolders: vi.fn(),
@@ -45,6 +45,8 @@ import {
 } from "../../lib/session-row-ref";
 import { primarySessionFixture } from "../../mocks/fixtures";
 import type { ComputerSessionsSource } from "../use-computer-sessions-sources";
+import { useArchiveSession } from "../use-session-actions";
+import { useSessionPinActions } from "../use-session-pin-actions";
 import { useMultiComputerPinned } from "../use-multi-computer-pinned";
 import { useSessionFolders } from "../use-session-folders";
 
@@ -55,6 +57,7 @@ function wrap(client: QueryClient) {
 
 describe("Remote folders (T-F11), multi-computer Pinned (T-F12), ownership and cross-computer batches", () => {
   beforeEach(() => vi.clearAllMocks());
+  afterEach(() => vi.unstubAllGlobals());
 
   it("Should return cached folders without issuing network requests when readOnly is true (F10/F11)", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -197,7 +200,7 @@ describe("Remote folders (T-F11), multi-computer Pinned (T-F12), ownership and c
     ).toBe(false);
   });
 
-  it("Should preserve remote computerId on fetched rows across TanStack Query structural-sharing refetches (Opus 1 / Astra 2)", async () => {
+  it("Should pin and archive a refetched remote row through its computer", async () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: 0 } },
     });
@@ -217,25 +220,47 @@ describe("Remote folders (T-F11), multi-computer Pinned (T-F12), ownership and c
       };
     });
 
+    const writes: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (request: Request) => {
+        const path = new URL(request.url).pathname;
+        if (request.method === "POST") writes.push(path);
+        return Response.json({ session: primarySessionFixture });
+      })
+    );
     const { result } = renderHook(
-      () => useInfiniteQuery(sessionCatalogOptions({ all_workspaces: true }, "cmp_devbox")),
+      () => ({
+        catalog: useInfiniteQuery(sessionCatalogOptions({ all_workspaces: true }, "cmp_devbox")),
+        pin: useSessionPinActions(vi.fn()),
+        archive: useArchiveSession(),
+      }),
       { wrapper: wrap(client) }
     );
 
     await waitFor(() =>
-      expect(result.current.data?.pages[0]?.sessions[0]?.name).toBe("Before refetch")
+      expect(result.current.catalog.data?.pages[0]?.sessions[0]?.name).toBe("Before refetch")
     );
-    const firstRow = result.current.data!.pages[0]!.sessions[0]!;
+    const firstRow = result.current.catalog.data!.pages[0]!.sessions[0]!;
     expect(firstRow.computerId).toBe("cmp_devbox");
     expect(sessionComputerOf(firstRow)).toBe("cmp_devbox");
 
-    await result.current.refetch();
+    await result.current.catalog.refetch();
     await waitFor(() =>
-      expect(result.current.data?.pages[0]?.sessions[0]?.name).toBe("After refetch")
+      expect(result.current.catalog.data?.pages[0]?.sessions[0]?.name).toBe("After refetch")
     );
-    const refetchedRow = result.current.data!.pages[0]!.sessions[0]!;
+    const refetchedRow = result.current.catalog.data!.pages[0]!.sessions[0]!;
     expect(refetchedRow.computerId).toBe("cmp_devbox");
     expect(sessionComputerOf(refetchedRow)).toBe("cmp_devbox");
+    act(() => result.current.pin.onPin(refetchedRow));
+    await waitFor(() => expect(result.current.pin.announcement).toContain("Pinned"));
+    await act(async () => {
+      await result.current.archive.mutateAsync(refetchedRow);
+    });
+    expect(writes).toEqual([
+      expect.stringMatching(/^\/c\/cmp_devbox\/api\/.*\/sess_remote_1\/pin$/),
+      expect.stringMatching(/^\/c\/cmp_devbox\/api\/.*\/sess_remote_1\/archive$/),
+    ]);
   });
 
   it("Should execute, track progress, and retry two same-ID sessions on different computers independently (Astra 6)", async () => {
