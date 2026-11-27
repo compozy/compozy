@@ -4,10 +4,10 @@ area: ET
 title: Select and act on sessions in the shared workspace list
 persona: Bruno
 journey: J-14
-expected: Both the session window sidebar and Sessions modal support a transient selection in workspace scope. Eligible actions run with bounded concurrency through existing session mutations; related session trees retain their ordering. Selection follows current catalog membership; successful Stop keeps rows selected, Archive and Unarchive prune rows that leave the view, and failed rows remain selected. Delete confirms the set, reports progress, and retries only failed sessions.
+expected: Both the session window sidebar and Sessions modal support a transient selection in workspace scope. Eligible actions run with bounded concurrency through existing session mutations; related session trees retain their ordering. Selection follows current catalog membership; successful Stop keeps rows selected, Archive and Unarchive prune rows that leave the view, and failed rows remain selected. Delete confirms the set, reports progress, and retries only failed sessions. A selection can span computers. Lifecycle actions use each session's computer. A folder move requires one computer, project, and profile.
 entry_points: SessionSidebar; Sessions modal in workspace scope; row checkboxes and modifier clicks; Selected sessions toolbar
-qa_status: skipped
-overlaps: ET-web-session-sidebar-threads; ET-web-session-folders-manual-order
+qa_status: untested
+overlaps: ET-web-session-sidebar-threads; ET-web-session-folders-manual-order; ET-web-sessions-by-computer-list
 ---
 
 Added 2026-09-11. The visual contract is
@@ -220,3 +220,11 @@ absence on the Archived shelf and in the User scope were all observed; archiving
 shows the toast. All profiles and step 5's failure toasts were not reachable in the walk; the hook and
 session list suites own them. The bulk-selection walk above stays deferred, so `qa_status` stays
 `skipped`. Report: [2026-11-22-archive-stopped-1940](../reports/2026-11-22-archive-stopped-1940.md).
+
+## Sessions by computer
+
+1. In a window with **All computers**, select one active session on each of two connected computers.
+2. Confirm **Move to folder** is disabled with "Sessions on different computers can't share a folder."
+3. Stop the selected sessions. Confirm each computer stops its own session.
+4. Induce one per-computer failure. Confirm the list identifies the failed computer and keeps its failed rows selected.
+5. Change the computer scope or layout. Confirm the window clears the selection.

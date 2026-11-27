@@ -5,8 +5,9 @@ title: Operate a linked computer through the controller
 persona: Iris
 journey: J-operate-remote-computers
 expected: Operator actions reach the selected computer and use its state, scopes, and agent leases.
-entry_points: Computers; terminal; provider status; Files; Changes; Tasks; controller HTTP and UDS
-qa_status: pending
+entry_points: Computers; Sessions List and Kanban; terminal; provider status; Files; Changes; Tasks; controller HTTP and UDS
+qa_status: untested
+overlaps: RT-sessions-by-computer-states; ET-web-sessions-by-computer-list; ET-web-sessions-by-computer-kanban
 ---
 
 1. Link a computer and add it to the controller. On the target, register a Git workspace with a changed file. Compare the file contents, Changes, and worktree records through the bridge and through the target's local API. Create and remove a worktree through the bridge and confirm the changes on the target.
@@ -20,6 +21,9 @@ qa_status: pending
 9. List sessions through the controller bridge as a local operator on HTTP and UDS. Repeat as an app token and as an identified agent caller. Confirm both refusals happen at the controller.
 10. Keep a bridged terminal stream open across credential renewal. Enroll another device on the account while the terminal is running. Confirm new output arrives over the original stream and the target persists the command in its journal.
 
-11. On a linked Pro host, enable the hosted route. With valid edge TLS, verify `compozy remote status --json` reports `ready`, the assigned HTTPS URL serves the app, and the controller can connect over Cloud. In a fixture where the public edge refuses TLS while the connector is connected, expect `retrying` with a TLS diagnosis on the host and `hosted_route_tls_failed` on the controller when Cloud is the only route. Restore TLS and confirm the same hostname becomes ready.
+11. Open Sessions in the controller and select **All computers**. Confirm that List and Kanban show the target under **Separate**. Compare counts with the target's catalog and facets using the same scope and population filters.
+12. On a linked Pro host, enable the hosted route. With valid edge TLS, verify `compozy remote status --json` reports `ready`, the assigned HTTPS URL serves the app, and the controller can connect over Cloud. In a fixture where the public edge refuses TLS while the connector is connected, expect `retrying` with a TLS diagnosis on the host and `hosted_route_tls_failed` on the controller when Cloud is the only route. Restore TLS and confirm the same hostname becomes ready.
 
-Walk the UI parts with E2E-004 after integrating the terminal and provider views.
+Walk the Sessions view with E2E-003. Walk the terminal and provider views with E2E-004.
+The controller's protocol 1 floor includes the session catalog filters and the five board counts.
+Walk incompatible protocol ranges in `RT-sessions-by-computer-states`.

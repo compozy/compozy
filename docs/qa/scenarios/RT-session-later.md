@@ -4,16 +4,16 @@ area: RT
 title: Park a session tree in Later and bring it back by date, prompt, or Back from Later
 persona: Théo
 journey: J-archive-session-without-deleting
-expected: Move to Later stops the session, its child sessions, monitors, pending wakes, processes, and terminals, then parks the tree without deleting history; parked sessions leave the default list, board, and counts and appear in Later with reason, return date, parked time, and pending messages; a return date fires once, survives daemon restart, and lands the session in Needs you with a notification; an operator prompt resumes it; an agent message queues with disposition later and does not resume it.
+expected: Move to Later stops the session, its child sessions, monitors, pending wakes, processes, and terminals, then parks the tree without deleting history; parked sessions leave the default list, board, and counts and appear in Later with reason, return date, parked time, and pending messages; a return date fires once, survives daemon restart, and lands the session in Needs you with a notification; an operator prompt resumes it; an agent message queues with disposition later and does not resume it. The Later shelf shows sessions and counts from the responding computers in scope.
 entry_points: Web Move to Later dialog (Markdown reason editor, date picker), session list Later view and Kanban Later bar; CLI session later/resume-later/list --later; HTTP+UDS later routes; native tools session_later/session_resume_later/session_prompt
-qa_status: pending
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pending
 fix_commits:
 evidence:
 last_report: docs/qa/reports/2026-10-31-issue-1076-session-later.md
-overlaps: RT-session-archive-catalog; ET-web-sessions-board-paging-archive
+overlaps: RT-session-archive-catalog; ET-web-sessions-board-paging-archive; ET-web-sessions-by-computer-list
 ---
 
 Later is not archive: it parks work you mean to return to. It must never delete or rewrite session
@@ -78,3 +78,11 @@ not children and are not parked with it.
 1. `compozy session resume-later <id>` returns it stopped to the normal list; children stay parked
    unless `--with-children` is passed.
 2. Archiving a parked session succeeds and clears Later.
+
+## Sessions by computer
+
+1. Park one session on this computer and one on a remote computer.
+2. Open **Later** under **Separate**. Compare the rows and counts with each computer's Later catalog.
+3. Choose **Together** and confirm both rows remain in scope.
+4. Scope the window to the remote computer. Confirm the shelf shows that computer's row and count.
+5. Resume it from Later. Confirm the remote catalog updates.
