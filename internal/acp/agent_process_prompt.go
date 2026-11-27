@@ -15,6 +15,8 @@ import (
 
 type activePromptState struct {
 	promptContext         context.Context
+	clarificationContext  context.Context
+	cancelClarifications  context.CancelFunc
 	steerMu               sync.Mutex
 	steerWG               sync.WaitGroup
 	finishing             bool
@@ -71,13 +73,13 @@ func (p *AgentProcess) beginPromptForRun(
 	generation int64,
 	traceCtx trace.SpanContext,
 	bufferSize int,
-	cancelFns ...context.CancelFunc,
+	cancel context.CancelFunc,
 ) (*activePromptState, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" || generation <= 0 {
 		return nil, errors.New("acp: prompt run identity is incomplete")
 	}
-	return p.beginPromptState(ctx, turnID, runID, generation, traceCtx, bufferSize, cancelFns...)
+	return p.beginPromptState(ctx, turnID, runID, generation, traceCtx, bufferSize, cancel)
 }
 
 func (p *AgentProcess) beginPromptState(
@@ -87,7 +89,7 @@ func (p *AgentProcess) beginPromptState(
 	generation int64,
 	traceCtx trace.SpanContext,
 	bufferSize int,
-	cancelFns ...context.CancelFunc,
+	cancel context.CancelFunc,
 ) (*activePromptState, error) {
 	p.promptMu.Lock()
 	defer p.promptMu.Unlock()
@@ -100,12 +102,11 @@ func (p *AgentProcess) beginPromptState(
 	if bufferSize <= 0 {
 		bufferSize = 1
 	}
-	var cancel context.CancelFunc
-	if len(cancelFns) > 0 {
-		cancel = cancelFns[0]
-	}
+	clarificationCtx, cancelClarifications := context.WithCancel(ctx)
 	active := &activePromptState{
 		promptContext:        ctx,
+		clarificationContext: clarificationCtx,
+		cancelClarifications: cancelClarifications,
 		turnID:               turnID,
 		runID:                runID,
 		generation:           generation,
@@ -127,6 +128,7 @@ func (p *AgentProcess) endPrompt(active *activePromptState) {
 	if active == nil {
 		return
 	}
+	active.cancelClarifications()
 
 	detached := false
 	p.promptMu.Lock()

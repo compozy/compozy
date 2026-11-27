@@ -104,6 +104,7 @@ func (d *Driver) CancelCooperatively(ctx context.Context, proc *AgentProcess) er
 	}
 	err := proc.conn.SendNotification(ctx, acpsdk.AgentMethodSessionCancel,
 		acpsdk.CancelNotification{SessionId: acpsdk.SessionId(proc.SessionID)})
+	active.cancelClarifications()
 	if err != nil {
 		active.cooperativeCancelSent.Store(false)
 		return fmt.Errorf("acp: request cooperative prompt cancellation: %w", err)

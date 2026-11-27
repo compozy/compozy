@@ -1066,6 +1066,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 		17,
 		trace.SpanContext{},
 		8,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("beginPromptForRun() error = %v", err)
@@ -1276,7 +1277,7 @@ func TestHandleCreateTerminalStopsTerminalOnRegistrationFailure(t *testing.T) {
 		}
 
 		active, err := proc.beginPromptForRun(
-			t.Context(), "turn-terminal-create-failure", "run-terminal-create-failure", 1, trace.SpanContext{}, 4,
+			t.Context(), "turn-terminal-create-failure", "run-terminal-create-failure", 1, trace.SpanContext{}, 4, nil,
 		)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
@@ -3454,5 +3455,9 @@ func (p *AgentProcess) beginPrompt(
 	bufferSize int,
 	cancelFns ...context.CancelFunc,
 ) (*activePromptState, error) {
-	return p.beginPromptState(context.Background(), turnID, "", 0, trace.SpanContext{}, bufferSize, cancelFns...)
+	var cancel context.CancelFunc
+	if len(cancelFns) > 0 {
+		cancel = cancelFns[0]
+	}
+	return p.beginPromptState(context.Background(), turnID, "", 0, trace.SpanContext{}, bufferSize, cancel)
 }

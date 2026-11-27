@@ -19,6 +19,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestTokenUsageParsing(t *testing.T) {
@@ -1790,6 +1791,50 @@ func TestCooperativePromptCancellation(t *testing.T) {
 			t.Fatal(err)
 		}
 		collectEvents(t, events)
+	})
+
+	t.Run("Should settle the provider turn after canceling its pending question", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		asked := make(chan struct{})
+		proc := startHelperProcess(t, driver, "cooperative_cancel_question", "", StartOpts{
+			ProviderName: "agy",
+			PermissionPolicy: &StartPermissionPolicy{
+				ElicitationAsker: func(ctx context.Context, _ toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+					close(asked)
+					<-ctx.Done()
+					return toolspkg.ClarifyAnswer{}, toolspkg.ErrClarifyCanceled
+				},
+			},
+		})
+		t.Cleanup(func() { stopProcess(t, driver, proc) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		events, err := driver.Prompt(ctx, proc, PromptRequest{TurnID: "cooperative-question-turn", Message: "ask"})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		select {
+		case <-asked:
+		case <-ctx.Done():
+			t.Fatalf("provider question did not reach the operator: %v", ctx.Err())
+		}
+		if err := driver.CancelCooperatively(ctx, proc); err != nil {
+			t.Fatalf("CancelCooperatively() error = %v", err)
+		}
+		observed := collectEvents(t, events)
+		if len(observed) == 0 {
+			t.Fatal("provider turn ended without events")
+		}
+		if last := observed[len(observed)-1]; last.Type != EventTypeDone ||
+			last.PromptStopReason != PromptStopReasonCancelled {
+			t.Fatalf("last event = %+v, want the provider's canceled prompt result", last)
+		}
+		select {
+		case <-proc.Done():
+			t.Fatal("cooperative cancellation stopped the process")
+		default:
+		}
 	})
 }
 

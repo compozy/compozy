@@ -129,8 +129,8 @@ func (p *AgentProcess) clarificationContext(ctx context.Context) (context.Contex
 	if active == nil {
 		return askCtx, cancel
 	}
-	stop := context.AfterFunc(active.promptContext, cancel)
-	if active.promptContext.Err() != nil {
+	stop := context.AfterFunc(active.clarificationContext, cancel)
+	if active.clarificationContext.Err() != nil {
 		cancel()
 	}
 	return askCtx, func() {
