@@ -9,6 +9,8 @@ entry_points: compozy computer add ssh, compozy computer setup, compozy service,
 qa_status: pending
 ---
 
+The controller needs the signed release assets for the version under test. Before a pre-release walk, check that GitHub Releases serves `checksums.txt` and `checksums.txt.sigstore.json` for that tag. Record the installer step as pending until both are published.
+
 1. Set up a fresh Linux VM with a user systemd session. Add its alias and `StrictHostKeyChecking accept-new` to the controller's SSH config. Record the VM's fingerprint independently.
 2. Start SSH setup and decline the fingerprint. Confirm the setup stops, the Free slot is available, and no runtime or service was written to the VM. Repeat and accept the correct fingerprint. Verify release, install, service, link, and forward progress.
 3. Verify `compozy service status --json` on the VM and `compozy computer status <name> --json` on the controller. Run `compozy session new --computer <name> --workspace '<absolute path on the VM>' --agent general` with a workspace registered on the VM. Send a prompt with `compozy session prompt <session_id> --computer <name> "<message>"`. Quit the controller as soon as the command confirms acceptance. Restart the controller and use `compozy session history <session_id> --computer <name> --json` to verify that the reply was recorded after the controller quit.

@@ -1,0 +1,91 @@
+{
+  "source_commit": "2d279cfe2b81cf0a0b51c693ee9af4759743e011",
+  "os": "Ubuntu 26.04.1 LTS",
+  "ssh": {
+    "ed25519_fingerprint_matched_provider_console": true,
+    "dedicated_non_root_key_authenticated": true
+  },
+  "manual_release_install": {
+    "from_version": "0.7.8",
+    "to_version": "0.8.0",
+    "published_archive_sha256_verified": true,
+    "remote_rc_sha256_matches_local": true,
+    "global_schema_before": 218,
+    "global_schema_after": 233,
+    "telemetry_schema_before": 5,
+    "telemetry_schema_after": 5,
+    "sessions_after_upgrade": 1,
+    "existing_install_gate": "enforced",
+    "workspace_list_error": "sign_in_required",
+    "service_manager": "systemd --user",
+    "enabled": true,
+    "running": true
+  },
+  "ssh_forward": {
+    "systemd_restart_changed_pid": true,
+    "first_status_http": 200,
+    "reconnected_status_http": 200,
+    "rc_version": "0.8.0",
+    "pid_preserved_across_ssh_reconnect": true
+  },
+  "staging_host_direct": {
+    "provider": "opencode/beam-free",
+    "agent_message": "Remote Linux QA passed.",
+    "sse_replayed_after_user_cursor": true,
+    "terminal_exit_code": 0,
+    "file_read_http": 200,
+    "file_read_matches_terminal": true,
+    "remote_link_start_http": 200
+  },
+  "staging_account_link": {
+    "host_and_controller_signed_in": true,
+    "directory_add_succeeded": true,
+    "same_computer_after_host_restart": true,
+    "control_link_after_restart": "connected",
+    "cloud_route_after_restart": "ready"
+  },
+  "stripe_sandbox": {
+    "amount_usd": "79.99",
+    "interval": "year",
+    "free_hosted_route_refusal": "plan_required",
+    "controller_account_stream_plan": "pro",
+    "pro_cloud_routes_limit": 10,
+    "host_route_enable_succeeded": true,
+    "portal_cancellation_scheduled": true,
+    "both_devices_cancel_at_period_end": true,
+    "current_period_end": "2027-11-27T14:01:57Z",
+    "plan_during_remaining_period": "pro"
+  },
+  "controller_to_host_gateway": {
+    "environment": "staging",
+    "learned_route_kind": "cloud",
+    "status": "offline",
+    "diagnosis": "computer_offline",
+    "dns_resolved": true,
+    "tls_probes": {
+      "darwin_curl_exit": 35,
+      "controller_linux_curl_exit": 35,
+      "vps_linux_curl_exit": 35,
+      "http_response_received": false,
+      "chrome_error": "ERR_SSL_VERSION_OR_CIPHER_MISMATCH"
+    },
+    "issue": 2061
+  },
+  "revocation": {
+    "by": "VPS account admin",
+    "target": "isolated controller",
+    "account_state": "reauth_required",
+    "reason": "device_revoked",
+    "computer_status_exit": 77,
+    "remote_workspace_list_exit": 77,
+    "both_commands_error": "device_revoked",
+    "open_stream_closure_verified": false
+  },
+  "teardown": {
+    "staging_host_unlinked": true,
+    "staging_host_daemon_stopped": true,
+    "isolated_controller_removed": true,
+    "main_vps_service_active": true,
+    "main_vps_service_enabled": true
+  }
+}
