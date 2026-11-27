@@ -681,9 +681,9 @@ These defaults are a `RestartRequired` config plane, separate from the per-Loop
 Write-time validation rejects negative `fan_out_width` values; positive values have no daemon-wide
 ceiling. Effective config resolves field by field from built-ins, the definition, the matching
 `[loops.defaults.*]` family, an inherited parent environment, the per-Loop config store, and per-run
-overrides. `effective_config.sources` identifies the winning logical source for each JSON Pointer.
-Other bounded fields remain clamped to their documented ceilings. See
-[configure](/docs/loops/configure).
+overrides. A positive `contract.iteration_cap` takes precedence over `[loops.defaults.*]`.
+`effective_config.sources` identifies the winning logical source for each JSON Pointer.
+Bounded fields are clamped to their documented ceilings. See [configure](/docs/loops/configure).
 
 For a review child that may be adopted after recovery, reserve an optional JSON string input
 `reviewed_worktree` containing a JSON object with exactly `worktree_id`, `include_paths`, and `fingerprint`.

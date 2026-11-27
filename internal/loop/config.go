@@ -134,8 +134,8 @@ func resolveEffectiveConfig(
 	defaultLayer, defaultSource := defaults.forDefinition(resolved.Definition)
 	mergeConfigLayer(&effective, defaultLayer, defaultSource)
 	// A zero-valued contract cap also represents omission in existing definitions.
-	if cap := resolved.Definition.Contract.IterationCap; cap > 0 {
-		mergeConfigLayer(&effective, LoopConfig{IterationCap: new(cap)}, EffectiveConfigSourceDefinition)
+	if authoredCap := resolved.Definition.Contract.IterationCap; authoredCap > 0 {
+		mergeConfigLayer(&effective, LoopConfig{IterationCap: new(authoredCap)}, EffectiveConfigSourceDefinition)
 	}
 	if inheritedEnvironment != nil {
 		inherited := *inheritedEnvironment

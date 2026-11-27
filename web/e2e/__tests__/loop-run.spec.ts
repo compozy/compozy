@@ -439,7 +439,8 @@ const graphStatesDefinition: LoopDefinition = {
   concurrency: "allow",
   inputs: { risk: { type: "string", required: true } },
   contract: {
-    ...contract("Route, then finish.", "nodes.quick.status == 'succeeded'"),
+    // Leave room for the pause at the generation boundary after the first failure.
+    ...contract("Route, then finish.", "nodes.quick.status == 'succeeded'", 2),
     // The failing agent reports real usage. A one-token ceiling settles this
     // generation after the failure, instead of exercising the separate
     // quarantine policy that E2E-017 owns.

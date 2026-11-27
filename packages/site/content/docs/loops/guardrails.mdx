@@ -146,14 +146,14 @@ Every stop limit has a **per-Loop default** (the definition, seeded by
 ceiling. The fan-out window has no fixed daemon cap; the required positive `max_fan_out` remains
 the author's logical-width bound.
 
-| Limit              | Contract key                          | Delivery default | `watch-source` default | Daemon ceiling             |
-| ------------------ | ------------------------------------- | ---------------- | ---------------------- | -------------------------- |
-| Iteration cap      | `contract.iteration_cap`              | 50               | 0 (unbounded, `∞`)     | none                       |
-| Token budget       | `contract.budget.tokens`              | 0 (off)          | 0 (off)                | none                       |
-| Wall-clock budget  | `contract.budget.wall_clock_sec`      | 0 (off)          | 0 (off)                | none                       |
-| No-progress window | `contract.no_progress.window`         | 3                | 2                      | 30                         |
-| Fan-out window     | node `max_parallel` / `fan_out_width` | 4                | 2                      | none                       |
-| Gate max revisions | gate `max_revisions`                  | 10               | —                      | 64                         |
+| Limit              | Contract key                          | Delivery default | `watch-source` default | Daemon ceiling |
+| ------------------ | ------------------------------------- | ---------------- | ---------------------- | -------------- |
+| Iteration cap      | `contract.iteration_cap`              | 50               | 0 (unbounded, `∞`)     | none           |
+| Token budget       | `contract.budget.tokens`              | 0 (off)          | 0 (off)                | none           |
+| Wall-clock budget  | `contract.budget.wall_clock_sec`      | 0 (off)          | 0 (off)                | none           |
+| No-progress window | `contract.no_progress.window`         | 3                | 2                      | 30             |
+| Fan-out window     | node `max_parallel` / `fan_out_width` | 4                | 2                      | none           |
+| Gate max revisions | gate `max_revisions`                  | 10               | —                      | 64             |
 
 The run ends `exhausted` with reason `iteration_cap_exceeded` if it would start a generation
 beyond its effective cap. A positive contract cap applies before the configured fallback and

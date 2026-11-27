@@ -933,9 +933,8 @@ metadata such as `record_type`, `sequence`, `turn_id`, `agent_name`, and `sessio
 A Loop with a `watch-events` node holds `watching` between wakes and **never stalls on silence** — a
 quiet subscription is healthy dormancy. It uses the delivery fallback of `50` when there is no
 positive contract cap or override. To run unbounded, set the per-Loop config override to
-`iteration_cap: 0`. The
-parked read-model (active subscriptions, per-stream cursors, `last_wake_at`) is exposed on the run
-detail (`compozy loop status --run-id <id> -o json`, HTTP/UDS parity) only while the Loop is dormant
+`iteration_cap: 0`. The run detail (`compozy loop status --run-id <id> -o json`, HTTP/UDS parity)
+exposes active subscriptions, per-stream cursors, and `last_wake_at` only while the Loop is dormant
 on events.
 
 ### Reusing A Recovered Review Child

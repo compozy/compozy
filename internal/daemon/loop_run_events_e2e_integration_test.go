@@ -248,7 +248,29 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		}
 
 		run := runLoopViaHTTP(t, ctx, harness, definition.Meta.Name)
+		if run.IterationCap != effective.IterationCap {
+			t.Fatalf("admitted run cap = %d, want inspect cap %d", run.IterationCap, effective.IterationCap)
+		}
 		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusExhausted)
+		_, stderr, err = harness.CLI.Run(
+			ctx, "loop", "configure", "--name", definition.Meta.Name, "--workspace", harness.WorkspaceRoot,
+			"--set", "iteration_cap=2",
+		)
+		if err != nil {
+			t.Fatalf("loop configure error = %v stderr=%s", err, stderr)
+		}
+		overridden := runLoopViaHTTP(t, ctx, harness, definition.Meta.Name)
+		if overridden.IterationCap != 2 {
+			t.Fatalf("run with stored override cap = %d, want 2", overridden.IterationCap)
+		}
+		waitForLoopRunStatus(t, ctx, harness, overridden.ID, compozycontract.LoopRunStatusExhausted)
+		overrideStatus := readLoopRunDetailViaHTTP(t, ctx, harness, overridden.ID)
+		if overrideStatus.Run.Generation != 2 ||
+			overrideStatus.EffectiveConfig.Sources["/iteration_cap"] != looppkg.EffectiveConfigSourceLoopConfig {
+			t.Fatalf("overridden run exhausted at generation %d with cap from %q, want 2 from loop_config",
+				overrideStatus.Run.Generation, overrideStatus.EffectiveConfig.Sources["/iteration_cap"])
+		}
+
 		statusJSON, stderr, err := harness.CLI.Run(
 			ctx, "loop", "status", "--run-id", run.ID, "--workspace", harness.WorkspaceRoot, "-o", "json",
 		)
@@ -263,9 +285,11 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 			t.Fatalf("run = %s at generation %d, want exhausted at 1", status.Run.Status, status.Run.Generation)
 		}
 		if status.Run.IterationCap != effective.IterationCap ||
-			status.EffectiveConfig.IterationCap != effective.IterationCap {
-			t.Fatalf("status caps = %d and %d, want inspect cap %d",
-				status.Run.IterationCap, status.EffectiveConfig.IterationCap, effective.IterationCap)
+			status.EffectiveConfig.IterationCap != effective.IterationCap ||
+			status.EffectiveConfig.Sources["/iteration_cap"] != looppkg.EffectiveConfigSourceDefinition {
+			t.Fatalf("original run cap = %d, effective cap = %d from %q, want cap %d from definition",
+				status.Run.IterationCap, status.EffectiveConfig.IterationCap,
+				status.EffectiveConfig.Sources["/iteration_cap"], effective.IterationCap)
 		}
 	})
 
