@@ -57,13 +57,10 @@ export const STEPS: Record<Platform, readonly Step[]> = {
   ],
   windows: [
     {
-      title: "Unzip the command",
-      body: "There's no desktop app for Windows yet. Put compozy somewhere on your PATH.",
+      title: "Run the installer",
+      body: "Open the signed Windows installer. It installs CompozyOS for your user account and registers the compozyos:// link handler.",
     },
-    {
-      title: "Run setup and sign in",
-      body: "Run compozy install and compozy account login to prepare the local runtime. First sign-in needs the internet; later use works offline.",
-    },
+    OPEN,
     START,
   ],
 };

@@ -14,6 +14,7 @@ import {
   linuxDebItem,
   megabytes,
   offerFor,
+  windowsCommandItem,
   type Choice,
   type HeroMode,
   type MacArch,
@@ -70,7 +71,10 @@ function Alternate({
   }
   return (
     <Small className="text-[14px]">
-      The desktop app is for macOS and Linux today. On Windows, you get the compozy command.
+      Prefer the command line?{" "}
+      <a className={LINK} href={windowsCommandItem(release).href}>
+        Get the Windows ZIP
+      </a>
     </Small>
   );
 }
@@ -191,8 +195,7 @@ export function DownloadHero(props: HeroProps) {
           <H1>Download CompozyOS</H1>
         </div>
         <Lead className="mt-5 max-w-[600px] md:text-[19px]">
-          The desktop app for macOS and Linux, with the runtime included. The command line also runs
-          on Windows.
+          The desktop app for macOS, Linux, and Windows, with the runtime included.
         </Lead>
         <Actions {...props} />
       </div>

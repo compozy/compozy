@@ -9,9 +9,18 @@ export const revalidate = 300;
 export const metadata: Metadata = createPageMetadata({
   title: "Download CompozyOS",
   description:
-    "Download the CompozyOS desktop app for macOS (Apple silicon and Intel) and Linux, or install the compozy command from your terminal.",
+    "Download the CompozyOS desktop app for macOS (Apple silicon and Intel), Linux, and Windows, or install the compozy command from your terminal.",
   path: "/download",
-  keywords: ["CompozyOS download", "CompozyOS desktop app", "macOS", "Linux", "AppImage", "DMG"],
+  keywords: [
+    "CompozyOS download",
+    "CompozyOS desktop app",
+    "macOS",
+    "Linux",
+    "Windows",
+    "AppImage",
+    "DMG",
+    "EXE",
+  ],
 });
 
 export default async function Page() {
