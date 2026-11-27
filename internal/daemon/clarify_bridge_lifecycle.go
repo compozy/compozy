@@ -17,21 +17,50 @@ type clarifySummaryWriter interface {
 	WriteEventSummary(context.Context, store.EventSummary) error
 }
 
+type clarifyAnswerPublisher interface {
+	PublishClarifyAnswer(context.Context, toolspkg.ClarifyEvent, toolspkg.Scope) (func(), error)
+}
+
+var _ clarifyAnswerPublisher = (*session.Manager)(nil)
+
+type clarifyOrphanResolver interface {
+	ResolveOrphanedClarification(
+		context.Context,
+		toolspkg.Scope,
+		string,
+		toolspkg.ClarifyAnswerRequest,
+	) (toolspkg.ClarifyAnswerResult, error)
+}
+
+func (b *clarifyBridge) resolveOrphaned(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	requestID string,
+	request toolspkg.ClarifyAnswerRequest,
+) (toolspkg.ClarifyAnswerResult, error) {
+	resolver, ok := b.publisher.(clarifyOrphanResolver)
+	if !ok {
+		return toolspkg.ClarifyAnswerResult{}, fmt.Errorf("%w: %s", toolspkg.ErrClarifyNotFound, requestID)
+	}
+	return resolver.ResolveOrphanedClarification(ctx, scope, requestID, request)
+}
+
 func (b *clarifyBridge) completeExplicit(
 	ctx context.Context,
 	handle *clarifyHandle,
 	answer toolspkg.ClarifyAnswer,
-) error {
+) (func(), error) {
 	handle.completionMu.Lock()
 	defer handle.completionMu.Unlock()
 	if handle.terminal || !handle.ready.Load() {
-		return fmt.Errorf("%w: %s", toolspkg.ErrClarifyNotFound, handle.pending.RequestID)
+		return nil, fmt.Errorf("%w: %s", toolspkg.ErrClarifyNotFound, handle.pending.RequestID)
 	}
-	if err := b.publish(ctx, handle, toolspkg.ClarifyStatusResolved, &answer, true); err != nil {
-		return fmt.Errorf("daemon: persist resolved clarification: %w", err)
+	wake, err := b.publish(ctx, handle, toolspkg.ClarifyStatusResolved, &answer)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: persist resolved clarification: %w", err)
 	}
 	b.release(handle, clarifyResult{answer: answer})
-	return nil
+	return wake, nil
 }
 
 func (b *clarifyBridge) completeAutomatic(
@@ -61,7 +90,7 @@ func (b *clarifyBridge) completeAutomaticWithContext(
 	if status == toolspkg.ClarifyStatusTimedOut {
 		eventAnswer = &answer
 	}
-	if err := b.publish(ctx, handle, status, eventAnswer, false); err != nil {
+	if _, err := b.publish(ctx, handle, status, eventAnswer); err != nil {
 		b.logger.WarnContext(
 			ctx,
 			"clarification terminal observability failed",
@@ -98,8 +127,7 @@ func (b *clarifyBridge) publish(
 	handle *clarifyHandle,
 	status toolspkg.ClarifyStatus,
 	answer *toolspkg.ClarifyAnswer,
-	requireEvent bool,
-) error {
+) (func(), error) {
 	event := toolspkg.ClarifyEvent{
 		Status:  status,
 		Request: handle.pending.Clone(),
@@ -107,16 +135,21 @@ func (b *clarifyBridge) publish(
 		At:      b.now().UTC(),
 	}
 	if err := event.Validate(); err != nil {
-		return fmt.Errorf("validate clarification event: %w", err)
+		return nil, fmt.Errorf("validate clarification event: %w", err)
 	}
-	if err := b.publisher.PublishClarifyEvent(ctx, event); err != nil {
-		if requireEvent {
-			return err
+	var wake func()
+	publisher, canResume := b.publisher.(clarifyAnswerPublisher)
+	if status == toolspkg.ClarifyStatusResolved && handle.askingScope.RunID != "" && canResume {
+		var err error
+		wake, err = publisher.PublishClarifyAnswer(ctx, event, handle.askingScope)
+		if err != nil {
+			return nil, err
 		}
-		return fmt.Errorf("publish clarification session event: %w", err)
+	} else if err := b.publisher.PublishClarifyEvent(ctx, event); err != nil {
+		return nil, err
 	}
 	if b.summaries == nil {
-		return nil
+		return wake, nil
 	}
 	if err := b.writeSummary(ctx, handle, event); err != nil {
 		b.logger.WarnContext(
@@ -128,7 +161,7 @@ func (b *clarifyBridge) publish(
 			"error", err,
 		)
 	}
-	return nil
+	return wake, nil
 }
 
 func (b *clarifyBridge) writeSummary(
@@ -142,7 +175,7 @@ func (b *clarifyBridge) writeSummary(
 	}
 	profileID := ""
 	if handle != nil {
-		profileID = strings.TrimSpace(handle.profileID)
+		profileID = handle.askingScope.ProfileID
 	}
 	if profileID == "" && b.profileForSession != nil {
 		profileID, err = b.profileForSession(ctx, event.Request.SessionID)

@@ -489,9 +489,9 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			if id == "finite" {
 				request.Deadline = h.manager.now().Add(-time.Minute)
 			}
-			if _, err := h.manager.applyClarifyAttentionEvent(t.Context(), target, toolspkg.ClarifyEvent{
+			if _, _, err := h.manager.applyClarifyAttentionEvent(t.Context(), target, toolspkg.ClarifyEvent{
 				Status: toolspkg.ClarifyStatusPending, Request: request, At: h.manager.now().Add(-time.Hour),
-			}); err != nil {
+			}, toolspkg.Scope{}); err != nil {
 				t.Fatal(err)
 			}
 		}

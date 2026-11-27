@@ -30,6 +30,85 @@ import (
 func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	acpmock.RequireDriver(t)
 
+	t.Run("Should deliver live and late clarification answers to the correct turns", func(t *testing.T) {
+		t.Parallel()
+
+		options := attentionTruthRuntimeOptions(t)
+		harness := e2etest.StartRuntimeHarness(t, &options)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+		defer cancel()
+
+		target := createBoundFixtureBackedSession(t, ctx, harness, "attention-agent", "clarify-resume")
+		client := attentionHostedMCPClient(t, ctx, harness, "attention-agent", target.ID)
+		defer closeAttentionMCPClient(t, client)
+		prompt := startAttentionPermissionPrompt(ctx, harness, target.ID)
+		permission := waitForAttentionInteraction(t, ctx, harness, target.ID, store.PendingInteractionKindPermission)
+
+		answer := func(choice int, requestID string) compozycontract.ClarificationAnswerPayload {
+			t.Helper()
+			var result compozycontract.ClarificationAnswerPayload
+			path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/sessions/" +
+				url.PathEscape(target.ID) + "/clarifications/" + url.PathEscape(requestID) + "/answer"
+			input := compozycontract.ClarificationAnswerRequest{ChoiceIndex: new(choice)}
+			if err := harness.HTTPJSON(ctx, http.MethodPost, path, input, &result); err != nil {
+				t.Fatalf("answer clarification %q: %v", requestID, err)
+			}
+			return result
+		}
+
+		live := startAttentionClarifyCall(ctx, client)
+		liveQuestion := waitForAttentionInteractionWhileCallPending(
+			t, ctx, harness, target.ID, store.PendingInteractionKindClarify, live,
+		)
+		liveAnswer := answer(0, liveQuestion.ProviderRequestID)
+		if liveAnswer.Outcome != store.PendingInteractionOutcomeAnswered || liveAnswer.ResolvedAnswer != "Fast" {
+			t.Fatalf("live clarification answer = %#v", liveAnswer)
+		}
+		awaitAttentionClarifyCall(t, ctx, live)
+		current, err := harness.GetSession(ctx, target.ID)
+		if err != nil {
+			t.Fatalf("GetSession() error = %v", err)
+		}
+		if current.Queue != nil && current.Queue.Entries != 0 {
+			t.Fatalf("queue after live answer = %#v, want no continuation", current.Queue)
+		}
+
+		late := startKeepaliveClarifyCall(ctx, client, "Which release channel?", []string{"Stable", "Preview"})
+		lateQuestion := waitForAttentionInteractionWhileCallPending(
+			t, ctx, harness, target.ID, store.PendingInteractionKindClarify, late,
+		)
+		if err := harness.ApproveSessionPermission(ctx, target.ID, compozycontract.ApproveSessionRequest{
+			RequestID: permission.ProviderRequestID, Decision: "allow-once",
+		}); err != nil {
+			t.Fatalf("release original prompt: %v", err)
+		}
+		select {
+		case result := <-prompt:
+			if result.err != nil {
+				t.Fatalf("original prompt failed: %v", result.err)
+			}
+		case <-ctx.Done():
+			t.Fatalf("original prompt did not finish: %v", ctx.Err())
+		}
+
+		lateAnswer := answer(1, lateQuestion.ProviderRequestID)
+		if lateAnswer.Outcome != store.PendingInteractionOutcomeAnswered || lateAnswer.ResolvedAnswer != "Preview" {
+			t.Fatalf("late clarification answer = %#v", lateAnswer)
+		}
+		duplicate := answer(0, lateQuestion.ProviderRequestID)
+		if duplicate.Outcome != store.PendingInteractionOutcomeAlreadyResolved ||
+			duplicate.ResolvedAnswer != "Preview" {
+			t.Fatalf("duplicate clarification answer = %#v, want the original choice", duplicate)
+		}
+		awaitAttentionClarifyCall(t, ctx, late)
+		if _, err := harness.StreamSessionRawHTTPUntil(ctx, target.ID, func(event e2etest.SSEEvent) bool {
+			return event.Event == "agent_message" &&
+				strings.Contains(string(event.Data), "clarification continuation observed")
+		}); err != nil {
+			t.Fatalf("resumed turn did not receive the chosen answer: %v", err)
+		}
+	})
+
 	t.Run("Should expose and clear a clarification through catalog, status, and CLI", func(t *testing.T) {
 		t.Parallel()
 

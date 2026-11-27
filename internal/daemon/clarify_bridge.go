@@ -23,15 +23,6 @@ type clarifyEventPublisher interface {
 	PublishClarifyEvent(context.Context, toolspkg.ClarifyEvent) error
 }
 
-type clarifyOrphanResolver interface {
-	ResolveOrphanedClarification(
-		context.Context,
-		toolspkg.Scope,
-		string,
-		toolspkg.ClarifyAnswerRequest,
-	) (toolspkg.ClarifyAnswerResult, error)
-}
-
 // clarifyOperatorAskerSetter installs the broker that renders provider
 // elicitation through the operator question channel.
 type clarifyOperatorAskerSetter interface {
@@ -61,7 +52,7 @@ type clarifyHandle struct {
 	published    chan struct{}
 	ready        atomic.Bool
 	terminal     bool
-	profileID    string
+	askingScope  toolspkg.Scope
 	choicesOnly  bool
 	timeout      time.Duration
 	// pingSeq counts keepalive attempts from 1 under completionMu.
@@ -192,7 +183,7 @@ func (b *clarifyBridge) Ask(
 		deadline = now.Add(policy)
 	}
 	handle := &clarifyHandle{
-		profileID:   strings.TrimSpace(normalizedScope.ProfileID),
+		askingScope: normalizedScope,
 		choicesOnly: normalizedQuestion.ChoicesOnly,
 		timeout:     policy,
 		pending: toolspkg.ClarifyPending{
@@ -218,7 +209,7 @@ func (b *clarifyBridge) Ask(
 	}
 	defer b.waiters.Done()
 
-	if err := b.publish(ctx, handle, toolspkg.ClarifyStatusPending, nil, true); err != nil {
+	if _, err := b.publish(ctx, handle, toolspkg.ClarifyStatusPending, nil); err != nil {
 		handle.terminal = true
 		b.rollback(handle)
 		close(handle.published)
@@ -355,7 +346,7 @@ func (b *clarifyBridge) Pending(
 	handle.completionMu.Lock()
 	defer handle.completionMu.Unlock()
 	if handle.terminal || !handle.ready.Load() ||
-		!clarifyScopeMatches(normalized, handle.pending, handle.profileID) {
+		!clarifyScopeMatches(normalized, handle.pending, handle.askingScope.ProfileID) {
 		return []toolspkg.ClarifyPending{}, nil
 	}
 	return []toolspkg.ClarifyPending{handle.pending.Clone()}, nil
@@ -391,7 +382,7 @@ func (b *clarifyBridge) Answer(
 	if handle.terminal ||
 		!handle.ready.Load() ||
 		handle.pending.RequestID != target ||
-		!clarifyScopeMatches(normalized, handle.pending, handle.profileID) {
+		!clarifyScopeMatches(normalized, handle.pending, handle.askingScope.ProfileID) {
 		handle.completionMu.Unlock()
 		return b.resolveOrphaned(ctx, normalized, target, request)
 	}
@@ -405,8 +396,15 @@ func (b *clarifyBridge) Answer(
 	if err != nil {
 		return toolspkg.ClarifyAnswerResult{}, err
 	}
-	if err := b.completeExplicit(ctx, handle, answer); err != nil {
+	wake, err := b.completeExplicit(ctx, handle, answer)
+	if errors.Is(err, toolspkg.ErrClarifyNotFound) {
+		return b.resolveOrphaned(ctx, normalized, target, request)
+	}
+	if err != nil {
 		return toolspkg.ClarifyAnswerResult{}, err
+	}
+	if wake != nil {
+		wake()
 	}
 	return toolspkg.ClarifyAnswerResult{
 		ClarifyAnswer:  answer,
@@ -414,19 +412,6 @@ func (b *clarifyBridge) Answer(
 		RequestID:      target,
 		ResolvedAnswer: answer.Resolution(question),
 	}, nil
-}
-
-func (b *clarifyBridge) resolveOrphaned(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	requestID string,
-	request toolspkg.ClarifyAnswerRequest,
-) (toolspkg.ClarifyAnswerResult, error) {
-	resolver, ok := b.publisher.(clarifyOrphanResolver)
-	if !ok {
-		return toolspkg.ClarifyAnswerResult{}, fmt.Errorf("%w: %s", toolspkg.ErrClarifyNotFound, requestID)
-	}
-	return resolver.ResolveOrphanedClarification(ctx, scope, requestID, request)
 }
 
 func waitForClarifyPublication(ctx context.Context, handle *clarifyHandle) error {
@@ -471,6 +456,8 @@ func normalizeClarifyScope(scope toolspkg.Scope) (toolspkg.Scope, error) {
 	if normalized.AgentName == "" {
 		return toolspkg.Scope{}, errors.New("daemon: clarification agent name is required")
 	}
+	normalized.RunID = strings.TrimSpace(scope.RunID)
+	normalized.Generation = scope.Generation
 	return normalized, nil
 }
 

@@ -599,6 +599,8 @@ Clarification: `compozy__clarify` asks one active-session question with at most 
 zero-based `{choice,text,fallback}`. It is not approval. A provider select question without a custom-text field (ACP
 `elicitation/create`) accepts only a choice; a text answer to it is refused as invalid. CLI: `compozy session clarify pending|answer`
 (choice presentation is one-based).
+If a hosted `compozy__clarify` card is still pending after its turn ends, answering it queues the
+question and answer in the same session so the agent can continue.
 
 `compozy__session_list` accepts `board_column: ["needs_you", "working", "waiting", "in_review", "done"]`
 and `children: "exclude"` (default `include`). Columns filter before pagination/counting;

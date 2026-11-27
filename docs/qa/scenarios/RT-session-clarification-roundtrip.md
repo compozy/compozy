@@ -142,3 +142,14 @@ Results, all pass:
 Not walked: queue mode, which goes through the same wrapper and is covered by the hook suite. Also
 not walked: the ACP select elicitation without a custom field, which acpmock cannot raise; the
 broker suite covers its choice-only refusal.
+
+QA impact 2026-11-26 (#1992): answer a hosted `compozy__clarify` card after its issuing turn
+finishes naturally. The card remains answerable while pending. The answer starts a new turn in the
+same session and includes the question and selected answer. Repeat the answer to confirm the original
+choice wins and only one continuation is queued. Answer another question before its turn ends and
+confirm the tool receives its answer and the prompt queue stays empty.
+
+Automated coverage is in `TestDaemonE2EAttentionTruthJourneys` (hosted MCP, HTTP, and the next
+ACP turn) and `TestInteractionResolutionCouplesQueueAndIsIdempotent` (atomic SQLite resolution,
+queue-full rollback, and a duplicate answer). The provider-specific 30-second return in the original
+report remains a Codex retest. The daemon's 30-second keepalive interval does not expire the card.

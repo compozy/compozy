@@ -93,7 +93,7 @@ func (g *SessionRepo) TransitionPendingInteraction(
 		return store.SessionAttentionCommit{}, err
 	}
 	err = g.withImmediateTransaction(ctx, "transition pending interaction", func(exec globalSQLExecutor) error {
-		if normalized.OrphanInput != nil {
+		if normalized.ContinuationInput != nil {
 			interaction, readErr := getPendingInteraction(ctx, exec, normalized.InteractionID)
 			if readErr != nil {
 				return readErr
@@ -102,7 +102,7 @@ func (g *SessionRepo) TransitionPendingInteraction(
 			if interaction.Kind == store.PendingInteractionKindPermission &&
 				interaction.ExpiresAt != nil && !at.Before(*interaction.ExpiresAt) {
 				normalized.Status, normalized.Resolution = store.PendingInteractionStatusTimedOut, "expired"
-				normalized.ResolvedBy, normalized.At, normalized.OrphanInput = pendingInteractionTimeoutActor, at, nil
+				normalized.ResolvedBy, normalized.At, normalized.ContinuationInput = pendingInteractionTimeoutActor, at, nil
 			}
 		}
 		transitioned, transitionErr := transitionPendingInteraction(ctx, exec, normalized)
@@ -135,7 +135,7 @@ func transitionPendingInteraction(
 			Outcome: store.PendingInteractionOutcomeAlreadyResolved,
 		}, nil
 	}
-	if err := prepareOrphanResolutionInput(ctx, exec, interaction, normalized); err != nil {
+	if err := enqueueInteractionContinuation(ctx, exec, interaction, normalized); err != nil {
 		return store.SessionAttentionCommit{}, err
 	}
 	if err := appendPendingInteractionReport(ctx, exec, interaction, normalized); err != nil {
@@ -187,22 +187,23 @@ func transitionPendingInteraction(
 	}, nil
 }
 
-func prepareOrphanResolutionInput(
+func enqueueInteractionContinuation(
 	ctx context.Context,
 	exec globalSQLExecutor,
 	interaction store.PendingInteraction,
 	transition store.PendingInteractionTransition,
 ) error {
-	if transition.OrphanInput == nil {
+	if transition.ContinuationInput == nil {
 		return nil
 	}
-	if interaction.Status != store.PendingInteractionStatusOrphaned {
-		return errors.New("store: orphan input requires an orphaned interaction")
+	if interaction.Status != store.PendingInteractionStatusOrphaned &&
+		interaction.Kind != store.PendingInteractionKindClarify {
+		return errors.New("store: continuation requires an orphaned interaction or a clarification")
 	}
-	if transition.OrphanInput.SessionID != interaction.SessionID {
-		return errors.New("store: orphan input session does not own interaction")
+	if transition.ContinuationInput.SessionID != interaction.SessionID {
+		return errors.New("store: continuation session does not own interaction")
 	}
-	return insertOrphanResolutionInput(ctx, exec, *transition.OrphanInput)
+	return insertInteractionContinuation(ctx, exec, *transition.ContinuationInput)
 }
 
 func updatePendingInteraction(
@@ -340,7 +341,7 @@ WHERE id = ?`, permissionDelta, clarifyDelta, store.FormatTimestamp(at), session
 	return requireOneAffected(result, sessionID)
 }
 
-func insertOrphanResolutionInput(
+func insertInteractionContinuation(
 	ctx context.Context,
 	exec globalSQLExecutor,
 	input store.SessionInputQueueInsert,

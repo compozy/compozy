@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
 )
@@ -37,7 +38,7 @@ func (h *BaseHandlers) ListSessionClarifications(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.ClarificationsResponse{Clarifications: payloads})
 }
 
-// AnswerSessionClarification resolves one live request after workspace/session authorization.
+// AnswerSessionClarification resolves one request after workspace/session authorization.
 func (h *BaseHandlers) AnswerSessionClarification(c *gin.Context) {
 	if h.Clarify == nil {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: clarification broker is required"))
@@ -84,7 +85,8 @@ func statusForClarifyError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, toolspkg.ErrClarifyNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, toolspkg.ErrClarifyPending), errors.Is(err, toolspkg.ErrClarifyCanceled):
+	case errors.Is(err, toolspkg.ErrClarifyPending), errors.Is(err, toolspkg.ErrClarifyCanceled),
+		errors.Is(err, store.ErrSessionInputQueueFull):
 		return http.StatusConflict
 	case errors.Is(err, toolspkg.ErrClarifyClosed):
 		return http.StatusServiceUnavailable

@@ -2964,7 +2964,7 @@ func TestPendingInteractionCanonicalTransactionRedactsAndRollsBackTogether(t *te
 		commit, err := db.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
 			InteractionID: "deadline", Status: store.PendingInteractionStatusResolved,
 			Resolution: "allow-once", ResolvedBy: "operator", At: at,
-			OrphanInput: &store.SessionInputQueueInsert{
+			ContinuationInput: &store.SessionInputQueueInsert{
 				ID: "answer", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue,
 				Text: "allow-once", QueueCap: 1, Now: at,
 			},
@@ -3191,24 +3191,42 @@ BEGIN SELECT RAISE(ABORT, 'injected attention projection failure'); END`); err !
 	}
 }
 
-func TestOrphanInteractionResolutionCouplesQueueAndIsIdempotent(t *testing.T) {
+func TestInteractionResolutionCouplesQueueAndIsIdempotent(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should queue an orphaned permission answer once", func(t *testing.T) {
+		t.Parallel()
+		assertInteractionResolutionQueuesOnce(t, store.PendingInteractionKindPermission, true)
+	})
+	t.Run("Should queue a clarification answer after its turn once", func(t *testing.T) {
+		t.Parallel()
+		assertInteractionResolutionQueuesOnce(t, store.PendingInteractionKindClarify, false)
+	})
+}
+
+func assertInteractionResolutionQueuesOnce(t *testing.T, kind string, orphaned bool) {
+	t.Helper()
 	ctx := testutil.Context(t)
 	globalDB := openTestGlobalDB(t)
 	sessionID := registerAttentionSession(t, globalDB, store.SessionAttention{})
 	now := time.Date(2026, 8, 15, 18, 8, 0, 0, time.UTC)
 	if _, err := globalDB.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
-		InteractionID: "int-orphan", SessionID: sessionID,
-		Kind: store.PendingInteractionKindPermission, ProviderRequestID: "permission-orphan",
-		Title: "Approve command", CreatedAt: now,
+		InteractionID: "int-question", SessionID: sessionID,
+		Kind: kind, ProviderRequestID: "request-question",
+		Title: "Proceed?", CreatedAt: now,
 	}); err != nil {
 		t.Fatalf("CreatePendingInteraction() error = %v", err)
 	}
-	if _, err := globalDB.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
-		InteractionID: "int-orphan", Status: store.PendingInteractionStatusOrphaned, At: now.Add(time.Second),
-	}); err != nil {
-		t.Fatalf("TransitionPendingInteraction(orphan) error = %v", err)
+	wantStatus := store.PendingInteractionStatusPending
+	wantOutcome := store.PendingInteractionStatusResolved
+	if orphaned {
+		wantStatus = store.PendingInteractionStatusOrphaned
+		wantOutcome = store.PendingInteractionOutcomeResolvedAfterRestart
+		if _, err := globalDB.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+			InteractionID: "int-question", Status: wantStatus, At: now.Add(time.Second),
+		}); err != nil {
+			t.Fatalf("TransitionPendingInteraction(orphan) error = %v", err)
+		}
 	}
 	if _, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
 		ID: "input-existing", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue,
@@ -3217,10 +3235,10 @@ func TestOrphanInteractionResolutionCouplesQueueAndIsIdempotent(t *testing.T) {
 		t.Fatalf("EnqueueSessionInput(existing) error = %v", err)
 	}
 	transition := store.PendingInteractionTransition{
-		InteractionID: "int-orphan", Status: store.PendingInteractionStatusResolved,
+		InteractionID: "int-question", Status: store.PendingInteractionStatusResolved,
 		Resolution: "allow-once", ResolvedBy: "operator:test", At: now.Add(3 * time.Second),
-		OrphanInput: &store.SessionInputQueueInsert{
-			ID: "input-orphan", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue,
+		ContinuationInput: &store.SessionInputQueueInsert{
+			ID: "input-answer", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue,
 			Text: "allow-once", QueueCap: 1, Now: now.Add(3 * time.Second),
 		},
 	}
@@ -3234,21 +3252,27 @@ func TestOrphanInteractionResolutionCouplesQueueAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPendingInteractions(after queue full) error = %v", err)
 	}
-	if len(actionable) != 1 || actionable[0].Status != store.PendingInteractionStatusOrphaned {
-		t.Fatalf("actionable after queue full = %#v, want untouched orphan", actionable)
+	if len(actionable) != 1 || actionable[0].Status != wantStatus {
+		t.Fatalf("actionable after queue full = %#v, want %s", actionable, wantStatus)
 	}
 	attention, err := globalDB.GetSessionAttention(ctx, sessionID)
-	if err != nil || attention.PendingPermissionCount != 1 {
-		t.Fatalf("attention after queue full = %#v, %v, want pending count 1", attention, err)
+	wantPermission, wantClarify := 0, 1
+	if kind == store.PendingInteractionKindPermission {
+		wantPermission, wantClarify = 1, 0
+	}
+	if err != nil || attention.PendingPermissionCount != wantPermission ||
+		attention.PendingClarifyCount != wantClarify {
+		t.Fatalf("attention after queue full = %#v, %v, want one pending %s", attention, err, kind)
 	}
 
-	transition.OrphanInput.QueueCap = 2
+	transition.ContinuationInput.QueueCap = 2
 	resolved, err := globalDB.TransitionPendingInteraction(ctx, transition)
 	if err != nil {
-		t.Fatalf("TransitionPendingInteraction(after restart) error = %v", err)
+		t.Fatalf("TransitionPendingInteraction(resolve) error = %v", err)
 	}
-	if resolved.Outcome != "resolved-after-restart" || resolved.After.PendingPermissionCount != 0 {
-		t.Fatalf("resolved outcome = %#v, want resolved-after-restart", resolved)
+	if resolved.Outcome != wantOutcome ||
+		resolved.After.PendingPermissionCount != 0 || resolved.After.PendingClarifyCount != 0 {
+		t.Fatalf("resolved outcome = %#v, want %s and cleared attention", resolved, wantOutcome)
 	}
 	duplicate, err := globalDB.TransitionPendingInteraction(ctx, transition)
 	if err != nil {
@@ -3261,8 +3285,8 @@ func TestOrphanInteractionResolutionCouplesQueueAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPendingSessionInputs() error = %v", err)
 	}
-	if len(queued) != 2 || queued[1].ID != "input-orphan" {
-		t.Fatalf("pending inputs = %#v, want one atomic orphan-resolution enqueue", queued)
+	if len(queued) != 2 || queued[1].ID != "input-answer" {
+		t.Fatalf("pending inputs = %#v, want one atomic resolution enqueue", queued)
 	}
 }
 

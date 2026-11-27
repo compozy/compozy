@@ -223,12 +223,12 @@ func (r PendingInteractionCreate) Validate() error {
 
 // PendingInteractionTransition moves one pending record to another lifecycle status.
 type PendingInteractionTransition struct {
-	InteractionID string
-	Status        string
-	Resolution    string
-	ResolvedBy    string
-	At            time.Time
-	OrphanInput   *SessionInputQueueInsert
+	InteractionID     string
+	Status            string
+	Resolution        string
+	ResolvedBy        string
+	At                time.Time
+	ContinuationInput *SessionInputQueueInsert
 }
 
 // Normalize applies the same secret and size boundary used by every read surface.
@@ -240,8 +240,8 @@ func (r PendingInteractionTransition) Normalize() PendingInteractionTransition {
 	if !r.At.IsZero() {
 		r.At = r.At.UTC()
 	}
-	if r.OrphanInput != nil {
-		r.OrphanInput = new(r.OrphanInput.Normalize())
+	if r.ContinuationInput != nil {
+		r.ContinuationInput = new(r.ContinuationInput.Normalize())
 	}
 	return r
 }
@@ -257,7 +257,7 @@ func (r PendingInteractionTransition) Validate() error {
 	}
 	switch normalized.Status {
 	case PendingInteractionStatusOrphaned:
-		if normalized.Resolution != "" || normalized.ResolvedBy != "" || normalized.OrphanInput != nil {
+		if normalized.Resolution != "" || normalized.ResolvedBy != "" || normalized.ContinuationInput != nil {
 			return errors.New("store: orphan transition cannot resolve interaction")
 		}
 	case PendingInteractionStatusResolved:
@@ -265,14 +265,14 @@ func (r PendingInteractionTransition) Validate() error {
 			return errors.New("store: resolved interaction requires resolution and actor")
 		}
 	case PendingInteractionStatusTimedOut, PendingInteractionStatusCanceled:
-		if normalized.OrphanInput != nil {
-			return errors.New("store: terminal interaction cannot enqueue orphan input")
+		if normalized.ContinuationInput != nil {
+			return errors.New("store: terminal interaction cannot enqueue a continuation")
 		}
 	default:
 		return fmt.Errorf("store: invalid interaction transition status %q", normalized.Status)
 	}
-	if normalized.OrphanInput != nil {
-		if err := normalized.OrphanInput.Validate(); err != nil {
+	if normalized.ContinuationInput != nil {
+		if err := normalized.ContinuationInput.Validate(); err != nil {
 			return err
 		}
 	}
