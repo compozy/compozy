@@ -2616,7 +2616,10 @@ describe("SessionList Mark as seen", () => {
     expect(screen.getByTestId("session-sidebar-session-ended-early").title).toContain(
       "Stopped before delivering"
     );
-    expect(screen.getByTestId("session-sidebar-session-done")).toHaveAttribute("data-status", "done");
+    expect(screen.getByTestId("session-sidebar-session-done")).toHaveAttribute(
+      "data-status",
+      "done"
+    );
 
     await user.click(screen.getByTestId("session-row-actions-ended-early"));
     const markSeen = await screen.findByTestId("session-row-mark-seen-ended-early");
