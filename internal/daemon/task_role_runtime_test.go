@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
@@ -618,6 +619,8 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 			info.WorkspaceID = "ws-other"
 		}},
 		{name: "Should skip a workspace owner for a global task", global: true},
+		{name: "Should skip activation while the daemon drains", resumeError: admission.ErrDraining},
+		{name: "Should skip activation while startup admission is closed", resumeError: admission.ErrStarting},
 		{
 			name:        "Should skip activation when the session manager refuses restart recovery",
 			resumeError: resumeRefusal,

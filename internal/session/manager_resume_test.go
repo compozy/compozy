@@ -986,6 +986,13 @@ func TestResumeMonitorOwner(t *testing.T) {
 				resume = func() error { return h.manager.ResumeWaitingSession(t.Context(), target.ID) }
 			}
 			err = resume()
+			if tc.cause == CauseUserRequested && tc.fromBoundary {
+				if _, fenceErr := h.manager.resume(t.Context(), target.ID, resumeWithoutDispatch); !errors.Is(
+					fenceErr, ErrMonitorOwnerStopped,
+				) {
+					t.Fatalf("resume after a newer explicit stop = %v, want %v", fenceErr, ErrMonitorOwnerStopped)
+				}
+			}
 			if tc.wantErr == "" {
 				if err != nil {
 					t.Fatal(err)
@@ -1094,6 +1101,53 @@ func TestResumeMonitorOwner(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should leave a bound main stopped when it pauses during activation", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		var paused atomic.Bool
+		dispatcher := &spyHookDispatcher{
+			dispatchSessionPreResumeFn: func(
+				_ context.Context, payload hookspkg.SessionPreResumePayload,
+			) (hookspkg.SessionPreResumePayload, error) {
+				paused.Store(true)
+				return payload, nil
+			},
+		}
+		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)),
+			WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}))
+		h.manager.SetInstanceCeilingReader(func(context.Context, string, string) (*InstanceCeiling, error) {
+			return &InstanceCeiling{
+				Policy: store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}},
+				Main:   true, ActiveMain: !paused.Load(),
+			}, nil
+		})
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		stream, err := h.manager.Prompt(ctx, target.ID, "record the restart binding")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		if err := h.manager.StopWithCause(ctx, target.ID, CauseShutdown, "daemon restart"); err != nil {
+			t.Fatal(err)
+		}
+		err = h.manager.ResumeIdleSessionAfterRestart(ctx, target.ID)
+		if refusal, ok := errors.AsType[*MonitorOwnerIneligibleError](
+			err,
+		); !ok ||
+			refusal.Reason != restartInstanceInactiveReason {
+			t.Fatalf("ResumeIdleSessionAfterRestart() = %v, want %s", err, restartInstanceInactiveReason)
+		}
+		info, err := h.manager.StoredStatus(ctx, target.ID)
+		if err != nil || info == nil || info.State != StateStopped || info.StopReason != store.StopShutdown ||
+			len(managerPromptCalls(h)) != 1 {
+			t.Fatalf(
+				"owner status after a pause during activation = %+v, %v, want stopped without another prompt",
+				info,
+				err,
+			)
+		}
+	})
 }
 
 // Invariant: an owner that is already live is still checked against the binding captured for its

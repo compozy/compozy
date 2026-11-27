@@ -61,12 +61,18 @@ func (r *taskRoleRuntime) resumeStarvationOwner(
 		ResumeIdleSessionAfterRestart(context.Context, string) error
 	})
 	if !ok {
+		r.logger.DebugContext(ctx, "daemon: starvation owner resumer unavailable",
+			"session_id", ownerID, daemonLogRunIDKey, run.ID,
+		)
 		return errStarvationSpawnUnresolvable
 	}
 	// Restart recovery validates the durable binding. The next scheduler wake dispatches the run.
 	err = resumer.ResumeIdleSessionAfterRestart(admission.WithBackgroundWork(ctx), ownerID)
 	if err != nil {
 		if starvationOwnerResumeRefused(err) {
+			r.logger.DebugContext(ctx, "daemon: starvation owner resume refused",
+				"session_id", ownerID, daemonLogRunIDKey, run.ID, "error", err,
+			)
 			return errStarvationSpawnUnresolvable
 		}
 		return fmt.Errorf("daemon: resume starvation owner %q: %w", ownerID, err)
@@ -96,7 +102,8 @@ func starvationOwnerResumeRefused(err error) bool {
 		errors.Is(err, session.ErrRestartContinuationSkipped) ||
 		errors.Is(err, session.ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotAttachable) ||
 		errors.Is(err, session.ErrSessionInLater) || errors.Is(err, session.ErrSessionArchived) ||
-		errors.Is(err, session.ErrPromptInProgress)
+		errors.Is(err, session.ErrPromptInProgress) ||
+		errors.Is(err, admission.ErrDraining) || errors.Is(err, admission.ErrStarting)
 }
 
 func starvationOwnerResumable(taskRecord taskpkg.Task, owner *session.Info) bool {
