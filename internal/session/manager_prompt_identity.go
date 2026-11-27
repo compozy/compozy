@@ -51,11 +51,14 @@ func (m *Manager) publishOrReplaceActivePromptRun(session *Session, state *promp
 func (m *Manager) clearActivePromptRunForState(session *Session, state *promptTurnDispatchState) {
 	identity, err := promptRunIdentity(session, state)
 	if err == nil {
-		m.clearActivePromptRun(identity)
+		m.clearActivePromptRun(session, identity)
 	}
 }
 
-func (m *Manager) clearActivePromptRun(identity PromptRunIdentity) {
+func (m *Manager) clearActivePromptRun(session *Session, identity PromptRunIdentity) {
+	// Retire the route in the same order as clarification commits and delivery.
+	session.interactionLifecycleMu.Lock()
+	defer session.interactionLifecycleMu.Unlock()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	current, ok := m.activePromptRuns[identity.SessionID]

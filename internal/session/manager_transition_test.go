@@ -489,9 +489,9 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			if id == "finite" {
 				request.Deadline = h.manager.now().Add(-time.Minute)
 			}
-			if _, err := h.manager.applyClarifyAttentionEvent(t.Context(), target, toolspkg.ClarifyEvent{
+			if _, _, err := h.manager.applyClarifyAttentionEvent(t.Context(), target, toolspkg.ClarifyEvent{
 				Status: toolspkg.ClarifyStatusPending, Request: request, At: h.manager.now().Add(-time.Hour),
-			}); err != nil {
+			}, toolspkg.Scope{}, nil); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -504,6 +504,80 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 				t.Fatalf("clarification %s = %#v, %v", status, rows, err)
 			}
 		}
+	})
+	t.Run("Should queue a clarification answer while its original prompt is settling", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		h := newHarness(t)
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		retiring, finishRelease := make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(finishRelease) })
+		hosted := &recordingHostedMCPLauncher{
+			server: compozyconfig.MCPServer{
+				Name: "compozy-hosted-tools", Transport: compozyconfig.MCPServerTransportStdio, Command: "/bin/compozy",
+			},
+			releaseRunHook: sync.OnceFunc(func() {
+				close(retiring)
+				select {
+				case <-finishRelease:
+				case <-ctx.Done():
+				}
+			}),
+		}
+		h.manager = newManagerWithHarness(
+			t, h, WithSessionCatalog(catalog), WithSessionInputQueueStore(catalog), WithHostedMCPLauncher(hosted),
+		)
+		cleanupTestManager(t, h.manager)
+		defer unblock()
+		target := createSession(t, h)
+		source := make(chan acp.AgentEvent, 1)
+		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return source, nil
+		}
+		output, err := h.manager.Prompt(ctx, target.ID, "Ask a question")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		run, err := h.manager.ActivePromptRun(ctx, target.ID)
+		if err != nil {
+			t.Fatalf("ActivePromptRun() error = %v", err)
+		}
+		request := toolspkg.ClarifyPending{
+			RequestID: "clarification", SessionID: target.ID, WorkspaceID: h.workspaceID,
+			AgentName: target.Info().AgentName, Question: "Continue?", AskedAt: h.manager.now(),
+		}
+		if err := h.manager.PublishClarifyEvent(ctx, toolspkg.ClarifyEvent{
+			Status: toolspkg.ClarifyStatusPending, Request: request, At: request.AskedAt,
+		}); err != nil {
+			t.Fatalf("PublishClarifyEvent() error = %v", err)
+		}
+		h.driver.mu.Lock()
+		h.driver.promptHook = nil
+		h.driver.mu.Unlock()
+		source <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: run.TurnID, PromptStopReason: acp.PromptStopReasonEndTurn}
+		close(source)
+		select {
+		case <-retiring:
+		case <-ctx.Done():
+			t.Fatalf("wait for hosted run release: %v", ctx.Err())
+		}
+		answer := toolspkg.ClarifyAnswer{Text: "Yes"}
+		delivered := false
+		wake, err := h.manager.PublishClarifyAnswer(ctx, toolspkg.ClarifyEvent{
+			Status: toolspkg.ClarifyStatusResolved, Request: request, Answer: &answer, At: h.manager.now(),
+		}, toolspkg.Scope{RunID: run.RunID, Generation: run.Generation}, func() { delivered = true })
+		if err != nil || wake == nil || !delivered {
+			t.Fatalf("PublishClarifyAnswer() wake = %t, delivered = %t, error = %v", wake != nil, delivered, err)
+		}
+		queued, err := catalog.ListPendingSessionInputs(ctx, target.ID)
+		if err != nil || len(queued) != 1 || queued[0].Text != "Continue?\nResponse: Yes" {
+			t.Fatalf("queued clarification continuation = %#v, error = %v", queued, err)
+		}
+		wake()
+		unblock()
+		drainPromptEvents(t, output)
 	})
 	t.Run("Should retry a failed terminal permission write and record each callback event once", func(t *testing.T) {
 		t.Parallel()
@@ -1254,6 +1328,43 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			t.Fatalf("ResolveOrphanedClarification(duplicate) = %#v", duplicate)
 		}
 	})
+
+	for _, tc := range []struct {
+		name, status string
+	}{
+		{"Should refuse a repeated answer to an expired clarification", store.PendingInteractionStatusTimedOut},
+		{"Should refuse a repeated answer to a canceled clarification", store.PendingInteractionStatusCanceled},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h, restarted, catalog, sessionID := newOrphanResolutionHarness(
+				t,
+				store.PendingInteractionKindClarify,
+				store.PendingInteractionPayload{Choices: []string{"Fast", "Safe"}},
+			)
+			ctx := t.Context()
+			if _, err := catalog.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+				InteractionID: "interaction-orphan", Status: tc.status, At: restarted.now(),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			scope := toolspkg.Scope{
+				WorkspaceID: h.workspaceID,
+				SessionID:   sessionID,
+				AgentName:   "coder",
+				Operator:    true,
+			}
+			for range 2 {
+				result, err := restarted.ResolveOrphanedClarification(
+					ctx, scope, "request-orphan", toolspkg.ClarifyAnswerRequest{ChoiceIndex: new(1)},
+				)
+				if !errors.Is(err, toolspkg.ErrClarifyCanceled) || result.Outcome != "" {
+					t.Fatalf("answer to %s clarification = %#v, %v, want terminal refusal", tc.status, result, err)
+				}
+			}
+		})
+	}
 
 	t.Run("Should hydrate durable attention badges in a fresh manager", func(t *testing.T) {
 		t.Parallel()

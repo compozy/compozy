@@ -223,12 +223,15 @@ func (m *Manager) finishPromptPump(
 	fatal *promptPumpFatal,
 ) {
 	outcome, outcomeErr := promptTurnOutcome(turnState, fatal)
+	identity, identityErr := promptRunIdentity(session, turnState)
+	if identityErr == nil {
+		m.clearActivePromptRun(session, identity)
+	}
 	var before *Info
 	if session != nil {
 		session.supervisionInspectMu.Lock()
 		before = session.Info()
 	}
-	identity, identityErr := promptRunIdentity(session, turnState)
 	m.releaseHostedPromptRun(session, turnState)
 	var fatalPromptFailure *store.SessionFailure
 	if fatal != nil {
@@ -253,9 +256,6 @@ func (m *Manager) finishPromptPump(
 		m.dispatchTurnEnd(lifecycleCtx, turnState, time.Time{})
 	}
 	m.finishManagedInputPrompt(lifecycleCtx, session, turnState)
-	if identityErr == nil {
-		m.clearActivePromptRun(identity)
-	}
 	if turnState != nil {
 		clearPromptState(session, turnState.turnID)
 	}
