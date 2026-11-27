@@ -265,6 +265,13 @@ func TestSkillEditProposals(t *testing.T) {
 			{"Should refuse a case-only collision", func(input *SkillProposalInput) {
 				input.Files = []SkillDraftFile{{Path: "Scripts/check.sh", Content: "echo other\n"}}
 			}},
+			{"Should refuse a case-only directory collision after removing the original file", func(input *SkillProposalInput) {
+				input.RemovePaths = []string{"scripts/check.sh"}
+				input.Files = []SkillDraftFile{
+					{Path: "Scripts/check.sh", Content: "echo other\n"},
+					{Path: "scripts/alternate.sh", Content: "echo alternate\n"},
+				}
+			}},
 			{"Should refuse a file over a base directory", func(input *SkillProposalInput) {
 				input.Files = []SkillDraftFile{{Path: "scripts", Content: "not a directory\n"}}
 			}},

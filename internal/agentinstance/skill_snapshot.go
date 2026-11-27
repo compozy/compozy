@@ -202,13 +202,20 @@ func applySkillOverlay(base SkillTree, draft SkillDraft) (SkillTree, error) {
 		}
 		folded[key] = file.Path
 	}
+	dirs := make(map[string]string)
 	for _, file := range result {
 		parent := filepath.ToSlash(filepath.Dir(file.Path))
 		for ; parent != "."; parent = filepath.ToSlash(filepath.Dir(parent)) {
-			if existing, ok := folded[strings.ToLower(parent)]; ok {
+			key := strings.ToLower(parent)
+			if existing, ok := folded[key]; ok {
 				return nil, fmt.Errorf("%w: skill proposal file %s conflicts with the file %s", ErrSkillReviewInvalid,
 					file.Path, existing)
 			}
+			if existing, ok := dirs[key]; ok && existing != parent {
+				return nil, fmt.Errorf("%w: skill tree directories %s and %s differ only in case",
+					ErrSkillReviewInvalid, existing, parent)
+			}
+			dirs[key] = parent
 		}
 	}
 	return result, nil
