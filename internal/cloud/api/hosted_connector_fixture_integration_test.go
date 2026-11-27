@@ -202,7 +202,7 @@ func hostedEdgeTransport(t *testing.T, home string, rejectTLS *atomic.Bool) *htt
 		}
 		httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: state.Address}).ServeHTTP(w, req)
 	}))
-	certificate := remotetest.HostedEdgeCertificate(t, cloudflare.ProductionDomain)
+	certificate := remotetest.HostedEdgeCertificate(t, "*."+cloudflare.ProductionDomain)
 	edge.TLS = &tls.Config{Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12}
 	if rejectTLS != nil {
 		edge.TLS.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {

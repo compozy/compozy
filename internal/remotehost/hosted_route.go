@@ -21,6 +21,7 @@ const (
 	hostedRefresh       = time.Minute
 	hostedStartTimeout  = 35 * time.Second
 	hostedProbeInterval = 250 * time.Millisecond
+	hostedEdgeStartup   = 10 * time.Second
 	hostedEdgeRetry     = 2 * time.Second
 	hostedEdgeInterval  = 15 * time.Second
 	hostedEdgeTimeout   = 3 * time.Second
@@ -29,6 +30,12 @@ const (
 type hostedView struct {
 	status HostedStatus
 	mode   string
+}
+
+type hostedEdgeObservation struct {
+	next          time.Time
+	startingUntil time.Time
+	missed        bool
 }
 
 type hostedRun struct {
@@ -175,7 +182,7 @@ func (h *hostedRun) observeProcess(
 	defer startup.Stop()
 	readyDeadline := startup.C
 	everReady := false
-	var nextEdgeProbe time.Time
+	var edge hostedEdgeObservation
 	for {
 		select {
 		case <-ctx.Done():
@@ -191,9 +198,9 @@ func (h *hostedRun) observeProcess(
 			if err == nil && ready {
 				everReady = true
 				readyDeadline = nil
-				nextEdgeProbe = h.observeEdge(ctx, credentials, nextEdgeProbe)
+				h.observeEdge(ctx, credentials, &edge)
 			} else {
-				nextEdgeProbe = time.Time{}
+				edge = hostedEdgeObservation{}
 				diagnosis := process.diagnostics.diagnosis()
 				if everReady || diagnosis != "" {
 					h.publish(ctx, credentials.Hostname, credentials.Mode, hostedStateRetrying, diagnosis)
@@ -217,7 +224,7 @@ func (h *hostedRun) observeProcess(
 			return everReady, "", errors.New("hosted connector credentials changed")
 		}
 		if next.Mode != credentials.Mode {
-			nextEdgeProbe = time.Time{}
+			edge = hostedEdgeObservation{}
 		}
 		credentials = next
 	}
@@ -226,32 +233,56 @@ func (h *hostedRun) observeProcess(
 func (h *hostedRun) observeEdge(
 	ctx context.Context,
 	credentials remoteproto.HostedTunnel,
-	nextProbe time.Time,
-) time.Time {
+	observation *hostedEdgeObservation,
+) {
 	hostname, mode := credentials.Hostname, credentials.Mode
 	if mode == remoteproto.HostedTunnelEntitlementOnly {
 		h.publish(ctx, hostname, mode, remoteproto.HostedTunnelEntitlementOnly, "")
-		return time.Time{}
+		return
 	}
-	if time.Now().Before(nextProbe) {
-		return nextProbe
+	if time.Now().Before(observation.next) {
+		return
+	}
+	if observation.startingUntil.IsZero() {
+		observation.startingUntil = time.Now().Add(hostedEdgeStartup)
 	}
 	target := &url.URL{Scheme: "https", Host: hostname}
 	descriptor, err := remoteproto.FetchDescriptor(ctx, target, h.edge)
 	if ctx.Err() != nil {
-		return time.Time{}
+		return
 	}
-	if err == nil && descriptor.ComputerID == h.identity.ComputerID &&
-		descriptor.TLSRootSHA256 == h.identity.TLSRootSHA256 && descriptor.BrowserSignIn {
+	now := time.Now()
+	observation.next = now.Add(hostedEdgeInterval)
+	switch {
+	case err == nil && descriptor.ComputerID == h.identity.ComputerID &&
+		descriptor.TLSRootSHA256 == h.identity.TLSRootSHA256 && descriptor.BrowserSignIn:
+		observation.missed = false
 		h.publish(ctx, hostname, mode, remoteproto.HostedRouteReady, "")
-		return time.Now().Add(hostedEdgeInterval)
+	case errors.Is(err, remoteproto.ErrDescriptorPlanRequired):
+		observation.missed = false
+		h.publish(ctx, hostname, mode, remoteproto.HostedTunnelEntitlementOnly, "")
+	case errors.Is(err, remoteproto.ErrDescriptorTLS):
+		observation.next = now.Add(hostedEdgeRetry)
+		h.publish(ctx, hostname, mode, hostedStateRetrying, remoteproto.HostedTLSFailureMessage)
+	default:
+		observation.next = now.Add(hostedEdgeRetry)
+		state := h.view.Load().status.State
+		// Give DNS and the edge time to publish the route, and confirm an outage before withdrawing ingress.
+		if state == hostedStateStarting && now.Before(observation.startingUntil) {
+			return
+		}
+		if state == remoteproto.HostedRouteReady && !observation.missed {
+			observation.missed = true
+			return
+		}
+		h.publish(
+			ctx,
+			hostname,
+			mode,
+			hostedStateRetrying,
+			"Hosted route did not return this computer's descriptor over HTTPS.",
+		)
 	}
-	diagnosis := "Hosted route did not return this computer's descriptor over HTTPS."
-	if errors.Is(err, remoteproto.ErrDescriptorTLS) {
-		diagnosis = remoteproto.HostedTLSFailureMessage
-	}
-	h.publish(ctx, hostname, mode, hostedStateRetrying, diagnosis)
-	return time.Now().Add(hostedEdgeRetry)
 }
 
 func (h *hostedRun) publish(ctx context.Context, hostname, mode, state, diagnosis string) {

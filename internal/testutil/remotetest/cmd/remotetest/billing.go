@@ -131,7 +131,16 @@ func prepareRetainedHost(f *fixture, db *remotetest.Database, m *scenarioManifes
 	host := prepareDaemon(f, true)
 	origin := configureHostedListener(f, host)
 	installFixtureConnector(f, host.Home)
-	startDaemon(f, host, m.CloudURL, fixtureConnectorEnv+"=1")
+	target := &url.URL{Scheme: "http", Host: origin}
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(request *httputil.ProxyRequest) {
+			request.SetURL(target)
+			request.Out.Host = fixtureHostname
+			request.Out.Header.Set("X-Forwarded-Proto", "https")
+		},
+	}
+	edgePort, edgeEnv := startFixtureHostedEdge(f, proxy, fixtureHostname)
+	startDaemon(f, host, m.CloudURL, edgeEnv...)
 	signIn(f, host)
 	result := cliJSON[contract.RemoteLinkResponse](f, host, m.CloudURL, "remote", "link")
 	seedRetainedTunnel(f, db, string(result.ComputerID), "http://"+origin)
@@ -144,17 +153,7 @@ func prepareRetainedHost(f *fixture, db *remotetest.Database, m *scenarioManifes
 			status.CloudRoute.State == remoteproto.HostedTunnelEntitlementOnly &&
 			status.CloudRoute.Hostname != nil && *status.CloudRoute.Hostname == fixtureHostname
 	})
-	target := &url.URL{Scheme: "http", Host: origin}
-	proxy := &httputil.ReverseProxy{
-		Rewrite: func(request *httputil.ProxyRequest) {
-			request.SetURL(target)
-			request.Out.Host = fixtureHostname
-			request.Out.Header.Set("X-Forwarded-Proto", "https")
-		},
-	}
-	edge := httptest.NewTLSServer(proxy)
-	f.Cleanup(edge.Close)
-	m.EdgePort = edge.Listener.Addr().(*net.TCPAddr).Port
+	m.EdgePort = edgePort
 	m.Computers = append(m.Computers, computerTarget{ID: result.ComputerID, Name: result.Name, Socket: host.Socket})
 }
 

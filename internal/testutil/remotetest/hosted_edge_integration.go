@@ -4,7 +4,8 @@ package remotetest
 
 import (
 	"context"
-	"crypto/ed25519"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -14,19 +15,19 @@ import (
 	"time"
 )
 
-func HostedEdgeCertificate(t Fixture, domain string) tls.Certificate {
+func HostedEdgeCertificate(t Fixture, hostnames ...string) tls.Certificate {
 	t.Helper()
-	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now()
 	leaf := &x509.Certificate{
 		SerialNumber: big.NewInt(1), NotBefore: now.Add(-time.Minute), NotAfter: now.Add(time.Hour),
-		DNSNames: []string{"*." + domain}, KeyUsage: x509.KeyUsageDigitalSignature,
+		DNSNames: hostnames, KeyUsage: x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
-	der, err := x509.CreateCertificate(rand.Reader, leaf, leaf, publicKey, privateKey)
+	der, err := x509.CreateCertificate(rand.Reader, leaf, leaf, &privateKey.PublicKey, privateKey)
 	if err != nil {
 		t.Fatal(err)
 	}

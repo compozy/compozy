@@ -53,7 +53,7 @@ func startHostedBrowserEdge(
 	idp *remotetest.IdentityProvider,
 	fake *hostedFakeCloudflare,
 	profile remotetest.ProviderProfile,
-) *httptest.Server {
+) (int, []string) {
 	f.Helper()
 	const providerPath = "/fixture/google/authorize"
 	cloudTarget, err := url.Parse(cloudURL)
@@ -77,7 +77,7 @@ func startHostedBrowserEdge(
 		},
 	}
 
-	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host := stripHostPort(r.Host)
 		switch {
 		case host == "cloud.compozy.com" && r.URL.Path == "/auth-assets/turnstile.js":
@@ -114,12 +114,27 @@ func startHostedBrowserEdge(
 		default:
 			http.NotFound(w, r)
 		}
-	}))
-	certificate := remotetest.HostedEdgeCertificate(f, "compozy.run")
+	})
+	return startFixtureHostedEdge(f, handler, "*.compozy.run", "cloud.compozy.com")
+}
+
+func startFixtureHostedEdge(f *fixture, handler http.Handler, hostnames ...string) (int, []string) {
+	f.Helper()
+	server := httptest.NewUnstartedServer(handler)
+	certificate := remotetest.HostedEdgeCertificate(f, hostnames...)
 	server.TLS = &tls.Config{Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12}
 	server.StartTLS()
 	f.Cleanup(server.Close)
-	return server
+	edgeCert := filepath.Join(f.TempDir(), "edge.der")
+	if err := os.WriteFile(edgeCert, server.Certificate().Raw, 0o600); err != nil {
+		f.Fatal(err)
+	}
+	address := server.Listener.Addr().(*net.TCPAddr)
+	return address.Port, []string{
+		fixtureConnectorEnv + "=1",
+		hostedEdgeAddressEnv + "=" + address.String(),
+		hostedEdgeCertEnv + "=" + edgeCert,
+	}
 }
 
 func prepareHostedBrowser(
@@ -166,25 +181,13 @@ func prepareHostedBrowser(
 		},
 	}, nil).Server.URL
 
-	edge := startHostedBrowserEdge(f, cloudURL, idp, fake, profile)
-	edgeCert := filepath.Join(f.TempDir(), "edge.der")
-	if err := os.WriteFile(edgeCert, edge.Certificate().Raw, 0o600); err != nil {
-		f.Fatal(err)
-	}
+	edgePort, edgeEnv := startHostedBrowserEdge(f, cloudURL, idp, fake, profile)
 
 	controller := prepareDaemon(f, true)
 	configureHostedListener(f, controller)
 	installFixtureConnector(f, controller.Home)
 	configureLocalAgent(f, controller, mock)
-	startDaemon(
-		f,
-		controller,
-		cloudURL,
-		fixtureConnectorEnv+"=1",
-		hostedEdgeAddressEnv+"="+edge.Listener.Addr().String(),
-		hostedEdgeCertEnv+"="+edgeCert,
-		"COMPOZY_WEB_DIST_DIR="+distDir,
-	)
+	startDaemon(f, controller, cloudURL, append(edgeEnv, "COMPOZY_WEB_DIST_DIR="+distDir)...)
 
 	controller.DeviceID = signIn(f, controller)
 	cliJSON[contract.OnboardingStatusResponse](f, controller, cloudURL, "onboarding", "complete")
@@ -245,6 +248,6 @@ func prepareHostedBrowser(
 		SessionID:    session.ID,
 		SessionTitle: searchTitle,
 		WorkspaceID:  session.WorkspaceID,
-		EdgePort:     edge.Listener.Addr().(*net.TCPAddr).Port,
+		EdgePort:     edgePort,
 	}
 }
