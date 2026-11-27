@@ -171,6 +171,39 @@ func TestCloudSubscriptionRefresh(t *testing.T) {
 		assertAuthRow(t, f, "SELECT count(*) FROM stripe_events", 1)
 	})
 
+	t.Run(
+		"Should retire a known Stripe subscription that no longer has a Pro price during reconciliation",
+		func(t *testing.T) {
+			t.Parallel()
+			f, stripe := newBillingFixture(t, nil)
+			owner := newBillingDevice(t, f, "reconcile-price@example.test")
+			now := f.clock.Now()
+			sub := proStripeSub(now, "sub_repriced", owner.account)
+			stripe.Put(sub)
+			deliverStripeEvent(t, f, "evt_original_price", stripeSubCreated, sub.ID)
+			if account := billingAccount(t, f, owner); account.Plan != "pro" {
+				t.Fatalf("original subscription did not grant Pro: %+v", account.AccountPlan)
+			}
+
+			sub.Price = "price_foreign"
+			stripe.Put(sub)
+			deliverStripeEvent(t, f, "evt_repriced_invoice", "invoice.paid", sub.ID)
+			if account := billingAccount(t, f, owner); account.Plan != "pro" {
+				t.Fatalf("invoice outside the Pro prices changed entitlement: %+v", account.AccountPlan)
+			}
+			assertAuthRow(t, f, "SELECT count(*) FROM stripe_events", 1)
+
+			f.db.Exec(t, "UPDATE %s.subscriptions SET stripe_synced_at = $1 WHERE id = $2",
+				now.Add(-2*billing.ReconcileInterval), sub.ID)
+			if err := f.replica.App.Billing.Reconcile(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if account := billingAccount(t, f, owner); account.Plan != "free" || account.Subscription != nil {
+				t.Fatalf("reconciliation kept the former Pro entitlement: %+v", account.AccountPlan)
+			}
+		},
+	)
+
 	t.Run("Should reconcile only stale subscriptions that can still affect billing", func(t *testing.T) {
 		// RC-14: Fresh webhook state and long-ended Stripe rows do not trigger redundant provider reads.
 		t.Parallel()
@@ -311,10 +344,8 @@ func TestCloudBillingCheckout(t *testing.T) {
 			"cone-1280.jpg", "cone-portrait-1280.jpg", "converge-1280.jpg", "converge-portrait-1280.jpg",
 		} {
 			res := f.request(t, http.MethodGet, "/brand/visuals/"+file, nil)
-			if contentType := http.DetectContentType(
-				res.body,
-			); res.StatusCode != http.StatusOK ||
-				contentType != "image/jpeg" {
+			contentType := http.DetectContentType(res.body)
+			if res.StatusCode != http.StatusOK || contentType != "image/jpeg" {
 				t.Errorf("%s: got HTTP %d with content type %q, want HTTP 200 with a JPEG", file,
 					res.StatusCode, contentType)
 			}

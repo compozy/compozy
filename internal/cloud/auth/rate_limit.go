@@ -3,6 +3,7 @@
 package auth
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
 	"net/http"
 	"net/netip"
@@ -26,8 +27,9 @@ func (s *Service) LimitSignIn(r *http.Request, scope SignInRate) error {
 	now := s.now()
 	expiresAt := now.Truncate(window).Add(window)
 	ip := s.signInClientIP(r).Unmap().WithZone("")
-	digest := sha256.Sum256(ip.AsSlice())
-	allowed, err := s.db.ChargeAuthIPWindow(r.Context(), string(scope), digest[:], expiresAt, limit)
+	digest := hmac.New(sha256.New, s.signInRateKey)
+	digest.Write(ip.AsSlice())
+	allowed, err := s.db.ChargeAuthIPWindow(r.Context(), string(scope), digest.Sum(nil), expiresAt, limit)
 	if err != nil || allowed {
 		return err
 	}

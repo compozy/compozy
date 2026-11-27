@@ -68,6 +68,7 @@ type Service struct {
 	seal            cipher.AEAD
 	refreshSeal     cipher.AEAD
 	refreshNonceKey []byte
+	signInRateKey   []byte
 	oauth           *OAuth
 	cfg             Config
 	limit           func(string) int
@@ -104,6 +105,10 @@ func New(
 	if err != nil {
 		return nil, err
 	}
+	rateKey, err := hkdf.Key(sha256.New, cfg.EncryptionKey, nil, "compozy-sign-in-rate-v1", sha256.Size)
+	if err != nil {
+		return nil, err
+	}
 	access, err := remoteproto.NewJWSVerifier(issuer, keys, nil)
 	if err != nil {
 		return nil, err
@@ -111,7 +116,7 @@ func New(
 	cfg.EncryptionKey = nil
 	return &Service{
 		db: db, issuer: issuer, signer: signer, access: access, proofs: remoteproto.NewDPoPVerifier(),
-		seal: seal, refreshSeal: refreshSeal, refreshNonceKey: nonceKey,
+		seal: seal, refreshSeal: refreshSeal, refreshNonceKey: nonceKey, signInRateKey: rateKey,
 		oauth: cfg.OAuth, cfg: cfg, limit: limit, now: now,
 	}, nil
 }
