@@ -27,6 +27,8 @@ export function useSessionListComputers(view: SessionListViewModel) {
     showAutomation: view.showAutomation,
     search: view.groupFilters.q,
     worktreeId: view.worktreeId,
+    includeResidents:
+      view.groupBy === "project" && view.shelf === "active" && !view.groupFilters.q?.trim(),
     includeProfiles: view.groupBy === "profile" || isRemoteComputerId(computerScopeState.scope),
     workspaces: registeredWorkspaces,
   });

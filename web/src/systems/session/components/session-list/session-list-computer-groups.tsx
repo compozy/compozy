@@ -1,3 +1,4 @@
+import { readCachedOfflineRowsForComputer } from "../../lib/session-offline-catalog";
 import { QueryClientContext, useQueries, type QueryClient } from "@tanstack/react-query";
 import { use, useContext, useState } from "react";
 
@@ -6,10 +7,7 @@ import { useProfileReadScope } from "@/systems/profiles";
 import type { DataScope } from "@/systems/workspace";
 
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
-import {
-  readCachedOfflineRowsForComputer,
-  type ComputerSessionsSource,
-} from "../../hooks/use-computer-sessions-sources";
+import { type ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
 import { usePublishSessionListGroupRows } from "../../hooks/use-session-list-group-rows";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 import { sessionCatalogPageQueryOptions } from "../../lib/session-catalog-options";
@@ -100,30 +98,7 @@ function TogetherGroupList({
   const { view } = props;
   const sourcesById = new Map(sources.map(source => [source.key, source]));
   const connecting = sources.filter(source => source.read === "connecting");
-  const failed = sources.flatMap(source => {
-    const failedPages = slots.flatMap((slot, index) =>
-      slot.source.key === source.key &&
-      source.read === "ok" &&
-      scope !== null &&
-      !slot.emptyRemoteMatch &&
-      queries[index]?.isError
-        ? [queries[index]!]
-        : []
-    );
-    if (failedPages.length === 0 && source.read !== "failed") return [];
-    return [
-      {
-        id: source.key,
-        name: source.name,
-        retry:
-          failedPages.length > 0
-            ? () => {
-                for (const page of failedPages) void page.refetch();
-              }
-            : source.retry,
-      },
-    ];
-  });
+  const failed = sources.filter(source => source.read === "failed");
 
   return (
     <div className="flex flex-col gap-1" data-testid={`${props.testIdPrefix}-together-groups`}>

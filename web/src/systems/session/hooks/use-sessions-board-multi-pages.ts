@@ -1,3 +1,4 @@
+import { readCachedOfflineRowsForComputer } from "../lib/session-offline-catalog";
 import { QueryClientContext, useQueries, type QueryClient } from "@tanstack/react-query";
 import { useContext, useState } from "react";
 
@@ -20,10 +21,7 @@ import {
 } from "../lib/session-list-together";
 import { sessionRowKey } from "../lib/session-row-ref";
 import type { SessionCatalogPageResponse, SessionListFilters } from "../types";
-import {
-  readCachedOfflineRowsForComputer,
-  type ComputerSessionsSource,
-} from "./use-computer-sessions-sources";
+import { type ComputerSessionsSource } from "./use-computer-sessions-sources";
 import type { SessionsBoardFailure, SessionsBoardShelf } from "./use-sessions-board";
 
 export interface BoardSourceFilterSpec {

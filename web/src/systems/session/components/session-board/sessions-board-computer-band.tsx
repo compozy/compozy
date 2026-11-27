@@ -146,7 +146,11 @@ function BandBody({
     />
   ) : null;
 
-  if (source.read === "ok" && source.count === 0) {
+  if (
+    source.read === "ok" &&
+    source.count === 0 &&
+    !band.lanes?.some(lane => lane.group.hasResident)
+  ) {
     return (
       <div className="pl-6">
         {localStrip}

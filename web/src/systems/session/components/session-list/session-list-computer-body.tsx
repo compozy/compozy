@@ -1,3 +1,5 @@
+import { profileSessionGroups, projectSessionGroups } from "../../lib/session-list-groups";
+import { readCachedOfflineRowsForComputer } from "../../lib/session-offline-catalog";
 import { QueryClientContext, type QueryClient } from "@tanstack/react-query";
 import { use, useContext } from "react";
 import { cn } from "@compozy/ui";
@@ -7,10 +9,7 @@ import { useOptionalUpgradeSheetActions } from "@/systems/account";
 import { useActiveWorkspace, type DataScope } from "@/systems/workspace";
 
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
-import {
-  readCachedOfflineRowsForComputer,
-  type ComputerSessionsSource,
-} from "../../hooks/use-computer-sessions-sources";
+import { type ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import {
   useSessionListFolderLayout,
@@ -187,6 +186,9 @@ function SessionListComputerLiveBody({
 
   const layout = folders.layout;
   const projectLayout = computerView.projectFolders?.layout;
+  const bodyView = offline
+    ? offlineComputerListView(computerView, source, dataScope)
+    : computerView;
 
   return (
     <div
@@ -218,7 +220,7 @@ function SessionListComputerLiveBody({
           subagentThreads={subagentThreads}
           testIdPrefix={`${testIdPrefix}-${source.key}`}
           threads={threads}
-          view={offline ? { ...computerView, groupBy: "none" } : computerView}
+          view={bodyView}
         />
       )}
       {layout ? (
@@ -262,4 +264,29 @@ function computerListRows(
   return filters.emptyRemoteMatch
     ? []
     : readCachedOfflineRowsForComputer(queryClient, source.key, filters.scoped);
+}
+
+function offlineComputerListView(
+  view: SessionListViewModel,
+  source: ComputerSessionsSource,
+  scope: DataScope | null
+): SessionListViewModel {
+  if (scope === null || !source.facets) return { ...view, groupBy: "none" };
+  const groupInput = { computerId: source.key, offline: true };
+  const groups =
+    view.groupBy === "project"
+      ? projectSessionGroups(source.facets, {
+          ...groupInput,
+          workspaces: source.workspaces,
+          lens: { all_profiles: true },
+        })
+      : view.groupBy === "profile"
+        ? profileSessionGroups(source.facets, {
+            ...groupInput,
+            scope,
+            profiles: source.profiles ?? [],
+            matchedWorkspaceIds: source.matchedWorkspaceIds,
+          })
+        : [];
+  return groups.length > 0 ? { ...view, groups } : { ...view, groupBy: "none" };
 }

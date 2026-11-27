@@ -1,3 +1,4 @@
+import { readCachedOfflineRowsForComputer } from "../lib/session-offline-catalog";
 import {
   QueryClient,
   QueryClientContext,
@@ -16,14 +17,11 @@ import type { SessionRowComputerInfo } from "../lib/session-list-computer";
 import { computerWorkspaceBadgeIdentity } from "../lib/session-list-computer-filter";
 import { sessionListPair } from "../lib/session-list-groups";
 import { sessionListPinnedFilters } from "../lib/session-list-pinned";
-import type { SessionListSort } from "../lib/session-list-preferences";
+import { sessionListSortParam, type SessionListSort } from "../lib/session-list-preferences";
 import { mergeTogetherFlatRows, selectNextTogetherComputer } from "../lib/session-list-together";
 import { sessionComputerOf, sessionRowKey } from "../lib/session-row-ref";
 import type { SessionCatalogPageResponse, SessionListFilters, SessionPayload } from "../types";
-import {
-  readCachedOfflineRowsForComputer,
-  type ComputerSessionsSource,
-} from "./use-computer-sessions-sources";
+import { type ComputerSessionsSource } from "./use-computer-sessions-sources";
 import type { SessionListPinnedRead } from "./use-session-list-pinned-read";
 import { useSessionPinnedOrder } from "./use-session-pinned-order";
 
@@ -242,8 +240,15 @@ function pinnedReorderPair(
   lens: ProfileScopeParams
 ) {
   const source = sources.length === 1 ? sources[0] : undefined;
-  if (!source?.isLocal || !source.canOperate || source.read !== "ok") return null;
-  return sessionListPair(scope, lens, source.key);
+  if (!source?.canOperate || source.read !== "ok") return null;
+  if (source.isLocal) return sessionListPair(scope, lens, source.key);
+  const [owner] = source.profiles ?? [];
+  if (source.profiles?.length !== 1 || !owner || owner.archived) return null;
+  if (scope?.kind === "user") return sessionListPair(scope, { profile: owner.name }, source.key);
+  const [workspaceId] = source.matchedWorkspaceIds ?? [];
+  if (scope?.kind !== "project" || source.matchedWorkspaceIds?.length !== 1 || !workspaceId)
+    return null;
+  return sessionListPair({ kind: "project", workspaceId }, { profile: owner.name }, source.key);
 }
 
 /**
@@ -274,6 +279,7 @@ export function useMultiComputerPinned(options: {
   } = options;
   const active = enabled && contextClient !== undefined && scope !== null;
   const pinnedBase = sessionListPinnedFilters(groupFilters);
+  if (sources.length > 1) pinnedBase.sort = sessionListSortParam(sort, { singlePair: false });
   const answered = answeredPinnedSources(sources, active);
 
   const filterKey = JSON.stringify([scope, localLens, pinnedBase]);
@@ -335,7 +341,10 @@ export function useMultiComputerPinned(options: {
     failed: aggregated.failed,
     more: aggregated.more,
     retry: retryAll,
-    reorder,
+    reorder:
+      aggregated.more || aggregated.anyFailed || aggregated.loading || groupFilters.q?.trim()
+        ? undefined
+        : reorder,
     catalog: {
       sessions: aggregated.sessions,
       paging: aggregated.paging,

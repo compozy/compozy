@@ -1,3 +1,6 @@
+import { use } from "react";
+import { isRemoteComputerId } from "@/lib/computer-scope";
+import { SessionWritableComputersContext } from "../../lib/session-list-computer";
 import { ChevronRight } from "@compozy/ui/icons";
 
 import { Icon, StatusDot, cn } from "@compozy/ui";
@@ -55,6 +58,7 @@ export function SessionsBoardSwimlane({
   const empty = lane.group.total === 0;
   const open = !lane.collapsed && !empty;
   const computerId = lane.group.computerId;
+  const writable = use(SessionWritableComputersContext);
   const columns = useSessionsBoardColumns(
     lane.filters,
     open && lane.group.offline !== true,
@@ -66,13 +70,16 @@ export function SessionsBoardSwimlane({
   const alwaysOnScope =
     lane.group.kind === "project" ? sessionListGroupTarget(lane.group).workspaceId : null;
   // The lane's select-all covers the cards its columns show; a folded column shows none.
-  const shownIds = open
-    ? columns.flatMap(column =>
-        props.collapsedColumns[column.id] === true
-          ? []
-          : column.sessions.map(session => sessionRowKeyFor(session))
-      )
-    : [];
+  const eligible =
+    !computerId || !isRemoteComputerId(computerId) || writable?.has(computerId) !== false;
+  const shownIds =
+    open && eligible
+      ? columns.flatMap(column =>
+          props.collapsedColumns[column.id] === true
+            ? []
+            : column.sessions.map(session => sessionRowKeyFor(session))
+        )
+      : [];
   return (
     <section
       aria-label={name}

@@ -32,7 +32,7 @@ import {
 } from "../lib/session-list-preferences";
 import { sessionListShelfFilters } from "../lib/session-list-shelf";
 import type { SessionListFilters } from "../types";
-import { readCachedOfflineRowsForComputer } from "./use-computer-sessions-sources";
+import { readCachedOfflineRowsForComputer } from "../lib/session-offline-catalog";
 import { scopedCatalogFilters } from "./use-session-catalog";
 import { useSessionGroupFolds } from "./use-session-group-folds";
 import { useSessionListGroups } from "./use-session-list-groups";

@@ -1,3 +1,4 @@
+import { readCachedOfflineRowsForComputer } from "../lib/session-offline-catalog";
 import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
 import { useContext } from "react";
 
@@ -10,10 +11,7 @@ import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import { buildComputerPopulationFilters } from "../lib/session-list-computer-filter";
 import type { SessionListShelf } from "../lib/session-list-shelf";
 import type { SessionListFilters } from "../types";
-import {
-  readCachedOfflineRowsForComputer,
-  type ComputerSessionsSource,
-} from "./use-computer-sessions-sources";
+import { type ComputerSessionsSource } from "./use-computer-sessions-sources";
 
 const NOOP_QUERY_CLIENT = new QueryClient({
   defaultOptions: { queries: { enabled: false, retry: false } },

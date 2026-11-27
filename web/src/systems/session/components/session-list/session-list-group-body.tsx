@@ -1,3 +1,7 @@
+import { QueryClientContext } from "@tanstack/react-query";
+import { scopedCatalogFilters } from "../../hooks/use-session-catalog";
+import { readCachedOfflineRowsForComputer } from "../../lib/session-offline-catalog";
+import { sessionListGroupFilters } from "../../lib/session-list-groups";
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import { use } from "react";
 
@@ -67,6 +71,7 @@ export function SessionListGroupBody(
     renderSubgroup: SessionListSubgroupRenderer;
   }
 ) {
+  if (props.group.offline) return <SessionListOfflineGroupBody {...props} />;
   // An empty group spanning pairs reads nothing: Show empty projects can list every
   // registered project, and each open one would otherwise read its own facets (#1085).
   if (props.group.total === 0 && !props.group.pair) {
@@ -80,6 +85,36 @@ export function SessionListGroupBody(
     <SessionListPairGroupBody {...props} />
   ) : (
     <SessionListGroupSplit {...props} />
+  );
+}
+
+function SessionListOfflineGroupBody({
+  group,
+  view,
+  ...props
+}: GroupRowProps & { group: SessionListGroupSpec }) {
+  const queryClient = use(QueryClientContext);
+  const computerId = group.computerId ?? view.computerId;
+  if (!computerId) return null;
+  const { scoped, emptyRemoteMatch } = scopedCatalogFilters(
+    group.scope,
+    sessionListGroupFilters(view, group),
+    group.lens,
+    computerId,
+    group.matchedWorkspaceIds
+  );
+  const rows = emptyRemoteMatch
+    ? []
+    : readCachedOfflineRowsForComputer(queryClient, computerId, scoped);
+  if (rows.length === 0) return null;
+  return (
+    <SessionListThreadList
+      {...props}
+      emptyMessage={null}
+      ownerOf={view.aggregate ? view.ownerOf : undefined}
+      readOnly
+      threads={buildSessionListThreads(rows, "")}
+    />
   );
 }
 
@@ -111,7 +146,7 @@ function SessionListGroupSplit({
     pinned: view.groupFilters.pinned,
     enabled: true,
     computerId,
-    matchedWorkspaceIds: view.matchedWorkspaceIds,
+    matchedWorkspaceIds: group.matchedWorkspaceIds ?? view.matchedWorkspaceIds,
   });
   if (split.error) {
     return (

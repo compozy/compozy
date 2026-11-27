@@ -56,7 +56,7 @@ export function SessionListSubagentBranch({
     !remote ||
     (computer?.status === "connected" && computerCanOperateSessions(computer.scopes, false));
   const actions = use(SessionSubagentActionsContext);
-  const branch = useSessionSubagentBranch(workspaceId, sessionId, total, computerId);
+  const branch = useSessionSubagentBranch(workspaceId, sessionId, total, computerId, canOperate);
   // The branch's rows carry this parent's scope; the actions owner lives above
   // the threads, so a confirmation outlives this branch.
   const verbs = useMemo(() => {

@@ -273,12 +273,19 @@ export function sessionListGroupFilters(
  * the group spans — All projects or All profiles — stays `null`.
  */
 export function sessionListGroupTarget(
-  group: Pick<SessionListGroupSpec, "pair" | "scope" | "lens" | "computerId">
+  group: Pick<
+    SessionListGroupSpec,
+    "pair" | "scope" | "lens" | "computerId" | "matchedWorkspaceIds"
+  >
 ) {
   const computerId = group.pair?.computerId ?? group.computerId;
   return {
     ...(isRemoteComputerId(computerId) ? { computerId } : {}),
-    workspaceId: group.pair?.workspaceId ?? workspaceSelectorOrAll(group.scope),
+    workspaceId:
+      group.pair?.workspaceId ??
+      (isRemoteComputerId(computerId) && (group.matchedWorkspaceIds?.length ?? 0) > 1
+        ? null
+        : workspaceSelectorOrAll(group.scope)),
     profile: group.pair?.profile ?? ("profile" in group.lens ? group.lens.profile : null) ?? null,
   };
 }

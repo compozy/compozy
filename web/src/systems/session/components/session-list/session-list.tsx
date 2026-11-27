@@ -28,11 +28,10 @@ import { buildSessionListThreads, countThreadSessions } from "../../lib/session-
 import { SESSION_LIST_NEW_FOLDER_MULTI_COMPUTER_NOTE } from "../../lib/session-list-view-helpers";
 import { sessionThreadFolds } from "../../lib/session-sidebar-scope";
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
-import type { SessionListTarget, SessionPayload, WorkspaceFolderPayload } from "../../types";
-import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
+import type { SessionListTarget, SessionPayload } from "../../types";
 import { AlwaysOnListTop } from "../always-on/always-on-list-top";
 import { ArchivedCleanup } from "./archived-cleanup";
-import { SessionFolderDialogs } from "./session-folder-dialogs";
+import { SessionListLocalDialogs } from "./session-list-local-dialogs";
 import { SessionListMultiComputerBody, SessionListSingleBody } from "./session-list-body";
 import { SessionListControls } from "./session-list-controls";
 import { SessionListPinned } from "./session-list-pinned";
@@ -240,10 +239,15 @@ function SessionListCore({
     filtering,
   });
 
-  const multiComputerVisible = multi?.multiComputerVisible === true;
-  const scopedRemoteSource = multi?.scopedRemoteSource ?? null;
-  const isScopedToLocal = multi?.isScopedToLocal === true;
-  const computersLayout = multi?.computersLayout ?? "separate";
+  const {
+    multiComputerVisible,
+    scopedRemoteSource,
+    computersLayout,
+    isRemoteOrMulti,
+    toolbarComputer,
+    showAlwaysOnTop,
+    computerLayoutOption,
+  } = listComputerControls(multi, view);
 
   const pinnedSection = (
     <SessionListPinned
@@ -264,7 +268,7 @@ function SessionListCore({
   const { bulk, groupSelection } = useSessionListSelection({
     selectionKey: view.selectionKey,
     shelf: view.shelf,
-    grouped: grouped || multiComputerVisible || scopedRemoteSource !== null,
+    grouped: grouped || isRemoteOrMulti,
     sessions: listed,
     visibleThreads: folders.visibleThreads,
     collapsedThreads,
@@ -272,8 +276,6 @@ function SessionListCore({
     sessionActions,
   });
 
-  const toolbarComputer =
-    scopedRemoteSource?.key ?? (isScopedToLocal ? LOCAL_COMPUTER_ID : undefined);
   const toolbarNewSession = () => openToolbarSession(onNewSession, toolbarComputer);
 
   const toolbarNewFolder = resolveToolbarNewFolder({
@@ -286,20 +288,11 @@ function SessionListCore({
     openProjectFolder: () => setProjectFolderDialog({ kind: "create" }),
   });
 
-  const computerLayoutOption =
-    multiComputerVisible && view.setComputers
-      ? { value: computersLayout, onValueChange: view.setComputers }
-      : undefined;
-
   const { effectiveTotals, effectiveLaterCount } = listComputerCounts(
     view,
     multi,
     scopedRemoteSource
   );
-
-  const showAlwaysOnTop =
-    !scopedRemoteSource && (!multiComputerVisible || computersLayout === "together");
-  const isRemoteOrMulti = multiComputerVisible || scopedRemoteSource !== null;
 
   return (
     <SessionMenuOpenContext value={onSelectSession}>
@@ -415,6 +408,26 @@ function SessionListCore({
   );
 }
 
+function listComputerControls(multi: MultiComputerListState | null, view: SessionListViewModel) {
+  const multiComputerVisible = multi?.multiComputerVisible === true;
+  const scopedRemoteSource = multi?.scopedRemoteSource ?? null;
+  const computersLayout = multi?.computersLayout ?? "separate";
+  return {
+    multiComputerVisible,
+    scopedRemoteSource,
+    computersLayout,
+    isRemoteOrMulti: multiComputerVisible || scopedRemoteSource !== null,
+    toolbarComputer:
+      scopedRemoteSource?.key ?? (multi?.isScopedToLocal ? LOCAL_COMPUTER_ID : undefined),
+    showAlwaysOnTop:
+      !scopedRemoteSource && (!multiComputerVisible || computersLayout === "together"),
+    computerLayoutOption:
+      multiComputerVisible && view.setComputers
+        ? { value: computersLayout, onValueChange: view.setComputers }
+        : undefined,
+  };
+}
+
 function openToolbarSession(
   open: SessionListProps["onNewSession"],
   computerId: ComputerSessionsSource["key"] | undefined
@@ -439,45 +452,6 @@ function listComputerCounts(
     effectiveTotals: scoped ? aggregateSourcesTotals([scoped], view.shelf) : view.totals,
     effectiveLaterCount: scoped?.laterCount ?? view.laterCount,
   };
-}
-
-function SessionListLocalDialogs({
-  folders,
-  projectLayout,
-  projectFolderDialog,
-  setProjectFolderDialog,
-  scopedRemoteSource,
-}: {
-  folders: ReturnType<typeof useSessionListFolderLayout>;
-  projectLayout: NonNullable<SessionListViewModel["projectFolders"]>["layout"] | undefined;
-  projectFolderDialog: SessionFolderDialogState<WorkspaceFolderPayload>;
-  setProjectFolderDialog: (state: SessionFolderDialogState<WorkspaceFolderPayload>) => void;
-  scopedRemoteSource: ComputerSessionsSource | null;
-}) {
-  if (scopedRemoteSource) return null;
-  return (
-    <>
-      {folders.layout ? (
-        <SessionFolderDialogs
-          state={folders.dialog}
-          onClose={() => folders.setDialog(null)}
-          onCreate={folders.layout.createFolder}
-          onRename={folders.layout.renameFolder}
-          onDelete={folders.layout.deleteFolder}
-        />
-      ) : null}
-      {projectLayout ? (
-        <SessionFolderDialogs
-          holds="projects"
-          state={projectFolderDialog}
-          onClose={() => setProjectFolderDialog(null)}
-          onCreate={projectLayout.createFolder}
-          onRename={projectLayout.renameFolder}
-          onDelete={projectLayout.deleteFolder}
-        />
-      ) : null}
-    </>
-  );
 }
 
 function sessionListVisibleCount(

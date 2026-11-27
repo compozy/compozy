@@ -3,11 +3,13 @@ import type { ProfileScopeParams } from "@/systems/profiles";
 import type { DataScope } from "@/systems/workspace";
 
 import type { ComputerSessionsSource } from "../hooks/use-computer-sessions-sources";
+import { getSessionDisplayTitle } from "./session-display-title";
 import { sessionBadgeSignal } from "./session-badge";
 import type { SessionRowComputerInfo } from "./session-list-computer";
 import {
   profileSessionGroups,
   projectSessionGroups,
+  withInstanceProjectGroups,
   type SessionListGroupSpec,
 } from "./session-list-groups";
 import type { SessionListSort } from "./session-list-preferences";
@@ -47,16 +49,21 @@ export function buildTogetherProjectGroups(
   for (let index = 0; index < sources.length; index++) {
     const source = sources[index]!;
     if (source.read !== "ok" && source.read !== "offline") continue;
-    const perComputer = projectSessionGroups(source.facets, {
+    const input = {
       workspaces: source.workspaces,
-      lens: source.isLocal ? localLens : { all_profiles: true },
+      lens: source.isLocal ? localLens : { all_profiles: true as const },
       computerId: source.key,
       computerName: source.name,
       computerPlatform: source.computer.platform,
       computerIconKind: source.computer.iconKind,
       offline: source.read === "offline",
       qualifyKey: true,
-    });
+    };
+    const perComputer = withInstanceProjectGroups(
+      projectSessionGroups(source.facets, input),
+      source.residentWorkspaceIds ?? [],
+      { ...input, ready: source.facets !== undefined }
+    );
     for (const group of perComputer) {
       groups.push({ group, sourceIndex: index });
     }
@@ -162,9 +169,18 @@ function compareTogetherRows(
     sort === "attention" ? attentionRank(left.session) - attentionRank(right.session) : 0;
   const created =
     sort === "created" ? parseIso(right.session.created_at) - parseIso(left.session.created_at) : 0;
+  const name =
+    sort === "name"
+      ? getSessionDisplayTitle(left.session).localeCompare(
+          getSessionDisplayTitle(right.session),
+          undefined,
+          { sensitivity: "base" }
+        )
+      : 0;
   return (
     rank ||
     created ||
+    name ||
     parseIso(right.session.updated_at) - parseIso(left.session.updated_at) ||
     left.computerId.localeCompare(right.computerId) ||
     left.session.id.localeCompare(right.session.id)

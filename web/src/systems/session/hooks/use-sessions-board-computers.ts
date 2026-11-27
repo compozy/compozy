@@ -9,6 +9,7 @@ import { computerWorkspaceBadgeIdentity } from "../lib/session-list-computer-fil
 import {
   profileSessionGroups,
   projectSessionGroups,
+  withInstanceProjectGroups,
   type SessionListGroupSpec,
 } from "../lib/session-list-groups";
 import type { SessionListGroupBy, SessionListSort } from "../lib/session-list-preferences";
@@ -150,12 +151,17 @@ function buildBandLanes(input: {
   if (source.read !== "ok" && source.read !== "offline") return null;
   if (groupBy === "project") {
     const lens: ProfileScopeParams = source.isLocal ? localLens : { all_profiles: true };
-    return projectSessionGroups(source.facets, {
+    const input = {
       workspaces: source.workspaces,
       lens,
       computerId: source.key,
       offline: source.read === "offline",
-    }).map(group => buildLane({ group, source, scope, shared, foldLens, sidebar }));
+    };
+    return withInstanceProjectGroups(
+      projectSessionGroups(source.facets, input),
+      source.residentWorkspaceIds ?? [],
+      { ...input, ready: source.facets !== undefined }
+    ).map(group => buildLane({ group, source, scope, shared, foldLens, sidebar }));
   }
   const emptyRemoteProject =
     !source.isLocal && scope?.kind === "project" && (source.matchedWorkspaceIds?.length ?? 0) === 0;
@@ -300,6 +306,7 @@ export function useSessionsBoardComputers(options: {
     showAutomation,
     population,
     includeProfiles: groupBy === "profile",
+    includeResidents: groupBy === "project",
     enabled,
   });
   const scopeState = useSessionComputerScope();

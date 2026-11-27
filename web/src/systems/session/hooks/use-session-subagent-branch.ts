@@ -45,10 +45,11 @@ export function useSessionSubagentBranch(
   sessionId: string,
   /** The row's `subagent_summary.total`, the count before any page loads. */
   total: number,
-  computerId?: ComputerId
+  computerId?: ComputerId,
+  enabled = true
 ): SessionSubagentBranchModel {
   const [limit, setLimit] = useState(SUBAGENT_BRANCH_PAGE_SIZE);
-  const scoped = workspaceId !== "" && sessionId !== "";
+  const scoped = enabled && workspaceId !== "" && sessionId !== "";
   const live = useLiveSubagentRoster(workspaceId, sessionId, scoped, computerId);
   const query = useInfiniteQuery({
     ...sessionSubagentBranchOptions(workspaceId, sessionId, computerId),
@@ -59,7 +60,7 @@ export function useSessionSubagentBranch(
     live?.rows ??
       Array.from(
         new Map(
-          query.data?.pages.flatMap(page =>
+          (scoped ? query.data : undefined)?.pages.flatMap(page =>
             page.subagents.map(payload => {
               const row = subagentViewFromPayload(payload);
               return [row.id, row] as const;
@@ -73,7 +74,7 @@ export function useSessionSubagentBranch(
   const shown = Math.max(limit, active);
   const rows = loaded.slice(0, shown);
   const known = complete ? loaded.length : Math.max(total, loaded.length);
-  const failed = live === null && isError;
+  const failed = scoped && live === null && isError;
   // Every loaded row is active, so the next page may hold more active work.
   const activeTail = live === null && loaded.length > 0 && active === loaded.length;
   // Wait for any read in flight: fetchNextPage would cancel a first-page refetch.
@@ -84,16 +85,18 @@ export function useSessionSubagentBranch(
 
   return {
     rows,
-    remaining: Math.max(0, known - rows.length),
+    remaining: scoped ? Math.max(0, known - rows.length) : 0,
     loading: live === null && query.isLoading && !failed,
     loadingMore: isFetchingNextPage,
     failed,
     showMore: () => {
       const next = shown + SUBAGENT_BRANCH_PAGE_SIZE;
       setLimit(next);
-      if (live === null && loaded.length < next && hasNextPage && !isFetchingNextPage)
+      if (scoped && live === null && loaded.length < next && hasNextPage && !isFetchingNextPage)
         void fetchNextPage().catch(() => undefined);
     },
-    retry: () => void query.refetch(),
+    retry: () => {
+      if (scoped) void query.refetch();
+    },
   };
 }

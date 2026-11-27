@@ -1,3 +1,5 @@
+import { agentInstancesOptions } from "@/systems/agent";
+import { hasCachedRowsForComputer } from "../lib/session-offline-catalog";
 import {
   QueryClient,
   QueryClientContext,
@@ -23,6 +25,7 @@ import type {
 } from "@/systems/computers/mocks/remote-computers-types";
 import {
   profilesListOptions,
+  useProfilePerProfileScope,
   type ProfileOwner,
   type ProfilePayload,
   type ProfileScopeParams,
@@ -35,18 +38,14 @@ import {
 } from "@/systems/workspace";
 
 import type { fetchSessionFacets } from "../adapters/session-catalog-api";
-import { sessionKeys } from "../lib/query-keys";
 import { sessionFacetsOptions } from "../lib/session-catalog-options";
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import {
   buildComputerPopulationFilters,
-  matchesOfflineSessionQuery,
   matchRemoteWorkspaceIds,
 } from "../lib/session-list-computer-filter";
 import type { SessionListShelf } from "../lib/session-list-shelf";
-import { normalizeSessionListFilters } from "../lib/session-list-query";
-import { withSessionComputer } from "../lib/session-row-ref";
-import type { SessionCatalogPageResponse, SessionListFilters, SessionPayload } from "../types";
+import type { SessionListFilters } from "../types";
 
 export type SessionCatalogFacetsPayload = Awaited<ReturnType<typeof fetchSessionFacets>>;
 
@@ -73,6 +72,7 @@ export interface ComputerSessionsSource {
   workspacesError: boolean;
   /** Profiles catalog for this computer when Group by Profile is active. */
   profiles?: readonly ProfileOwner[];
+  residentWorkspaceIds?: readonly string[];
   /**
    * When the topbar focuses one project (`Q5`), the workspace ids on this computer
    * whose `repository_key` matches that project; `null` under All projects or User.
@@ -96,93 +96,6 @@ export interface ComputerSessionsSourcesResult {
 const NOOP_QUERY_CLIENT = new QueryClient({
   defaultOptions: { queries: { enabled: false, retry: false } },
 });
-
-function extractCachedSessions(data: unknown): readonly SessionPayload[] {
-  if (!data || typeof data !== "object") return [];
-  const candidate = data as {
-    pages?: readonly SessionCatalogPageResponse[];
-    sessions?: readonly SessionPayload[];
-  };
-  if (Array.isArray(candidate.pages)) {
-    return candidate.pages.flatMap(page => page.sessions);
-  }
-  if (Array.isArray(candidate.sessions)) {
-    return candidate.sessions;
-  }
-  return [];
-}
-
-/** True when any catalog page for `computerId` holds at least one session in memory (Rule 23). */
-function hasCachedRowsForComputer(queryClient: QueryClient, computerId: ComputerId): boolean {
-  const keys = sessionKeys.forComputer(computerId);
-  const queries = queryClient.getQueriesData({ queryKey: keys.lists() });
-  for (const [, data] of queries) {
-    if (extractCachedSessions(data).length > 0) return true;
-  }
-  return false;
-}
-
-/**
- * Reads cached rows previously seen for an offline computer from the query cache
- * (deduplicated by session id) and filters them by `search` when non-empty (`R11`).
- */
-export function readCachedOfflineRowsForComputer(
-  queryClient: QueryClient | undefined,
-  computerId: ComputerId,
-  filters: SessionListFilters
-): SessionPayload[] {
-  if (!queryClient) return [];
-  const keys = sessionKeys.forComputer(computerId);
-  const queries = queryClient.getQueriesData({ queryKey: keys.lists() });
-  const byId = new Map<string, SessionPayload>();
-  const wanted = normalizeSessionListFilters(filters);
-  const latest = [...queries].sort(
-    ([left], [right]) =>
-      (queryClient.getQueryState(right)?.dataUpdatedAt ?? 0) -
-      (queryClient.getQueryState(left)?.dataUpdatedAt ?? 0)
-  );
-  for (const [key, data] of latest) {
-    const cached = key[6];
-    if ((key[5] !== "page" && key[5] !== "board") || !cached || typeof cached !== "object")
-      continue;
-    if (!compatibleOfflinePopulation(cached as SessionListFilters, wanted)) continue;
-    for (const session of extractCachedSessions(data)) {
-      if (!byId.has(session.id) && matchesOfflineSessionQuery(session, wanted.q ?? "")) {
-        byId.set(session.id, withSessionComputer(session, computerId));
-      }
-    }
-  }
-  return [...byId.values()];
-}
-
-function compatibleOfflinePopulation(cached: SessionListFilters, wanted: SessionListFilters) {
-  if (cached.q && cached.q !== wanted.q) return false;
-  if (wanted.profile && cached.profile !== wanted.profile) return false;
-  if (wanted.workspace_id && cached.workspace_id !== wanted.workspace_id) return false;
-  if (wanted.workspace_ids?.length) {
-    const matches = new Set(wanted.workspace_ids);
-    const keys = cached.workspace_ids ?? (cached.workspace_id ? [cached.workspace_id] : []);
-    if (keys.length === 0 || keys.some(key => !matches.has(key))) return false;
-  }
-  const population = ({
-    q: _query,
-    search_fields: _fields,
-    sort: _sort,
-    limit: _limit,
-    include_health: _health,
-    skip_total: _total,
-    workspace_id: _workspace,
-    workspace_ids: _workspaces,
-    all_workspaces: _allWorkspaces,
-    profile: _profile,
-    all_profiles: _allProfiles,
-    subagents: _subagents,
-    ...filters
-  }: SessionListFilters) => filters;
-  if (wanted.subagents === "exclude" && cached.subagents !== "exclude") return false;
-  if (wanted.all_profiles && !cached.profile && !cached.all_profiles) return false;
-  return JSON.stringify(population(cached)) === JSON.stringify(population(wanted));
-}
 
 function toProfileOwners(rows: readonly ProfilePayload[] | undefined): ProfileOwner[] {
   return (rows ?? []).map(row => ({
@@ -351,6 +264,40 @@ function buildRemoteSource(input: {
   };
 }
 
+function residentWorkspaceIds(
+  source: ComputerSessionsSource,
+  instances: readonly { workspace_id: string }[] | undefined
+) {
+  if (!instances) return undefined;
+  const matched = source.matchedWorkspaceIds && new Set(source.matchedWorkspaceIds);
+  return instances.flatMap(instance =>
+    !matched || matched.has(instance.workspace_id) ? [instance.workspace_id] : []
+  );
+}
+
+function residentQueryOptions(input: {
+  enabled: boolean;
+  remoteViews: readonly ComputerFixture[];
+  profiles: readonly (readonly ProfilePayload[] | undefined)[];
+  localProfiles: ReturnType<typeof useProfilePerProfileScope>;
+}) {
+  if (!input.enabled) return [];
+  const { key, names } = input.localProfiles;
+  return [
+    agentInstancesOptions(key, names),
+    ...input.remoteViews.map((computer, index) => {
+      const names = input.profiles[index + 1]?.map(profile => profile.name) ?? [];
+      return {
+        ...agentInstancesOptions("remote-all", names, computer.id),
+        enabled:
+          names.length > 0 &&
+          computer.status === "connected" &&
+          computer.scopes.includes("settings:write"),
+      };
+    }),
+  ];
+}
+
 function enabledComputerViews(registry: ReturnType<typeof useComputers>): ComputerFixture[] {
   if (!registry.canRead) return [];
   const ids = new Set(registry.enabledComputers.map(computer => computer.id));
@@ -388,13 +335,15 @@ export function useComputerSessionsSources(options: {
   worktreeId?: string;
   population?: Pick<SessionListFilters, "children" | "subagents">;
   includeProfiles?: boolean;
+  includeResidents?: boolean;
   workspaces?: readonly WorkspacePayload[];
   enabled?: boolean;
 }): ComputerSessionsSourcesResult {
   const contextClient = useContext(QueryClientContext);
   const queryClient = contextClient ?? NOOP_QUERY_CLIENT;
   const { scope, lens, shelf, showAutomation, search, worktreeId, population } = options;
-  const includeProfiles = options.includeProfiles === true;
+  const includeProfiles = options.includeProfiles === true || options.includeResidents === true;
+  const localProfiles = useProfilePerProfileScope();
   const enabled = (options.enabled ?? true) && contextClient !== undefined;
   const registry = useComputers({ enabled, passive: true });
   const { localView } = registry;
@@ -463,6 +412,18 @@ export function useComputerSessionsSources(options: {
     queryClient
   );
 
+  const residentQueries = useQueries(
+    {
+      queries: residentQueryOptions({
+        enabled: enabled && hasRemoteComputers && options.includeResidents === true,
+        remoteViews,
+        profiles: profileQueries.map(query => query.data),
+        localProfiles,
+      }),
+    },
+    queryClient
+  );
+
   if (!hasRemoteComputers) {
     return {
       hasRemoteComputers: false,
@@ -493,7 +454,10 @@ export function useComputerSessionsSources(options: {
     })
   );
 
-  const sources = [localSource, ...remoteSources];
+  const sources = [localSource, ...remoteSources].map((source, index) => ({
+    ...source,
+    residentWorkspaceIds: residentWorkspaceIds(source, residentQueries[index]?.data?.instances),
+  }));
   return {
     hasRemoteComputers: true,
     local: localView,
