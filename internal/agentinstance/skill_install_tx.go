@@ -388,8 +388,9 @@ func (s *SkillProposalService) afterCommit(
 	journal dirpublish.Journal,
 	payload SkillInstallPayload,
 ) error {
+	ctx = context.WithoutCancel(ctx)
 	warning := s.projectSkillInstall(ctx, entry)
-	warning = errors.Join(warning, finalizeSkillOp(context.WithoutCancel(ctx), t, journal, payload))
+	warning = errors.Join(warning, finalizeSkillOp(ctx, t, journal, payload))
 	warning = errors.Join(warning, s.publishSkills(ctx))
 	if warning != nil {
 		slog.WarnContext(ctx, "skill.install.committed_with_warning", "op_id", entry.OpID,

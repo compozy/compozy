@@ -54,8 +54,11 @@ func (s *memSkillReviewStore) ListReviews(context.Context, SkillReviewQuery) ([]
 }
 
 func (s *memSkillReviewStore) ProjectApproval(
-	_ context.Context, marker SkillInstallMarker, installedDigest string, prev []byte, decidedAt time.Time,
+	ctx context.Context, marker SkillInstallMarker, installedDigest string, prev []byte, decidedAt time.Time,
 ) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.projectErr != nil {
@@ -71,7 +74,10 @@ func (s *memSkillReviewStore) ProjectApproval(
 	return nil
 }
 
-func (s *memSkillReviewStore) ProjectRevert(_ context.Context, id, operator string, revertedAt time.Time) error {
+func (s *memSkillReviewStore) ProjectRevert(ctx context.Context, id, operator string, revertedAt time.Time) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.projectErr != nil {
@@ -616,6 +622,8 @@ func TestSkillInstallTransaction(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
 		svc := f.service(t, "home-a", nil)
+		publisher := &flakySkillPublisher{}
+		svc.Publisher = publisher
 		f.install(t, skillEditName, skillEditBase...)
 		review := f.mustProposeEdit(t, svc, "Changed.\n")
 		ctx, cancel := context.WithCancel(t.Context())
@@ -635,7 +643,7 @@ func TestSkillInstallTransaction(t *testing.T) {
 			"operator:prof-a",
 			f.root,
 		)
-		if err != nil || !result.Committed || !errors.Is(ctx.Err(), context.Canceled) {
+		if err != nil || !result.Committed || result.Warning != nil || !errors.Is(ctx.Err(), context.Canceled) {
 			t.Fatalf(
 				"Approve() = %+v, %v, context %v; want a committed install after cancellation",
 				result,
@@ -645,6 +653,10 @@ func TestSkillInstallTransaction(t *testing.T) {
 		}
 		if got := f.digest(t, skillEditName); got != review.ProposedDigest {
 			t.Fatalf("installed digest = %q, want %q", got, review.ProposedDigest)
+		}
+		requireReviewState(t, svc, review.ID, skillReviewApproved)
+		if calls := publisher.count(); calls != 1 {
+			t.Fatalf("catalog refreshes = %d, want 1", calls)
 		}
 		f.requireClean(t)
 	})
@@ -818,7 +830,10 @@ type flakySkillPublisher struct {
 	calls int
 }
 
-func (p *flakySkillPublisher) SkillPublished(context.Context) error {
+func (p *flakySkillPublisher) SkillPublished(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.calls++

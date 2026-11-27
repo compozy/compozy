@@ -47,7 +47,8 @@ func (s *SkillProposalService) continueResolution(
 	if err := s.syncSkillParent(t); err != nil {
 		return nil, fmt.Errorf("confirm published skill conflict resolution: %w", err)
 	}
-	warning = errors.Join(finalizeSkillOp(context.WithoutCancel(ctx), t, journal, payload), s.publishSkills(ctx))
+	ctx = context.WithoutCancel(ctx)
+	warning = errors.Join(finalizeSkillOp(ctx, t, journal, payload), s.publishSkills(ctx))
 	slog.InfoContext(ctx, "skill.install.conflict_resolved", "op_id", payload.OpID, "skill", t.name,
 		"keep", payload.Keep, "retained_backup", payload.RetainedBackupName)
 	if warning != nil {
