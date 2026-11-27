@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
@@ -32,19 +33,23 @@ func TestAgentInstanceSkillAutoApproveCLI(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name, state, output string
-		refuse              bool
+		agent, refuse       bool
 		want                string
 	}{
 		{name: "Should turn it on and say so", state: "on", want: "Skill auto-approve is on for triage.\n"},
 		{
 			name: "Should print the HTTP payload for off with -o json [IT-011]", state: "off", output: "json",
-			want: instanceJSON(false),
+			agent: true, want: instanceJSON(false),
 		},
-		{name: "Should surface the operator-only refusal", state: "on", refuse: true},
+		{name: "Should surface the operator-only refusal for an agent", state: "on", agent: true, refuse: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			patches := 0
+			credentials := agentidentity.Credentials{}
+			if tc.agent {
+				credentials = agentidentity.Credentials{SessionID: "sess-caller", AgentName: "triage"}
+			}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				switch {
@@ -52,6 +57,10 @@ func TestAgentInstanceSkillAutoApproveCLI(t *testing.T) {
 					_, _ = io.WriteString(w, `{"instances":[{"id":"ainst-test","agent_name":"triage"}]}`)
 				case r.URL.Path == "/api/agent-instances/ainst-test" && r.Method == http.MethodPatch:
 					patches++
+					if r.Header.Get(agentidentity.HeaderSessionID) != credentials.SessionID ||
+						r.Header.Get(agentidentity.HeaderAgent) != credentials.AgentName {
+						t.Error("PATCH did not carry the expected caller identity")
+					}
 					raw, err := io.ReadAll(r.Body)
 					if err != nil {
 						t.Error(err)
@@ -89,11 +98,22 @@ func TestAgentInstanceSkillAutoApproveCLI(t *testing.T) {
 			if tc.output != "" {
 				args = append(args, "-o", tc.output)
 			}
-			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
+			deps := newWorkspaceTestDeps(t, client)
+			deps.getenv = func(key string) string {
+				switch key {
+				case agentidentity.EnvSessionID:
+					return credentials.SessionID
+				case agentidentity.EnvAgent:
+					return credentials.AgentName
+				default:
+					return ""
+				}
+			}
+			stdout, _, err := executeRootCommand(t, deps, args...)
 			if tc.refuse {
 				// CLI errors print the daemon's message; the code stays on the structured payload.
 				apiErr, ok := errors.AsType[*daemonAPIError](err)
-				if !ok || apiErr.errorPayload().Code != "skill_auto_approve_operator_only" ||
+				if patches != 1 || !ok || apiErr.errorPayload().Code != "skill_auto_approve_operator_only" ||
 					!strings.Contains(err.Error(), "only an operator") {
 					t.Fatalf("error = %v, want skill_auto_approve_operator_only", err)
 				}

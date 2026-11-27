@@ -2,6 +2,7 @@ package agentinstance
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"time"
@@ -238,12 +239,12 @@ func (s *SkillProposalService) installAutomatically(
 	draft SkillDraft,
 	current *SkillInstallMarker,
 ) error {
-	if err := t.ensureParent(); err != nil {
-		return err
+	if err := t.ensureParent(ctx); err != nil {
+		return fmt.Errorf("prepare automatic skill install root: %w", err)
 	}
 	live, err := skillTreeState(ctx, t.dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("read automatic skill install target: %w", err)
 	}
 	op := skillOp{
 		reviewID: review.ID, instanceID: instance.ID, action: SkillInstallActionInstall,
@@ -255,11 +256,11 @@ func (s *SkillProposalService) installAutomatically(
 		},
 	}
 	if err := prepareSkillInstallOp(ctx, &op, t, review, draft, live); err != nil {
-		return err
+		return fmt.Errorf("prepare automatic skill install operation: %w", err)
 	}
 	result, err := s.runSkillOp(ctx, t, op)
 	if err != nil {
-		return err
+		return fmt.Errorf("run automatic skill install operation: %w", err)
 	}
 	if result.Warning != nil {
 		slog.WarnContext(ctx, "skill.review.auto_approve_committed_with_warning", "review_id", review.ID,

@@ -156,6 +156,9 @@ var completionCommandTable = map[string]completionCommandSpec{
 	"agent instance checks off":         singleArgSpec(kindAgent),
 	"agent instance pick":               singleArgSpec(kindAgent),
 
+	"agent instance skill-auto-approve on":  singleArgSpec(kindAgent),
+	"agent instance skill-auto-approve off": singleArgSpec(kindAgent),
+
 	// Provider and provider models commands
 	"provider inspect":        singleArgSpec(kindProvider),
 	"provider auth status":    singleArgSpec(kindProvider),

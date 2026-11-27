@@ -52,7 +52,11 @@ func (d *Daemon) bindInstanceSkillReviews(
 			if err != nil {
 				return false, err
 			}
-			inventory, err := state.skillsRegistry.ForWorkspace(ctx, &resolved)
+			agent, err := definitions.agents.ResolveAgent(instance.AgentName, &resolved)
+			if err != nil {
+				return false, err
+			}
+			inventory, err := state.skillsRegistry.ForAgentDef(ctx, &resolved, agent)
 			return slices.ContainsFunc(inventory, func(skill *skills.Skill) bool {
 				return skill.Meta.Name == name
 			}), err

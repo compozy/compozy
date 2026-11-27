@@ -25,8 +25,8 @@ export interface AgentPlaceActions {
   onArchive: (place: AgentTeamPlace) => void;
   /** One field per PATCH: only `skill_auto_approve`. */
   onSkillAutoApprove: (place: AgentTeamPlace, enabled: boolean) => void;
-  /** The instance whose auto-approve change is saving, if any. */
-  savingSkillAutoApprove?: string | null;
+  /** The instances whose auto-approve changes are saving. */
+  savingSkillAutoApprove?: readonly string[];
 }
 
 /** The quiet overflow on a place: removing the agent from it. */
@@ -129,7 +129,7 @@ export function AgentPlaceCard({
       <AgentPlaceSkillAutoApprove
         onChange={enabled => onSkillAutoApprove(place, enabled)}
         place={place}
-        saving={savingSkillAutoApprove === place.instance.id}
+        saving={savingSkillAutoApprove?.includes(place.instance.id) ?? false}
       />
       <div className="mt-auto flex min-h-7 items-end justify-end gap-3">
         {paused ? (

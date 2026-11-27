@@ -473,7 +473,8 @@ func TestNativeInstanceSkillAutoApprove(t *testing.T) {
 		}
 		if _, err := registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentInstanceSkillAutoApprove, Input: []byte(`{"id":"own","enabled":true}`),
-		}); err == nil || !slices.Equal(writes, []bool{false}) {
+		}); (!errors.Is(err, toolspkg.ErrToolApprovalRequired) && !errors.Is(err, toolspkg.ErrToolDenied)) ||
+			!slices.Equal(writes, []bool{false}) {
 			t.Fatalf("narrowed on = %v, writes %v; want a refusal and no write", err, writes)
 		}
 	})

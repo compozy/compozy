@@ -32,21 +32,28 @@ func newAgentInstanceSkillAutoApproveCommand(deps commandDeps) *cobra.Command {
 	return parent
 }
 
+type agentInstanceUpdate func(agentInstanceOptions, *cobra.Command, commandDeps, any, string, string) error
+
 // agentInstanceUpdates are the PATCH verbs of one instance, each changing exactly one field.
-var agentInstanceUpdates = map[string]func(agentInstanceOptions, *cobra.Command, any, string, string) error{
-	agentInstanceBudgetAction: func(options agentInstanceOptions, cmd *cobra.Command, base any, id, _ string) error {
+var agentInstanceUpdates = map[string]agentInstanceUpdate{
+	agentInstanceBudgetAction: func(
+		options agentInstanceOptions, cmd *cobra.Command, _ commandDeps, base any, id, _ string,
+	) error {
 		return options.updateBudget(cmd, base, id)
 	},
 	agentInstanceSkillAutoApproveOn:  setAgentInstanceSkillAutoApprove,
 	agentInstanceSkillAutoApproveOff: setAgentInstanceSkillAutoApprove,
 }
 
-func setAgentInstanceSkillAutoApprove(_ agentInstanceOptions, cmd *cobra.Command, base any, id, action string) error {
+func setAgentInstanceSkillAutoApprove(
+	_ agentInstanceOptions, cmd *cobra.Command, deps commandDeps, base any, id, action string,
+) error {
 	client, ok := base.(agentInstanceSkillAutoApproveClient)
 	if !ok {
 		return errors.New("cli: instance skill auto-approve unavailable")
 	}
-	result, err := client.SetAgentInstanceSkillAutoApprove(cmd.Context(), id, action == agentInstanceSkillAutoApproveOn)
+	ctx := withClientAgentCredentials(cmd.Context(), agentCredentialsFromEnv(deps))
+	result, err := client.SetAgentInstanceSkillAutoApprove(ctx, id, action == agentInstanceSkillAutoApproveOn)
 	if err != nil {
 		return err
 	}

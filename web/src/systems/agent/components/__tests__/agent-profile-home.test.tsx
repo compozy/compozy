@@ -130,7 +130,7 @@ function pageFixture(overrides: Partial<UseAgentProfile> = {}): UseAgentProfile 
       onOpen: vi.fn(),
       onToggle: vi.fn(),
       onSkillAutoApprove: vi.fn(),
-      savingSkillAutoApprove: null,
+      savingSkillAutoApprove: [],
     },
     onResumeAll: vi.fn(),
     onSaveIdentity: vi.fn(),
@@ -258,7 +258,7 @@ describe("AgentProfileHome", () => {
             onOpen: vi.fn(),
             onToggle,
             onSkillAutoApprove: vi.fn(),
-            savingSkillAutoApprove: null,
+            savingSkillAutoApprove: [],
           },
         })}
       />
@@ -280,7 +280,7 @@ describe("AgentProfileHome", () => {
           onOpen: vi.fn(),
           onToggle: vi.fn(),
           onSkillAutoApprove,
-          savingSkillAutoApprove: null,
+          savingSkillAutoApprove: [],
         },
       })
     );
@@ -305,7 +305,7 @@ describe("AgentProfileHome", () => {
           onOpen: vi.fn(),
           onToggle: vi.fn(),
           onSkillAutoApprove: vi.fn(),
-          savingSkillAutoApprove: place.instance.id,
+          savingSkillAutoApprove: [place.instance.id],
         },
       })
     );

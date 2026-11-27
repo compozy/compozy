@@ -713,7 +713,12 @@ func TestAgentInstanceSkillAutoApproveSettings(t *testing.T) {
 		if stored(t, own.ID).SkillAutoApprove {
 			t.Fatal("an app token turned skill auto-approve on")
 		}
-		if off, _ := patch(t, own.ID, "app", `{"skill_auto_approve":false}`); off.Code != http.StatusOK {
+		if on, _ := patch(t, own.ID, "operator", `{"skill_auto_approve":true}`); on.Code != http.StatusOK ||
+			!stored(t, own.ID).SkillAutoApprove {
+			t.Fatalf("operator on status=%d body=%s", on.Code, on.Body.String())
+		}
+		if off, _ := patch(t, own.ID, "app", `{"skill_auto_approve":false}`); off.Code != http.StatusOK ||
+			stored(t, own.ID).SkillAutoApprove {
 			t.Fatalf("app off status=%d body=%s", off.Code, off.Body.String())
 		}
 	})

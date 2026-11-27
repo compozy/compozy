@@ -191,7 +191,10 @@ func (s *SkillProposalService) acquireSkill(
 
 // ensureParent creates a missing target root and takes its publication lock, as acquireSkill does
 // with create, for a proposal that installs automatically.
-func (t *skillTarget) ensureParent() error {
+func (t *skillTarget) ensureParent(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if t.parent != nil {
 		return nil
 	}

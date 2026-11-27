@@ -351,16 +351,28 @@ func TestSkillAutoApprove(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			done := make(chan SkillProposalResult, 1)
+			release = sync.OnceFunc(release)
+			ctx, cancel := context.WithCancel(t.Context())
+			done := make(chan struct{})
+			t.Cleanup(func() {
+				cancel()
+				release()
+				<-done
+			})
+			var result SkillProposalResult
+			var proposeErr error
 			go func() {
-				result, _ := svc.Propose(context.Background(), skillOperator, f.instance, f.root,
+				defer close(done)
+				result, proposeErr = svc.Propose(ctx, skillOperator, f.instance, f.root,
 					autoInput(autoSkillName, "body\n", SkillProposalNew))
-				done <- result
 			}()
 			waitInstanceWaiters(t, svc, f.instance.ID, 2)
 			toggle.on.Store(false)
 			release()
-			result := <-done
+			<-done
+			if proposeErr != nil {
+				t.Fatal(proposeErr)
+			}
 			requireAutoSkipped(t, svc, result, SkillAutoApproveToggledOff)
 			f.requireSkillAbsent(t, autoSkillName)
 		})

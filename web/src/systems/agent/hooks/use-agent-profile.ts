@@ -241,9 +241,7 @@ export function useAgentProfile(input: {
       onArchive: (place: AgentTeamPlace) => actions.archive(place.instance),
       onSkillAutoApprove: (place: AgentTeamPlace, enabled: boolean) =>
         autoApprove.mutate({ instance: place.instance, enabled }),
-      savingSkillAutoApprove: autoApprove.isPending
-        ? (autoApprove.variables?.instance.id ?? null)
-        : null,
+      savingSkillAutoApprove: autoApprove.pendingInstanceIds,
     },
     onResumeAll: () => {
       for (const place of places) {

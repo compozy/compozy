@@ -44,15 +44,21 @@ func TestInstanceSkillAutoApproveIntegration(t *testing.T) {
 			if err := os.WriteFile(path, body, 0o600); err != nil {
 				t.Fatal(err)
 			}
-			operatorSkill := filepath.Join(d.homePaths.SkillsDir, "operator-group", "operator-checklist")
-			if err := os.MkdirAll(operatorSkill, 0o700); err != nil {
-				t.Fatal(err)
-			}
-			definition := []byte(
-				"---\nname: operator-checklist\ndescription: An operator checklist.\n---\n\nCheck the release.\n",
-			)
-			if err := os.WriteFile(filepath.Join(operatorSkill, "SKILL.md"), definition, 0o600); err != nil {
-				t.Fatal(err)
+			for root, name := range map[string]string{
+				d.homePaths.SkillsDir: "operator-checklist",
+				filepath.Join(filepath.Dir(path), compozyconfig.SkillsDirName): "agent-checklist",
+			} {
+				dir := filepath.Join(root, "checklists", name)
+				if err := os.MkdirAll(dir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				definition := fmt.Sprintf(
+					"---\nname: %s\ndescription: An operator checklist.\n---\n\nCheck the release.\n",
+					name,
+				)
+				if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(definition), 0o600); err != nil {
+					t.Fatal(err)
+				}
 			}
 		})
 		main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
@@ -163,13 +169,15 @@ func TestInstanceSkillAutoApproveIntegration(t *testing.T) {
 			t.Fatalf("GET after on = %d %s", status, raw)
 		}
 
-		shadow := propose("operator-checklist", "A proposal with an existing name")
-		if shadow.Review.State != "pending" ||
-			shadow.AutoApproveSkipped != agentinstance.SkillAutoApproveOperatorAuthored {
-			t.Fatalf("propose a name already in the catalog = %+v", shadow)
-		}
-		if _, err := os.Lstat(filepath.Join(skillsRoot, "operator-checklist")); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("proposal with an existing name wrote to the workspace: %v", err)
+		for _, name := range []string{"operator-checklist", "agent-checklist"} {
+			shadow := propose(name, "A proposal with an existing name")
+			if shadow.Review.State != "pending" ||
+				shadow.AutoApproveSkipped != agentinstance.SkillAutoApproveOperatorAuthored {
+				t.Fatalf("propose a name already in the catalog = %+v", shadow)
+			}
+			if _, err := os.Lstat(filepath.Join(skillsRoot, name)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("proposal with an existing name wrote to the workspace: %v", err)
+			}
 		}
 
 		// IT-006: an eligible native proposal installs at once and reaches the catalog.
