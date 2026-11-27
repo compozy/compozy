@@ -125,7 +125,9 @@ func testRecoveredSessionOwner(t *testing.T, cause session.StopCause, disabled, 
 		t.Fatalf("GetTask().Owner = %#v, want %#v", stored.Owner, record.Owner)
 	}
 
-	tasks := &taskRuntime{manager: manager, store: db}
+	coordinatorBackstop := newLoopCoordinatorBootGate(schedulerTaskSource{manager: manager, store: db})
+	coordinatorBackstop.Activate()
+	tasks := &taskRuntime{manager: manager, store: db, coordinatorBackstop: coordinatorBackstop}
 	tasks.roles.Store(newTaskRoleRuntimeForTest(t, db, sessions))
 	scheduler := newRecoveredRunTestScheduler(t, tasks, sessions, recovered.Run.QueuedAt)
 	activation, err := scheduler.RunOnce(ctx)
