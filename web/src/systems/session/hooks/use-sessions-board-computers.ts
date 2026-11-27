@@ -20,7 +20,11 @@ import type { SessionListGroupBy } from "../lib/session-list-preferences";
 import { normalizeSessionListFilters } from "../lib/session-list-query";
 import { sessionListShelfFilters } from "../lib/session-list-shelf";
 import { buildTogetherProjectGroups } from "../lib/session-list-together";
-import { recordSessionsComputer, sessionComputerOf, sessionRowKey } from "../lib/session-row-ref";
+import {
+  sessionComputerOf,
+  sessionRowKey,
+  withSessionsComputer,
+} from "../lib/session-row-ref";
 import { computerFoldKey } from "../lib/session-sidebar-scope";
 import type { SessionListFilters } from "../types";
 import {
@@ -143,8 +147,9 @@ function useMultiComputerBoardShelf(
           const page = isRemoteComputerId(source.key)
             ? await fetchSessionCatalogPage(normalized, signal, source.key)
             : await fetchSessionCatalogPage(normalized, signal);
-          recordSessionsComputer(page.sessions, source.key);
-          return page;
+          return isRemoteComputerId(source.key)
+            ? { ...page, sessions: withSessionsComputer(page.sessions, source.key) }
+            : page;
         },
         enabled: enabled && source.read === "ok" && !emptyRemoteMatch && scope !== null,
         staleTime: SESSION_BOARD_STALE_MS,

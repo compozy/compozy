@@ -16,7 +16,7 @@ import {
   runSessionBatch,
   sessionBatchFailureMessage,
 } from "../lib/session-batch";
-import { sessionComputerOf } from "../lib/session-row-ref";
+import { sessionComputerOf, sessionRowKeyFor } from "../lib/session-row-ref";
 import type { SessionBatchAdmission } from "./use-session-batch-admission";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import type { SessionPayload } from "../types";
@@ -186,13 +186,13 @@ export function useSessionLaterActions({
     if (batchRunning.held()) return Promise.resolve(null);
     batchRunning.hold();
     setBatch({ action, runningIds: [] });
-    const byId = new Map(sessions.map(session => [session.id, session]));
+    const byId = new Map(sessions.map(session => [sessionRowKeyFor(session), session]));
     return runSessionBatch({
       action,
-      ids: sessions.map(session => session.id),
+      ids: sessions.map(session => sessionRowKeyFor(session)),
       previous: [],
       sessions,
-      execute: id => execute(byId.get(id)!),
+      execute: rowKey => execute(byId.get(rowKey)!),
       onProgress: results => setBatch({ action, runningIds: runningSessionIds(results) }),
     })
       .then(results => {
@@ -228,9 +228,10 @@ export function useSessionLaterActions({
     }).then(results => {
       // A partial failure keeps the dialog open on the sessions still to move,
       // with the same reason and date, so a retry does not retype the form.
-      const failed = sessions.filter(session =>
-        results?.some(result => result.id === session.id && result.status === "failed")
+      const failedKeys = new Set(
+        (results ?? []).flatMap(result => (result.status === "failed" ? [result.id] : []))
       );
+      const failed = sessions.filter(session => failedKeys.has(sessionRowKeyFor(session)));
       setTarget(failed.length > 0 ? { sessions: failed, skipped: new Map() } : null);
     });
   };

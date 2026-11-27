@@ -6,7 +6,7 @@ import { fetchWorkspaceLayout } from "../adapters/workspace-layout-api";
 import type { SessionListFilters } from "../types";
 import { sessionKeys } from "./query-keys";
 import { normalizeSessionListFilters } from "./session-list-query";
-import { recordSessionsComputer } from "./session-row-ref";
+import { withSessionsComputer } from "./session-row-ref";
 
 export interface SessionCatalogCursor {
   cursor?: string;
@@ -36,8 +36,7 @@ export function sessionCatalogOptions(
             computerId
           )
         : await fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal);
-      recordSessionsComputer(page.sessions, computerId);
-      return page;
+      return remote ? { ...page, sessions: withSessionsComputer(page.sessions, computerId) } : page;
     },
     initialPageParam: { previous: [] } as SessionCatalogCursor,
     getNextPageParam: (page, _pages, current) =>
@@ -65,15 +64,16 @@ export function sessionCatalogFirstPageOptions(
     ...filters,
     skip_total: filters.skip_total ?? true,
   });
+  const remote = isRemoteComputerId(computerId);
   const keys = sessionKeys.forComputer(computerId);
   return queryOptions({
     queryKey: [...keys.catalogPage(normalized), "first-page"] as const,
     queryFn: async ({ signal }) => {
       const page = await fetchSessionCatalogPage(normalized, signal, computerId);
-      recordSessionsComputer(page.sessions, computerId);
-      return page;
+      return remote ? { ...page, sessions: withSessionsComputer(page.sessions, computerId) } : page;
     },
     staleTime: 5_000,
+    ...(remote ? { refetchInterval: REMOTE_SESSION_REFETCH_MS } : {}),
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -146,8 +146,7 @@ export function sessionBoardPageOptions(
       const page = remote
         ? await fetchSessionCatalogPage({ ...normalized, cursor: pageParam }, signal, computerId)
         : await fetchSessionCatalogPage({ ...normalized, cursor: pageParam }, signal);
-      recordSessionsComputer(page.sessions, computerId);
-      return page;
+      return remote ? { ...page, sessions: withSessionsComputer(page.sessions, computerId) } : page;
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page =>

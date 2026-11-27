@@ -8,6 +8,7 @@ import { openContextMenuFromKeyboard } from "@/systems/os";
 
 import { useSessionsBoardColumns, type SessionsBoardLane } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
+import { sessionRowKeyFor } from "../../lib/session-row-ref";
 import {
   sessionListGroupTarget,
   sessionListGroupEmptyMessage,
@@ -69,7 +70,9 @@ export function SessionsBoardSwimlane({
   // The lane's select-all covers the cards its columns show; a folded column shows none.
   const shownIds = open
     ? columns.flatMap(column =>
-        props.collapsedColumns[column.id] === true ? [] : column.sessions.map(session => session.id)
+        props.collapsedColumns[column.id] === true
+          ? []
+          : column.sessions.map(session => sessionRowKeyFor(session))
       )
     : [];
   return (

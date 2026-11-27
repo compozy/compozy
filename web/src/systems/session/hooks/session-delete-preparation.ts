@@ -4,7 +4,7 @@ import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 
 import { readCurrentSessions } from "../lib/session-batch";
 import { sessionsRunningProcesses } from "../lib/session-processes";
-import { sessionComputerOf } from "../lib/session-row-ref";
+import { sessionComputerOf, sessionRowKeyFor } from "../lib/session-row-ref";
 import { sessionSidesRawOptions } from "../lib/session-side-query-options";
 import {
   readSessionTrees,
@@ -49,9 +49,11 @@ export async function prepareSessionDeleteTarget(
       : Promise.resolve(false),
   ]);
 
-  const currentById = new Map((currentRead?.sessions ?? []).map(session => [session.id, session]));
+  const currentById = new Map(
+    (currentRead?.sessions ?? []).map(session => [sessionRowKeyFor(session), session])
+  );
   const resolved = Object.freeze(
-    catalogRows.map(session => currentById.get(session.id) ?? session)
+    catalogRows.map(session => currentById.get(sessionRowKeyFor(session)) ?? session)
   );
   return {
     sessions: resolved,

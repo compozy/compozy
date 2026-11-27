@@ -39,47 +39,43 @@ export function parseSessionRowKey(key: string): SessionRowRef {
   };
 }
 
-/** Row key for a session payload whose computer is known or inferred from provenance. */
-export function sessionRowKeyFor(session: SessionPayload, computerId?: ComputerId): string {
+/** Row key for a session payload whose computer is known or inferred from its data. */
+export function sessionRowKeyFor(
+  session: Pick<SessionListTarget, "id" | "computerId">,
+  computerId?: ComputerId
+): string {
   return sessionRowKey({
     computerId: computerId ?? sessionComputerOf(session),
     sessionId: session.id,
   });
 }
 
-// WeakMap preserves frozen TanStack Query payloads while giving two payloads with
-// the same session id on different computers distinct computer ownership.
-const SESSION_COMPUTER_OWNERSHIP = new WeakMap<SessionListTarget, ComputerId>();
-
-/** Associates a fetched session payload with the computer that served it. */
-export function recordSessionComputer<T extends SessionPayload>(
+/** Stamps computer ownership onto a fetched session payload so structural sharing preserves it. */
+export function withSessionComputer<T extends SessionPayload>(
   session: T,
   computerId?: ComputerId
 ): T {
   const normalized = normalizeComputerId(computerId);
-  if (isRemoteComputerId(normalized)) {
-    SESSION_COMPUTER_OWNERSHIP.set(session, normalized);
-  }
-  return session;
+  if (!isRemoteComputerId(normalized)) return session;
+  return session.computerId === normalized ? session : { ...session, computerId: normalized };
 }
 
-/** Associates a page of session payloads with the computer that served them. */
-export function recordSessionsComputer<T extends SessionPayload>(
+/** Stamps computer ownership onto a page of fetched session payloads. */
+export function withSessionsComputer<T extends SessionPayload>(
   sessions: readonly T[],
   computerId?: ComputerId
-): readonly T[] {
+): T[] {
   const normalized = normalizeComputerId(computerId);
-  if (isRemoteComputerId(normalized)) {
-    for (const session of sessions) SESSION_COMPUTER_OWNERSHIP.set(session, normalized);
-  }
-  return sessions;
+  if (!isRemoteComputerId(normalized)) return [...sessions];
+  return sessions.map(session => withSessionComputer(session, normalized));
 }
 
 /** Resolves the computer owning a session payload; defaults to this computer. */
-export function sessionComputerOf(session: SessionListTarget, fallback?: ComputerId): ComputerId {
-  return (
-    session.computerId ?? SESSION_COMPUTER_OWNERSHIP.get(session) ?? normalizeComputerId(fallback)
-  );
+export function sessionComputerOf(
+  session: Pick<SessionListTarget, "computerId">,
+  fallback?: ComputerId
+): ComputerId {
+  return normalizeComputerId(session.computerId ?? fallback);
 }
 
 interface SessionDragComputerContext {

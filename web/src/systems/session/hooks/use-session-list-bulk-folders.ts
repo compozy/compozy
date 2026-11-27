@@ -76,7 +76,7 @@ export function useSessionListBulkFolders(options: {
   const layout = source.layout ?? owned.layout;
   const distinctComputers = new Set(
     move.sessions.map(session => {
-      const pair = source.pairOf?.(sessionRowKeyFor(session)) ?? source.pairOf?.(session.id);
+      const pair = source.pairOf?.(sessionRowKeyFor(session));
       return normalizeComputerId(pair?.computerId ?? sessionComputerOf(session));
     })
   );
@@ -176,7 +176,7 @@ function selectionPairs(
   const byKey = new Map<string | null, SessionListPair | null>();
   for (const session of sessions) {
     const rowKey = sessionRowKeyFor(session);
-    const pair = pairOf(rowKey) ?? pairOf(session.id);
+    const pair = pairOf(rowKey);
     byKey.set(sessionListPairKey(pair) ?? `unowned:${rowKey}`, pair);
   }
   return [...byKey.values()];

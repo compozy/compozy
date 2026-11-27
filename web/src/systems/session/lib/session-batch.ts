@@ -3,7 +3,11 @@ import { settleBounded } from "@/lib/settle-bounded";
 import type { QueryClient } from "@tanstack/react-query";
 import type { SessionPayload } from "../types";
 import { sessionScopedDetailOptions } from "./query-options";
-import { recordSessionComputer, sessionComputerOf } from "./session-row-ref";
+import {
+  sessionComputerOf,
+  sessionRowKeyFor,
+  withSessionComputer,
+} from "./session-row-ref";
 
 export interface SessionBatchResult {
   id: string;
@@ -69,7 +73,7 @@ export async function runSessionBatch({
     onProgress([...results]);
   };
   onProgress([...results]);
-  const byId = new Map(sessions.map(session => [session.id, session]));
+  const byId = new Map(sessions.map(session => [sessionRowKeyFor(session), session]));
   const computerOf = (id: string): ComputerId | undefined => {
     const session = byId.get(id);
     if (!session) return undefined;
@@ -127,7 +131,7 @@ export async function readCurrentSessions(
         .find({ queryKey: options.queryKey, exact: true });
       if (existing?.state.fetchStatus === "fetching") await existing.promise?.catch(() => {});
       const fresh = await queryClient.fetchQuery({ ...options, staleTime: 0 });
-      return recordSessionComputer(fresh, computerId);
+      return withSessionComputer(fresh, computerId);
     })
   );
 
@@ -135,7 +139,7 @@ export async function readCurrentSessions(
   const errors = new Map<string, unknown>();
   reads.forEach((read, index) => {
     if (read.status === "fulfilled") current.push(read.value);
-    else errors.set(sessions[index]!.id, read.reason);
+    else errors.set(sessionRowKeyFor(sessions[index]!), read.reason);
   });
   if (!allowPartial && sessions.length === 1 && errors.size > 0) throw errors.values().next().value;
   return { sessions: current, errors };

@@ -30,8 +30,7 @@ export function SessionListRow(props: SessionListRowProps) {
     computerId: computerId ?? sessionComputerOf(session),
     sessionId: session.id,
   });
-  const selected =
-    (selection?.selectedIds.has(rowKey) || selection?.selectedIds.has(session.id)) ?? false;
+  const selected = selection?.selectedIds.has(rowKey) ?? false;
   // A row inside a multi-selection offers the selection's verbs; one selected row keeps its own.
   const verbs = selected && selection?.verbs && selection.verbs.count > 1 ? selection.verbs : null;
   return (

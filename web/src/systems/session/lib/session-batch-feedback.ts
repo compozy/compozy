@@ -4,7 +4,7 @@ import type { SessionPayload } from "../types";
 import { sessionBatchFailureMessage, type SessionBatchResult } from "./session-batch";
 import { BATCH_CHILD_SKIP, type BatchVerb } from "./session-batch-eligibility";
 import { getSessionDisplayTitle } from "./session-display-title";
-import { sessionComputerOf } from "./session-row-ref";
+import { parseSessionRowKey, sessionComputerOf, sessionRowKeyFor } from "./session-row-ref";
 
 type FeedbackVerb = BatchVerb | "mark-seen" | "make-top-level" | "move-under";
 
@@ -63,7 +63,7 @@ export function reportBatch(
     toast.success(`${sessionCount(done)} ${verb}`, { description: skipNote });
     return;
   }
-  const byId = new Map(sessions.map(session => [session.id, session]));
+  const byId = new Map(sessions.map(session => [sessionRowKeyFor(session), session]));
   const hasRemoteFailure = failures.some(result => {
     const session = byId.get(result.id);
     const computer =
@@ -78,7 +78,9 @@ export function reportBatch(
       const session = byId.get(result.id);
       const computer =
         result.computerId ?? (session ? sessionComputerOf(session) : LOCAL_COMPUTER_ID);
-      const title = session ? getSessionDisplayTitle(session) : result.id;
+      const title = session
+        ? getSessionDisplayTitle(session)
+        : parseSessionRowKey(result.id).sessionId;
       const entry = `${title}: ${result.error ?? sessionBatchFailureMessage(action)}`;
       const bucket = grouped.get(computer) ?? [];
       bucket.push(entry);
@@ -96,7 +98,9 @@ export function reportBatch(
     failureDetails = failures
       .map(result => {
         const session = byId.get(result.id);
-        const title = session ? getSessionDisplayTitle(session) : result.id;
+        const title = session
+          ? getSessionDisplayTitle(session)
+          : parseSessionRowKey(result.id).sessionId;
         return `${title}: ${result.error ?? sessionBatchFailureMessage(action)}`;
       })
       .join("; ");

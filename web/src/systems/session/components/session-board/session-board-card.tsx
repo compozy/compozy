@@ -66,7 +66,7 @@ export function SessionBoardCard({ actions, ...props }: SessionBoardCardProps) {
   const computer = lookupSessionComputer(
     useContext(SessionListComputerContext),
     session.id,
-    computerId
+    effectiveComputerId
   );
   const selection = useSessionBoardCardSelection(rowKey);
   const button = <SessionBoardCardButton {...props} selection={selection} />;
@@ -125,7 +125,10 @@ function SessionBoardCardButton({
   const preloadHandlers = useSessionEntryPreload(props.session, !props.current && !selection?.mode);
   const runtime = useSessionRowRuntimeLabel(props.session);
   const creator = useSessionCreator(props.session);
-  const draft = useSessionHasDraft(props.session.id);
+  const draft = useSessionHasDraft(
+    props.session.id,
+    props.computerId ?? sessionComputerOf(props.session)
+  );
   const links = props.session.linked_work;
   const more = links ? summaryMoreLabel(links) : null;
   return (

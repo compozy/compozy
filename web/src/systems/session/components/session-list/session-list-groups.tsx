@@ -98,8 +98,10 @@ export interface SessionListProjectFoldersHost {
  * retries in place. Inside a project group rows omit the project badge; inside a
  * profile group they omit the profile tag.
  */
-export function SessionListGroups(props: GroupRowProps & SessionListProjectFoldersHost) {
-  const { view, testIdPrefix } = props;
+export function SessionListGroups(
+  props: GroupRowProps & SessionListProjectFoldersHost & { rankPrefix?: readonly number[] }
+) {
+  const { view, testIdPrefix, rankPrefix = [] } = props;
   if (view.groupsError) {
     return (
       <GroupLoadFailure
@@ -110,7 +112,7 @@ export function SessionListGroups(props: GroupRowProps & SessionListProjectFolde
   }
   if (view.groupsLoading) return <SessionGroupsSkeleton />;
   if (view.projectFolders) {
-    const { onProjectFolderDialog, ...rows } = props;
+    const { onProjectFolderDialog, rankPrefix: _prefix, ...rows } = props;
     return (
       <SessionListProjectFolders
         computerId={view.computerId}
@@ -123,7 +125,7 @@ export function SessionListGroups(props: GroupRowProps & SessionListProjectFolde
             key={group.key}
             {...rows}
             group={group}
-            path={path}
+            path={[...rankPrefix, ...path]}
             arrange={arrange}
           />
         )}
@@ -147,7 +149,12 @@ export function SessionListGroups(props: GroupRowProps & SessionListProjectFolde
   return (
     <div className="flex flex-col gap-1">
       {view.groups.map((group, index) => (
-        <SessionListGroupSection key={group.key} {...props} group={group} path={[index]} />
+        <SessionListGroupSection
+          key={group.key}
+          {...props}
+          group={group}
+          path={[...rankPrefix, index]}
+        />
       ))}
     </div>
   );

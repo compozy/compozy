@@ -9,7 +9,7 @@ import {
 } from "@/systems/session/lib/session-batch-feedback";
 import { sessionBatchAction } from "@/systems/session/lib/session-menu-actions";
 import { sessionAdoptRefusal } from "@/systems/session/lib/session-reparent";
-import { sessionComputerOf } from "@/systems/session/lib/session-row-ref";
+import { sessionComputerOf, sessionRowKeyFor } from "@/systems/session/lib/session-row-ref";
 import type { SessionPayload } from "@/systems/session/types";
 import { useMarkSessionSeen } from "@/systems/session/hooks/use-mark-session-seen";
 import { useSessionReparent } from "@/systems/session/hooks/use-session-reparent";
@@ -74,15 +74,15 @@ export function useSessionBatchMenuActions(
     detaching.current = lineage;
     setPendingAction(action);
     try {
-      const byId = new Map(eligible.map(session => [session.id, session]));
+      const byId = new Map(eligible.map(session => [sessionRowKeyFor(session), session]));
       const results = await runSessionBatch({
         action,
-        ids: eligible.map(session => session.id),
+        ids: eligible.map(session => sessionRowKeyFor(session)),
         sessions: eligible,
         previous: [],
         onProgress,
-        execute: id => {
-          const session = byId.get(id)!;
+        execute: rowKey => {
+          const session = byId.get(rowKey)!;
           const targetComputer = resolveComputer(session);
           if (action === "mark-seen") {
             return markSeen.mutateAsync(

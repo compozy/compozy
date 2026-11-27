@@ -33,7 +33,7 @@ import {
   visibleSessionOrder,
 } from "../session-folders";
 import { sessionListPairKey } from "../session-list-group-rows";
-import { recordSessionComputer, sessionDragComputerStore, sessionRowKey } from "../session-row-ref";
+import { withSessionComputer, sessionDragComputerStore, sessionRowKey } from "../session-row-ref";
 import { buildSessionListThreads } from "../session-list-threads";
 import {
   sessionListVisibleOrder,
@@ -669,7 +669,7 @@ describe("cross-computer folder move and drag refusal (T-F2)", () => {
     );
 
     const localRow = session("s-local");
-    const remoteRow = recordSessionComputer(session("s-remote"), "cmp_devbox");
+    const remoteRow = withSessionComputer(session("s-remote"), "cmp_devbox");
     const localKey = sessionRowKey({ computerId: "local", sessionId: "s-local" });
     const remoteKey = sessionRowKey({ computerId: "cmp_devbox", sessionId: "s-remote" });
 

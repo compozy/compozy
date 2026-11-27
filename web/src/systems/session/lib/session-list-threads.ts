@@ -8,6 +8,7 @@ import {
 } from "./session-hierarchy";
 import { isNeedsYouBadge, sessionBadgeOf } from "./session-badge";
 import { isSessionWorkRunning } from "./session-running";
+import { sessionRowKeyFor } from "./session-row-ref";
 import type { SessionFoldSet } from "./session-sidebar-scope";
 
 export interface SessionThreadModel {
@@ -97,13 +98,18 @@ export function threadVisibleOrder(
   threads: readonly SessionThreadModel[],
   collapsedThreads: SessionFoldSet
 ): string[] {
-  return threads.flatMap(thread => [
-    thread.session.id,
-    // A revealed subagent session never folds away (see SessionListThread).
-    ...thread.childSessions.flatMap(session =>
-      !collapsedThreads.has(thread.session.id) || isSubagentSession(session) ? [session.id] : []
-    ),
-  ]);
+  return threads.flatMap(thread => {
+    const rootKey = sessionRowKeyFor(thread.session);
+    return [
+      rootKey,
+      // A revealed subagent session never folds away (see SessionListThread).
+      ...thread.childSessions.flatMap(session =>
+        !collapsedThreads.has(rootKey) || isSubagentSession(session)
+          ? [sessionRowKeyFor(session)]
+          : []
+      ),
+    ];
+  });
 }
 
 export type SessionListShortcut = "clear" | "select-all" | "delete";

@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import {
   isProfileViewStoreHydrated,
   profileViewKey,
@@ -20,10 +21,34 @@ import { sessionScopedDetailOptions } from "./query-options";
 import { sessionTranscriptOptions } from "./session-transcript-options";
 
 const SPECULATIVE_TRANSCRIPT_GC_TIME_MS = 60_000;
-type SessionEntryTarget = Pick<SessionPayload, "id" | "workspace_id" | "profile_name">;
+type SessionEntryTarget = Pick<SessionPayload, "id" | "workspace_id" | "profile_name"> & {
+  computerId?: ComputerId;
+};
 
 /** Warm only the selected catalog row; hover never changes the desktop or profile. */
 export async function preloadSessionEntry(queryClient: QueryClient, target: SessionEntryTarget) {
+  const computerId = normalizeComputerId(target.computerId);
+  if (isRemoteComputerId(computerId)) {
+    if (!target.id) return;
+    const remoteScope = target.profile_name
+      ? { profile: target.profile_name }
+      : ({ all_profiles: true } as const);
+    const session = await queryClient.query(
+      sessionScopedDetailOptions(target.id, remoteScope, { computerId })
+    );
+    if (
+      session.id !== target.id ||
+      (session.workspace_id ?? "") !== (target.workspace_id ?? "")
+    ) {
+      return;
+    }
+    await queryClient.infiniteQuery({
+      ...sessionTranscriptOptions(session.workspace_id ?? "", session.id, computerId),
+      staleTime: "static",
+      gcTime: SPECULATIVE_TRANSCRIPT_GC_TIME_MS,
+    });
+    return;
+  }
   if (!sessionEntryWithinScope(queryClient, target)) return;
   const profile = profileViewKey(readProfileView(queryClient));
   const session = await queryClient.query(

@@ -26,6 +26,7 @@ export {
 import { sessionStore } from "../stores/session-store";
 import { sessionKeys } from "../lib/query-keys";
 import { discardComposerDraftAttachments } from "../lib/session-composer-attachment-drafts";
+import { sessionRowKey } from "../lib/session-row-ref";
 import {
   invalidateSessionMutationQueries,
   invalidateWorkspaceSessionCatalog,
@@ -183,18 +184,24 @@ export function useStopSession() {
 }
 
 /** Keep remote disappearance recovery from racing an operator-owned deletion. */
-export function useSessionDeletionPending(sessionId: string | null): boolean {
+export function useSessionDeletionPending(
+  sessionId: string | null,
+  computerId?: ComputerId
+): boolean {
+  const targetComputer = normalizeComputerId(computerId);
   return (
     useIsMutating({
       mutationKey: sessionKeys.deletions(),
       predicate: mutation => {
         const variables = mutation.state.variables;
-        return (
-          typeof variables === "object" &&
-          variables !== null &&
-          "id" in variables &&
-          variables.id === sessionId
-        );
+        if (typeof variables !== "object" || variables === null || !("id" in variables)) {
+          return false;
+        }
+        const mutationComputer =
+          "computerId" in variables
+            ? normalizeComputerId(variables.computerId as ComputerId | undefined)
+            : normalizeComputerId(undefined);
+        return variables.id === sessionId && mutationComputer === targetComputer;
       },
     }) > 0
   );
@@ -214,7 +221,11 @@ export function useSessionArchivePending(requestOwnerId: string): boolean {
  * True once this client deleted the session: a window still showing it after an
  * operator-owned deletion is retired quietly, never reported as a missing session.
  */
-export function useSessionDeletedByOperator(sessionId: string | null): boolean {
+export function useSessionDeletedByOperator(
+  sessionId: string | null,
+  computerId?: ComputerId
+): boolean {
+  const targetComputer = normalizeComputerId(computerId);
   return (
     useMutationState({
       filters: {
@@ -222,12 +233,14 @@ export function useSessionDeletedByOperator(sessionId: string | null): boolean {
         status: "success",
         predicate: mutation => {
           const variables = mutation.state.variables;
-          return (
-            typeof variables === "object" &&
-            variables !== null &&
-            "id" in variables &&
-            variables.id === sessionId
-          );
+          if (typeof variables !== "object" || variables === null || !("id" in variables)) {
+            return false;
+          }
+          const mutationComputer =
+            "computerId" in variables
+              ? normalizeComputerId(variables.computerId as ComputerId | undefined)
+              : normalizeComputerId(undefined);
+          return variables.id === sessionId && mutationComputer === targetComputer;
         },
       },
     }).length > 0
@@ -284,7 +297,9 @@ export function useDeleteSession(
     onMutate: async ({ id, workspace_id, computerId }) => {
       const deleteWorkspaceId = sessionOwnerWorkspace(workspace_id);
       const keys = sessionKeys.forComputer(computerId);
-      sessionStore.trigger.sessionLiveTailSuspended({ sessionId: id });
+      sessionStore.trigger.sessionLiveTailSuspended({
+        sessionId: sessionRowKey({ computerId: normalizeComputerId(computerId), sessionId: id }),
+      });
       await Promise.all([
         queryClient.cancelQueries({ queryKey: keys.detail(deleteWorkspaceId, id) }),
         queryClient.cancelQueries({ queryKey: keys.byIdRoot(id) }),
@@ -300,9 +315,11 @@ export function useDeleteSession(
         ),
       ];
       await Promise.all(targets.map(target => options.onDeleteSuccess?.(target)));
+      const targetComputer = normalizeComputerId(session.computerId);
       for (const { id } of targets) {
-        discardComposerDraftAttachments(id);
-        sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
+        const rowKey = sessionRowKey({ computerId: targetComputer, sessionId: id });
+        discardComposerDraftAttachments(rowKey);
+        sessionStore.trigger.sessionInteractionRemoved({ sessionId: rowKey });
         queryClient.removeQueries({ queryKey: keys.detail(successWorkspaceId, id) });
         queryClient.removeQueries({ queryKey: keys.byIdRoot(id) });
       }
@@ -311,7 +328,9 @@ export function useDeleteSession(
       void queryClient.invalidateQueries({ queryKey: keys.attentionSummary() });
     },
     onSettled: (_data, error, { id, workspace_id, descendants, computerId }) => {
-      sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
+      sessionStore.trigger.sessionLiveTailResumed({
+        sessionId: sessionRowKey({ computerId: normalizeComputerId(computerId), sessionId: id }),
+      });
       if (error) {
         // A failed tree delete can still have removed some of it.
         for (const target of [{ id }, ...(descendants ?? [])]) {

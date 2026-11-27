@@ -1,12 +1,14 @@
 import { useQueries } from "@tanstack/react-query";
-import { useState } from "react";
+import { use, useState } from "react";
 
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import { useProfileReadScope } from "@/systems/profiles";
 import type { DataScope } from "@/systems/workspace";
 
 import { fetchSessionCatalogPage } from "../../adapters/session-catalog-api";
+import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
 import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
+import { usePublishSessionListGroupRows } from "../../hooks/use-session-list-group-rows";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 import { sessionCatalogFirstPageOptions } from "../../lib/session-catalog-options";
 import { sessionCatalogScopedFilters } from "../../lib/session-catalog-scope";
@@ -17,7 +19,7 @@ import {
 } from "../../lib/session-list-computer-filter";
 import { sessionListSortParam } from "../../lib/session-list-preferences";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
-import { buildSessionListThreads } from "../../lib/session-list-threads";
+import { buildSessionListThreads, threadVisibleOrder } from "../../lib/session-list-threads";
 import {
   buildTogetherComputerMap,
   buildTogetherProjectGroups,
@@ -25,7 +27,7 @@ import {
   selectNextTogetherComputer,
   type TogetherFlatPageEntry,
 } from "../../lib/session-list-together";
-import { recordSessionsComputer, sessionComputerOf } from "../../lib/session-row-ref";
+import { sessionComputerOf, withSessionsComputer } from "../../lib/session-row-ref";
 import type { SessionListFilters, SessionPayload } from "../../types";
 import type { GroupRowProps } from "./session-list-group-body";
 import { SessionListGroupSection } from "./session-list-groups";
@@ -205,10 +207,15 @@ export function SessionListTogetherFlatBody({
   });
 
   const merged = mergeTogetherFlatRows(entries, view.sort);
-  const threads = buildSessionListThreads(
-    merged.map(row => row.session),
-    ""
-  );
+  const mergedSessions = merged.map(row => row.session);
+  const threads = buildSessionListThreads(mergedSessions, "");
+  const groupSelection = use(SessionListGroupSelectionContext);
+  usePublishSessionListGroupRows(groupSelection?.rows, "together-flat", {
+    rank: "0000",
+    sessions: mergedSessions,
+    visibleOrder: threadVisibleOrder(threads, rows.collapsedThreads),
+    pair: null,
+  });
   const computerMap = buildTogetherComputerMap(entries);
   const namesByComputer = new Map<ComputerId, ReadonlyMap<string, string>>(
     answeredSources.map(source => [
@@ -238,7 +245,7 @@ export function SessionListTogetherFlatBody({
         undefined,
         nextToLoad.computerId
       );
-      recordSessionsComputer(page.sessions, nextToLoad.computerId);
+      const stampedSessions = withSessionsComputer(page.sessions, nextToLoad.computerId);
       setExtraState(previous => {
         const base = previous.key === filterSignature ? previous.byComputer : {};
         const existing = base[nextToLoad.computerId];
@@ -247,7 +254,7 @@ export function SessionListTogetherFlatBody({
           byComputer: {
             ...base,
             [nextToLoad.computerId]: {
-              sessions: [...(existing?.sessions ?? []), ...page.sessions],
+              sessions: [...(existing?.sessions ?? []), ...stampedSessions],
               hasMore: page.page.has_more,
               nextCursor: page.page.next_cursor ?? null,
             },

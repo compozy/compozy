@@ -14,7 +14,7 @@ import {
   type WorkspaceBadgeIdentity,
 } from "@/systems/workspace";
 
-import type { SessionListGroupSpec } from "../lib/session-list-groups";
+import type { SessionListGroupSpec, SessionListPair } from "../lib/session-list-groups";
 import { sessionListPair } from "../lib/session-list-groups";
 import type { SessionListShelf } from "../lib/session-list-shelf";
 import type { ProjectGroupTree } from "../lib/workspace-folders";
@@ -150,6 +150,8 @@ export interface SessionListViewModel {
   badgeOf?: (session: SessionPayload) => WorkspaceBadgeIdentity;
   /** Folders and manual order of the one (computer, workspace, profile) pair the flat list reads. */
   layout?: SessionListLayout;
+  /** The one (computer, workspace, profile) pair this flat view owns, if any. */
+  pair?: SessionListPair | null;
   /**
    * Project folders of the one profile an All projects list grouped by project
    * reads (issue #1044): the layout verbs and the groups arranged into folders.
@@ -355,6 +357,7 @@ export function useSessionListView(options: UseSessionListViewOptions = {}): Ses
           layout: undefined,
           layoutError: arranged.loadError,
         }),
+    pair,
     projectFolders: readOnly ? undefined : arranged.projectFolders,
     worktreeId: options.worktreeId,
     catalog: awaiting.catalog,

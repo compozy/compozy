@@ -12,10 +12,12 @@ import {
 import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
+import type { SessionSelectionDrag } from "../../hooks/use-session-list-dnd";
 import type {
   SessionFolderDialogState,
   useSessionListFolderLayout,
 } from "../../hooks/use-session-list-folder-layout";
+import type { SessionRowSelection } from "../../hooks/use-session-selection";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import { sessionListHasPinnedRows } from "../../lib/session-list-pinned";
@@ -55,8 +57,11 @@ export interface SessionListSingleBodyProps {
   view: SessionListViewModel;
   threads: ReturnType<typeof buildSessionListThreads>;
   folders: SessionListFolderLayoutModel;
-  bulk: ReturnType<typeof useSessionListBulkSelection>;
-  groupSelection: SessionListGroupSelection;
+  bulk?: ReturnType<typeof useSessionListBulkSelection>;
+  selection?: SessionRowSelection;
+  selectionDrag?: SessionSelectionDrag;
+  groupSelection?: SessionListGroupSelection;
+  rankPrefix?: readonly number[];
   filtering: boolean;
   normalizedFilter: string;
   collapsedThreads: SessionFoldSet;
@@ -80,7 +85,10 @@ export function SessionListSingleBody({
   threads,
   folders,
   bulk,
+  selection,
+  selectionDrag,
   groupSelection,
+  rankPrefix,
   filtering,
   normalizedFilter,
   collapsedThreads,
@@ -97,11 +105,29 @@ export function SessionListSingleBody({
 }: SessionListSingleBodyProps) {
   const grouped = view.groupBy !== "none";
   const { layout, sections } = folders;
+  const rowSelection = selection ?? bulk?.rowSelection;
+  const rowDrag = selectionDrag ?? bulk?.drag;
   const scrollClass = embedded
     ? "flex flex-col gap-0.5"
     : "flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5";
 
   if (grouped) {
+    const groupTree = (
+      <SessionListGroups
+        view={view}
+        filtering={filtering}
+        collapsedThreads={collapsedThreads}
+        subagentThreads={subagentThreads}
+        currentSessionId={currentSessionId}
+        onThreadBranchChange={onThreadBranchChange}
+        onSelectSession={onSelectSession}
+        onNewSession={onNewSession}
+        sessionActions={sessionActions}
+        testIdPrefix={testIdPrefix}
+        onProjectFolderDialog={onProjectFolderDialog}
+        rankPrefix={rankPrefix}
+      />
+    );
     return (
       <div
         className={scrollClass}
@@ -109,21 +135,13 @@ export function SessionListSingleBody({
         data-group-by={view.groupBy}
       >
         {pinnedSection}
-        <SessionListGroupSelectionContext value={groupSelection}>
-          <SessionListGroups
-            view={view}
-            filtering={filtering}
-            collapsedThreads={collapsedThreads}
-            subagentThreads={subagentThreads}
-            currentSessionId={currentSessionId}
-            onThreadBranchChange={onThreadBranchChange}
-            onSelectSession={onSelectSession}
-            onNewSession={onNewSession}
-            sessionActions={sessionActions}
-            testIdPrefix={testIdPrefix}
-            onProjectFolderDialog={onProjectFolderDialog}
-          />
-        </SessionListGroupSelectionContext>
+        {groupSelection ? (
+          <SessionListGroupSelectionContext value={groupSelection}>
+            {groupTree}
+          </SessionListGroupSelectionContext>
+        ) : (
+          groupTree
+        )}
       </div>
     );
   }
@@ -142,7 +160,7 @@ export function SessionListSingleBody({
           partitions={view.partitions}
           layout={layout}
           dnd={folders.dnd}
-          selectionDrag={bulk.drag}
+          selectionDrag={rowDrag}
           orderable={folders.orderable}
           filtering={filtering}
           collapsedThreads={collapsedThreads}
@@ -156,7 +174,7 @@ export function SessionListSingleBody({
           }}
           onNewSessionInFolder={folderId => onNewSession({ folderId })}
           onFolderDialog={folders.setDialog}
-          selection={bulk.rowSelection}
+          selection={rowSelection}
           sessionActions={sessionActions}
           testIdPrefix={testIdPrefix}
           emptyMessage={emptySessionListMessage(filtering, view)}
@@ -188,7 +206,7 @@ export function SessionListSingleBody({
           onSelectSession={session => {
             if (!view.catalog?.paging) onSelectSession(session);
           }}
-          selection={readOnly ? undefined : bulk.rowSelection}
+          selection={readOnly ? undefined : rowSelection}
           readOnly={readOnly}
           sessionActions={sessionActions}
           testIdPrefix={testIdPrefix}
@@ -275,13 +293,15 @@ export function SessionListMultiComputerBody({
             onThreadBranchChange={onThreadBranchChange}
             scoped
             search={search}
+            sectionRank={0}
             sessionActions={sessionActions}
             source={scopedSource}
             subagentThreads={subagentThreads}
             testIdPrefix={testIdPrefix}
+            worktreeId={view.worktreeId}
           />
         ) : computersLayout === "separate" ? (
-          sources.map(source => (
+          sources.map((source, index) => (
             <SessionListComputerSection
               collapsedThreads={collapsedThreads}
               currentSessionId={currentSessionId}
@@ -292,10 +312,12 @@ export function SessionListMultiComputerBody({
               onSelectSession={onSelectSession}
               onThreadBranchChange={onThreadBranchChange}
               search={search}
+              sectionRank={index}
               sessionActions={sessionActions}
               source={source}
               subagentThreads={subagentThreads}
               testIdPrefix={testIdPrefix}
+              worktreeId={view.worktreeId}
             />
           ))
         ) : view.groupBy === "project" ? (

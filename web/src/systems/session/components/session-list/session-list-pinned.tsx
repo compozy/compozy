@@ -139,15 +139,16 @@ function SessionListPinnedRows({
       <div className="flex flex-col gap-0.5">
         {threads.map(thread => {
           const computerId = sessionComputerOf(thread.session);
+          const rowKey = sessionRowKey({ computerId, sessionId: thread.session.id });
           return (
             <SessionListThread
-              key={sessionRowKey({ computerId, sessionId: thread.session.id })}
+              key={rowKey}
               session={thread.session}
               childSessions={thread.childSessions}
               currentSessionId={currentSessionId}
               owner={ownerOf?.(thread.session)}
               ownerOf={ownerOf}
-              collapsed={collapsedThreads.has(thread.session.id)}
+              collapsed={collapsedThreads.has(rowKey)}
               subagentThreads={subagentThreads}
               onThreadBranchChange={onThreadBranchChange}
               onSelectSession={session => {
@@ -211,6 +212,8 @@ function sessionListPinnedLayout(
       const next = shiftId(ids, session.id, delta);
       return next ? () => reorder(next) : undefined;
     };
+    const rowComputerId = sessionComputerOf(session);
+    const rowKey = sessionRowKey({ computerId: rowComputerId, sessionId: session.id });
     return {
       // A pin files nowhere from Pinned: its folder verbs stay with its place in the list.
       layoutMenu: {
@@ -220,9 +223,9 @@ function sessionListPinnedLayout(
         onMoveUp: move(-1),
         onMoveDown: move(1),
       },
-      drag: dnd.sessionRow(session.id, container),
-      dropEdge: rowDropEdge(dnd.indicator, session.id),
-      dragging: rowDragged(dnd.dragging, session.id),
+      drag: dnd.sessionRow(session.id, container, undefined, undefined, false, rowComputerId),
+      dropEdge: rowDropEdge(dnd.indicator, rowKey),
+      dragging: rowDragged(dnd.dragging, rowKey),
     };
   };
 }

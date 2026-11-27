@@ -116,12 +116,11 @@ export function SessionListRowView(props: SessionListRowViewProps) {
   const { session, showActions = true, wrapRow, selection, computerId } = props;
   const effectiveComputerId = computerId ?? sessionComputerOf(session);
   const rowKey = sessionRowKey({ computerId: effectiveComputerId, sessionId: session.id });
-  const selected =
-    (selection?.selectedIds.has(rowKey) || selection?.selectedIds.has(session.id)) ?? false;
+  const selected = selection?.selectedIds.has(rowKey) ?? false;
   const computer = lookupSessionComputer(
     useContext(SessionListComputerContext),
     session.id,
-    computerId
+    effectiveComputerId
   );
   const canAct = showActions && !computer?.offline;
   const row = (
@@ -173,8 +172,7 @@ function SessionListRowBody({
 }: SessionListRowViewProps) {
   const effectiveComputerId = computerId ?? sessionComputerOf(session);
   const rowKey = sessionRowKey({ computerId: effectiveComputerId, sessionId: session.id });
-  const selected =
-    (selection?.selectedIds.has(rowKey) || selection?.selectedIds.has(session.id)) ?? false;
+  const selected = selection?.selectedIds.has(rowKey) ?? false;
   const title = getSessionDisplayTitle(session);
   const signal = sessionBadgeSignal(session.badge, sessionWaitingOn(session));
   const { keyboardFocus, focusHandlers } = useKeyboardFocusToken();
@@ -189,7 +187,7 @@ function SessionListRowBody({
   const computer = lookupSessionComputer(
     useContext(SessionListComputerContext),
     session.id,
-    computerId
+    effectiveComputerId
   );
   const badge = inheritsProject ? undefined : badgeOf?.(session);
   const activate = (event: React.MouseEvent<HTMLElement>) =>

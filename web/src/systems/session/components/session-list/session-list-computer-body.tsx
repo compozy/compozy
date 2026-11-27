@@ -1,20 +1,23 @@
+import { use } from "react";
 import { cn } from "@compozy/ui";
 
 import { isRemoteComputerId } from "@/lib/computer-scope";
 import { useOptionalUpgradeSheetActions } from "@/systems/account";
 import { useActiveWorkspace } from "@/systems/workspace";
 
+import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
 import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import {
   useSessionListFolderLayout,
   type SessionFolderDialogState,
 } from "../../hooks/use-session-list-folder-layout";
+import { usePublishSessionListGroupRows } from "../../hooks/use-session-list-group-rows";
 import { useSessionListLocalState } from "../../hooks/use-session-list-local-state";
-import { useSessionListSelection } from "../../hooks/use-session-list-selection";
 import { useSessionListView } from "../../hooks/use-session-list-view";
 import { matchesOfflineSessionQuery } from "../../lib/session-list-computer-filter";
-import { buildSessionListThreads } from "../../lib/session-list-threads";
+import { sessionListGroupRank } from "../../lib/session-list-group-rows";
+import { buildSessionListThreads, threadVisibleOrder } from "../../lib/session-list-threads";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import type { SessionFoldSet, SessionSubagentFolds } from "../../lib/session-sidebar-scope";
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
@@ -44,6 +47,10 @@ export interface SessionListComputerBodyProps {
   /** External create-project-folder trigger from the section header's `+` menu (`F3`). */
   projectFolderDialog?: SessionFolderDialogState<WorkspaceFolderPayload>;
   onProjectFolderDialogChange?: (state: SessionFolderDialogState<WorkspaceFolderPayload>) => void;
+  /** Position of this computer section within the window for cross-section selection order. */
+  sectionRank?: number;
+  /** Active worktree filter forwarded from the parent list view. */
+  worktreeId?: string;
 }
 
 /**
@@ -89,14 +96,18 @@ function SessionListComputerLiveBody({
   testIdPrefix,
   projectFolderDialog: externalProjectDialog,
   onProjectFolderDialogChange,
+  sectionRank = 0,
+  worktreeId,
 }: SessionListComputerBodyProps) {
   const { dataScope } = useActiveWorkspace();
+  const parentGroupSelection = use(SessionListGroupSelectionContext);
   const offline = source.read === "offline";
   const readOnly = !source.canOperate || offline;
   const filtering = search.trim() !== "";
 
   const computerView = useSessionListView({
     scope: dataScope,
+    worktreeId,
     computerId: source.key,
     workspaces: source.workspaces,
     matchedWorkspaceIds: source.matchedWorkspaceIds,
@@ -120,16 +131,17 @@ function SessionListComputerLiveBody({
   const threads = buildSessionListThreads(listedSessions, "");
   const folders = useSessionListFolderLayout(computerView, threads, filtering);
   const grouped = computerView.groupBy !== "none";
-  const { bulk, groupSelection } = useSessionListSelection({
-    selectionKey: `${computerView.selectionKey}:${source.key}`,
-    shelf: computerView.shelf,
-    grouped,
-    sessions: listedSessions,
-    visibleThreads: folders.visibleThreads,
-    collapsedThreads,
-    layout: readOnly ? undefined : folders.layout,
-    sessionActions,
-  });
+  usePublishSessionListGroupRows(
+    !grouped && !readOnly ? parentGroupSelection?.rows : undefined,
+    `computer:${source.key}`,
+    {
+      rank: sessionListGroupRank([sectionRank]),
+      computerId: source.key,
+      sessions: listedSessions,
+      visibleOrder: threadVisibleOrder(folders.visibleThreads, collapsedThreads),
+      pair: computerView.pair ?? null,
+    }
+  );
 
   const handleSelectSession = (session: SessionListTarget) => {
     onSelectSession(
@@ -170,20 +182,21 @@ function SessionListComputerLiveBody({
       data-testid={`${testIdPrefix}-computer-${source.key}-body`}
     >
       <SessionListSingleBody
-        bulk={bulk}
         collapsedThreads={collapsedThreads}
         currentSessionId={currentSessionId}
         embedded
         filtering={filtering}
         folders={folders}
-        groupSelection={groupSelection}
         normalizedFilter={search.trim().toLocaleLowerCase()}
         onNewSession={handleNewSession}
         onProjectFolderDialog={setProjectFolderDialog}
         onSelectSession={handleSelectSession}
         onThreadBranchChange={onThreadBranchChange}
         pinnedSection={null}
+        rankPrefix={[sectionRank]}
         readOnly={readOnly}
+        selection={readOnly ? undefined : parentGroupSelection?.selection}
+        selectionDrag={readOnly ? undefined : parentGroupSelection?.drag}
         sessionActions={sessionActions}
         subagentThreads={subagentThreads}
         testIdPrefix={`${testIdPrefix}-${source.key}`}

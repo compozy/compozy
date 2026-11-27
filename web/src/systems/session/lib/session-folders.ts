@@ -149,7 +149,7 @@ export function visibleSessionOrder(
           filtering
         )
       : threads;
-    const byId = new Map(served.map(session => [session.id, session]));
+    const byId = new Map(served.map(session => [sessionRowKeyFor(session), session]));
     return threadVisibleOrder(visibleThreads, options.collapsedThreadIds).flatMap(id => {
       const session = byId.get(id);
       return session ? [session] : [];
@@ -343,11 +343,10 @@ export function sessionBulkMove(
   const sessions = catalog
     .flatMap((session, index) => {
       const rowKey = sessionRowKeyFor(session);
-      const isSelected = selectedIds.has(rowKey) || selectedIds.has(session.id);
-      if (!isSelected || !roots.has(rowKey) || !sessionHasOwnPlacement(session)) return [];
-      return [
-        { session, rank: rank.get(rowKey) ?? rank.get(session.id) ?? visibleOrder.length + index },
-      ];
+      if (!selectedIds.has(rowKey) || !roots.has(rowKey) || !sessionHasOwnPlacement(session)) {
+        return [];
+      }
+      return [{ session, rank: rank.get(rowKey) ?? visibleOrder.length + index }];
     })
     .sort((left, right) => left.rank - right.rank)
     .map(entry => entry.session);

@@ -189,6 +189,7 @@ function SessionListPairGroupBody({
   );
   usePublishSessionListGroupRows(groupSelection?.rows, group.key, {
     rank: sessionListGroupRank(path),
+    computerId,
     sessions: catalog.sessions,
     visibleOrder: threadVisibleOrder(layout.visibleThreads, props.collapsedThreads),
     pair: group.pair,

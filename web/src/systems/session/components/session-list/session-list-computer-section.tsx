@@ -48,6 +48,8 @@ export interface SessionListComputerSectionProps {
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
   onOpenComputerDetails?: (computerId: string) => void;
+  sectionRank?: number;
+  worktreeId?: string;
 }
 
 function defaultComputerFolded(source: ComputerSessionsSource): boolean {
@@ -161,6 +163,8 @@ export function SessionListComputerSection({
   sessionActions,
   testIdPrefix,
   onOpenComputerDetails,
+  sectionRank = 0,
+  worktreeId,
 }: SessionListComputerSectionProps) {
   const sidebar = useSessionSidebarState();
   const dragComputer = useSelector(
@@ -267,10 +271,12 @@ export function SessionListComputerSection({
             projectFolderDialog={projectFolderDialog}
             scoped={false}
             search={search}
+            sectionRank={sectionRank}
             sessionActions={sessionActions}
             source={source}
             subagentThreads={subagentThreads}
             testIdPrefix={testIdPrefix}
+            worktreeId={worktreeId}
           />
         </div>
       )}

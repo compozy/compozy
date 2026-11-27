@@ -101,9 +101,7 @@ export function sessionSelectionCounts(
     backFromLaterable: sessions.filter(
       session => sessionIsInLater(session) && !isSubagentSession(session)
     ).length,
-    hiddenByFilter: sessions.filter(
-      session => !visible.has(sessionRowKeyFor(session)) && !visible.has(session.id)
-    ).length,
+    hiddenByFilter: sessions.filter(session => !visible.has(sessionRowKeyFor(session))).length,
   };
 }
 

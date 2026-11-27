@@ -4,6 +4,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import { readCurrentSessions, type SessionBatchResult } from "../lib/session-batch";
 import { sessionsRunningProcesses } from "../lib/session-processes";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { readSessionTrees, sessionChildrenScope, type SessionTrees } from "../lib/session-tree";
 import type { SessionPayload } from "../types";
 import { reportActionError, reportDeletedSessions } from "./session-lifecycle-helpers";
@@ -45,7 +46,7 @@ export async function confirmSessionDelete({
   );
   const targets =
     target.bulk && failedIds.size > 0
-      ? target.sessions.filter(session => failedIds.has(session.id))
+      ? target.sessions.filter(session => failedIds.has(sessionRowKeyFor(session)))
       : target.sessions;
   try {
     const [current, treeRead] = await Promise.all([
@@ -58,19 +59,19 @@ export async function confirmSessionDelete({
     const mergedTrees = new Map(target.trees);
     const mergedTreeErrors = new Map(target.treeErrors);
     if (treeRead) {
-      for (const session of targets) mergedTreeErrors.delete(session.id);
+      for (const session of targets) mergedTreeErrors.delete(sessionRowKeyFor(session));
       for (const [id, tree] of treeRead.trees) mergedTrees.set(id, tree);
       for (const [id, error] of treeRead.errors) mergedTreeErrors.set(id, error);
     }
 
     const previousScope = sessionChildrenScope("delete", targets, target.trees);
     const nextScope = sessionChildrenScope("delete", targets, mergedTrees);
-    const previousMemberIds = new Set(previousScope.members.map(child => child.id));
-    const previousReachedIds = new Set(previousScope.reached.map(child => child.id));
+    const previousMemberIds = new Set(previousScope.members.map(child => sessionRowKeyFor(child)));
+    const previousReachedIds = new Set(previousScope.reached.map(child => sessionRowKeyFor(child)));
     const childrenGrew =
       treeRead !== null &&
-      (nextScope.members.some(child => !previousMemberIds.has(child.id)) ||
-        nextScope.reached.some(child => !previousReachedIds.has(child.id)));
+      (nextScope.members.some(child => !previousMemberIds.has(sessionRowKeyFor(child))) ||
+        nextScope.reached.some(child => !previousReachedIds.has(sessionRowKeyFor(child))));
     const treeFailed = treeRead !== null && mergedTreeErrors.size > 0;
     const includedProcesses = includeChildren ? sessionsRunningProcesses(nextScope.reached) : 0;
     const needsProcessAnswer =
@@ -78,14 +79,18 @@ export async function confirmSessionDelete({
       !deletePolicy &&
       sessionsRunningProcesses(current.sessions) + includedProcesses > 0;
 
-    const currentById = new Map(current.sessions.map(session => [session.id, session]));
+    const currentById = new Map(
+      current.sessions.map(session => [sessionRowKeyFor(session), session])
+    );
 
     if (treeFailed || childrenGrew || needsProcessAnswer) {
-      const currentTargets = targets.map(session => currentById.get(session.id) ?? session);
+      const currentTargets = targets.map(
+        session => currentById.get(sessionRowKeyFor(session)) ?? session
+      );
       const displaySessions =
         failedIds.size > 0
           ? currentTargets
-          : target.sessions.map(session => currentById.get(session.id) ?? session);
+          : target.sessions.map(session => currentById.get(sessionRowKeyFor(session)) ?? session);
       if (failedIds.size > 0) {
         reportDeletedSessions(batchResults);
         setBatchResults([]);

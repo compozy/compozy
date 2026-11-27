@@ -5,7 +5,11 @@ import { LOCAL_COMPUTER_ID, normalizeComputerId, type ComputerId } from "@/lib/c
 
 import { placeId } from "../lib/session-folders";
 import { sessionAdoptRefusal } from "../lib/session-reparent";
-import { sessionDragComputerStore, sessionRowKey } from "../lib/session-row-ref";
+import {
+  sessionComputerOf,
+  sessionDragComputerStore,
+  sessionRowKey,
+} from "../lib/session-row-ref";
 import type { SessionPayload } from "../types";
 import type { SessionListLayout } from "./use-session-folders";
 
@@ -93,7 +97,8 @@ export interface SessionListDnd {
     container: SessionDropContainer,
     selection?: SessionSelectionDrag,
     nest?: SessionRowNestTarget,
-    targetOnly?: boolean
+    targetOnly?: boolean,
+    rowComputerId?: ComputerId
   ) => SessionDragHandlers;
   /** Drag source for folder reorder and drop target for "move into folder". */
   folderHeader: (folderId: string) => SessionDragHandlers;
@@ -135,12 +140,13 @@ export function useSessionListDnd(
 
   const start = (item: SessionDragItem) => (event: DragEvent<HTMLElement>) => {
     event.stopPropagation();
+    const itemComputerId = normalizeComputerId(item.computerId ?? computerId);
     const id = item.kind === "selection" ? item.ids.join(",") : item.id;
     event.dataTransfer?.setData(DRAG_MIME, id);
     event.dataTransfer?.setData("text/plain", id);
     if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-    sessionDragComputerStore.trigger.started({ computerId });
-    setDragging({ ...item, computerId });
+    sessionDragComputerStore.trigger.started({ computerId: itemComputerId });
+    setDragging({ ...item, computerId: itemComputerId });
   };
   const end = () => {
     sessionDragComputerStore.trigger.ended();
@@ -179,46 +185,66 @@ export function useSessionListDnd(
   return {
     dragging,
     indicator,
-    sessionRow: (sessionId, container, selection, nest, targetOnly = false) => {
-      const rowKey = sessionRowKey({ computerId, sessionId });
+    sessionRow: (sessionId, container, selection, nest, targetOnly = false, rowComputerId) => {
+      const effectiveComputer = normalizeComputerId(rowComputerId ?? computerId);
+      const rowKey = sessionRowKey({ computerId: effectiveComputer, sessionId });
       const edge = (event: DragEvent<HTMLElement>): SessionRowDropEdge | null => {
-        if (!sameComputer(dragging) || dragging?.kind !== "session" || dragging.id === sessionId)
+        if (
+          dragging === null ||
+          dragging.kind !== "session" ||
+          normalizeComputerId(dragging.computerId) !== effectiveComputer
+        ) {
           return null;
+        }
+        const draggedKey = sessionRowKey({
+          computerId: normalizeComputerId(dragging.computerId),
+          sessionId: dragging.id,
+        });
+        if (draggedKey === rowKey) return null;
         return rowDropZone(
           event,
           rowReorder && container.orderable !== false && !targetOnly,
-          nest?.accepts(dragging.id) ?? false
+          nest?.accepts(draggedKey) ?? false
         );
       };
       return {
         draggable: !targetOnly,
         onDragStart: targetOnly
           ? undefined
-          : selection?.selectedIds.has(rowKey) || selection?.selectedIds.has(sessionId)
+          : selection?.selectedIds.has(rowKey)
             ? startSelection(selection)
-            : start({ kind: "session", id: sessionId, folderId: container.folderId, computerId }),
+            : start({
+                kind: "session",
+                id: sessionId,
+                folderId: container.folderId,
+                computerId: effectiveComputer,
+              }),
         onDragEnd: end,
         onDragOver: event => {
           const position = edge(event);
-          if (position !== null) accept(event, { kind: "row", targetId: sessionId, position });
+          if (position !== null) accept(event, { kind: "row", targetId: rowKey, position });
         },
         onDragLeave: event => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
             setIndicator(current =>
-              current?.kind === "row" && current.targetId === sessionId ? null : current
+              current?.kind === "row" && current.targetId === rowKey ? null : current
             );
           }
         },
         onDrop: event => {
           const position = edge(event);
           if (position === null || dragging?.kind !== "session") return;
-          const moved = dragging.id;
+          const movedId = dragging.id;
+          const movedKey = sessionRowKey({
+            computerId: normalizeComputerId(dragging.computerId),
+            sessionId: movedId,
+          });
           finish(event, () => {
             if (position === "into") {
-              nest?.adopt(moved);
+              nest?.adopt(movedKey);
               return;
             }
-            const next = placeId(container.ids, moved, sessionId, position);
+            const next = placeId(container.ids, movedId, sessionId, position);
             if (next) layout?.reorderSessions(container.folderId, next);
           });
         },
@@ -355,22 +381,33 @@ export function sessionRowNestTarget(
   onAdopt: ((session: SessionPayload, parent: SessionPayload) => void) | undefined
 ): SessionRowNestTarget | undefined {
   if (!onAdopt) return undefined;
+  const targetComputer = sessionComputerOf(target);
   return {
-    accepts: sourceId => {
-      const source = roots.get(sourceId);
-      return source !== undefined && sessionAdoptRefusal(source, target) === null;
+    accepts: sourceKey => {
+      const source = roots.get(sourceKey);
+      return (
+        source !== undefined &&
+        sessionComputerOf(source) === targetComputer &&
+        sessionAdoptRefusal(source, target) === null
+      );
     },
-    adopt: sourceId => {
-      const source = roots.get(sourceId);
-      if (source) onAdopt(source, target);
+    adopt: sourceKey => {
+      const source = roots.get(sourceKey);
+      if (source && sessionComputerOf(source) === targetComputer) onAdopt(source, target);
     },
   };
 }
 
 /** This row is being dragged, alone or as part of the selection. */
-export function rowDragged(dragging: SessionDragItem | null, sessionId: string): boolean {
-  if (dragging?.kind === "session") return dragging.id === sessionId;
-  return dragging?.kind === "selection" && dragging.ids.includes(sessionId);
+export function rowDragged(dragging: SessionDragItem | null, rowKeyOrSessionId: string): boolean {
+  if (dragging?.kind === "session") {
+    const draggedKey = sessionRowKey({
+      computerId: normalizeComputerId(dragging.computerId),
+      sessionId: dragging.id,
+    });
+    return draggedKey === rowKeyOrSessionId || dragging.id === rowKeyOrSessionId;
+  }
+  return dragging?.kind === "selection" && dragging.ids.includes(rowKeyOrSessionId);
 }
 
 /**

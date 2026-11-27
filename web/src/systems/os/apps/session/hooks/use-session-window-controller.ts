@@ -22,9 +22,9 @@ export function useSessionWindowController(windowId: string) {
   const focusedScope = focusedWindowScope(useWindowDataWorkspace());
   const { computerId, focused, liveTailEnabled, presenceEnabled, sessionId, agentName } =
     useSessionWindowRuntime(windowId);
-  const deletionPending = useSessionDeletionPending(sessionId);
+  const deletionPending = useSessionDeletionPending(sessionId, computerId);
   const archivePending = useSessionArchivePending(windowId);
-  const deletedByOperator = useSessionDeletedByOperator(sessionId);
+  const deletedByOperator = useSessionDeletedByOperator(sessionId, computerId);
   const resolution = useSessionWindowResolution({
     computerId,
     sessionId,

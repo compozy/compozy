@@ -2,6 +2,7 @@ import type { StateGlyphState } from "@compozy/ui";
 
 import { sessionBadgeSignal } from "./session-badge";
 import { sessionOriginKind } from "./session-origin";
+import { sessionComputerOf, sessionRowKey, sessionRowKeyFor } from "./session-row-ref";
 import type { SessionPayload } from "../types";
 
 export interface SessionListTree {
@@ -47,18 +48,28 @@ export function sessionListParentId(session: SessionPayload): string {
  * silently vanishes behind pagination or malformed lineage.
  */
 export function buildSessionTree(sessions: readonly SessionPayload[]): SessionListTree {
-  const parentById = new Map(sessions.map(session => [session.id, sessionListParentId(session)]));
+  const parentById = new Map(
+    sessions.map(session => {
+      const parentId = sessionListParentId(session);
+      const parentKey =
+        parentId !== ""
+          ? sessionRowKey({ computerId: sessionComputerOf(session), sessionId: parentId })
+          : "";
+      return [sessionRowKeyFor(session), parentKey] as const;
+    })
+  );
   const cycleParticipants = findCycleParticipants(parentById);
   const roots: SessionPayload[] = [];
   const childrenByParent = new Map<string, SessionPayload[]>();
   for (const session of sessions) {
-    const parentId = parentById.get(session.id) ?? "";
-    if (parentId !== "" && parentById.has(parentId) && !cycleParticipants.has(session.id)) {
-      const siblings = childrenByParent.get(parentId);
+    const rowKey = sessionRowKeyFor(session);
+    const parentKey = parentById.get(rowKey) ?? "";
+    if (parentKey !== "" && parentById.has(parentKey) && !cycleParticipants.has(rowKey)) {
+      const siblings = childrenByParent.get(parentKey);
       if (siblings) {
         siblings.push(session);
       } else {
-        childrenByParent.set(parentId, [session]);
+        childrenByParent.set(parentKey, [session]);
       }
       continue;
     }
@@ -111,7 +122,7 @@ export function collectThreadSessions(
     const next = stack.pop();
     if (!next) break;
     collected.push(next);
-    const grandchildren = childrenByParent.get(next.id);
+    const grandchildren = childrenByParent.get(sessionRowKeyFor(next));
     if (grandchildren) {
       for (let index = grandchildren.length - 1; index >= 0; index -= 1) {
         stack.push(grandchildren[index]!);
@@ -130,19 +141,20 @@ export function filterThreadSessions(
   childrenByParent: SessionListTree["childrenByParent"],
   matches: (session: SessionPayload) => boolean
 ): SessionPayload[] | null {
-  const descendants = collectThreadSessions(root.id, childrenByParent);
+  const descendants = collectThreadSessions(sessionRowKeyFor(root), childrenByParent);
   if (matches(root)) return descendants;
 
   const visibleIds = new Set<string>();
   for (let index = descendants.length - 1; index >= 0; index -= 1) {
     const session = descendants[index]!;
-    const hasVisibleChild = (childrenByParent.get(session.id) ?? []).some(child =>
-      visibleIds.has(child.id)
+    const rowKey = sessionRowKeyFor(session);
+    const hasVisibleChild = (childrenByParent.get(rowKey) ?? []).some(child =>
+      visibleIds.has(sessionRowKeyFor(child))
     );
-    if (matches(session) || hasVisibleChild) visibleIds.add(session.id);
+    if (matches(session) || hasVisibleChild) visibleIds.add(rowKey);
   }
   if (visibleIds.size === 0) return null;
-  return descendants.filter(session => visibleIds.has(session.id));
+  return descendants.filter(session => visibleIds.has(sessionRowKeyFor(session)));
 }
 
 export type ChildSessionSignalState = Extract<StateGlyphState, "attention" | "failed" | "running">;

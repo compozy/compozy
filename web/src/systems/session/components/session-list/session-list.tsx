@@ -174,7 +174,7 @@ export function SessionList({
   const { bulk, groupSelection } = useSessionListSelection({
     selectionKey: view.selectionKey,
     shelf: view.shelf,
-    grouped: grouped || multiComputerVisible,
+    grouped: grouped || multiComputerVisible || scopedRemoteSource !== null,
     sessions: listed,
     visibleThreads: folders.visibleThreads,
     collapsedThreads,

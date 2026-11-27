@@ -8,6 +8,7 @@ import { clearSessionParent, setSessionParent } from "../adapters/session-api";
 import { sessionKeys } from "../lib/query-keys";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { invalidateWorkspaceSessionCatalog } from "../lib/session-query-invalidation";
+import { sessionComputerOf } from "../lib/session-row-ref";
 import type { SessionPayload } from "../types";
 
 type ReparentVariables =
@@ -114,15 +115,20 @@ export function useSessionReparent({
         session,
         computerId: computerId ?? computerOf?.(session),
       }),
-    adoptAsync: (session: SessionPayload, parent: SessionPayload, computerId?: ComputerId) =>
-      mutation.mutateAsync({
+    adoptAsync: (session: SessionPayload, parent: SessionPayload, computerId?: ComputerId) => {
+      if (sessionComputerOf(session) !== sessionComputerOf(parent)) {
+        return Promise.reject(new Error("Sessions stay on the computer that runs them."));
+      }
+      return mutation.mutateAsync({
         kind: "adopt",
         session,
         parent,
         computerId: computerId ?? computerOf?.(session),
-      }),
+      });
+    },
     adopt: (session: SessionPayload, parent: SessionPayload, computerId?: ComputerId) => {
       if (declined()) return;
+      if (sessionComputerOf(session) !== sessionComputerOf(parent)) return;
       const resolvedComputer = computerId ?? computerOf?.(session);
       mutation.mutate(
         { kind: "adopt", session, parent, computerId: resolvedComputer },

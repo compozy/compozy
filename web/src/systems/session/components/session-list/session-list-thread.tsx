@@ -6,6 +6,7 @@ import type { SessionRowSelection } from "../../hooks/use-session-selection";
 
 import { childSessionSignalState, isSubagentSession } from "../../lib/session-hierarchy";
 import { hasRunningDescendant } from "../../lib/session-running";
+import { sessionRowKeyFor } from "../../lib/session-row-ref";
 import { sessionSubagentCounts } from "../../lib/session-subagent-summary";
 import {
   sessionThreadSegment,
@@ -110,7 +111,7 @@ function SessionListThreadView({
       childRow={child => {
         const childOwner = ownerOf?.(child);
         return (
-          <TreeBranchNode key={child.id}>
+          <TreeBranchNode key={sessionRowKeyFor(child)}>
             <SessionListBranchRow
               session={child}
               childSessions={[]}
@@ -151,7 +152,7 @@ function SessionListThreadView({
       {revealed.length > 0 ? (
         <TreeBranch>
           {revealed.map(child => (
-            <TreeBranchNode key={child.id}>
+            <TreeBranchNode key={sessionRowKeyFor(child)}>
               <SessionListBranchRow
                 session={child}
                 childSessions={[]}
@@ -197,12 +198,14 @@ export const SessionListThread = memo(SessionListThreadView, (prev, next) => {
   }
   return (
     sameOwner(prev.owner, next.owner) &&
-    [next.session, ...next.childSessions].every(
-      row =>
-        prev.subagentThreads.has(row.id) === next.subagentThreads.has(row.id) &&
-        prev.subagentThreads.whenChildless?.has(row.id) ===
-          next.subagentThreads.whenChildless?.has(row.id)
-    )
+    [next.session, ...next.childSessions].every(row => {
+      const rowKey = sessionRowKeyFor(row);
+      return (
+        prev.subagentThreads.has(rowKey) === next.subagentThreads.has(rowKey) &&
+        prev.subagentThreads.whenChildless?.has(rowKey) ===
+          next.subagentThreads.whenChildless?.has(rowKey)
+      );
+    })
   );
 });
 
@@ -249,14 +252,15 @@ function SessionListBranchRow({
   row: (trailing: React.ReactNode) => React.ReactNode;
   childRow?: (child: SessionPayload) => React.ReactNode;
 }) {
+  const rowKey = sessionRowKeyFor(session);
   const subagentCounts = sessionSubagentCounts(session);
   const segment = sessionThreadSegment({
     hasChildren: childSessions.length > 0,
     hasSubagents: subagentCounts !== null,
     collapsed,
     subagentsOpen:
-      subagentThreads.has(session.id) ||
-      (childSessions.length === 0 && subagentThreads.whenChildless?.has(session.id) === true),
+      subagentThreads.has(rowKey) ||
+      (childSessions.length === 0 && subagentThreads.whenChildless?.has(rowKey) === true),
   });
   if (childSessions.length === 0 && subagentCounts === null) return row(undefined);
 
@@ -299,7 +303,7 @@ function SessionListBranchRow({
           }
           subagentCounts={subagentCounts}
           segment={segment}
-          onChange={next => onThreadBranchChange(session.id, next)}
+          onChange={next => onThreadBranchChange(rowKey, next)}
           branchId={branchId}
           testIdPrefix={testIdPrefix}
         />

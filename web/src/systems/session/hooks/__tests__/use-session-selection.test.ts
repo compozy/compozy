@@ -6,7 +6,7 @@ import { primarySessionFixture } from "../../testing";
 import type { SessionListShelf } from "../../lib/session-list-shelf";
 import {
   parseSessionRowKey,
-  recordSessionComputer,
+  withSessionComputer,
   sessionRowKey,
 } from "../../lib/session-row-ref";
 import { sessionSelectionCounts, useSessionSelection } from "../use-session-selection";
@@ -129,7 +129,7 @@ describe("useSessionSelection", () => {
 
   it("Should key selection by (computerId, sessionId) so identical session ids on two computers never collide (T-F2)", () => {
     const localSession = { ...primarySessionFixture, id: "sess-shared" };
-    const remoteSession = recordSessionComputer(
+    const remoteSession = withSessionComputer(
       { ...primarySessionFixture, id: "sess-shared" },
       "cmp_devbox"
     );

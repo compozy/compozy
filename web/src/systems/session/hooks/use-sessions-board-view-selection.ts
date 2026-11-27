@@ -7,6 +7,7 @@ import {
   SessionsBoardSelectionStoreContext,
 } from "../contexts/sessions-board-selection-context-value";
 import { sessionListGroupRank } from "../lib/session-list-group-rows";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { sessionCheckboxGesture, sessionSelectionGesture } from "../lib/session-selection-gesture";
 import type { SessionPayload } from "../types";
 import { usePublishSessionListGroupRows } from "./use-session-list-group-rows";
@@ -137,7 +138,7 @@ export function useSessionsBoardShelfSelection(
   usePublishSessionListGroupRows(use(SessionsBoardRowsStoreContext) ?? undefined, shelf, {
     rank: sessionListGroupRank([SHELF_RANK[shelf]]),
     sessions: shown,
-    visibleOrder: shown.map(session => session.id),
+    visibleOrder: shown.map(session => sessionRowKeyFor(session)),
     // Folder moves resolve each selected session's own pair (`useSessionsBoardSelection`).
     pair: null,
     fetching: open && fetching,
@@ -146,7 +147,7 @@ export function useSessionsBoardShelfSelection(
   return {
     open,
     toggle: () => {
-      if (open) store?.trigger.deselect({ ids: sessions.map(session => session.id) });
+      if (open) store?.trigger.deselect({ ids: sessions.map(session => sessionRowKeyFor(session)) });
       setOpen(!open);
     },
   };

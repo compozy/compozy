@@ -26,6 +26,7 @@ import { SessionBadgeMark } from "./session-badge-mark";
 import { SessionChildrenCheckbox } from "./session-children-checkbox";
 import { SessionDeleteActions } from "./session-delete-actions";
 import { sessionWaitingOn } from "../lib/session-pull-request";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 
 export interface SessionDeleteDialogSetProps {
   open: boolean;
@@ -170,13 +171,12 @@ function SessionDeleteSetResults({
       className="min-h-0 space-y-4 overflow-y-auto"
     >
       <ul className="overflow-hidden rounded-lg bg-sunken py-1">
-        {sessions.slice(0, 5).map(session => (
-          <SessionDeleteResultRow
-            key={session.id}
-            session={session}
-            result={resultsById.get(session.id)}
-          />
-        ))}
+        {sessions.slice(0, 5).map(session => {
+          const key = sessionRowKeyFor(session);
+          return (
+            <SessionDeleteResultRow key={key} session={session} result={resultsById.get(key)} />
+          );
+        })}
         {count > 5 ? (
           <li className="px-3 py-1.5 text-micro text-subtle">and {count - 5} more</li>
         ) : null}
@@ -320,10 +320,11 @@ function SessionDeleteOverflowErrors({
   resultsById: ReadonlyMap<string, SessionBatchResult>;
 }) {
   return sessions.map(session => {
-    const result = resultsById.get(session.id);
+    const key = sessionRowKeyFor(session);
+    const result = resultsById.get(key);
     if (result?.status !== "failed") return null;
     return (
-      <p key={session.id} role="alert" className="text-small-body wrap-anywhere text-destructive">
+      <p key={key} role="alert" className="text-small-body wrap-anywhere text-destructive">
         {getSessionDisplayTitle(session)}: Couldn't delete: {result.error}
       </p>
     );

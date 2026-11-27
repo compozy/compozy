@@ -9,6 +9,7 @@ import {
   type PreparedSessionDeleteTarget,
 } from "./session-delete-preparation";
 import { sessionsRunningProcesses } from "../lib/session-processes";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { readSessionTrees, sessionChildrenChoice, sessionChildrenScope } from "../lib/session-tree";
 import type { SessionPayload } from "../types";
 
@@ -75,7 +76,9 @@ export function useSessionDeleteTarget(queryClient: QueryClient, computerId: Com
       return;
     const request = ++generation.current;
     retrying.current = request;
-    const failed = current.sessions.filter(session => current.treeErrors.has(session.id));
+    const failed = current.sessions.filter(session =>
+      current.treeErrors.has(sessionRowKeyFor(session))
+    );
     setTarget(value => (value?.open ? { ...value, treeReadPending: true } : value));
     void readSessionTrees(queryClient, failed)
       .then(({ trees, errors }) => {
@@ -85,7 +88,7 @@ export function useSessionDeleteTarget(queryClient: QueryClient, computerId: Com
           const nextTrees = new Map(value.trees);
           for (const [id, tree] of trees) nextTrees.set(id, tree);
           const nextErrors = new Map(value.treeErrors);
-          for (const session of failed) nextErrors.delete(session.id);
+          for (const session of failed) nextErrors.delete(sessionRowKeyFor(session));
           for (const [id, error] of errors) nextErrors.set(id, error);
           return {
             ...value,
@@ -101,7 +104,7 @@ export function useSessionDeleteTarget(queryClient: QueryClient, computerId: Com
         setTarget(value => {
           if (!value?.open) return value;
           const nextErrors = new Map(value.treeErrors);
-          for (const session of failed) nextErrors.set(session.id, error);
+          for (const session of failed) nextErrors.set(sessionRowKeyFor(session), error);
           return { ...value, treeErrors: nextErrors, treeReadPending: false };
         });
       })

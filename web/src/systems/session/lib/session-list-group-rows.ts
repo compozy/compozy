@@ -1,10 +1,10 @@
 import { createStoreLogic } from "@xstate/store";
 
-import { LOCAL_COMPUTER_ID, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 
 import type { SessionPayload } from "../types";
 import type { SessionListPair } from "./session-list-groups";
-import { recordSessionComputer, sessionRowKey } from "./session-row-ref";
+import { sessionComputerOf, sessionRowKey, withSessionComputer } from "./session-row-ref";
 
 /**
  * What one rendered group contributes to the selection spanning the groups — a
@@ -72,20 +72,22 @@ export const sessionListGroupRowsLogic = createStoreLogic({
 export function sessionListGroupedRows(groups: Readonly<Record<string, SessionListGroupRows>>) {
   const ordered = Object.values(groups).sort((left, right) => left.rank.localeCompare(right.rank));
   const pairs = new Map<string, SessionListPair | null>();
+  const sessions: SessionPayload[] = [];
   for (const group of ordered) {
-    const computerId = normalizeComputerId(group.computerId ?? group.pair?.computerId);
+    const groupComputerId = normalizeComputerId(group.computerId ?? group.pair?.computerId);
     const pair = group.pair
-      ? { ...group.pair, computerId: normalizeComputerId(group.pair.computerId ?? computerId) }
+      ? { ...group.pair, computerId: normalizeComputerId(group.pair.computerId ?? groupComputerId) }
       : null;
     for (const session of group.sessions) {
-      recordSessionComputer(session, computerId);
-      const rowKey = sessionRowKey({ computerId, sessionId: session.id });
+      const rowComputerId = sessionComputerOf(session, groupComputerId);
+      const stamped = withSessionComputer(session, rowComputerId);
+      sessions.push(stamped);
+      const rowKey = sessionRowKey({ computerId: rowComputerId, sessionId: session.id });
       pairs.set(rowKey, pair);
-      if (computerId === LOCAL_COMPUTER_ID) pairs.set(session.id, pair);
     }
   }
   return {
-    sessions: ordered.flatMap(group => group.sessions),
+    sessions,
     visibleOrder: ordered.flatMap(group => {
       const computerId = normalizeComputerId(group.computerId ?? group.pair?.computerId);
       return group.visibleOrder.map(id =>

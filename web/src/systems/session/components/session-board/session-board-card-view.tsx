@@ -24,7 +24,7 @@ import {
   TooltipTrigger,
 } from "@compozy/ui";
 
-import type { ComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { cn } from "@/lib/utils";
 import { ComputerMetaLabel } from "@/systems/computers/components/computer-chip";
 import {
@@ -32,6 +32,7 @@ import {
   SessionListComputerContext,
   type SessionRowComputerInfo,
 } from "../../lib/session-list-computer";
+import { sessionComputerOf } from "../../lib/session-row-ref";
 
 import type { SessionRuntimeLabel } from "../../hooks/use-session-runtime-label";
 import { ENDED_EARLY_ATTENTION, sessionAttentionReason } from "../../lib/session-attention-reason";
@@ -170,10 +171,11 @@ export function SessionBoardCardView({
   ...intentHandlers
 }: SessionBoardCardViewProps) {
   const selected = selection?.selected === true;
+  const effectiveComputerId = computerId ?? sessionComputerOf(session);
   const computer = lookupSessionComputer(
     useContext(SessionListComputerContext),
     session.id,
-    computerId
+    effectiveComputerId
   );
   const title = getSessionDisplayTitle(session);
   const untitled = title === UNTITLED_SESSION_TITLE;
@@ -214,7 +216,9 @@ export function SessionBoardCardView({
       data-archived={archived ? "true" : undefined}
       data-agent-name={session.agent_name}
       data-board-column={session.board_column}
-      data-computer-id={computer?.id}
+      data-computer-id={
+        computer?.id ?? (isRemoteComputerId(effectiveComputerId) ? effectiveComputerId : undefined)
+      }
       data-computer-offline={computer?.offline ? "true" : undefined}
       data-selected={selected ? "true" : undefined}
       data-session-id={session.id}

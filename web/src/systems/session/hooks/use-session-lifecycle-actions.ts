@@ -13,7 +13,7 @@ import {
   runSessionBatch,
   type SessionBatchResult,
 } from "../lib/session-batch";
-import { sessionComputerOf } from "../lib/session-row-ref";
+import { sessionComputerOf, sessionRowKeyFor } from "../lib/session-row-ref";
 
 import {
   sessionBatchCoverage,
@@ -152,7 +152,9 @@ export function useSessionLifecycleActions(
     batching: batchAction !== null,
     batchResults,
     ownPending: ownPending !== null,
-    mutationSessionId: pendingMutation?.[1].variables?.id,
+    mutationSessionId: pendingMutation?.[1].variables
+      ? sessionRowKeyFor(pendingMutation[1].variables)
+      : undefined,
     laterSessionIds: later.pendingSessionIds,
   });
 
@@ -174,18 +176,19 @@ export function useSessionLifecycleActions(
     batchRunning.hold();
     setBatchAction(action);
     const coveredBy = sessionBatchCoverage(action, sessions, trees);
+    const byKey = new Map(sessions.map(session => [sessionRowKeyFor(session), session]));
     return runSessionBatch({
       action,
-      ids: sessionTreeBatchOrder(sessions, coveredBy).map(session => session.id),
+      ids: sessionTreeBatchOrder(sessions, coveredBy).map(session => sessionRowKeyFor(session)),
       previous,
       sessions,
       coveredBy,
       onProgress: setBatchResults,
-      execute: async id => {
-        const session = sessions.find(candidate => candidate.id === id)!;
+      execute: async rowKey => {
+        const session = byKey.get(rowKey)!;
         if (action === "delete" || action === "archive") {
-          await settleTreeTarget(action, coveredBy.has(id), async () => {
-            if (readErrors.has(id)) throw readErrors.get(id);
+          await settleTreeTarget(action, coveredBy.has(rowKey), async () => {
+            if (readErrors.has(rowKey)) throw readErrors.get(rowKey);
             if (action === "delete")
               await remove.mutateAsync({
                 ...withComputer(session),
@@ -199,12 +202,11 @@ export function useSessionLifecycleActions(
           });
           return;
         }
-        if (readErrors.has(id)) throw readErrors.get(id);
-        if (action === "unarchive")
-          await unarchive.mutateAsync(withComputer(sessions.find(session => session.id === id)!));
+        if (readErrors.has(rowKey)) throw readErrors.get(rowKey);
+        if (action === "unarchive") await unarchive.mutateAsync(withComputer(session));
         else {
           const outcome = await stop.mutateAsync({
-            ...withComputer(sessions.find(session => session.id === id)!),
+            ...withComputer(session),
             wait: true,
             ...policy,
           });
@@ -267,7 +269,7 @@ export function useSessionLifecycleActions(
     );
     const targets =
       failedIds.size > 0
-        ? deleteTarget.sessions.filter(session => failedIds.has(session.id))
+        ? deleteTarget.sessions.filter(session => failedIds.has(sessionRowKeyFor(session)))
         : deleteTarget.sessions;
     const results = await runBatch(
       "delete",
@@ -279,17 +281,19 @@ export function useSessionLifecycleActions(
     );
     if (!results) return;
     const failures = results.filter(result => result.status === "failed");
+    const doneKeys = new Set(
+      results.flatMap(result => (result.status === "done" ? [result.id] : []))
+    );
     deleteTarget.onSelectionChange?.(failures.map(result => result.id));
     if (failures.length === 0) {
       setDeleteTarget(target => (target ? { ...target, open: false } : null));
       reportDeletedSessions(results);
     } else
       narrowDeleteTarget(
-        deleteTarget.sessions.flatMap(session =>
-          results.some(result => result.id === session.id && result.status === "done")
-            ? []
-            : [refreshedSessions?.get(session.id) ?? session]
-        )
+        deleteTarget.sessions.flatMap(session => {
+          const key = sessionRowKeyFor(session);
+          return doneKeys.has(key) ? [] : [refreshedSessions?.get(key) ?? session];
+        })
       );
   };
 
@@ -306,7 +310,7 @@ export function useSessionLifecycleActions(
       void confirmDeleteMany(readErrors, trees, refreshedSessions);
       return;
     }
-    const { id } = deleteSession;
+    const deleteKey = sessionRowKeyFor(deleteSession);
     const policy = deletePolicy.current ? { processes: deletePolicy.current } : {};
     remove.mutate(
       { ...withComputer(deleteSession), ...policy, ...descendantsOf(deleteSession, trees) },
@@ -314,7 +318,9 @@ export function useSessionLifecycleActions(
         onError: error => reportActionError("delete", error),
         onSuccess: () => {
           setDeleteTarget(current =>
-            current?.sessions[0]?.id === id ? { ...current, open: false } : current
+            current?.sessions[0] && sessionRowKeyFor(current.sessions[0]) === deleteKey
+              ? { ...current, open: false }
+              : current
           );
         },
       }
@@ -371,13 +377,15 @@ export function useSessionLifecycleActions(
   /** Dismiss only the rename target whose mutation succeeded. */
   const confirmRename = (name: string) => {
     if (!renameTarget || rename.isPending) return;
-    const { id } = renameTarget;
+    const renameKey = sessionRowKeyFor(renameTarget);
     rename.mutate(
       { ...withComputer(renameTarget), name },
       {
         onError: error => reportActionError("rename", error),
         onSuccess: () => {
-          setRenameTarget(current => (current?.id === id ? null : current));
+          setRenameTarget(current =>
+            current && sessionRowKeyFor(current) === renameKey ? null : current
+          );
         },
       }
     );
