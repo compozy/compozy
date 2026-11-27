@@ -600,7 +600,8 @@ zero-based `{choice,text,fallback}`. It is not approval. A provider select quest
 `elicitation/create`) accepts only a choice; a text answer to it is refused as invalid. CLI: `compozy session clarify pending|answer`
 (choice presentation is one-based).
 If a hosted `compozy__clarify` card is still pending after its turn ends, answering it queues the
-question and answer in the same session so the agent can continue.
+question and answer in the same session so the agent can continue. If `compozy__session_clarify_answer`
+reports a retryable `queue_full` error, the card is still pending. Retry when the queue has capacity.
 
 `compozy__session_list` accepts `board_column: ["needs_you", "working", "waiting", "in_review", "done"]`
 and `children: "exclude"` (default `include`). Columns filter before pagination/counting;

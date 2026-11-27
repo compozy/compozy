@@ -1820,8 +1820,14 @@ func TestDaemonNativeTools(t *testing.T) {
 			requestID string,
 			request toolspkg.ClarifyAnswerRequest,
 		) (toolspkg.ClarifyAnswerResult, error) {
-			if scope.SessionID != targetID || scope.WorkspaceID != workspaceID || requestID != "clr-1" {
+			if scope.SessionID != targetID || scope.WorkspaceID != workspaceID {
 				t.Fatalf("clarify answer scope/request = %#v/%q", scope, requestID)
+			}
+			if requestID == "clr-full" {
+				return toolspkg.ClarifyAnswerResult{}, store.ErrSessionInputQueueFull
+			}
+			if requestID != "clr-1" {
+				t.Fatalf("clarify request = %q, want clr-1", requestID)
 			}
 			clarifyChoice = request.ChoiceIndex
 			return toolspkg.ClarifyAnswerResult{
@@ -1915,6 +1921,15 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if clarifyChoice == nil || *clarifyChoice != 1 {
 			t.Fatalf("clarify choice_index = %#v, want zero-based 1", clarifyChoice)
+		}
+		_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionClarifyAnswer,
+			Input:  json.RawMessage(`{"session_id":"sess-target","request_id":"clr-full","choice":2}`),
+		})
+		refusal, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || refusal.Code != toolspkg.ErrorCodeUnavailable || !refusal.Retryable ||
+			!slices.Contains(refusal.ReasonCodes, "queue_full") {
+			t.Fatalf("full queue clarification error = %#v, want retryable queue_full", err)
 		}
 	})
 

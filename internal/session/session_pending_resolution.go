@@ -249,9 +249,6 @@ func (m *Manager) ResolveOrphanedClarification(
 	if err != nil {
 		return toolspkg.ClarifyAnswerResult{}, err
 	}
-	if resolution.Outcome == store.PendingInteractionStatusTimedOut {
-		return toolspkg.ClarifyAnswerResult{}, fmt.Errorf("%w: %s", toolspkg.ErrClarifyCanceled, target)
-	}
 	winner := answerForStoredResolution(question, resolution.Resolution, answer)
 	return toolspkg.ClarifyAnswerResult{
 		ClarifyAnswer:  winner,
@@ -321,6 +318,13 @@ func (m *Manager) resolveOrphanedInteraction(
 		if err := permissionResolutionError(resolved, m.now()); err != nil {
 			return PendingInteractionResolution{}, err
 		}
+	} else if resolved.Status == store.PendingInteractionStatusTimedOut ||
+		resolved.Status == store.PendingInteractionStatusCanceled {
+		return PendingInteractionResolution{}, fmt.Errorf(
+			"%w: %s",
+			toolspkg.ErrClarifyCanceled,
+			resolved.ProviderRequestID,
+		)
 	}
 	return PendingInteractionResolution{
 		Outcome:       commit.Outcome,

@@ -100,7 +100,10 @@ func (g *SessionRepo) TransitionPendingInteraction(
 			}
 			at := g.now().UTC()
 			if interaction.ExpiresAt != nil && !at.Before(*interaction.ExpiresAt) {
-				normalized.Status, normalized.Resolution = store.PendingInteractionStatusTimedOut, "expired"
+				normalized.Status, normalized.Resolution = store.PendingInteractionStatusTimedOut, ""
+				if interaction.Kind == store.PendingInteractionKindPermission {
+					normalized.Resolution = "expired"
+				}
 				normalized.ResolvedBy, normalized.At, normalized.ContinuationInput = pendingInteractionTimeoutActor, at, nil
 			}
 		}

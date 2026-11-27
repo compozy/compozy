@@ -1255,6 +1255,43 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name, status string
+	}{
+		{"Should refuse a repeated answer to an expired clarification", store.PendingInteractionStatusTimedOut},
+		{"Should refuse a repeated answer to a canceled clarification", store.PendingInteractionStatusCanceled},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h, restarted, catalog, sessionID := newOrphanResolutionHarness(
+				t,
+				store.PendingInteractionKindClarify,
+				store.PendingInteractionPayload{Choices: []string{"Fast", "Safe"}},
+			)
+			ctx := t.Context()
+			if _, err := catalog.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+				InteractionID: "interaction-orphan", Status: tc.status, At: restarted.now(),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			scope := toolspkg.Scope{
+				WorkspaceID: h.workspaceID,
+				SessionID:   sessionID,
+				AgentName:   "coder",
+				Operator:    true,
+			}
+			for range 2 {
+				result, err := restarted.ResolveOrphanedClarification(
+					ctx, scope, "request-orphan", toolspkg.ClarifyAnswerRequest{ChoiceIndex: new(1)},
+				)
+				if !errors.Is(err, toolspkg.ErrClarifyCanceled) || result.Outcome != "" {
+					t.Fatalf("answer to %s clarification = %#v, %v, want terminal refusal", tc.status, result, err)
+				}
+			}
+		})
+	}
+
 	t.Run("Should hydrate durable attention badges in a fresh manager", func(t *testing.T) {
 		t.Parallel()
 
