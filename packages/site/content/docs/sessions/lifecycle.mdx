@@ -224,6 +224,8 @@ Two operational details matter here:
 - `runtime` is a prompt-bound snapshot of `provider`, `model`, `reasoning_effort`, `speed`, and typed
   ACP options. The
   accepted snapshot is retained with the turn and is not rewritten by later runtime changes.
+  Provide the reasoning effort once. A typed ACP selection for the same option is rejected even
+  when the provider announces that option after changing models.
 - If a snapshot keeps the same provider, CompozyOS configures the existing ACP session in place when
   the provider exposes the needed live options. A provider or harness change replaces the process
   and replays the stored transcript into the replacement ACP session as a

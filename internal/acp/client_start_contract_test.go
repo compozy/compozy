@@ -1846,7 +1846,7 @@ func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
 			ProviderConfig:  reasoningACPProviderConfig(),
 		})
 		defer stopProcess(t, driver, proc)
-		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "effort", "max", "none", "max")
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "max", "none", "max")
 	})
 }
 
@@ -2142,7 +2142,34 @@ func TestConfigureRuntime(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("ConfigureRuntime() error = %v", err)
 		}
-		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "effort", "max", "none", "max")
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "max", "none", "max")
+	})
+
+	t.Run("Should reject a duplicate selection for a late reasoning option before writing it", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "late-reasoning-conflict.jsonl")
+		proc := startHelperProcess(t, driver, "model_specific_config_options", "late-reasoning", StartOpts{
+			Env: helperEnvWithCapture("model_specific_config_options", "late-reasoning", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{
+			Model:           "other-model",
+			ReasoningEffort: "max",
+			ACPOptions:      []SessionConfigOptionSelection{{ID: "reasoning_effort", ValueID: "none"}},
+		})
+		const conflict = `config option "reasoning_effort" duplicates the dedicated reasoning effort setting`
+		if err == nil || !strings.Contains(err.Error(), conflict) {
+			t.Fatalf("ConfigureRuntime() error = %v, want %s", err, conflict)
+		}
+		requests := captureRequestParamsForMethod(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption)
+		if len(requests) != 1 {
+			t.Fatalf("set_config_option requests = %d, want only the model change", len(requests))
+		}
+		options := proc.CapsSnapshot().ConfigOptions
+		assertConfigOption(t, options, "model", "other-model", "other-model")
+		assertConfigOption(t, options, "reasoning_effort", "none", "none", "max")
 	})
 
 	t.Run("Should refuse unavailable reasoning without waiting when the model is already active", func(t *testing.T) {

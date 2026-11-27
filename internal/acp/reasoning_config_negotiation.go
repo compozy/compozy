@@ -13,6 +13,7 @@ func (d *Driver) applySessionReasoningEffort(
 	ctx context.Context,
 	process *AgentProcess,
 	effort string,
+	selections []SessionConfigOptionSelection,
 	waitForCatalog bool,
 ) (bool, error) {
 	if ctx == nil || process == nil || process.conn == nil {
@@ -25,6 +26,14 @@ func (d *Driver) applySessionReasoningEffort(
 
 	option, err := d.awaitSessionReasoningOption(ctx, process, effortID, waitForCatalog)
 	if err != nil {
+		return false, err
+	}
+	// The initial catalog may not have contained this option. Reserve the ID
+	// discovered by the wait before sending any change to it.
+	if err := validateDedicatedConfigOptionConflicts([]SessionConfigOption{option}, RuntimeConfig{
+		ReasoningEffort: effortID,
+		ACPOptions:      selections,
+	}); err != nil {
 		return false, err
 	}
 	if strings.TrimSpace(option.CurrentValueID) == effortID {

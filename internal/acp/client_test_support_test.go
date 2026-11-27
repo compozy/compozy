@@ -1370,7 +1370,7 @@ func (a *helperACPAgent) announceModelReasoning(ctx context.Context, sessionID a
 	}
 	options := append(
 		helperModelConfigOptions(model),
-		helperSelectConfigOption("effort", "Reasoning effort", "none", "none", "max"),
+		helperSelectConfigOption("reasoning_effort", "Reasoning effort", "none", "none", "max"),
 	)
 	a.setHelperConfigOptions(options)
 	if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
