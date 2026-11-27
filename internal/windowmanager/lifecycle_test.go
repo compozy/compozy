@@ -1454,7 +1454,7 @@ func TestLifecycleTabRepair(t *testing.T) {
 				if kind == "workspace" {
 					app, path = "files", "/files/gone"
 				}
-				s.Windows[id] = Window{
+				bound := Window{
 					ID:        id,
 					App:       app,
 					Route:     testRoute(path),
@@ -1462,6 +1462,13 @@ func TestLifecycleTabRepair(t *testing.T) {
 					DesktopID: "desktop-default",
 					TabID:     tab.ID,
 				}
+				if kind == "session" {
+					bound.NavStack = []RouteIntent{testRoute("/sessions/gone/child")}
+					if split {
+						bound.InstanceKey = new("")
+					}
+				}
+				s.Windows[id] = bound
 				s.Desktops[0].Tabs = []Tab{tab}
 				seedTestSnapshot(t, e, s)
 				if split {

@@ -6,7 +6,10 @@ import (
 	"strings"
 )
 
-const sessionEmptyRoutePath = "/sessions"
+const (
+	sessionWindowApp      = "session"
+	sessionEmptyRoutePath = "/sessions"
+)
 
 func (r *reducer) retireDeletedSessionWindows(snapshot *Snapshot, sessionID string) (bool, error) {
 	if sessionID == "" {
@@ -14,7 +17,7 @@ func (r *reducer) retireDeletedSessionWindows(snapshot *Snapshot, sessionID stri
 	}
 	changed := historyContainsDeletedSession(snapshot.History, sessionID)
 	for windowID, window := range snapshot.Windows {
-		if window.App != "session" {
+		if window.App != sessionWindowApp {
 			continue
 		}
 		if windowShowsSession(window, sessionID) {
@@ -72,7 +75,7 @@ func stateContainsDeletedSession(state State, sessionID string) bool {
 }
 
 func windowBelongsToSession(window Window, sessionID string) bool {
-	if window.App != "session" {
+	if window.App != sessionWindowApp {
 		return false
 	}
 	return windowShowsSession(window, sessionID) || slices.ContainsFunc(window.NavStack, func(route RouteIntent) bool {
