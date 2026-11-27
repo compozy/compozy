@@ -77,32 +77,52 @@ func TestCloudDeviceGrant(t *testing.T) {
 		assertSignInRateLimited(t, f.request(t, http.MethodPost, browserAuthorizePath, nil), "600")
 		assertSignInRateLimited(t, f.request(t, http.MethodPost, purchaseSignIn, nil), "600")
 
-		for _, accept := range []string{"application/json, text/html;q=0.5", "text/html;q=0"} {
-			headers := map[string]string{"Accept": accept}
-			assertSignInRateLimited(t, callAuth(t, f.replica, http.MethodGet, activatePath, nil, nil, headers), "600")
+		for _, test := range []struct{ name, accept string }{
+			{"Should return JSON when it has the higher quality value", "application/json, text/html;q=0.5"},
+			{"Should return JSON when HTML has a quality value of zero", "text/html;q=0"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				headers := map[string]string{"Accept": test.accept}
+				reply := callAuth(t, f.replica, http.MethodGet, activatePath, nil, nil, headers)
+				assertSignInRateLimited(t, reply, "600")
+			})
 		}
 		browser := browserForm(t)
 		html := map[string]string{"Accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
 		for _, test := range []struct {
-			method, path, recovery string
-			form                   url.Values
+			name, method, path, recovery string
+			form                         url.Values
 		}{
-			{http.MethodGet, activatePath, `action="/activate"`, nil},
-			{http.MethodPost, activatePath, `action="/activate"`, nil},
-			{http.MethodGet, "/v1/auth/callback/google", `action="/activate"`, nil},
-			{http.MethodGet, browserAuthorizePath + "?" + browser.Encode(), `href="/v1/browser/authorize?`, nil},
-			{http.MethodPost, browserAuthorizePath, `href="/v1/browser/authorize?`, browser},
-			{http.MethodPost, purchaseSignIn, `href="/billing/upgrade?interval=month"`, url.Values{"interval": {"month"}}},
+			{"Should show the activation form on GET", http.MethodGet, activatePath, `action="/activate"`, nil},
+			{"Should show the activation form on POST", http.MethodPost, activatePath, `action="/activate"`, nil},
+			{
+				"Should show the activation form after an OAuth callback", http.MethodGet,
+				"/v1/auth/callback/google", `action="/activate"`, nil,
+			},
+			{
+				"Should link to retry browser authorization on GET", http.MethodGet,
+				browserAuthorizePath + "?" + browser.Encode(), `href="/v1/browser/authorize?`, nil,
+			},
+			{
+				"Should link to retry browser authorization on POST", http.MethodPost,
+				browserAuthorizePath, `href="/v1/browser/authorize?`, browser,
+			},
+			{
+				"Should link to the selected billing interval", http.MethodPost,
+				purchaseSignIn, `href="/billing/upgrade?interval=month"`, url.Values{"interval": {"month"}},
+			},
 		} {
-			page := callAuth(t, f.replica, test.method, test.path, test.form, nil, html)
-			page.expect(t, http.StatusTooManyRequests, `data-error-code="rate_limited"`)
-			page.expect(t, http.StatusTooManyRequests, test.recovery)
-			if got := page.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/html") {
-				t.Errorf("%s %s: Content-Type = %q, want HTML", test.method, test.path, got)
-			}
-			if got := page.Header.Get("Retry-After"); got != "600" {
-				t.Errorf("%s %s: Retry-After = %q, want 600", test.method, test.path, got)
-			}
+			t.Run(test.name, func(t *testing.T) {
+				page := callAuth(t, f.replica, test.method, test.path, test.form, nil, html)
+				page.expect(t, http.StatusTooManyRequests, `data-error-code="rate_limited"`)
+				page.expect(t, http.StatusTooManyRequests, test.recovery)
+				if got := page.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/html") {
+					t.Errorf("Content-Type = %q, want HTML", got)
+				}
+				if got := page.Header.Get("Retry-After"); got != "600" {
+					t.Errorf("Retry-After = %q, want 600", got)
+				}
+			})
 		}
 	})
 
