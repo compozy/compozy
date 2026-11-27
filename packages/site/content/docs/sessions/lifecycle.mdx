@@ -458,6 +458,7 @@ Supervision inspects every live session. Provider updates restart the quiet wind
 Verified running tools, recently reconciled Loop runs, held task leases, scheduled waits with
 future deadlines, and awaited replies (`awaiting_reply`) keep the session alive. A child counts
 while it starts, stops, runs a turn, or has current evidence of a wait such as an armed monitor.
+An unfinished subagent delegation still counts between turns until it settles.
 A session that sent `compozy__session_prompt` with
 `notify_on_complete: true` stays alive while the session it asked is live, and while the reply
 wake is waiting to be delivered. An interim reply leaves the watch outstanding while the target

@@ -78,7 +78,8 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		until := now.Add(2 * toolruntime.SweepInterval)
 		switch info.State {
 		case session.StateStarting, session.StateActive:
-			if info.State == session.StateActive {
+			// Delegations can still owe their parent a result between child turns.
+			if info.State == session.StateActive && row.Lineage.SpawnRole != store.SubagentSpawnRole {
 				until = activeChildWorkDeadline(info, until)
 				if !until.After(now) {
 					continue
