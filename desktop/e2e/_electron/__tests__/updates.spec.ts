@@ -88,6 +88,7 @@ async function listen(server: Server): Promise<number> {
 }
 
 async function closeServer(server: Server): Promise<void> {
+  server.closeAllConnections();
   await new Promise<void>((resolveClose, reject) => {
     server.close(error => (error ? reject(error) : resolveClose()));
   });
@@ -304,8 +305,10 @@ async function readAppRecord(home: string): Promise<Record<string, unknown>> {
 async function expectUpdatedRuntime(desktop: DesktopInstance, version: string): Promise<void> {
   // Owner: packaged desktop update journey. The relaunched bundle must update its
   // owned daemon too; an app-version marker alone cannot prove product readiness.
+  // Windows NSIS updates run silent uninstall + ~200MB LZMA unpack + shell/daemon restart (~60-75s on CI).
+  const readyTimeout = process.platform === "win32" ? 120_000 : 60_000;
   await expect
-    .poll(async () => await readAppRecord(desktop.home), { timeout: 60_000 })
+    .poll(async () => await readAppRecord(desktop.home), { timeout: readyTimeout })
     .toMatchObject({
       state: "product",
       diagnostic_report: { runtime_version: version, runtime_owned: true, current_error: null },
@@ -624,7 +627,7 @@ test("Windows desktop: signed NSIS install, authenticated control, update and un
   launchDesktop,
 }) => {
   test.skip(process.platform !== "win32", "Native Windows installer contract");
-  test.setTimeout(240_000);
+  test.setTimeout(300_000);
   const fixture = await updateFixture();
   if (!fixture.baseline_installer) throw new Error("The Windows installer fixture is missing.");
   const root = await mkdtemp(join(tmpdir(), "compozy-windows-install-"));
