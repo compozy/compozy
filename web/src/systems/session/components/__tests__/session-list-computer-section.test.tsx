@@ -1,19 +1,23 @@
-// Suite: Separate computer sections, states, headers, drag refusal and Not counted footer (T-F7)
+// Suite: Separate computer sections, states, headers, drag refusal, search hiding and Not counted footer (T-F7)
 // Invariant: Each computer section renders its truthful read state (S1-S6, Q9), never fabricates
 //            a zero count for failed/connecting/offline_empty computers (S11), folds offline/empty
 //            computers by default (C6, S3), suppresses `+` without sessions:operate (F11) or local
-//            execution (S12), and surfaces cross-computer drag refusal (F7).
+//            execution (S12), hides zero-match online/offline sections during search (Opus 6, Astra 15),
+//            and refuses real cross-computer row drags with the canonical message (F7, Astra 21).
 // Owning layer: component (systems/session/components/session-list)
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
-import { LOCAL_COMPUTER_FIXTURE } from "@/systems/computers/mocks/remote-computers-fixtures";
+import { LOCAL_COMPUTER } from "@/systems/computers/mocks/remote-computers-fixtures";
 
 import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
-import { sessionDragComputerStore } from "../../lib/session-row-ref";
+import { useSessionListDnd } from "../../hooks/use-session-list-dnd";
+import { sessionKeys } from "../../lib/query-keys";
+import { primarySessionFixture } from "../../mocks/fixtures";
 import { sessionLifecycleActionsFixture } from "../../mocks/session-row-fixtures";
+import type { SessionCatalogPageResponse } from "../../types";
 import { SessionListComputerSection } from "../session-list/session-list-computer-section";
 import { SessionListTotals } from "../session-list/session-list-totals";
 
@@ -25,7 +29,7 @@ function makeSource(
   const isLocal = overrides.key === LOCAL_COMPUTER_ID;
   return {
     isLocal,
-    computer: LOCAL_COMPUTER_FIXTURE,
+    computer: LOCAL_COMPUTER,
     read: "ok",
     detail: isLocal ? "This computer" : "via LAN",
     canOperate: true,
@@ -46,9 +50,14 @@ function makeSource(
 
 function renderSection(
   source: ComputerSessionsSource,
-  options: { search?: string; onOpenComputerDetails?: (id: string) => void } = {}
+  options: {
+    search?: string;
+    onOpenComputerDetails?: (id: string) => void;
+    client?: QueryClient;
+  } = {}
 ) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client =
+    options.client ?? new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const onNewSession = vi.fn();
   const result = render(
     <QueryClientProvider client={client}>
@@ -67,7 +76,41 @@ function renderSection(
       />
     </QueryClientProvider>
   );
-  return { ...result, onNewSession };
+  return { ...result, client, onNewSession };
+}
+
+function LocalDragSourceRow() {
+  const dnd = useSessionListDnd(
+    {
+      folders: [],
+      moveSession: vi.fn(),
+      reorderFolders: vi.fn(),
+      reorderSessions: vi.fn(),
+    },
+    { manual: true, reorderable: true, computerId: LOCAL_COMPUTER_ID }
+  );
+  const handlers = dnd.sessionRow(
+    "local_sess_1",
+    { folderId: null, ids: ["local_sess_1"] },
+    undefined,
+    undefined,
+    false,
+    LOCAL_COMPUTER_ID
+  );
+  return (
+    <div data-testid="local-drag-row" {...handlers}>
+      Local session
+    </div>
+  );
+}
+
+function createDataTransfer() {
+  return {
+    dropEffect: "move",
+    effectAllowed: "all",
+    setData: vi.fn(),
+    getData: vi.fn(() => ""),
+  };
 }
 
 describe("SessionListComputerSection and Not counted footer (T-F7)", () => {
@@ -109,7 +152,9 @@ describe("SessionListComputerSection and Not counted footer (T-F7)", () => {
       canCreate: false,
     });
     renderSection(incompatible, { onOpenComputerDetails: onDetails });
-    expect(screen.getByText("Update Compozy on gpu-vm to list its sessions.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Update CompozyOS on gpu-vm to list its sessions.")
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Details" }));
     expect(onDetails).toHaveBeenCalledWith("cmp_old");
 
@@ -129,7 +174,8 @@ describe("SessionListComputerSection and Not counted footer (T-F7)", () => {
     expect(screen.getByRole("button", { name: "Reconnect" })).toBeInTheDocument();
   });
 
-  it("Should suppress + when canCreate is false (S12 / F11) and show cross-computer drag refusal (F7)", () => {
+  it("Should suppress + when canCreate is false (S12 / F11) and refuse a real cross-computer row drag (F7 / Astra 21)", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const noOperate = makeSource({
       key: "cmp_ro",
       name: "readonly-box",
@@ -138,21 +184,86 @@ describe("SessionListComputerSection and Not counted footer (T-F7)", () => {
       canOperate: false,
       canCreate: false,
     });
-    renderSection(noOperate);
+    render(
+      <QueryClientProvider client={client}>
+        <LocalDragSourceRow />
+        <SessionListComputerSection
+          collapsedThreads={EMPTY_SET}
+          groupBy="project"
+          onNewSession={vi.fn()}
+          onSelectSession={vi.fn()}
+          onThreadBranchChange={vi.fn()}
+          search=""
+          sessionActions={sessionLifecycleActionsFixture()}
+          source={noOperate}
+          subagentThreads={{ has: () => false }}
+          testIdPrefix="test"
+        />
+      </QueryClientProvider>
+    );
     expect(screen.queryByRole("button", { name: /New session/i })).not.toBeInTheDocument();
 
-    // Dragging from another computer refuses drops with the canonical message.
-    act(() => {
-      sessionDragComputerStore.trigger.dragStarted({ computerId: LOCAL_COMPUTER_ID });
-    });
+    const dragRow = screen.getByTestId("local-drag-row");
     const section = screen.getByTestId("test-computer-cmp_ro");
-    fireEvent.dragOver(section);
+    const dataTransfer = createDataTransfer();
+
+    fireEvent.dragStart(dragRow, { dataTransfer });
+    fireEvent.dragOver(section, { dataTransfer });
     expect(screen.getByTestId("test-computer-cmp_ro-drop-refused")).toHaveTextContent(
       "Sessions stay on the computer that runs them."
     );
-    act(() => {
-      sessionDragComputerStore.trigger.dragEnded();
+    expect(dataTransfer.dropEffect).toBe("none");
+
+    fireEvent.dragEnd(dragRow, { dataTransfer });
+    expect(screen.queryByTestId("test-computer-cmp_ro-drop-refused")).not.toBeInTheDocument();
+  });
+
+  it("Should hide online zero-match sections and filter offline sections from cached rows during search (Opus 6 / Astra 15)", () => {
+    const onlineZero = makeSource({
+      key: "cmp_zero",
+      name: "empty-box",
+      read: "ok",
+      count: 0,
     });
+    const { container } = renderSection(onlineZero, { search: "webhook" });
+    expect(container).toBeEmptyDOMElement();
+
+    const offlineClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const cachedPage: SessionCatalogPageResponse = {
+      sessions: [
+        { ...primarySessionFixture, id: "off_1", name: "Retry SPEI webhook", computerId: "cmp_off" },
+        { ...primarySessionFixture, id: "off_2", name: "Vacuum archive", computerId: "cmp_off" },
+      ],
+      page: { has_more: false, next_cursor: "", limit: 50, total: 2 },
+    };
+    offlineClient.setQueryData(
+      sessionKeys.forComputer("cmp_off").catalogPage({ all_workspaces: true, all_profiles: true }),
+      cachedPage
+    );
+
+    const offlineSource = makeSource({
+      key: "cmp_off",
+      name: "workstation",
+      read: "offline",
+      detail: "Offline · 2h ago",
+      count: 2,
+      canOperate: false,
+      canCreate: false,
+    });
+
+    const matchRender = renderSection(offlineSource, {
+      search: "webhook",
+      client: offlineClient,
+    });
+    expect(matchRender.getByTestId("test-computer-cmp_off")).toBeInTheDocument();
+    expect(matchRender.getByTestId("test-computer-cmp_off-offline-search-note")).toBeInTheDocument();
+    matchRender.unmount();
+
+    const noMatchRender = renderSection(offlineSource, {
+      search: "definitely-absent",
+      client: offlineClient,
+    });
+    expect(noMatchRender.container).toBeEmptyDOMElement();
   });
 
   it("Should render Not counted footer naming unanswered computers (R9)", () => {

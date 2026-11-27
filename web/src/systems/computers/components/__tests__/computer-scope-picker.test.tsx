@@ -7,7 +7,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { LOCAL_COMPUTER_FIXTURE, makeComputerFixture } from "../../mocks/remote-computers-fixtures";
+import { LOCAL_COMPUTER, makeComputerFixture } from "../../mocks/remote-computers-fixtures";
 import { ComputerScopePicker, type ComputerScopeCount } from "../computer-scope-picker";
 
 const DEVBOX = makeComputerFixture({ id: "cmp_devbox", name: "devbox", status: "connected" });
@@ -24,7 +24,7 @@ describe("ComputerScopePicker (T-F8)", () => {
       <ComputerScopePicker
         computers={[]}
         countsByComputer={new Map()}
-        local={LOCAL_COMPUTER_FIXTURE}
+        local={LOCAL_COMPUTER}
         onChange={vi.fn()}
         value="all"
       />
@@ -46,7 +46,7 @@ describe("ComputerScopePicker (T-F8)", () => {
         computers={[DEVBOX, WORKSTATION]}
         countsByComputer={counts}
         defaultOpen
-        local={LOCAL_COMPUTER_FIXTURE}
+        local={LOCAL_COMPUTER}
         onChange={onChange}
         value="all"
       />
@@ -69,7 +69,7 @@ describe("ComputerScopePicker (T-F8)", () => {
       <ComputerScopePicker
         computers={[DEVBOX, WORKSTATION]}
         countsByComputer={counts}
-        local={LOCAL_COMPUTER_FIXTURE}
+        local={LOCAL_COMPUTER}
         onChange={onChange}
         value="cmp_ws"
       />

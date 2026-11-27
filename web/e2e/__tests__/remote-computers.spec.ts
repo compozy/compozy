@@ -278,10 +278,12 @@ test.describe("SSH", () => {
     await prompt.press("Enter");
     await expect(session.getByText("echo from testhost", { exact: true })).toBeVisible();
     const sidebar = await sessionSidebar(session);
+    const remoteSection = sidebar
+      .locator("[data-computer-section]")
+      .filter({ has: page.getByText(host.name, { exact: true }) });
+    await expect(remoteSection).toBeVisible({ timeout: 15_000 });
     await expect(
-      sidebar
-        .locator('[data-slot="session-list-row"][data-computer-id]')
-        .getByText(host.name, { exact: true })
+      remoteSection.locator('[data-slot="session-list-row"][data-computer-id]').first()
     ).toBeVisible();
   });
 });
@@ -347,6 +349,31 @@ test.describe("Account-linked computer", () => {
     await expect(result).toBeVisible();
     await expect(result).toContainText(title);
     await expect(result).toContainText(host.name);
+    await page.keyboard.press("Escape");
+
+    // Remote write journey: pinning a remote session routes to `/c/{host.id}/api/...` and persists.
+    const pinTarget = sidebar
+      .locator(`[data-computer-section="${host.id}"]`)
+      .locator(`[data-slot="session-list-row"][data-computer-id="${host.id}"]`)
+      .filter({ hasText: title });
+    const pinResponse = page.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        response.url().includes(`/c/${host.id}/api/`) &&
+        response.url().includes(`/sessions/${sessionID}/pin`) &&
+        response.ok()
+    );
+    await pinTarget.hover();
+    await pinTarget.getByTestId(`session-row-pin-${sessionID}`).click();
+    await pinResponse;
+    const pinnedGroup = sidebar.getByRole("group", { name: "Pinned" });
+    await expect(pinnedGroup).toBeVisible({ timeout: 15_000 });
+    await expect(pinnedGroup.getByText(title, { exact: true })).toBeVisible();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const reloadedSidebar = await sessionSidebar(appWindow(page, "session"));
+    await expect(
+      reloadedSidebar.getByRole("group", { name: "Pinned" }).getByText(title, { exact: true })
+    ).toBeVisible({ timeout: 15_000 });
   });
 });
 

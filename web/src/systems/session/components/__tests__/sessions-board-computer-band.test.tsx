@@ -8,7 +8,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
-import { LOCAL_COMPUTER_FIXTURE } from "@/systems/computers/mocks/remote-computers-fixtures";
+import { LOCAL_COMPUTER } from "@/systems/computers/mocks/remote-computers-fixtures";
 
 import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
 import type { SessionsBoardComputerBand } from "../../hooks/use-sessions-board-computers";
@@ -21,7 +21,7 @@ function makeSource(
   const isLocal = overrides.key === LOCAL_COMPUTER_ID;
   return {
     isLocal,
-    computer: LOCAL_COMPUTER_FIXTURE,
+    computer: LOCAL_COMPUTER,
     read: "ok",
     detail: isLocal ? "This computer" : "via LAN",
     canOperate: true,

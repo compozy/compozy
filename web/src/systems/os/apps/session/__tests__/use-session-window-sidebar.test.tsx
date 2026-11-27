@@ -75,6 +75,7 @@ vi.mock("../../../hooks/use-os-shell", () => ({
 }));
 vi.mock("@/systems/session", async () => ({
   ...(await import("@/systems/session/lib/session-deeplink-search")),
+  sessionComputerOf: (await import("@/systems/session/lib/session-row-ref")).sessionComputerOf,
   useSessionWindowPresentation: () => presentation.value,
   sessionHasUnsentInput: () => false,
   subagentRevealStore: (await import("@/systems/session/lib/subagent-navigation"))

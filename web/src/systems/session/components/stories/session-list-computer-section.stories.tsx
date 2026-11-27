@@ -4,7 +4,7 @@ import { fn } from "storybook/test";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 import {
-  LOCAL_COMPUTER_FIXTURE,
+  LOCAL_COMPUTER,
   makeComputerFixture,
 } from "@/systems/computers/mocks/remote-computers-fixtures";
 
@@ -25,7 +25,7 @@ function sourceFixture(
 ): ComputerSessionsSource {
   return {
     isLocal: overrides.key === "local",
-    computer: LOCAL_COMPUTER_FIXTURE,
+    computer: LOCAL_COMPUTER,
     read: "ok",
     detail: overrides.key === "local" ? "This computer" : "via LAN",
     canOperate: true,

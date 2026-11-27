@@ -3,14 +3,14 @@ import { fn } from "storybook/test";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 
-import { LOCAL_COMPUTER_FIXTURE, makeComputerFixture } from "../../mocks/remote-computers-fixtures";
+import { LOCAL_COMPUTER, makeComputerFixture } from "../../mocks/remote-computers-fixtures";
 import { ComputerScopePicker, type ComputerScopeCount } from "../computer-scope-picker";
 
 const DEVBOX = makeComputerFixture({ id: "cmp_devbox", name: "devbox", status: "connected" });
 const STUDIO = makeComputerFixture({
   id: "cmp_studio",
   name: "studio",
-  platform: "macos",
+  platform: "darwin_arm64",
   status: "connected",
 });
 const WORKSTATION = makeComputerFixture({
@@ -55,7 +55,7 @@ type Story = StoryObj<typeof meta>;
 
 export const AllComputersOpen: Story = {
   args: {
-    local: LOCAL_COMPUTER_FIXTURE,
+    local: LOCAL_COMPUTER,
     computers: [DEVBOX, STUDIO, WORKSTATION, NEEDS_PRO],
     countsByComputer: COUNTS,
     value: "all",

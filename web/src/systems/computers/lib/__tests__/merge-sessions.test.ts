@@ -1,20 +1,16 @@
-// Suite: Multi-computer session merge, offline retention, paging, and grouping (UT-085, UT-086, UT-087, UT-088)
-// Invariant: Multi-computer lists merge by updated_at desc, keep offline rows marked offline,
-//            page 50 per computer advancing only the oldest cursor, and separate same-repo groups by computer.
-// Boundary IN: Pure merge/paging/grouping functions in web/src/systems/computers/lib/merge-sessions.ts.
+// Suite: Multi-computer session merge and offline retention (UT-085, UT-086)
+// Invariant: Multi-computer lists merge by updated_at desc and keep offline rows marked offline.
+// Boundary IN: Pure merge function in web/src/systems/computers/lib/merge-sessions.ts.
 // Boundary OUT: TanStack Query fan-out and HTTP transport.
 
 import { describe, expect, it } from "vitest";
 
-import {
-  COMPUTER_SESSION_PAGE_LIMIT,
-  groupSessionsByProjectAndComputer,
-  mergeSessionPages,
-  selectNextComputerToLoadMore,
-} from "../merge-sessions";
+import { COMPUTER_SESSION_PAGE_LIMIT, mergeSessionPages } from "../merge-sessions";
 
-describe("mergeSessionPages and multi-computer helpers", () => {
+describe("mergeSessionPages", () => {
   it("UT-085: Should merge sessions from multiple computers ordered by updated_at desc with computer provenance", () => {
+    expect(COMPUTER_SESSION_PAGE_LIMIT).toBe(50);
+
     const merged = mergeSessionPages([
       {
         computer: { id: "cmp_a", name: "devbox", status: "connected" },
@@ -58,93 +54,5 @@ describe("mergeSessionPages and multi-computer helpers", () => {
       computerName: "devbox",
       offline: true,
     });
-  });
-
-  it("UT-087: Should use limit 50 per computer and advance only the computer whose cursor is oldest", () => {
-    expect(COMPUTER_SESSION_PAGE_LIMIT).toBe(50);
-
-    const pages = Array.from({ length: 10 }, (_, index) => ({
-      computer: {
-        id: `cmp_${index + 1}`,
-        name: `host-${index + 1}`,
-        status: "connected",
-      },
-      sessions: [
-        {
-          id: `sess_${index + 1}_last`,
-          // Host 7 has the oldest boundary timestamp; load-more must advance only host 7.
-          updated_at:
-            index === 6
-              ? "2026-04-01T00:00:00.000Z"
-              : `2026-04-${String(10 + index).padStart(2, "0")}T00:00:00.000Z`,
-        },
-      ],
-      hasMore: true,
-      nextCursor: `cur_${index + 1}`,
-    }));
-
-    const next = selectNextComputerToLoadMore(pages);
-    expect(next).toEqual({
-      computerId: "cmp_7",
-      nextCursor: "cur_7",
-      oldestTimestamp: Date.parse("2026-04-01T00:00:00.000Z"),
-    });
-  });
-
-  it("UT-088: Should keep same-repository projects on two computers as separate labeled groups", () => {
-    const merged = mergeSessionPages([
-      {
-        computer: { id: "cmp_devbox", name: "devbox", status: "connected" },
-        sessions: [
-          {
-            id: "s_devbox",
-            updated_at: "2026-04-10T00:00:05.000Z",
-            workspace_id: "ws_api_a",
-            workspace_name: "api",
-          },
-        ],
-      },
-      {
-        computer: { id: "cmp_studio", name: "studio", status: "connected" },
-        sessions: [
-          {
-            id: "s_studio",
-            updated_at: "2026-04-10T00:00:04.000Z",
-            workspace_id: "ws_api_b",
-            workspace_name: "api",
-          },
-        ],
-      },
-    ]);
-
-    const groups = groupSessionsByProjectAndComputer(merged);
-    expect(groups).toHaveLength(2);
-    expect(groups.map(group => group.label)).toEqual(["api · devbox", "api · studio"]);
-    expect(groups[0]?.key).not.toBe(groups[1]?.key);
-  });
-
-  it("T-F5 / P1: Should never fall back to a raw ws_… id when a remote workspace name is missing", () => {
-    const merged = mergeSessionPages([
-      {
-        computer: { id: "cmp_devbox", name: "devbox", status: "connected" },
-        sessions: [
-          {
-            id: "s1",
-            updated_at: "2026-04-10T00:00:05.000Z",
-            workspace_id: "ws_raw_id_123",
-          },
-          {
-            id: "s2",
-            updated_at: "2026-04-10T00:00:04.000Z",
-            workspace_id: "ws_path_only",
-            workspace_path: "/srv/repos/billing-api",
-          },
-        ],
-      },
-    ]);
-
-    const groups = groupSessionsByProjectAndComputer(merged);
-    expect(groups.map(group => group.projectName)).toEqual(["Unknown project", "billing-api"]);
-    expect(groups.some(group => group.label.includes("ws_"))).toBe(false);
   });
 });

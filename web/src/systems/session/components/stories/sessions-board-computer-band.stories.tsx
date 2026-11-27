@@ -4,7 +4,7 @@ import { fn } from "storybook/test";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 import {
-  LOCAL_COMPUTER_FIXTURE,
+  LOCAL_COMPUTER,
   makeComputerFixture,
 } from "@/systems/computers/mocks/remote-computers-fixtures";
 
@@ -24,10 +24,11 @@ const BASE_ROW: SessionsBoardRow = {
 };
 
 function bandFixture(
-  overrides: Partial<SessionsBoardComputerBand> & {
+  overrides: Partial<Omit<SessionsBoardComputerBand, "source">> & {
     source: Partial<ComputerSessionsSource> & { key: string; name: string };
   }
 ): SessionsBoardComputerBand {
+  const { source, ...rest } = overrides;
   return {
     collapsed: false,
     onToggle: fn(),
@@ -35,12 +36,12 @@ function bandFixture(
     lanes: null,
     boardCounts: { needs_you: 2, working: 1, waiting: 1, in_review: 1, done: 3 },
     workspaceNameOf: () => null,
-    ...overrides,
+    ...rest,
     source: {
-      isLocal: overrides.source.key === "local",
-      computer: LOCAL_COMPUTER_FIXTURE,
+      isLocal: source.key === "local",
+      computer: LOCAL_COMPUTER,
       read: "ok",
-      detail: overrides.source.key === "local" ? "This computer" : "via LAN",
+      detail: source.key === "local" ? "This computer" : "via LAN",
       canOperate: true,
       canCreate: true,
       facets: undefined,
@@ -53,7 +54,7 @@ function bandFixture(
       workspacesError: false,
       matchedWorkspaceIds: null,
       retry: fn(),
-      ...overrides.source,
+      ...source,
     },
   };
 }

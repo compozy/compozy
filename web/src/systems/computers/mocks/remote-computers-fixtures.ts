@@ -645,6 +645,16 @@ export const ACCOUNT_UNADDED_FREE: readonly AccountUnaddedComputerFixture[] = [
   },
 ];
 
+/** Builds a computer fixture from `devbox` with deterministic overrides for tests and stories. */
+export function makeComputerFixture(
+  overrides: Partial<ComputerFixture> & { id: string; name: string }
+): ComputerFixture {
+  return {
+    ...COMPUTERS_PRO[2]!,
+    ...overrides,
+  };
+}
+
 /** Builds a deterministic flat list of `count` computers for scale testing (50 rows). */
 export function makeScaleComputers(count: number): ComputerFixture[] {
   return buildScaleComputers(COMPUTERS_PRO, count);

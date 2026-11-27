@@ -661,7 +661,7 @@ describe("session read invalidation", () => {
     },
     {
       name: "catalog",
-      invalidate: invalidateWorkspaceSessionCatalog,
+      invalidate: (client: QueryClient, ws: string) => invalidateWorkspaceSessionCatalog(client, ws),
       affected: ["catalog", "folders", "aggregate"],
     },
     {
@@ -763,8 +763,8 @@ describe("computer-scoped catalog, facets, folder and layout keys (T-F1)", () =>
     expect(page.refetchInterval).toBe(REMOTE_SESSION_REFETCH_MS);
     expect(sessionCatalogOptions({ all_profiles: true }).refetchInterval).toBeUndefined();
 
-    const board = sessionBoardPageOptions({ board_column: "working" }, "cmp_dev");
-    const localBoard = sessionBoardPageOptions({ board_column: "working" });
+    const board = sessionBoardPageOptions({ board_column: ["working"] }, "cmp_dev");
+    const localBoard = sessionBoardPageOptions({ board_column: ["working"] });
     expect(board.queryKey.slice(0, 2)).toEqual(["computer", "cmp_dev"]);
     expect(isSessionBoardQueryKey(board.queryKey)).toBe(true);
     expect(isSessionBoardQueryKey(localBoard.queryKey)).toBe(true);
