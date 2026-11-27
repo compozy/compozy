@@ -155,6 +155,8 @@ keeps the card pending and the same answer succeeds after capacity is freed.
 `TestInteractionResolutionCouplesQueueAndIsIdempotent` checks atomic SQLite resolution,
 queue-full rollback, and a duplicate answer. The canonical SQLite transaction suite also checks
 that a finite deadline expires a late clarification before a continuation can be queued.
+The session lifecycle suite also checks that an answer queues while its issuing run is retiring,
+before the session returns to idle.
 
 The provider-specific 30-second return in the original report remains a Codex retest. The
 daemon's 30-second keepalive interval does not expire the card. If the provider stops waiting for

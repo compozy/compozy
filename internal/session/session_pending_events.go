@@ -120,6 +120,7 @@ func (m *Manager) applyClarifyAttentionEvent(
 	target *Session,
 	event toolspkg.ClarifyEvent,
 	askingScope toolspkg.Scope,
+	deliverAnswer func(),
 ) (bool, bool, error) {
 	target.interactionLifecycleMu.Lock()
 	commit, queued, err := m.commitApplyClarifyAttentionEvent(ctx, target, event, askingScope)
@@ -128,6 +129,10 @@ func (m *Manager) applyClarifyAttentionEvent(
 		recorded = pendingInteractionByProviderRequest(
 			target.Info(), store.PendingInteractionKindClarify, strings.TrimSpace(event.Request.RequestID),
 		) != nil
+	}
+	if deliverAnswer != nil && err == nil && commit.Interaction != nil &&
+		commit.Interaction.Status == store.PendingInteractionStatusResolved {
+		deliverAnswer()
 	}
 	target.interactionLifecycleMu.Unlock()
 	if err == nil && commit.Interaction != nil {

@@ -209,7 +209,7 @@ func (b *clarifyBridge) Ask(
 	}
 	defer b.waiters.Done()
 
-	if _, err := b.publish(ctx, handle, toolspkg.ClarifyStatusPending, nil); err != nil {
+	if _, err := b.publish(ctx, handle, toolspkg.ClarifyStatusPending, nil, nil); err != nil {
 		handle.terminal = true
 		b.rollback(handle)
 		close(handle.published)

@@ -41,23 +41,25 @@ func clarifyEventWirePayload(event toolspkg.ClarifyEvent) clarifyEventWire {
 
 // PublishClarifyEvent durably records one typed clarification transition before SSE publication.
 func (m *Manager) PublishClarifyEvent(ctx context.Context, event toolspkg.ClarifyEvent) error {
-	_, err := m.publishClarifyEvent(ctx, event, toolspkg.Scope{})
+	_, err := m.publishClarifyEvent(ctx, event, toolspkg.Scope{}, nil)
 	return err
 }
 
-// PublishClarifyAnswer returns the queue wake to run after the broker releases the request.
+// PublishClarifyAnswer delivers the committed answer before prompt retirement and returns any queue wake.
 func (m *Manager) PublishClarifyAnswer(
 	ctx context.Context,
 	event toolspkg.ClarifyEvent,
 	askingScope toolspkg.Scope,
+	deliverAnswer func(),
 ) (func(), error) {
-	return m.publishClarifyEvent(ctx, event, askingScope)
+	return m.publishClarifyEvent(ctx, event, askingScope, deliverAnswer)
 }
 
 func (m *Manager) publishClarifyEvent(
 	ctx context.Context,
 	event toolspkg.ClarifyEvent,
 	askingScope toolspkg.Scope,
+	deliverAnswer func(),
 ) (func(), error) {
 	if m == nil {
 		return nil, errors.New("session: manager is required")
@@ -81,7 +83,7 @@ func (m *Manager) publishClarifyEvent(
 		info.AgentName != strings.TrimSpace(event.Request.AgentName) {
 		return nil, fmt.Errorf("session: clarification ownership mismatch for %q", sessionID)
 	}
-	attentionCommitted, queued, err := m.applyClarifyAttentionEvent(ctx, active, event, askingScope)
+	attentionCommitted, queued, err := m.applyClarifyAttentionEvent(ctx, active, event, askingScope, deliverAnswer)
 	if err != nil {
 		return nil, fmt.Errorf("session: persist canonical clarification attention: %w", err)
 	}
