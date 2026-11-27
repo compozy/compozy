@@ -184,8 +184,6 @@ function SessionListComputerLiveBody({
     folderCount: folders.sections?.folders.length ?? 0,
   });
 
-  const layout = folders.layout;
-  const projectLayout = computerView.projectFolders?.layout;
   const bodyView = offline
     ? offlineComputerListView(computerView, source, dataScope)
     : computerView;
@@ -223,6 +221,30 @@ function SessionListComputerLiveBody({
           view={bodyView}
         />
       )}
+      <SessionListComputerDialogs
+        folders={folders}
+        projectLayout={computerView.projectFolders?.layout}
+        projectFolderDialog={projectFolderDialog}
+        setProjectFolderDialog={setProjectFolderDialog}
+      />
+    </div>
+  );
+}
+
+function SessionListComputerDialogs({
+  folders,
+  projectLayout,
+  projectFolderDialog,
+  setProjectFolderDialog,
+}: {
+  folders: ReturnType<typeof useSessionListFolderLayout>;
+  projectLayout: NonNullable<SessionListViewModel["projectFolders"]>["layout"];
+  projectFolderDialog: SessionFolderDialogState<WorkspaceFolderPayload>;
+  setProjectFolderDialog: (state: SessionFolderDialogState<WorkspaceFolderPayload>) => void;
+}) {
+  const layout = folders.layout;
+  return (
+    <>
       {layout ? (
         <SessionFolderDialogs
           onClose={() => folders.setDialog(null)}
@@ -242,7 +264,7 @@ function SessionListComputerLiveBody({
           state={projectFolderDialog}
         />
       ) : null}
-    </div>
+    </>
   );
 }
 

@@ -261,7 +261,7 @@ function buildRemoteSource(input: {
     matchedWorkspaceIds,
     retry: () => {
       void wsQuery?.refetch();
-      void facetsQuery?.refetch();
+      if (scope !== null && matchedWorkspaceIds?.length !== 0) void facetsQuery?.refetch();
     },
   };
 }

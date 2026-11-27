@@ -12,7 +12,7 @@ function FlatRow({
   workspaceId,
   ...props
 }: Omit<AlwaysOnRowProps, "instances" | "label"> & { workspaceId: string | null }) {
-  const instances = useAgentInstances();
+  const instances = useAgentInstances(props.computerId);
   const onlyGlobal = workspaceId === GLOBAL_SCOPE;
   const shown = workspaceId
     ? [

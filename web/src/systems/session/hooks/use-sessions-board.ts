@@ -115,6 +115,8 @@ export interface SessionsBoardView {
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
   /** The board's one concrete scope for its top row; `null` under All projects. */
   focusedWorkspaceId: string | null;
+  scopedComputerId?: ComputerId;
+  hideAlwaysOnTop?: boolean;
   /** The board's identity for its selection: scope, layer, breadth, profile lens and grouping. */
   selectionKey: string;
   /** Remote-computer provenance for multi-computer cards (`_uiux.md` U5, `K7`). */
@@ -237,6 +239,7 @@ function resolveBoardLanes(input: {
   if (input.banded) return null;
   if (input.togetherGrouped) return input.multi.togetherLanes;
   if (!input.grouped) return null;
+  if (input.multi.scopedOfflineLanes) return input.multi.scopedOfflineLanes;
   return input.arrangedGroups.map(group => ({
     group,
     filters: scopedCatalogFilters(
@@ -308,6 +311,42 @@ function resolveBoardShelf(
   return { ...single, count: single.total };
 }
 
+function boardBreadth(scope: DataScope | null, computerScope: ComputerId, aggregate: boolean) {
+  return {
+    allProjects: scope?.kind === "all",
+    allProfiles: aggregate || (computerScope !== "all" && isRemoteComputerId(computerScope)),
+  };
+}
+
+function boardWorkspaceNames(
+  multi: MultiComputerBoardModel,
+  workspaces: ReturnType<typeof useActiveWorkspace>["registeredWorkspaces"],
+  allProjects: boolean
+): SessionsBoardView["workspaceNameOf"] {
+  if (multi.hasRemoteComputers) return multi.workspaceNameOf;
+  if (!allProjects) return () => null;
+  const names = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
+  return session => workspaceBadgeIdentity(session.workspace_id, names).name;
+}
+
+function boardHeaderScope(
+  scope: DataScope | null,
+  remote: MultiComputerBoardModel["scopedRemoteSource"]
+) {
+  if (!remote || scope?.kind !== "project") {
+    return {
+      focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
+      scopedComputerId: remote?.key,
+    };
+  }
+  const workspaces = remote.matchedWorkspaceIds ?? [];
+  return {
+    focusedWorkspaceId: workspaces.length === 1 ? workspaces[0]! : null,
+    scopedComputerId: remote.key,
+    hideAlwaysOnTop: workspaces.length !== 1,
+  };
+}
+
 /**
  * The Sessions board read model for a data scope (`_uiux.md` S4, `F13`).
  */
@@ -334,7 +373,7 @@ export function useSessionsBoard({
   const { registeredWorkspaces } = useActiveWorkspace();
   const order = useSessionWindowOrder();
   const active = enabled && scope !== null;
-  const breadth = { allProjects: scope?.kind === "all", allProfiles: aggregate };
+  const breadth = boardBreadth(scope, order.computerScope, aggregate);
   const effectiveGroupBy = effectiveSessionListGroupBy(groupBy, breadth);
   const grouped = effectiveGroupBy !== "none";
   const population = {
@@ -421,11 +460,8 @@ export function useSessionsBoard({
     localShelfActive,
     targetComputerId
   );
-  const names = new Map(targetWorkspaces.map(workspace => [workspace.id, workspace.name]));
-  const allProjects = scope?.kind === "all";
-
   return {
-    focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
+    ...boardHeaderScope(scope, multi.scopedRemoteSource),
     columns: resolveBoardColumns({ grouped, banded, multi, singleColumns: columns }),
     lanes: resolveBoardLanes({
       banded,
@@ -444,9 +480,7 @@ export function useSessionsBoard({
     groupByOptions: availableSessionListGroupBys(breadth),
     archive: resolveBoardShelf(multi.multiArchive, archive, emptyRemoteMatch),
     later: resolveBoardShelf(multi.multiLater, later, emptyRemoteMatch),
-    workspaceNameOf: multi.hasRemoteComputers
-      ? multi.workspaceNameOf
-      : session => (allProjects ? workspaceBadgeIdentity(session.workspace_id, names).name : null),
+    workspaceNameOf: boardWorkspaceNames(multi, targetWorkspaces, breadth.allProjects),
     selectionKey: JSON.stringify([
       multi.effectiveScope,
       order.computers,

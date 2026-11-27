@@ -48,13 +48,16 @@ export function SessionsBoard(props: SessionsBoardProps) {
               header={
                 banded ? null : (
                   <>
-                    <AlwaysOnListTop
-                      currentSessionId={props.currentSessionId}
-                      groupBy={props.board.groupBy}
-                      onOpenSession={openTarget}
-                      surface="ring-canvas"
-                      workspaceId={props.board.focusedWorkspaceId}
-                    />
+                    {props.board.hideAlwaysOnTop ? null : (
+                      <AlwaysOnListTop
+                        computerId={props.board.scopedComputerId}
+                        currentSessionId={props.currentSessionId}
+                        groupBy={props.board.groupBy}
+                        onOpenSession={openTarget}
+                        surface="ring-canvas"
+                        workspaceId={props.board.focusedWorkspaceId}
+                      />
+                    )}
                     <ScopedComputerBoardFailureStrip failures={props.board.failedComputers ?? []} />
                   </>
                 )

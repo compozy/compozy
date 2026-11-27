@@ -234,6 +234,15 @@ function answeredPinnedSources(sources: readonly ComputerSessionsSource[], activ
   return active ? sources.filter(source => source.read === "ok" || source.read === "offline") : [];
 }
 
+function pinnedReorderAvailable(
+  result: ReturnType<typeof aggregatePinnedEntries>,
+  filters: SessionListFilters
+) {
+  return (
+    !result.more && !result.anyFailed && !result.loading && !filters.q?.trim() && !filters.worktree
+  );
+}
+
 function pinnedReorderPair(
   sources: readonly ComputerSessionsSource[],
   scope: DataScope | null,
@@ -302,7 +311,7 @@ export function useMultiComputerPinned(options: {
   );
 
   // O6: single-computer scope may reorder pins when one (computer, workspace, profile) pair applies.
-  const reorder = useSessionPinnedOrder(pinnedReorderPair(answered, scope, localLens));
+  const reorder = useSessionPinnedOrder(pinnedReorderPair(sources, scope, localLens));
 
   if (!active) return undefined;
 
@@ -341,10 +350,7 @@ export function useMultiComputerPinned(options: {
     failed: aggregated.failed,
     more: aggregated.more,
     retry: retryAll,
-    reorder:
-      aggregated.more || aggregated.anyFailed || aggregated.loading || groupFilters.q?.trim()
-        ? undefined
-        : reorder,
+    reorder: pinnedReorderAvailable(aggregated, groupFilters) ? reorder : undefined,
     catalog: {
       sessions: aggregated.sessions,
       paging: aggregated.paging,

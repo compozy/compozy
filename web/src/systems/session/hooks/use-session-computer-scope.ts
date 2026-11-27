@@ -30,7 +30,7 @@ export function useSessionComputerScope(scopeIdOverride?: string): SessionComput
     sessionSidebarStore,
     snapshot => resolveSessionWindowOrder(snapshot.context.byScope, scopeId).computerScope
   );
-  const { computers, enabledComputers, isLoading, isError, isSuccess, canRead } = useComputers({
+  const { computers, enabledComputers, isSuccess, canRead } = useComputers({
     passive: true,
   });
   const [removedName, setRemovedName] = useState<string | null>(null);
@@ -46,8 +46,7 @@ export function useSessionComputerScope(scopeIdOverride?: string): SessionComput
 
   const scopedIsRemote = scope !== "all" && isRemoteComputerId(scope);
   const enabledSet = new Set(enabledComputers.map(computer => computer.id));
-  const missingFromEnabled =
-    scopedIsRemote && canRead && !isLoading && !isError && !enabledSet.has(scope);
+  const missingFromEnabled = scopedIsRemote && canRead && isSuccess && !enabledSet.has(scope);
 
   useEffect(() => {
     if (!missingFromEnabled) return;

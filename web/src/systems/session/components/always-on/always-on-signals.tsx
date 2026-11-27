@@ -17,7 +17,7 @@ type ScopedRowProps = Omit<AlwaysOnRowProps, "instances" | "scopeName">;
 
 /** The row labeled Global, above every project. */
 export function AlwaysOnGlobalRow(props: ScopedRowProps & { instances?: never }) {
-  const instances = instancesInScope(useAgentInstances(), GLOBAL_SCOPE);
+  const instances = instancesInScope(useAgentInstances(props.computerId), GLOBAL_SCOPE);
   return (
     <AlwaysOnRow
       {...props}

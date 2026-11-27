@@ -63,6 +63,7 @@ export interface MultiComputerBoardModel {
   effectiveScope: string;
   /** Non-null when scoped to a single remote computer (`F8`). */
   scopedRemoteSource: ComputerSessionsSource | null;
+  scopedOfflineLanes?: SessionsBoardLane[] | null;
   /** Non-null in All computers + Separate mode (`K2`, `K3`). */
   computerBands: SessionsBoardComputerBand[] | null;
   /** Non-null in All computers + Together + Project/Profile mode (`K1`, `F6`, `Opus 3`). */
@@ -315,10 +316,7 @@ export function useSessionsBoardComputers(options: {
   const sourcesById = new Map<ComputerId, ComputerSessionsSource>(
     sourcesResult.sources.map(source => [source.key, source])
   );
-  const scopedRemoteSource =
-    hasRemote && isRemoteComputerId(effectiveScope)
-      ? (sourcesById.get(effectiveScope) ?? null)
-      : null;
+  const scopedRemoteSource = scopedRemoteBoardSource(effectiveScope, sourcesById);
   const multiVisible = hasRemote && effectiveScope === "all";
   const separate = multiVisible && order.computers === "separate";
   const together = multiVisible && order.computers === "together";
@@ -360,6 +358,14 @@ export function useSessionsBoardComputers(options: {
   addShelfProvenance(computerBySessionId, multiLater, sourcesById);
 
   const foldLens = sessionGroupFoldLens(scope, profile, groupBy);
+  const scopedOfflineLanes = offlineBoardLanes(scopedRemoteSource, {
+    scope,
+    shared,
+    localLens,
+    groupBy,
+    foldLens,
+    sidebar,
+  });
   const computerBands = buildComputerBands({
     enabled: separate,
     sources: sourcesResult.sources,
@@ -399,6 +405,7 @@ export function useSessionsBoardComputers(options: {
     ),
     effectiveScope,
     scopedRemoteSource,
+    scopedOfflineLanes,
     computerBands,
     togetherLanes,
     togetherColumns: togetherBoard.columns,
@@ -408,4 +415,19 @@ export function useSessionsBoardComputers(options: {
     multiLater,
     workspaceNameOf,
   };
+}
+
+function scopedRemoteBoardSource(
+  scope: ComputerId,
+  sourcesById: ReadonlyMap<ComputerId, ComputerSessionsSource>
+) {
+  if (scope === "all" || !isRemoteComputerId(scope)) return null;
+  return sourcesById.get(scope) ?? null;
+}
+
+function offlineBoardLanes(
+  source: ComputerSessionsSource | null,
+  input: Omit<Parameters<typeof buildBandLanes>[0], "source">
+) {
+  return source?.read === "offline" ? buildBandLanes({ ...input, source }) : null;
 }
