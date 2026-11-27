@@ -23,7 +23,7 @@ func (r daemonSessionWorktreeResolver) service() sessionWorktreeLookup {
 	if r.lookup != nil {
 		return r.lookup()
 	}
-	if r.state == nil {
+	if r.state == nil || r.state.worktrees == nil {
 		return nil
 	}
 	return r.state.worktrees
