@@ -5,7 +5,7 @@ kind: always_on
 name: pr-watcher
 provider: codex
 model: gpt-6.2-sol
-reasoning_effort: xhigh
+reasoning_effort: high
 acp_options:
   - id: mode
     value_id: agent-full-access
