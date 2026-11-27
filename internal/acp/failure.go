@@ -198,9 +198,6 @@ func IsLoadSessionProviderMismatch(err error) bool {
 // Only these failures may clear the stored id and fall back to a fresh provider thread with
 // replayed context; every other load failure keeps the id and stays retryable.
 func LoadSessionRequiresFreshThread(err error) bool {
-	if IsLoadSessionTimeout(err) {
-		return false
-	}
 	return errors.Is(err, ErrAgentDoesNotSupportSession) ||
 		IsLoadSessionResourceMissing(err) ||
 		IsLoadSessionProviderMismatch(err)
@@ -209,7 +206,7 @@ func LoadSessionRequiresFreshThread(err error) bool {
 // IsLoadSessionTimeout reports a transient session/load or session/resume deadline
 // classified while the caller's context was still alive.
 func IsLoadSessionTimeout(err error) bool {
-	return errors.Is(err, ErrLoadSessionTimeout) && !requestErrorIndicatesProviderMismatch(err)
+	return errors.Is(err, ErrLoadSessionTimeout) && !LoadSessionRequiresFreshThread(err)
 }
 
 // requestErrorIndicatesProviderMismatch is the single matcher for the provider's

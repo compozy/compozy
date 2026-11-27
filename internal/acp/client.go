@@ -254,10 +254,10 @@ func (d *Driver) cleanupFailedStart(process *AgentProcess, startErr error) error
 // IsLoadSessionResourceMissing reports whether a resume failed because the
 // upstream ACP implementation no longer knows the referenced session id.
 func IsLoadSessionResourceMissing(err error) bool {
-	if !errors.Is(err, ErrLoadSessionFailed) {
-		return false
-	}
+	return errors.Is(err, ErrLoadSessionFailed) && requestErrorIndicatesMissingSession(err)
+}
 
+func requestErrorIndicatesMissingSession(err error) bool {
 	reqErr, ok := errors.AsType[*acpsdk.RequestError](err)
 	if !ok || reqErr == nil {
 		return false

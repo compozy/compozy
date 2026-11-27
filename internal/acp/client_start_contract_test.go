@@ -2872,6 +2872,14 @@ func TestLoadSessionTimeoutClassification(t *testing.T) {
 			wantFresh: true,
 		},
 		{
+			name:   "Should keep a missing provider session permanent when the diagnostic also reports a deadline",
+			method: acpsdk.AgentMethodSessionLoad, requestErr: &acpsdk.RequestError{
+				Code: requestErrorResourceNotFoundCode, Message: "Resource not found: sess-existing",
+				Data: map[string]any{"error": "context deadline exceeded"},
+			},
+			wantFresh: true,
+		},
+		{
 			name:   "Should not reclassify a caller deadline",
 			method: acpsdk.AgentMethodSessionLoad, requestErr: &acpsdk.RequestError{
 				Code: -32603, Message: "context deadline exceeded",

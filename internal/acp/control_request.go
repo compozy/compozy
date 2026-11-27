@@ -60,7 +60,7 @@ func classifyLoadSessionTimeout(
 	if !errors.Is(requestCtx.Err(), context.DeadlineExceeded) && !requestErrorIndicatesDeadline(err) {
 		return err
 	}
-	if requestErrorIndicatesProviderMismatch(err) {
+	if requestErrorIndicatesProviderMismatch(err) || requestErrorIndicatesMissingSession(err) {
 		return err
 	}
 	return errors.Join(ErrLoadSessionTimeout, err)
