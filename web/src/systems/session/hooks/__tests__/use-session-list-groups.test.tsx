@@ -108,6 +108,45 @@ function groupsInput(overrides: Partial<SessionListGroupsInput> = {}): SessionLi
 describe("useSessionListGroups", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("Should keep a focused remote profile group on the matched workspace and profile", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const computerId = "cmp_profile";
+    client.setQueryData(profilesListOptions(true, computerId).queryKey, [defaultProfileFixture]);
+    vi.mocked(fetchSessionFacets).mockResolvedValue(
+      facetsResponse([["ws-remote-alpha", counts(2)]], [[defaultProfileFixture.id, counts(2)]])
+    );
+    const { result } = renderHook(
+      () =>
+        useSessionListGroups(
+          groupsInput({
+            computerId,
+            groupBy: "profile",
+            scope: ALPHA,
+            lens: { all_profiles: true },
+            matchedWorkspaceIds: ["ws-remote-alpha"],
+          })
+        ),
+      { wrapper: clientWrapper(client) }
+    );
+
+    await waitFor(() => expect(result.current.groups).toHaveLength(1));
+    expect(result.current.groups[0]).toMatchObject({
+      scope: { kind: "project", workspaceId: "ws-remote-alpha" },
+      matchedWorkspaceIds: ["ws-remote-alpha"],
+      lens: { profile: defaultProfileFixture.name },
+      pair: {
+        computerId,
+        workspaceId: "ws-remote-alpha",
+        profile: defaultProfileFixture.name,
+      },
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledWith(
+      expect.objectContaining({ workspace_ids: ["ws-remote-alpha"], all_profiles: true }),
+      expect.any(AbortSignal),
+      computerId
+    );
+  });
+
   it("W-09: Should list every project group from facets, in switcher order with User last", async () => {
     // ws-alpha's sessions sit on no loaded page; its group still exists because
     // membership comes from facets, not from whatever page the list has read.

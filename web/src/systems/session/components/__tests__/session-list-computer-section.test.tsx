@@ -258,6 +258,28 @@ describe("SessionListComputerSection and Not counted footer (T-F7)", () => {
       cachedPage
     );
 
+    const unrelated = [
+      { id: "archived-match", filters: { archive: "only" as const } },
+      { id: "later-match", filters: { later: "only" as const } },
+      { id: "other-worktree", filters: { worktree: "different-worktree" } },
+    ];
+    for (const { id, filters } of unrelated) {
+      offlineClient.setQueryData(
+        sessionKeys.forComputer("cmp_off").catalogPage({
+          all_workspaces: true,
+          all_profiles: true,
+          ...buildComputerPopulationFilters({
+            shelf: "active",
+            showAutomation: false,
+            excludePinned: true,
+            search: "webhook",
+          }),
+          ...filters,
+        }),
+        { ...cachedPage, sessions: [{ ...primarySessionFixture, id, name: "Unrelated webhook" }] }
+      );
+    }
+
     const offlineSource = makeSource({
       key: "cmp_off",
       name: "workstation",
@@ -276,6 +298,7 @@ describe("SessionListComputerSection and Not counted footer (T-F7)", () => {
     expect(
       matchRender.getByTestId("test-computer-cmp_off-offline-search-note")
     ).toBeInTheDocument();
+    expect(matchRender.queryByText("Unrelated webhook")).not.toBeInTheDocument();
     matchRender.unmount();
 
     const noMatchRender = renderSection(offlineSource, {
