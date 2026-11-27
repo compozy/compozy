@@ -93,7 +93,7 @@ func (m *Manager) captureRestartInterruption(ctx context.Context, meta *store.Se
 		return err
 	}
 	checkpoint.Reason = reason
-	if reason == "" && checkpoint.Delivery != string(PromptDeliveryNormal) {
+	if reason == "" && PromptDelivery(checkpoint.Delivery).isCommand() {
 		checkpoint.Reason = "maintenance_command"
 	}
 	if m.attentionStore != nil && checkpoint.Reason == "" {

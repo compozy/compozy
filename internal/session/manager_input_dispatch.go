@@ -323,7 +323,7 @@ func (m *Manager) newQueuedInputPromptRequest(
 	}
 	req.turnID = turnID
 	if entry.syntheticPrompt != nil {
-		req.delivery = PromptDelivery(entry.syntheticPrompt.Delivery)
+		req.delivery = promptDeliveryFromQueue(entry.syntheticPrompt.Delivery)
 		req.turnSource = TurnSourceSynthetic
 		req.meta = acp.PromptMeta{TurnSource: acp.PromptTurnSourceSynthetic}
 		var err error

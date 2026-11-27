@@ -46,6 +46,21 @@ const (
 	PromptDeliveryAgentCommand PromptDelivery = "agent_command"
 )
 
+// isCommand reports a maintenance or agent-command turn, which skips context augmentation and
+// restart continuation. Any other value, including a queue ordering such as after_turn, is normal.
+func (d PromptDelivery) isCommand() bool {
+	return d == PromptDeliveryMaintenance || d == PromptDeliveryAgentCommand
+}
+
+// promptDeliveryFromQueue keeps a queued input's command delivery and reads every other value,
+// such as the after_turn ordering on reply-watch and subagent wakes, as a normal turn.
+func promptDeliveryFromQueue(value string) PromptDelivery {
+	if delivery := PromptDelivery(value); delivery.isCommand() {
+		return delivery
+	}
+	return PromptDeliveryNormal
+}
+
 // PromptDeliveryInfo identifies a prompt whose agent-event stream is ready to start.
 type PromptDeliveryInfo struct {
 	SessionID string
