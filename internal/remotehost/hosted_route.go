@@ -78,9 +78,7 @@ func (h *Host) replaceHostedRoute(run *hostRun, listener string, initial remotep
 
 func hostedEdgeClient(transport http.RoundTripper) *http.Client {
 	if transport == nil {
-		transport = &http.Transport{
-			Proxy: http.ProxyFromEnvironment, DisableKeepAlives: true, ForceAttemptHTTP2: true,
-		}
+		transport = remoteproto.NewHostedProbeTransport()
 	}
 	return &http.Client{Transport: transport, Timeout: hostedEdgeTimeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
@@ -280,13 +278,11 @@ func (h *hostedRun) observeEdge(
 			observation.missed = true
 			return
 		}
-		h.publish(
-			ctx,
-			hostname,
-			mode,
-			hostedStateRetrying,
-			"Hosted route did not return this computer's descriptor over HTTPS.",
-		)
+		diagnosis := "Hosted route did not return this computer's descriptor over HTTPS."
+		if errors.Is(err, remoteproto.ErrDescriptorDNS) {
+			diagnosis = "The host could not resolve the assigned hostname. The host retries automatically."
+		}
+		h.publish(ctx, hostname, mode, hostedStateRetrying, diagnosis)
 	}
 }
 

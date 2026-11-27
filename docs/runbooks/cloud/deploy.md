@@ -42,4 +42,6 @@ Generate the Ed25519 configuration with `compozy-cloud keys generate <kid>` and 
 
 The tunnel provisioner creates a proxied DNS record for each assigned hostname. In a full Cloudflare zone, Universal SSL covers a single label under the zone. A deployment with deeper names such as `<assigned-host>.staging.<zone>` needs an active edge certificate for `*.staging.<zone>` before verification. Order an advanced wildcard certificate for that namespace if it needs coverage. Check the assigned URL with normal TLS verification. The Cloud service health endpoint uses a separate hostname.
 
+The Cloudflare API can confirm record creation before every resolver can return the record. A resolver can continue to return a cached negative answer after publication. The host retries a negative lookup through Cloudflare's public resolver for the readiness probe. The fallback uses TCP port 53. The probe verifies TLS for the assigned hostname and checks the computer descriptor before it reports `ready`.
+
 Related procedures [Monitoring and on-call](monitoring.md), [Signing keys](key-rotation.md), [Restore drill](../../qa/scenarios/RT-cloud-restore-drill.md).

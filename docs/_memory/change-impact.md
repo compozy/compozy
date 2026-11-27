@@ -6,6 +6,7 @@
 - **Compatibility and isolation:** assigned hostnames, tunnel records, and entitlement checks are preserved. The probe sends no credentials and checks the returned computer ID and tunnel root. No config, extension, hook, or workspace boundary changes.
 - **Web / docs / official skill:** existing status views render the diagnosis. The remote host, controller, deploy runbook, and official Computers skill document it. `TestDaemonHostedRoute` and QA scenarios `RT-computers-operator` and `RT-computers-webhook-ingress` cover status and the gated ingress URL.
 - **Billing renewal:** `TestDaemonBilling` and `RT-computers-billing` check that the retained hostname returns to `ready` after renewal.
+- **DNS during provisioning:** the host retries a negative DNS answer through Cloudflare's public resolver. This applies only to the HTTPS readiness probe. `TestHostedProbeDescriptor` checks the fallback and hostname verification. `RT-computers-webhook-ingress` checks binding after readiness.
 
 ## Antigravity (`agy`) provider usage collector — 2026-11-27
 

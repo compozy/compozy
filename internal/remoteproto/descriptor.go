@@ -20,6 +20,7 @@ var (
 	ErrDescriptorUnavailable  = errors.New("computer descriptor is unavailable")
 	ErrDescriptorPlanRequired = errors.New("computer descriptor requires Pro")
 	ErrDescriptorTLS          = errors.New("computer descriptor TLS handshake failed")
+	ErrDescriptorDNS          = errors.New("computer descriptor hostname has no DNS address")
 )
 
 // FetchDescriptor reads the public, unauthenticated preflight from the supplied origin.
@@ -39,6 +40,9 @@ func FetchDescriptor(ctx context.Context, origin *url.URL, client *http.Client) 
 	if err != nil {
 		if tlsFailed.Load() {
 			return Descriptor{}, ErrDescriptorTLS
+		}
+		if missingProbeAddress(err, origin.Hostname()) {
+			return Descriptor{}, ErrDescriptorDNS
 		}
 		return Descriptor{}, ErrDescriptorUnavailable
 	}

@@ -13,6 +13,7 @@ qa_status: pending
    report `ready` after public HTTPS verification. Create two workspace webhook
    triggers with the same slug. Confirm each advertised URL and verify the workspace ID and stable
    webhook ID distinguish the two paths.
+   In an isolated DNS fixture, keep a negative answer in the host's system resolver after public DNS returns an address. Verify that the host reaches `ready` and accepts a binding without a cache flush.
 2. Send a signed delivery to one URL. Verify exactly one attributed run on the intended computer
    and workspace. Repeat the same delivery ID and verify it does not start a duplicate run.
 3. Change the advertised base. Check both triggers show **Needs confirmation** and an unconfirmed
