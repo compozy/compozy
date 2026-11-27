@@ -70,7 +70,7 @@ export function ScopedComputerError({
     >
       <span className="flex min-w-0 items-center gap-1.5">
         <AlertCircle aria-hidden="true" className="size-3.5 shrink-0 text-warning" />
-        <span className="truncate">Couldn&apos;t load sessions from {computerName}</span>
+        <span className="truncate">Couldn’t load sessions from {computerName}</span>
       </span>
       <Button onClick={onRetry} size="xs" type="button" variant="secondary">
         <RefreshCw aria-hidden="true" data-icon="inline-start" />

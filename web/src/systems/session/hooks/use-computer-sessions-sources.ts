@@ -400,20 +400,16 @@ export function useComputerSessionsSources(options: {
   );
 
   // Per-computer profile catalogs when Group by Profile is active across computers.
-  const profileQueries = useQueries(
-    {
-      queries:
-        hasRemoteComputers && includeProfiles
-          ? [
-              profilesListOptions(enabled),
-              ...remoteViews.map(computer =>
-                profilesListOptions(enabled && computer.status === "connected", computer.id)
-              ),
-            ]
-          : [],
-    },
-    queryClient
-  );
+  const profileOptions: ReturnType<typeof profilesListOptions>[] =
+    hasRemoteComputers && includeProfiles
+      ? [
+          profilesListOptions(enabled),
+          ...remoteViews.map(computer =>
+            profilesListOptions(enabled && computer.status === "connected", computer.id)
+          ),
+        ]
+      : [];
+  const profileQueries = useQueries({ queries: profileOptions }, queryClient);
 
   const residentQueries = useQueries(
     {

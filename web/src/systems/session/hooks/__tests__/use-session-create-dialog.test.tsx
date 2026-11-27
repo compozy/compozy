@@ -431,7 +431,10 @@ describe("useSessionCreateDialog", () => {
       workspace_id: otherWorkspace.id,
     });
     const noteCreatedSession = vi.fn();
-    const shell = { coordinator: { noteCreatedSession } } as unknown as OsShellHandle;
+    const shell = {
+      coordinator: { noteCreatedSession },
+      manager: { getState: () => ({ focusedId: null }) },
+    } as unknown as OsShellHandle;
 
     const { wrapper } = createWrapper(shell);
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {

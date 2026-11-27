@@ -34,6 +34,8 @@ Start with one empty remote computer and a new window.
 12. Reload. Confirm the scope persists. Confirm a new window starts at **All computers**.
 13. Fail one remote catalog read. Confirm other computers remain usable and **Not counted** names the failed computer.
 14. Search for a loaded offline row. Confirm the list identifies matches from before the computer went offline.
+15. Select a session in the scoped window. Switch to Kanban, then to List.
+16. Confirm the window keeps its computer scope and accepts changes to **Group by**.
 
 Walk remote folder ownership in `ET-web-session-folders-manual-order`.
 Walk disconnect and reconnect in `RT-sessions-by-computer-states`.

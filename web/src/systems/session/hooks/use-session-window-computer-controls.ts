@@ -5,7 +5,7 @@ import { toast } from "@compozy/ui";
 
 import { useOptionalUpgradeSheetActions } from "@/systems/account";
 import { computerRegistryKeys, patchComputer } from "@/systems/computers";
-import { useProfileReadScope } from "@/systems/profiles";
+import { useProfileReadScopeParams } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { useComputerSessionsSources } from "./use-computer-sessions-sources";
@@ -16,13 +16,13 @@ export function useSessionWindowComputerControls() {
   const queryClient = useContext(QueryClientContext);
   const upgradeSheet = useOptionalUpgradeSheetActions();
   const { dataScope } = useActiveWorkspace();
-  const profile = useProfileReadScope();
+  const lens = useProfileReadScopeParams();
   const sidebar = useSessionSidebarState();
   const [reconnectingIds, setReconnectingIds] = useState<string[]>([]);
 
   const computerSources = useComputerSessionsSources({
     scope: dataScope,
-    lens: profile.params,
+    lens,
     shelf: sidebar.shelf,
     showAutomation: sidebar.showAutomation,
   });
