@@ -2,7 +2,6 @@ package agentinstance
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"slices"
 	"time"
@@ -61,10 +60,6 @@ func (s *SkillProposalService) autoApprove(
 	}
 	s.step("auto_approve_eligible", t)
 	if err := s.installAutomatically(ctx, t, instance, review, draft, current); err != nil {
-		if errors.Is(err, errSkillCommitUncertain) {
-			// The files may be committed and Reconcile would then project this approval for today.
-			s.installLocks().markUnprojected(instance.ID, review.ID)
-		}
 		s.logAutoApproveSkipped(ctx, review, SkillAutoApproveInstallFailed, "error", err)
 		return review, SkillAutoApproveInstallFailed
 	}
@@ -74,8 +69,7 @@ func (s *SkillProposalService) autoApprove(
 	if projected, ok := s.projectedAutoApproval(ctx, t, review.ID); ok {
 		return projected, ""
 	}
-	// Committed but unprojected: the cap fails closed until Reconcile projects it.
-	s.installLocks().markUnprojected(instance.ID, review.ID)
+	// A committed install can be reported while recovery retries its projection.
 	review.State, review.DecidedVia, review.DecidedBy = skillReviewApproved, skillDecidedViaAutoApprove,
 		skillDecidedByAutoApprove
 	return review, ""
@@ -111,9 +105,9 @@ func (s *SkillProposalService) projectedAutoApproval(
 
 // hasUnprojectedAutoApproval reports whether the instance still has a committed auto-approval whose
 // review row is pending; a row that has been projected since is forgotten. A read error counts.
-func (s *SkillProposalService) hasUnprojectedAutoApproval(ctx context.Context, instanceID string) bool {
+func (s *SkillProposalService) hasUnprojectedAutoApproval(ctx context.Context, instanceID string, day time.Time) bool {
 	locks := s.installLocks()
-	for _, id := range locks.unprojectedReviews(instanceID) {
+	for _, id := range locks.unprojectedReviews(instanceID, day) {
 		review, err := s.Store.GetReview(ctx, id)
 		if err != nil || review.State == SkillReviewPending {
 			return true
@@ -155,6 +149,11 @@ func (s *SkillProposalService) autoApproveSkipReason(
 	if counts, err := tree.AutomaticContents(); err != nil || counts.Hooks+counts.MCPServers+counts.Scripts > 0 {
 		return s.skipAutoApprove(ctx, review, SkillAutoApproveRunsAutomatically), nil
 	}
+	if review.Kind != SkillProposalEdit && s.SkillNameInUse != nil {
+		if inUse, err := s.SkillNameInUse(ctx, instance, review.SkillName); err != nil || inUse {
+			return s.skipAutoApprove(ctx, review, SkillAutoApproveOperatorAuthored), nil
+		}
+	}
 	entries, err := readSkillInstallLog(t.root, t.name)
 	if err != nil {
 		// Rule 9.4 is about edits; a new skill only needs the log to install.
@@ -169,11 +168,11 @@ func (s *SkillProposalService) autoApproveSkipReason(
 			return s.skipAutoApprove(ctx, review, reason), nil
 		}
 	}
-	if s.hasUnprojectedAutoApproval(ctx, instance.ID) {
+	day := s.clock().UTC().Truncate(24 * time.Hour)
+	if s.hasUnprojectedAutoApproval(ctx, instance.ID, day) {
 		s.logAutoApproveSkipped(ctx, review, SkillAutoApproveDailyCapReached, "unprojected", true)
 		return SkillAutoApproveDailyCapReached, nil
 	}
-	day := s.clock().UTC().Truncate(24 * time.Hour)
 	count, err := s.Store.CountAutoApprovals(ctx, instance.ID, day)
 	if err != nil || count >= SkillAutoApproveDailyCap {
 		s.logAutoApproveSkipped(ctx, review, SkillAutoApproveDailyCapReached,

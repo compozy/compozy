@@ -94,12 +94,14 @@ returned as `auto_approve_skipped` and the review stays pending for the operator
 3. `runs_automatically`: the **resulting tree** has a hook, MCP server, or script. For an edit the
    files kept from the installed skill count, so a body-only edit of a skill with `scripts/` or an
    MCP file is not auto-approved; an unreadable MCP file or frontmatter counts too.
-4. `operator_authored_skill` (edits): the skill's current writer in the install log is not an
+4. `operator_authored_skill`: a new skill would reuse an existing name in the instance's skill
+   catalog. For edits, the skill's current writer in the install log is not an
    approved review of this instance (an operator-authored skill, a conflict kept as current, or
    another instance's review), or the skill on disk no longer equals what that review installed.
 5. `base_stale` (edits): the installed skill changed after the proposal captured its base.
-6. `daily_cap`: the instance already has 3 automatic approvals in the current UTC day. The cap is
-   fixed; reverting an automatic approval does not give its slot back.
+6. `daily_cap`: the instance has reached 3 automatic approvals in the current UTC day or the
+   runtime is still confirming an approval committed that day. Reverting an approval keeps it in
+   the count.
 7. `install_failed`: the install itself failed.
 
 An eligible proposal returns `state: "approved"` with `decided_via: "auto_approve"` and is installed

@@ -47,6 +47,8 @@ type SkillProposalService struct {
 	Locks *SkillInstallLocks
 	// AutoApprove reads an instance's skill auto-approve toggle; nil reads every toggle as off.
 	AutoApprove SkillAutoApproveReader
+	// SkillNameInUse reports a name already present in the instance's skill catalog.
+	SkillNameInUse func(context.Context, Instance, string) (bool, error)
 	// Now is the clock of install-log commit times and of the daily cap's UTC day; nil is time.Now.
 	Now func() time.Time
 	// crashAt is a test seam: returning true at a named transaction step stops the transaction there

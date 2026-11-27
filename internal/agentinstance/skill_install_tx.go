@@ -198,6 +198,9 @@ func (s *SkillProposalService) runSkillOp(ctx context.Context, t *skillTarget, o
 	// Once the swap starts, finish or recover the recorded operation even if the caller leaves.
 	entry, err := tx.commit(context.WithoutCancel(ctx))
 	if err != nil {
+		if entry.DecidedVia == skillDecidedViaAutoApprove && errors.Is(err, errSkillCommitUncertain) {
+			s.installLocks().markUnprojected(entry.InstanceID, entry.ReviewID, entry.At)
+		}
 		return SkillInstallResult{}, tx.abort(ctx, err)
 	}
 	if s.crashed("published") {
@@ -423,7 +426,7 @@ func (s *SkillProposalService) projectSkillInstall(ctx context.Context, entry sk
 	}
 	if err := s.Store.ProjectApproval(ctx, *entry.Current, entry.InstalledDigest, previous, entry.At); err != nil {
 		if entry.DecidedVia == skillDecidedViaAutoApprove {
-			s.installLocks().markUnprojected(entry.InstanceID, entry.ReviewID)
+			s.installLocks().markUnprojected(entry.InstanceID, entry.ReviewID, entry.At)
 		}
 		return fmt.Errorf("project skill install %s: %w", entry.OpID, err)
 	}

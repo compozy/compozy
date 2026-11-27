@@ -177,6 +177,8 @@ func TestSkillAutoApprove(t *testing.T) {
 		t.Parallel()
 		script := SkillDraftFile{Path: "scripts/check.sh", Content: "#!/bin/sh\necho check\n"}
 		mcp := SkillDraftFile{Path: "mcp.json", Content: `{"mcpServers":{"linear":{"command":"echo"}}}`}
+		mixedCaseMCP := SkillDraftFile{Path: "Mcp.JSON", Content: mcp.Content}
+		mixedCaseScript := SkillDraftFile{Path: "Scripts/check.sh", Content: script.Content}
 		hook := SkillDraftFile{
 			Path:    "extra/SKILL.md",
 			Content: "---\nname: extra\ndescription: Extra\nmetadata:\n  compozy:\n    hooks:\n      - event: x\n---\n\nbody",
@@ -190,6 +192,12 @@ func TestSkillAutoApprove(t *testing.T) {
 		}{
 			{name: "Should skip a new skill with a script (a)",
 				input: autoInput(autoSkillName, "body\n", SkillProposalNew, script), want: SkillAutoApproveRunsAutomatically},
+			{name: "Should skip a new skill with a mixed-case MCP sidecar",
+				input: autoInput(autoSkillName, "body\n", SkillProposalNew, mixedCaseMCP),
+				want:  SkillAutoApproveRunsAutomatically},
+			{name: "Should skip a new skill with a mixed-case scripts directory",
+				input: autoInput(autoSkillName, "body\n", SkillProposalNew, mixedCaseScript),
+				want:  SkillAutoApproveRunsAutomatically},
 			{name: "Should skip a body-only edit of a skill with a script (b)", base: []SkillDraftFile{script},
 				input: autoInput(autoSkillName, "new body\n", SkillProposalEdit), want: SkillAutoApproveRunsAutomatically},
 			{name: "Should skip a body-only edit of a skill with an MCP file (c)", base: []SkillDraftFile{mcp},
@@ -474,6 +482,7 @@ func TestSkillAutoApprove(t *testing.T) {
 		f, toggle := newSkillTxFixture(t), &autoApproveToggle{}
 		toggle.on.Store(true)
 		svc := f.autoService(t, toggle)
+		fixedClock(svc, "2026-11-22T23:59:59Z")
 		requireAutoApproved(t, svc, f.proposeAuto(t, svc, autoInput("skill-one", "body\n", SkillProposalNew)))
 		requireAutoApproved(t, svc, f.proposeAuto(t, svc, autoInput("skill-two", "body\n", SkillProposalNew)))
 		uncertain := withHook(svc, func(step string) bool {
@@ -484,6 +493,8 @@ func TestSkillAutoApprove(t *testing.T) {
 		capped := f.proposeAuto(t, svc, autoInput("skill-four", "body\n", SkillProposalNew))
 		requireAutoSkipped(t, svc, capped, SkillAutoApproveDailyCapReached)
 		f.requireSkillAbsent(t, "skill-four")
+		fixedClock(svc, "2026-11-23T00:00:00Z")
+		requireAutoApproved(t, svc, f.proposeAuto(t, svc, autoInput("skill-five", "body\n", SkillProposalNew)))
 	})
 
 	t.Run("Should fail the cap closed while an automatic approval is unprojected [N-01]", func(t *testing.T) {

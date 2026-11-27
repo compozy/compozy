@@ -446,8 +446,9 @@ Enable it with `compozy agent instance skill-auto-approve on <agent>` or the **A
 switch on the agent's place. Only an operator can turn it on. The agent can turn it off.
 A proposal is then approved automatically
 only when its lesson has `high` confidence, the resulting skill runs nothing automatically (no hooks,
-MCP servers or scripts, counting files kept from the installed skill), an edit changes a skill that
-agent installed and that nobody changed since, and the agent has had fewer than 3 automatic approvals
+MCP servers or scripts, counting files kept from the installed skill), the name is free in the
+skill catalog or the edit matches an unchanged skill that the instance installed, and the
+instance has had fewer than 3 automatic approvals
 today (UTC). Anything else stays pending and says why in `auto_approve_skipped`. List automatic
 approvals with `compozy agent skill review list --decided-via auto_approve` and revert any of them.
 

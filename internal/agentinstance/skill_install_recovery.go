@@ -271,6 +271,10 @@ func (p *skillRecoveryPolicy) finishRollback(journal dirpublish.Journal, payload
 	if err := dirpublish.RemoveJournal(p.t.parent, p.t.name); err != nil {
 		return dirpublish.RecoveryError("remove rolled back skill journal", err)
 	}
+	if marker := payload.NextMarker; marker != nil &&
+		marker.HomeID == p.s.HomeID && marker.DecidedVia == skillDecidedViaAutoApprove {
+		p.s.installLocks().clearUnprojected(marker.InstanceID, marker.ReviewID)
+	}
 	p.logged(payload, "rolled_back")
 	return nil
 }

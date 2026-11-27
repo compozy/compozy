@@ -16,6 +16,8 @@ charter:
     - "Turning on prints 'Skill auto-approve is on for <agent>.'; with agent identity on fails skill_auto_approve_operator_only."
     - "Three eligible proposals return approved with decided_via auto_approve; the fourth stays pending with daily_cap."
     - "Low confidence → low_confidence; a draft with scripts → runs_automatically."
+    - "Reserved paths with mixed casing still count as automatic content. A name already in the skill catalog stays pending with operator_authored_skill."
+    - "An approval with an unconfirmed commit counts on its UTC day. At midnight the new day's quota is available."
     - "list --decided-via auto_approve lists exactly the automatic approvals; Web card 'Approved automatically: <name>. It's active now.'; screenshot."
     - "Revert of an automatic approval removes the skill and does not refund the cap (a fifth eligible proposal still waits with daily_cap)."
 ```

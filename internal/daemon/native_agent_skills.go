@@ -65,6 +65,9 @@ func (n *daemonNativeTools) agentSkillPropose(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if response.Review.DecidedVia == "auto_approve" {
+		return structuredResult(response, "Skill approved automatically")
+	}
 	return structuredResult(response, "Skill proposed for operator review")
 }
 
