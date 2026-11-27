@@ -389,6 +389,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueString,
 		},
 		{
+			name: "Should allow shell session computer layout mutation",
+			path: "shell.sessions.computers",
+			kind: ConfigValueString,
+		},
+		{
 			name: "Should allow shell session scope mutation",
 			path: "shell.sessions.scope",
 			kind: ConfigValueString,

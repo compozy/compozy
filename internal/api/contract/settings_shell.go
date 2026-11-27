@@ -19,11 +19,19 @@ const (
 	SettingsShellSessionScopeAllWorkspaces SettingsShellSessionScope = "all-workspaces"
 )
 
+type SettingsShellSessionComputers string
+
+const (
+	SettingsShellSessionComputersTogether SettingsShellSessionComputers = "together"
+	SettingsShellSessionComputersSeparate SettingsShellSessionComputers = "separate"
+)
+
 // SettingsShellSessionsPayload carries persistent session-list preferences.
 type SettingsShellSessionsPayload struct {
-	GroupBy SettingsShellSessionGroupBy `json:"group_by,omitempty"`
-	Sort    SettingsShellSessionSort    `json:"sort,omitempty"`
-	Scope   SettingsShellSessionScope   `json:"scope,omitempty"`
+	Computers *SettingsShellSessionComputers `json:"computers,omitempty"`
+	GroupBy   SettingsShellSessionGroupBy    `json:"group_by,omitempty"`
+	Sort      SettingsShellSessionSort       `json:"sort,omitempty"`
+	Scope     SettingsShellSessionScope      `json:"scope,omitempty"`
 }
 
 // SettingsShellTextSize is a named step that scales every shell text size together.

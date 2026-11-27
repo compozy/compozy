@@ -10486,6 +10486,7 @@ export type SettingsShellResponse = {
 };
 
 export type SettingsShellSessionsPayload = {
+  computers?: "together" | "separate";
   group_by?: "none" | "project" | "profile";
   scope?: "workspace" | "all-workspaces";
   sort?: "created" | "name" | "last_activity" | "attention" | "manual";

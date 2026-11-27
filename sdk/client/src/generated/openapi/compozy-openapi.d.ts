@@ -19611,6 +19611,8 @@ export interface components {
       warnings: string[];
     };
     SettingsShellSessionsPayload: {
+      /** @enum {string|null} */
+      computers?: "together" | "separate" | null;
       /** @enum {string} */
       group_by?: "none" | "project" | "profile";
       /** @enum {string} */
