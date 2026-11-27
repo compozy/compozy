@@ -209,20 +209,29 @@ func TestSessionWorkSourcesChildrenSettledMetadata(t *testing.T) {
 	})
 }
 
-func TestChildSupervisionDeadline(t *testing.T) {
+// Invariant: a live turn counts immediately, and an idle child contributes only
+// the remaining lifetime of a genuine wait, even if progress or processes remain.
+func TestActiveChildWorkDeadline(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 11, 27, 0, 0, 0, 0, time.UTC)
 	until := now.Add(30 * time.Second)
 	for _, tc := range []struct {
-		name    string
-		signals []session.WorkSignal
-		want    time.Time
+		name      string
+		prompting bool
+		signals   []session.WorkSignal
+		want      time.Time
 	}{
 		{
-			name: "Should ignore recent progress from a settled turn",
+			name:      "Should count a child with a live turn before its first update",
+			prompting: true,
+			want:      until,
+		},
+		{
+			name: "Should ignore recent progress and a retained tool after a turn",
 			signals: []session.WorkSignal{
 				{Kind: session.WorkSignalAgentProgress, Since: now, ValidUntil: until},
+				{Kind: session.WorkSignalToolRunning, Since: now, ValidUntil: until},
 			},
 		},
 		{
@@ -243,9 +252,13 @@ func TestChildSupervisionDeadline(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := childSupervisionDeadline(&session.SupervisionState{WorkSignals: tc.signals}, until)
+			info := &session.Info{
+				Prompting:   tc.prompting,
+				Supervision: &session.SupervisionState{WorkSignals: tc.signals},
+			}
+			got := activeChildWorkDeadline(info, until)
 			if !got.Equal(tc.want) {
-				t.Fatalf("childSupervisionDeadline() = %v, want %v", got, tc.want)
+				t.Fatalf("activeChildWorkDeadline() = %v, want %v", got, tc.want)
 			}
 		})
 	}

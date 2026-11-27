@@ -127,7 +127,7 @@ function workingSessionCard(session: SessionPayload, sessionsAtMs: number): Home
         ? sessionBadgeSignal(session.badge, session.waiting_on).displayLabel
         : activity?.current_tool?.trim()
           ? `Running ${activity.current_tool}`
-          : "Working",
+          : "Working on the current turn",
     elapsedBaseSeconds: elapsedSecondsSince(
       Math.floor(sessionsAtMs / 1000),
       activity?.turn_started_at ?? session.created_at ?? ""

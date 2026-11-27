@@ -78,8 +78,8 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		until := now.Add(2 * toolruntime.SweepInterval)
 		switch info.State {
 		case session.StateStarting, session.StateActive:
-			if info.State == session.StateActive && !info.Prompting {
-				until = childSupervisionDeadline(info.Supervision, until)
+			if info.State == session.StateActive {
+				until = activeChildWorkDeadline(info, until)
 				if !until.After(now) {
 					continue
 				}
@@ -110,12 +110,15 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 	return result, nil
 }
 
-func childSupervisionDeadline(state *session.SupervisionState, limit time.Time) time.Time {
+func activeChildWorkDeadline(info *session.Info, limit time.Time) time.Time {
+	if info.Prompting {
+		return limit
+	}
 	var latest time.Time
-	if state != nil {
-		for _, signal := range state.WorkSignals {
-			// Progress can outlive the turn that produced it.
-			if signal.Kind != session.WorkSignalAgentProgress && signal.ValidUntil.After(latest) {
+	if info.Supervision != nil {
+		for _, signal := range info.Supervision.WorkSignals {
+			// A finished turn can leave progress or a background terminal behind.
+			if session.WaitingOnFor([]session.WorkSignal{signal}) != "" && signal.ValidUntil.After(latest) {
 				latest = signal.ValidUntil
 			}
 		}

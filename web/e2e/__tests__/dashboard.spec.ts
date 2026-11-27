@@ -285,8 +285,9 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
     throw new Error("Home workspace switching requires launch-mode runtime paths.");
   }
 
-  const { workspace, sessionId } = await prepareHomeRuntime(runtime);
-  await promptDashboardSession(runtime, workspace.id, sessionId, "wait for dashboard monitor");
+  const { workspace, sessionId: parentId } = await prepareHomeRuntime(runtime);
+  const child = await createDashboardSession(runtime, workspace.id, "Monitored child", parentId);
+  await promptDashboardSession(runtime, workspace.id, child.id, "wait for dashboard monitor");
   await ensureProjectWorkspace(appPage, runtime);
   const betaRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-home-workspace-beta-"));
   const beta = await runtime.resolveWorkspace(betaRoot);
@@ -308,9 +309,25 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
   home = await ensureAppWindow(appPage, "Dashboard", "dashboard");
   await expect(home.locator('[data-slot="home-page-meta"]')).not.toContainText("project");
   await expect(home.getByTestId("home-first-run")).toHaveCount(0);
-  await expect
-    .poll(async () => Number(await homeMetricValue(home, "Working now").textContent()))
-    .toBeGreaterThan(0);
+  await expect(homeMetricValue(home, "Working now")).toHaveText("2");
+  const workCards = home.locator('[data-slot="home-run-card"]');
+  await expect(workCards.filter({ hasText: "Monitoring" })).toHaveCount(1);
+  await expect(workCards.filter({ hasText: "Waiting on sessions" })).toHaveCount(1);
+
+  // The child has already finished its turn. Canceling the monitor removes the
+  // only reason for either session to remain in Working now.
+  const monitors = `${dashboardSessionPath(workspace.id, child.id)}/monitors`;
+  const registered =
+    await runtime.requestJSON<OperationResponse<"listSessionMonitors", 200>>(monitors);
+  const timer = registered.monitors.find(monitor => monitor.kind === "timer");
+  if (!timer) throw new Error("Expected the child to arm a timer monitor.");
+  expect(timer.status).toBe("active");
+  await runtime.requestJSON(`${monitors}/${encodeURIComponent(timer.monitor_id)}/cancel`, {
+    method: "POST",
+    body: "{}",
+  });
+  await expect(homeMetricValue(home, "Working now")).toHaveText("0", { timeout: 35_000 });
+  await expect(workCards).toHaveCount(0);
 });
 
 async function prepareHomeRuntime(
@@ -337,7 +354,8 @@ async function prepareHomeRuntime(
 async function createDashboardSession(
   runtime: BrowserRuntime,
   workspaceId: string,
-  name?: string
+  name?: string,
+  parentId?: string
 ): Promise<SessionSummary> {
   const { session } = await runtime.requestJSON<{ session: SessionSummary }>("/api/sessions", {
     method: "POST",
@@ -345,9 +363,14 @@ async function createDashboardSession(
       agent_name: homeAgentAlpha,
       workspace: workspaceId,
       name,
+      parent_session_id: parentId,
     }),
   });
   return session;
+}
+
+function dashboardSessionPath(workspaceId: string, sessionId: string): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}`;
 }
 
 async function promptDashboardSession(
@@ -356,16 +379,18 @@ async function promptDashboardSession(
   sessionId: string,
   message: string
 ): Promise<void> {
-  const endpoint = `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`;
-  const response = await fetch(runtime.url(endpoint), {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      message,
-      message_id: randomUUID(),
-      idempotency_key: randomUUID(),
-    }),
-  });
+  const response = await fetch(
+    runtime.url(`${dashboardSessionPath(workspaceId, sessionId)}/prompt`),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        message,
+        message_id: randomUUID(),
+        idempotency_key: randomUUID(),
+      }),
+    }
+  );
   if (!response.ok) {
     throw new Error(`Dashboard prompt failed with ${response.status}: ${await response.text()}`);
   }

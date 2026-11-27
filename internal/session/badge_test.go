@@ -279,10 +279,7 @@ func TestWaitingBadgePrecedenceAndReasons(t *testing.T) {
 				Supervision:         &SupervisionState{WorkSignals: signals},
 			}
 			badge := BadgeDone
-			switch {
-			case WorkSignalKind(kind) == WorkSignalToolRunning:
-				badge = BadgeRunning
-			case want != "":
+			if want != "" {
 				badge = BadgeWaiting
 			}
 			if got := BadgeForInfo(info); got != badge {
