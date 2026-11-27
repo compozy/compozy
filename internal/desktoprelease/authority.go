@@ -51,7 +51,8 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 			return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 		}
 	}
-	verified, err := a.publishAndVerifyInventory(ctx, request.AssetDir, request.Version, request.WithoutWindows)
+	withoutWindows := request.WithoutWindows != nil && *request.WithoutWindows
+	verified, err := a.publishAndVerifyInventory(ctx, request.AssetDir, request.Version, withoutWindows)
 	if err != nil {
 		return OperatorResult{}, err
 	}
@@ -64,7 +65,7 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 		request.AssetDir,
 		a.backend.Repository(),
 		generation,
-		request.WithoutWindows,
+		withoutWindows,
 	)
 	if err != nil {
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
@@ -93,7 +94,7 @@ func (a *Authority) resumePublish(
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 	}
 	_, hasWindows := existing.Files[path.Join(ChannelDirectory, ManifestWindows)]
-	if hasWindows == request.WithoutWindows {
+	if request.WithoutWindows != nil && hasWindows == *request.WithoutWindows {
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed,
 			errors.New("desktop release: existing publication uses a different Windows release setting"))
 	}

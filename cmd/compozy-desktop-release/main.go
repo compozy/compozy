@@ -55,16 +55,23 @@ func run(ctx context.Context, args []string) error {
 }
 
 func runPublish(ctx context.Context, args []string) error {
+	const withoutWindowsFlag = "without-windows"
 	flags := newFlagSet("publish")
 	common := addAuthorityFlags(flags)
 	assetDir := flags.String("asset-dir", "", "directory containing the exact desktop release inventory")
 	channelDir := flags.String("channel-dir", "", "directory containing merged updater manifests")
-	withoutWindows := flags.Bool("without-windows", false, "exclude Windows desktop packages and the update manifest")
+	withoutWindows := flags.Bool(withoutWindowsFlag, false, "exclude Windows desktop packages and the update manifest")
 	return runAuthorityCommand(args, flags, common, func(authority *desktoprelease.Authority) (any, error) {
-		return authority.Publish(ctx, desktoprelease.PublishRequest{
+		request := desktoprelease.PublishRequest{
 			OperationID: common.operationID, Channel: common.channel, Version: common.version,
-			AssetDir: *assetDir, ChannelDir: *channelDir, PublishedAt: time.Now(), WithoutWindows: *withoutWindows,
+			AssetDir: *assetDir, ChannelDir: *channelDir, PublishedAt: time.Now(),
+		}
+		flags.Visit(func(item *flag.Flag) {
+			if item.Name == withoutWindowsFlag {
+				request.WithoutWindows = withoutWindows
+			}
 		})
+		return authority.Publish(ctx, request)
 	})
 }
 

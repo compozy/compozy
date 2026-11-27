@@ -37,13 +37,14 @@ type AuthorityBackend interface {
 }
 
 type PublishRequest struct {
-	OperationID    string
-	Channel        string
-	Version        string
-	AssetDir       string
-	ChannelDir     string
-	PublishedAt    time.Time
-	WithoutWindows bool
+	OperationID string
+	Channel     string
+	Version     string
+	AssetDir    string
+	ChannelDir  string
+	PublishedAt time.Time
+	// A nil value includes Windows on a new publish and accepts the recorded inventory on retry.
+	WithoutWindows *bool
 }
 
 type RepairRequest struct {

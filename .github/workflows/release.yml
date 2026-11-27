@@ -1585,11 +1585,11 @@ jobs:
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
           set -euo pipefail
-          publish_flags=()
-          expected_inventory=9
-          if [[ "${WINDOWS_DESKTOP_RELEASE}" != "true" ]]; then
-            publish_flags+=(--without-windows)
-            expected_inventory=7
+          without_windows=true
+          expected_inventory=7
+          if [[ "${WINDOWS_DESKTOP_RELEASE}" == "true" ]]; then
+            without_windows=false
+            expected_inventory=9
           fi
           go run ./cmd/compozy-desktop-release publish \
             --operation-id "desktop-release-${RELEASE_VERSION}-publish" \
@@ -1598,7 +1598,8 @@ jobs:
             --repository "${GITHUB_REPOSITORY}" \
             --asset-dir .artifacts/authority \
             --channel-dir .artifacts/channel \
-            -o json "${publish_flags[@]}" \
+            --without-windows="${without_windows}" \
+            -o json \
             | tee .artifacts/channel-publish-result.json
           jq -e --argjson expected "${expected_inventory}" '
             .operation == "publish" and

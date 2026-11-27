@@ -323,7 +323,7 @@ func TestChannelAuthority(t *testing.T) {
 		assetDir, channelDir := writeReleaseFixtureForPlatforms(t, version, previous, true)
 		request := PublishRequest{
 			OperationID: "publish-without-windows", Channel: ChannelBeta, Version: version,
-			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(), WithoutWindows: true,
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(), WithoutWindows: new(true),
 		}
 
 		result, err := authority.Publish(t.Context(), request)
@@ -345,7 +345,7 @@ func TestChannelAuthority(t *testing.T) {
 		if err != nil || retry.Outcome != "already_completed" || retry.ChannelRefAfter != result.ChannelRefAfter {
 			t.Fatalf("Publish(retry) = %#v, %v, want already completed at %s", retry, err, result.ChannelRefAfter)
 		}
-		request.WithoutWindows = false
+		request.WithoutWindows = new(false)
 		if _, err := authority.Publish(t.Context(), request); CodeOf(err) != ErrorVerificationFailed {
 			t.Fatalf("Publish(retry with Windows) = %v, want verification failure", err)
 		}
