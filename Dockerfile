@@ -14,6 +14,8 @@ COPY internal/remoteproto ./internal/remoteproto
 COPY internal/redact ./internal/redact
 COPY packages/brand/cloud_assets.go ./packages/brand/cloud_assets.go
 COPY packages/brand/public/brand/visuals/swarm-1280.jpg packages/brand/public/brand/visuals/swarm-portrait-1280.jpg ./packages/brand/public/brand/visuals/
+COPY packages/brand/public/brand/visuals/cone-1280.jpg packages/brand/public/brand/visuals/cone-portrait-1280.jpg ./packages/brand/public/brand/visuals/
+COPY packages/brand/public/brand/visuals/converge-1280.jpg packages/brand/public/brand/visuals/converge-portrait-1280.jpg ./packages/brand/public/brand/visuals/
 COPY packages/brand/public/brand/svg/compozy-wordmark-white.svg ./packages/brand/public/brand/svg/
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
     go build -trimpath -ldflags="-s -w -X main.cloudRevision=$(cat cloud-revision.txt)" -o /out/compozy-cloud ./cmd/compozy-cloud

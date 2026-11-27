@@ -5,9 +5,14 @@ package api
 import (
 	"fmt"
 	"maps"
+	"mime"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/cloud/auth"
 )
 
 const (
@@ -26,6 +31,52 @@ type AccountLimiter struct {
 	windows   map[string]accountWindow
 	nextSweep time.Time
 	now       func() time.Time
+}
+
+func LimitSignIn(
+	service *auth.Service, scope auth.SignInRate, next http.HandlerFunc,
+	rejectPage func(http.ResponseWriter, *http.Request, error),
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := service.LimitSignIn(r, scope); err != nil {
+			if rejectPage != nil {
+				w.Header().Add("Vary", "Accept")
+				if prefersSignInHTML(r.Header.Values("Accept")) {
+					rejectPage(w, r, err)
+					return
+				}
+			}
+			WriteAuthError(w, err)
+			return
+		}
+		next(w, r)
+	}
+}
+
+func prefersSignInHTML(accept []string) bool {
+	var html, json float64
+	for _, field := range accept {
+		for item := range strings.SplitSeq(field, ",") {
+			media, params, err := mime.ParseMediaType(item)
+			if err != nil {
+				continue
+			}
+			quality := 1.0
+			if value, ok := params["q"]; ok {
+				quality, err = strconv.ParseFloat(value, 64)
+				if err != nil || !(quality > 0 && quality <= 1) {
+					continue
+				}
+			}
+			switch media {
+			case "text/html":
+				html = max(html, quality)
+			case jsonType:
+				json = max(json, quality)
+			}
+		}
+	}
+	return html > json
 }
 
 func NewAccountLimiter(now func() time.Time) *AccountLimiter {

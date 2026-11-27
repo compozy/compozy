@@ -21,7 +21,7 @@ An optional `retired` list identifies revoked signing key IDs. The cloud omits t
 
 The policy decides whether the sign-in gate is enforced or has a temporary grace period. Its `until` is UTC in RFC 3339 format for grace and `null` for enforcement. `iat` is a Unix timestamp in seconds. Verify the signature against the cloud JWKS before applying grace, and check that its deadline is still in the future.
 
-A replica that is draining or unavailable can return `503 cloud_unavailable`. Account-scoped writes can return `429 rate_limited`. Both responses include `Retry-After` in seconds.
+A replica that is draining or unavailable can return `503 cloud_unavailable`. Sign-in requests and account-scoped writes can return `429 rate_limited`. Both responses include `Retry-After` in seconds.
 
 ## Device sign-in
 
@@ -37,7 +37,13 @@ A replica that is draining or unavailable can return `503 cloud_unavailable`. Ac
 
 Check the displayed code, computer name, and request location before continuing. The displayed code expires after 15 minutes. Start polling after five seconds and add five seconds to the interval when the service returns `slow_down`. Enrollment tokens expire after five minutes.
 
+Both cloud replicas share sign-in quotas by client IP. You can start 10 device flows per hour. Activation and OAuth callbacks share 30 requests per 10 minutes. Browser authorization and billing sign-in each allow 30 requests per 10 minutes.
+
+Sign-in pages show a recovery page when the request prefers HTML. The page carries `data-error-code="rate_limited"` and the response includes `Retry-After`. Device flow and programmatic requests receive the JSON error.
+
 Send enrollment and refresh credentials in the `Authorization` header and use the `DPoP` header for the proof. An access token lasts 15 minutes. For access-token calls, the proof includes the token hash in `ath`. Keep the device code, enrollment token, and session credentials private.
+
+If the refresh response is lost, retry with the same refresh credential and a new proof from the same device key. For two minutes, the cloud returns the same replacement refresh credential while it is still current and the account security epoch is unchanged. Reusing a replaced credential after that window, a further rotation, or an epoch change revokes the session.
 
 Google and GitHub sign-ins link when their verified email addresses match. If the account has lost its active admins, choose **Recover admin access** on the Google activation page and authenticate again. Open the activation link in a private window if Google reuses an earlier sign-in.
 
@@ -93,9 +99,9 @@ Checkout and the portal return a `url`. Account reads return `payment_issue` and
 
 Opening another Checkout expires the account's previous open Checkout. If Stripe has already accepted the payment, the cloud records the subscription and reports `already_pro` for an active Pro plan.
 
-Set `COMPOZY_CLOUD_STRIPE_SECRET_KEY`, `COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO_ANNUAL`, and `STRIPE_PRICE_PRO_MONTHLY` on the cloud service. Use the same Stripe mode for the API key, prices, and webhook endpoint. Configure Managed Payments and enable monthly and annual switching, payment method updates, and period-end cancellation in the Customer Portal. Configure Smart Retries to cancel the subscription after the final attempt.
+Set `COMPOZY_CLOUD_STRIPE_SECRET_KEY`, `COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO_ANNUAL`, and `STRIPE_PRICE_PRO_MONTHLY` on the cloud service. Set `COMPOZY_CLOUD_STRIPE_PORTAL_CONFIG_ID` to the dedicated Customer Portal configuration ID for that environment. Use the same Stripe mode for the API key, prices, webhook endpoint, and portal configuration. Configure Managed Payments and enable monthly and annual switching, payment method updates, and period-end cancellation in the Customer Portal. Configure Smart Retries to cancel the subscription after the final attempt.
 
-Deliver `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `checkout.session.completed`, and `checkout.session.expired` to the signed webhook endpoint. Every six hours, the cloud reconciles Stripe subscriptions that were last synced before that window, skipping subscriptions that had already ended before it began.
+Deliver `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `checkout.session.completed`, and `checkout.session.expired` to the signed webhook endpoint. Compozy Cloud acknowledges events for other Stripe products without changing its billing records. A lifecycle update or reconciliation removes the entitlement when an existing Compozy Pro subscription moves off the configured prices. Every six hours, the cloud reconciles Stripe subscriptions that were last synced before that window, skipping subscriptions that had already ended before it began.
 
 ## Computer authentication and control
 

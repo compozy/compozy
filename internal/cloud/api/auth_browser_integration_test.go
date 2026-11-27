@@ -13,15 +13,52 @@ import (
 	"encoding/json/v2"
 	"net/http"
 	"net/url"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud"
 	"github.com/compozy/compozy/internal/cloud/auth"
+	"github.com/compozy/compozy/internal/cloud/cloudflare"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
 
 func TestCloudBrowserSignIn(t *testing.T) {
 	t.Parallel()
+
+	for _, test := range []struct{ name, hosted, other string }{
+		{"Should scope production sign-in forms to the requested production host", cloudflare.ProductionDomain, cloudflare.StagingDomain},
+		{"Should scope staging sign-in forms to the requested staging host", cloudflare.StagingDomain, cloudflare.ProductionDomain},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			f := newAuthFixtureWithReplica(
+				t,
+				func(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *remotetest.Replica {
+					cfg.Auth.HostedDomain = test.hosted
+					return remotetest.StartReplica(t, cfg, register)
+				},
+			)
+			form := browserForm(t)
+			host := "testbox-a1b2." + test.hosted
+			form.Set("hostname", host)
+			page := f.request(t, http.MethodGet, browserAuthorizePath+"?"+form.Encode(), nil)
+			assertTurnstileFailure(t, page)
+			formOrigins := []string{"'self'", "https://accounts.google.com", "https://github.com", f.provider.Origin}
+			assertCSPDirective(t, page, "form-action", append(formOrigins, "https://"+host))
+			assertCSPDirective(t, page, "frame-src", []string{"https://challenges.cloudflare.com"})
+			other := "testbox-a1b2." + test.other
+			form.Set("hostname", other)
+			refused := f.request(t, http.MethodGet, browserAuthorizePath+"?"+form.Encode(), nil)
+			refused.expect(t, http.StatusBadRequest, "invalid_request")
+			assertCSPDirective(t, refused, "form-action", formOrigins)
+			if strings.Contains(refused.Header.Get("Content-Security-Policy"), other) {
+				t.Fatal("sign-in CSP allowed a host from the other environment")
+			}
+		})
+	}
 
 	t.Run(
 		"Should fail closed before persisting OAuth or pending keys when Turnstile fails (UT-130)",
@@ -215,6 +252,26 @@ func redeemBrowser(
 	}
 	return callAuth(t, f.replica, http.MethodPost, remoteproto.BrowserRedemptionPath, input, nil,
 		map[string]string{remoteproto.ComputerProofHeader: proof})
+}
+
+func assertCSPDirective(t *testing.T, response authReply, directive string, want []string) {
+	t.Helper()
+	policy := response.Header.Get("Content-Security-Policy")
+	for rule := range strings.SplitSeq(policy, ";") {
+		tokens := strings.Fields(rule)
+		if len(tokens) == 0 || tokens[0] != directive {
+			continue
+		}
+		sources := tokens[1:]
+		slices.Sort(sources)
+		expected := slices.Clone(want)
+		slices.Sort(expected)
+		if !slices.Equal(slices.Compact(sources), expected) {
+			t.Fatalf("CSP %s sources = %v, want %v", directive, sources, expected)
+		}
+		return
+	}
+	t.Fatalf("CSP is missing %s", directive)
 }
 
 func browserForm(t *testing.T) url.Values {

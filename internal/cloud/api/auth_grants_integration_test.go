@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/cloud/auth"
+	"github.com/compozy/compozy/internal/cloud/billing"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
@@ -21,6 +22,109 @@ const pollPath = deviceFlowPath + "/token"
 
 func TestCloudDeviceGrant(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should enforce the device-flow quota across replicas and clear expired windows", func(t *testing.T) {
+		t.Parallel()
+		f := newAuthFixture(t)
+		peer := f.cfg
+		peer.Postgres = f.db.Config(t, "rate2")
+		second := remotetest.StartReplica(t, peer, registerAuthProbe)
+		input := remoteproto.DeviceFlowRequest{
+			InstallationID: testInstallation, ClientName: "MacBook Pro", ClientPlatform: "macOS",
+		}
+		headers := map[string]string{"X-Compozy-Client-IP": "192.0.2.9"}
+		replicas := []*remotetest.Replica{f.replica, second}
+		for i := range 10 {
+			callAuth(t, replicas[i%len(replicas)], http.MethodPost, deviceFlowPath, input, nil, headers).
+				expect(t, http.StatusOK, "device_code")
+		}
+		headers["X-Compozy-Client-IP"] = "::ffff:192.0.2.9"
+		headers["X-Forwarded-For"] = "192.0.2.10"
+		limited := callAuth(t, second, http.MethodPost, deviceFlowPath, input, nil, headers)
+		assertSignInRateLimited(t, limited, "3600")
+		assertAuthRow(t, f, "SELECT count(*) FROM device_grants", 10)
+		headers["X-Compozy-Client-IP"] = "192.0.2.10"
+		callAuth(t, f.replica, http.MethodPost, deviceFlowPath, input, nil, headers).
+			expect(t, http.StatusOK, "device_code")
+
+		f.clock.Advance(time.Hour)
+		if err := f.replica.App.Auth.Sweep(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		assertAuthRow(t, f, "SELECT count(*) FROM auth_ip_rate_windows", 0)
+		headers["X-Compozy-Client-IP"] = "192.0.2.9"
+		callAuth(t, second, http.MethodPost, deviceFlowPath, input, nil, headers).
+			expect(t, http.StatusOK, "device_code")
+	})
+
+	t.Run("Should rate limit activation, callbacks, browser authorization and purchase sign-in", func(t *testing.T) {
+		t.Parallel()
+		f := newAuthFixture(t)
+		for range 30 {
+			f.request(t, http.MethodGet, activatePath, nil).expect(t, http.StatusOK, "Sign in to CompozyOS")
+		}
+		for _, path := range []string{activatePath, "/v1/auth/callback/google", "/v1/auth/callback/github"} {
+			assertSignInRateLimited(t, f.request(t, http.MethodGet, path, nil), "600")
+		}
+		assertSignInRateLimited(t, f.request(t, http.MethodPost, activatePath, nil), "600")
+
+		purchaseSignIn := billing.UpgradePath + "/sign-in"
+		for range 30 {
+			f.request(t, http.MethodGet, browserAuthorizePath, nil).expect(t, http.StatusBadRequest, "invalid_request")
+			f.request(t, http.MethodPost, purchaseSignIn, nil).expect(t, http.StatusBadRequest, "invalid_request")
+		}
+		assertSignInRateLimited(t, f.request(t, http.MethodGet, browserAuthorizePath, nil), "600")
+		assertSignInRateLimited(t, f.request(t, http.MethodPost, browserAuthorizePath, nil), "600")
+		assertSignInRateLimited(t, f.request(t, http.MethodPost, purchaseSignIn, nil), "600")
+
+		for _, test := range []struct{ name, accept string }{
+			{"Should return JSON when it has the higher quality value", "application/json, text/html;q=0.5"},
+			{"Should return JSON when HTML has a quality value of zero", "text/html;q=0"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				headers := map[string]string{"Accept": test.accept}
+				reply := callAuth(t, f.replica, http.MethodGet, activatePath, nil, nil, headers)
+				assertSignInRateLimited(t, reply, "600")
+			})
+		}
+		browser := browserForm(t)
+		html := map[string]string{"Accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
+		for _, test := range []struct {
+			name, method, path, recovery string
+			form                         url.Values
+		}{
+			{"Should show the activation form on GET", http.MethodGet, activatePath, `action="/activate"`, nil},
+			{"Should show the activation form on POST", http.MethodPost, activatePath, `action="/activate"`, nil},
+			{
+				"Should show the activation form after an OAuth callback", http.MethodGet,
+				"/v1/auth/callback/google", `action="/activate"`, nil,
+			},
+			{
+				"Should link to retry browser authorization on GET", http.MethodGet,
+				browserAuthorizePath + "?" + browser.Encode(), `href="/v1/browser/authorize?`, nil,
+			},
+			{
+				"Should link to retry browser authorization on POST", http.MethodPost,
+				browserAuthorizePath, `href="/v1/browser/authorize?`, browser,
+			},
+			{
+				"Should link to the selected billing interval", http.MethodPost,
+				purchaseSignIn, `href="/billing/upgrade?interval=month"`, url.Values{"interval": {"month"}},
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				page := callAuth(t, f.replica, test.method, test.path, test.form, nil, html)
+				page.expect(t, http.StatusTooManyRequests, `data-error-code="rate_limited"`)
+				page.expect(t, http.StatusTooManyRequests, test.recovery)
+				if got := page.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/html") {
+					t.Errorf("Content-Type = %q, want HTML", got)
+				}
+				if got := page.Header.Get("Retry-After"); got != "600" {
+					t.Errorf("Retry-After = %q, want 600", got)
+				}
+			})
+		}
+	})
 
 	t.Run("Should bind activation and redeem a grant once (UT-117)", func(t *testing.T) {
 		t.Parallel()
@@ -160,6 +264,14 @@ func TestCloudDeviceGrant(t *testing.T) {
 		f.request(t, http.MethodGet, activatePath+"?user_code=wrong", nil, cookie).
 			expect(t, http.StatusBadRequest, "user_code_invalid")
 	})
+}
+
+func assertSignInRateLimited(t *testing.T, reply authReply, retryAfter string) {
+	t.Helper()
+	reply.expect(t, http.StatusTooManyRequests, `"code":"rate_limited"`)
+	if got := reply.Header.Get("Retry-After"); got != retryAfter {
+		t.Fatalf("Retry-After = %q, want %q", got, retryAfter)
+	}
 }
 
 func (f authFixture) startGrant(t *testing.T, provider string) remoteproto.DeviceFlowResponse {

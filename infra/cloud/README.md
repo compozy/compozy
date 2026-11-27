@@ -28,7 +28,7 @@ Use separate OAuth clients, Stripe prices and webhook secrets, Turnstile credent
 - Configure an invisible Turnstile widget for the cloud host. Set `COMPOZY_CLOUD_TURNSTILE_SITE_KEY` and `COMPOZY_CLOUD_TURNSTILE_SECRET_KEY` for the widget. The server checks the hostname and expects the actions `activate` and `browser_authorize`.
 - Set `COMPOZY_CLOUD_PKCE_ENC_KEY` to an unpadded base64url encoding of 32 random bytes. Both replicas in the environment use the same value for OAuth verifier and refresh credential encryption. Changing it invalidates outstanding provider callbacks and existing refresh credentials, so coordinate rotation across both replicas.
 
-Apply the cloud schema migration before enabling sign-in. Cloudflare supplies the request location and client IP to private replicas. The service stores the coarse location and uses the IP only for Turnstile verification.
+Apply the cloud schema migrations before enabling sign-in. Cloudflare supplies the request location and client IP to private replicas. The service stores the coarse location and uses a keyed hash of the client IP for rate limiting. Turnstile verification uses the client IP supplied by the Worker.
 
 ## Account email and metrics
 
@@ -42,19 +42,19 @@ To scrape account counts, set `COMPOZY_CLOUD_METRICS_TOKEN` and send it as a bea
 
 - Set `STRIPE_PRICE_PRO_MONTHLY` and `STRIPE_PRICE_PRO_ANNUAL` to the same environment's recurring Managed Payments prices. Supply `COMPOZY_CLOUD_STRIPE_SECRET_KEY` to the cloud containers.
 - Register `https://<cloud-host>/v1/billing/stripe-webhook` with Stripe and set `COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET` to that endpoint's signing secret. Subscribe it to `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, and `checkout.session.completed`.
-- Configure the Customer Portal to switch between both prices, update payment methods, and cancel at the end of the period. Configure Smart Retries to cancel after the final failed attempt.
+- Set `COMPOZY_CLOUD_STRIPE_PORTAL_CONFIG_ID` to the environment's dedicated Customer Portal configuration (`bpc_…`). Configure it to switch between both prices, update payment methods, and cancel at the end of the period. Configure Smart Retries to cancel after the final failed attempt.
 
 Apply the billing migration before starting the containers. Use test-mode Checkout to walk the standalone purchase and the retained-hostname purchase before enabling live billing.
 
-## Cloudflare rate limits
+## Sign-in rate limits
 
-Configure the following zone rules for the cloud host in each environment. Count requests by client IP.
+The Cloudflare zone rule blocks bursts above 10 requests per 10 seconds per IP and colocation. The Go service enforces the longer per-IP limits with fixed windows shared by both replicas in Postgres.
 
-| Expression                                                                                         | Threshold         |
-| -------------------------------------------------------------------------------------------------- | ----------------- |
-| `http.request.method eq "POST" and http.request.uri.path eq "/v1/device-flow"`                     | 10 per hour       |
-| `http.request.uri.path eq "/activate" or starts_with(http.request.uri.path, "/v1/auth/callback/")` | 30 per 10 minutes |
-| `http.request.uri.path eq "/v1/browser/authorize"`                                                 | 30 per 10 minutes |
-| `http.request.uri.path eq "/billing/upgrade/sign-in"`                                              | 30 per 10 minutes |
+| Routes                                         | Threshold                 |
+| ---------------------------------------------- | ------------------------- |
+| `POST /v1/device-flow`                         | 10 per hour               |
+| `/activate` and `/v1/auth/callback/{provider}` | 30 per 10 minutes, shared |
+| `/v1/browser/authorize`                        | 30 per 10 minutes         |
+| `POST /billing/upgrade/sign-in`                | 30 per 10 minutes         |
 
-Use a 429 response with the JSON code `rate_limited` and a `Retry-After` value in seconds. Exercise the zone limits and the Turnstile checks in `RT-sign-in-first-run.md` after the auth routes are integrated. Inside each replica, authenticated account writes share a 60-request allowance per account per minute.
+The service returns HTTP 429 with `Retry-After` in seconds until the window resets. The device-flow endpoint and programmatic requests receive the JSON code `rate_limited`. Sign-in pages render the recovery page with `data-error-code="rate_limited"` when the client prefers HTML. The auth cleanup task removes expired counters. Exercise both layers and the Turnstile checks in `RT-sign-in-first-run.md`. Inside each replica, authenticated account writes share a 60-request allowance per account per minute.

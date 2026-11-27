@@ -133,6 +133,86 @@ func billingAccount(t *testing.T, f authFixture, device remoteTestDevice) remote
 func TestCloudSubscriptionRefresh(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should acknowledge other products and customers without writing billing state", func(t *testing.T) {
+		t.Parallel()
+		f, stripe := newBillingFixture(t, nil)
+		owner := newBillingDevice(t, f, "shared-stripe@example.test")
+		now := f.clock.Now()
+		current := proStripeSub(now, "sub_compozy", owner.account)
+		current.Status = "past_due"
+		stripe.Put(current)
+		deliverStripeEvent(t, f, "evt_compozy", stripeSubCreated, current.ID)
+
+		foreign := proStripeSub(now, "sub_foreign", owner.account)
+		foreign.Price = "price_foreign"
+		stripe.Put(foreign)
+		for i, kind := range []string{
+			stripeSubCreated, stripeSubUpdated, stripeSubDeleted,
+			"invoice.paid", "invoice.payment_failed", "checkout.session.completed",
+		} {
+			deliverStripeEvent(t, f, fmt.Sprintf("evt_foreign_%d", i), kind, foreign.ID)
+		}
+		deliverStripeEvent(t, f, "evt_foreign_expiry", "checkout.session.expired", "cs_foreign")
+		deliverStripeEvent(t, f, "evt_foreign_missing", "invoice.paid", "sub_missing")
+
+		current.Status = "active"
+		stripe.Put(current)
+		wrongCustomer := fmt.Appendf(nil, `{"id":"evt_foreign_customer","type":"invoice.paid","data":{"object":
+			{"subscription":%q,"customer":"cus_foreign"}}}`, current.ID)
+		status, body, err := sendStripeEvent(t.Context(), f.replica, now, wrongCustomer)
+		if err != nil || status != http.StatusNoContent || body != "" {
+			t.Fatalf("foreign customer event: HTTP %d: %v", status, err)
+		}
+		account := billingAccount(t, f, owner)
+		if account.Plan != "pro" || !account.PaymentIssue {
+			t.Fatalf("foreign Stripe events altered the Compozy subscription: %+v", account.AccountPlan)
+		}
+		assertAuthRow(t, f, "SELECT count(*) FROM subscriptions", 1)
+		assertAuthRow(t, f, "SELECT count(*) FROM stripe_events", 1)
+	})
+
+	for _, test := range []struct {
+		name      string
+		reconcile bool
+	}{
+		{"Should retire a known Stripe subscription that leaves Pro pricing on a lifecycle update", false},
+		{"Should retire a known Stripe subscription that leaves Pro pricing during reconciliation", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			f, stripe := newBillingFixture(t, nil)
+			owner := newBillingDevice(t, f, "reconcile-price@example.test")
+			now := f.clock.Now()
+			sub := proStripeSub(now, "sub_repriced", owner.account)
+			stripe.Put(sub)
+			deliverStripeEvent(t, f, "evt_original_price", stripeSubCreated, sub.ID)
+			if account := billingAccount(t, f, owner); account.Plan != "pro" {
+				t.Fatalf("original subscription did not grant Pro: %+v", account.AccountPlan)
+			}
+
+			sub.Price = "price_foreign"
+			stripe.Put(sub)
+			deliverStripeEvent(t, f, "evt_repriced_invoice", "invoice.paid", sub.ID)
+			if account := billingAccount(t, f, owner); account.Plan != "pro" {
+				t.Fatalf("invoice outside the Pro prices changed entitlement: %+v", account.AccountPlan)
+			}
+			assertAuthRow(t, f, "SELECT count(*) FROM stripe_events", 1)
+
+			if test.reconcile {
+				f.db.Exec(t, "UPDATE %s.subscriptions SET stripe_synced_at = $1 WHERE id = $2",
+					now.Add(-2*billing.ReconcileInterval), sub.ID)
+				if err := f.replica.App.Billing.Reconcile(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				deliverStripeEvent(t, f, "evt_price_changed", stripeSubUpdated, sub.ID)
+			}
+			if account := billingAccount(t, f, owner); account.Plan != "free" || account.Subscription != nil {
+				t.Fatalf("the subscription still grants Pro: %+v", account.AccountPlan)
+			}
+		})
+	}
+
 	t.Run("Should reconcile only stale subscriptions that can still affect billing", func(t *testing.T) {
 		// RC-14: Fresh webhook state and long-ended Stripe rows do not trigger redundant provider reads.
 		t.Parallel()
@@ -265,6 +345,21 @@ func TestCloudSubscriptionRefresh(t *testing.T) {
 
 func TestCloudBillingCheckout(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should serve the purchase and success artwork in both viewport sizes", func(t *testing.T) {
+		t.Parallel()
+		f, _ := newBillingFixture(t, nil)
+		for _, file := range []string{
+			"cone-1280.jpg", "cone-portrait-1280.jpg", "converge-1280.jpg", "converge-portrait-1280.jpg",
+		} {
+			res := f.request(t, http.MethodGet, "/brand/visuals/"+file, nil)
+			contentType := http.DetectContentType(res.body)
+			if res.StatusCode != http.StatusOK || contentType != "image/jpeg" {
+				t.Errorf("%s: got HTTP %d with content type %q, want HTTP 200 with a JPEG", file,
+					res.StatusCode, contentType)
+			}
+		}
+	})
 
 	t.Run("Should pass server-owned prices and leave an expired checkout Free (UT-137, IT-061)", func(t *testing.T) {
 		// Safety Invariant 34. A suspended account cannot issue a new Stripe checkout.

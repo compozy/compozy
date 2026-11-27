@@ -21,6 +21,11 @@ func failure(status int, code, message string) *Failure {
 	return &Failure{Status: status, Code: code, Message: message}
 }
 
+func rateLimited(retry int) *Failure {
+	return &Failure{Status: http.StatusTooManyRequests, Code: "rate_limited",
+		Message: "Too many requests. Try again shortly.", RetryAfter: retry}
+}
+
 func reauth(reason string) *Failure {
 	message := "Your session ended. Sign in again."
 	switch reason {

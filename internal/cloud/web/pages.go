@@ -58,14 +58,24 @@ func Register(
 		return err
 	}
 	p := signInPages{service: service, template: t, billing: purchase, lifecycle: lifecycle}
-	mux.HandleFunc("GET "+activatePath, p.activate)
-	mux.HandleFunc("POST "+activatePath, p.continueActivation)
-	mux.HandleFunc("GET /v1/auth/callback/{provider}", p.callback)
-	mux.HandleFunc("GET "+authorizePath, p.browserAuthorize)
-	mux.HandleFunc("POST "+authorizePath, p.browserAuthorize)
+	mux.HandleFunc("GET "+activatePath, api.LimitSignIn(service, auth.ActivationRate, p.activate, p.rejectActivation))
+	mux.HandleFunc(
+		"POST "+activatePath, api.LimitSignIn(service, auth.ActivationRate, p.continueActivation, p.rejectActivation),
+	)
+	mux.HandleFunc(
+		"GET /v1/auth/callback/{provider}",
+		api.LimitSignIn(service, auth.ActivationRate, p.callback, p.rejectActivation),
+	)
+	authorize := api.LimitSignIn(service, auth.BrowserAuthorizeRate, p.browserAuthorize, p.rejectBrowserAuthorize)
+	mux.HandleFunc("GET "+authorizePath, authorize)
+	mux.HandleFunc("POST "+authorizePath, authorize)
 	mux.Handle("GET /auth-assets/", http.StripPrefix("/auth-assets/", http.FileServerFS(assetFiles(pages, "assets"))))
 	mux.Handle("GET /brand/", http.FileServerFS(assetFiles(brand.CloudAssets, "public")))
 	return nil
+}
+
+func (p signInPages) rejectActivation(w http.ResponseWriter, _ *http.Request, err error) {
+	p.render(w, signInPage{Title: signInTitle, EnterCode: true}, err)
 }
 
 func assetFiles(source fs.FS, path string) fs.FS {
@@ -106,8 +116,7 @@ func setPageHeaders(w http.ResponseWriter, formOrigins ...string) {
 	h.Set("Cache-Control", "no-store")
 	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("X-Frame-Options", "DENY")
-	formAction := "'self' https://accounts.google.com https://github.com " +
-		"https://*.compozy.run https://*.staging.compozy.run"
+	formAction := "'self' https://accounts.google.com https://github.com"
 	if len(formOrigins) > 0 {
 		formAction += " " + strings.Join(formOrigins, " ")
 	}
@@ -117,7 +126,11 @@ func setPageHeaders(w http.ResponseWriter, formOrigins ...string) {
 }
 
 func (p signInPages) render(w http.ResponseWriter, page signInPage, err error) {
-	setPageHeaders(w, p.service.OAuthFormOrigins()...)
+	formOrigins := p.service.OAuthFormOrigins()
+	if page.Browser.Hostname != "" {
+		formOrigins = append(formOrigins, "https://"+page.Browser.Hostname)
+	}
+	setPageHeaders(w, formOrigins...)
 	status := http.StatusOK
 	switch f, ok := errors.AsType[*auth.Failure](err); {
 	case ok:

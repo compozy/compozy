@@ -20,10 +20,11 @@ import (
 )
 
 const (
-	StripeAnnual  = "price_pro_annual"
-	StripeMonthly = "price_pro_monthly"
-	stripeKey     = "sk_test_fixture"
-	stripeSigner  = "whsec_fixture"
+	StripeAnnual       = "price_pro_annual"
+	StripeMonthly      = "price_pro_monthly"
+	StripePortalConfig = "bpc_fixture"
+	stripeKey          = "sk_test_fixture"
+	stripeSigner       = "whsec_fixture"
 )
 
 type StripeInvoice struct {
@@ -77,7 +78,7 @@ func StartStripe(t Fixture, now func() time.Time, browser bool) *StripeFixture {
 	server := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(server.Close)
 	client, err := billing.NewStripe(billing.StripeConfig{
-		Endpoint: server.URL, SecretKey: stripeKey, WebhookSecret: stripeSigner,
+		Endpoint: server.URL, SecretKey: stripeKey, WebhookSecret: stripeSigner, PortalConfigID: StripePortalConfig,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -218,7 +219,8 @@ func (f *StripeFixture) serve(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(r.URL.Path, "/v1/checkout/sessions/"):
 		f.readCheckout(w, r)
 	case r.URL.Path == "/v1/billing_portal/sessions" && r.Method == http.MethodPost:
-		if err := r.ParseForm(); err != nil || r.Form.Get("customer") == "" {
+		if err := r.ParseForm(); err != nil || r.Form.Get("customer") == "" ||
+			r.Form.Get("configuration") != StripePortalConfig {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

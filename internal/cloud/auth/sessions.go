@@ -4,9 +4,12 @@ package auth
 
 import (
 	"context"
+	"crypto/hkdf"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -16,8 +19,9 @@ import (
 )
 
 const (
-	refreshAAD    = "compozy-refresh-v1"
-	refreshPrefix = "rfr_"
+	refreshAAD        = "compozy-refresh-v1"
+	refreshPrefix     = "rfr_"
+	refreshRetryGrace = 2 * time.Minute
 )
 
 type DeviceProof struct {
@@ -114,23 +118,58 @@ type refreshSession struct {
 func (s *Service) issueTokens(d store.AuthDeviceSession, now time.Time) (remoteproto.DeviceSessionTokens, error) {
 	var tokens remoteproto.DeviceSessionTokens
 	var err error
-	tokens.AccessToken, err = s.signer.SignDeviceAccess(remoteproto.DeviceAccessClaims{
-		Issuer: s.issuer, AccountID: d.AccountID, SessionID: d.ID, DeviceID: remoteproto.DeviceID(d.DeviceID),
-		Cnf: remoteproto.Confirmation{JKT: d.JKT}, IssuedAt: now.Unix(), JTI: Secret(),
-		ExpiresAt: now.Add(remoteproto.DeviceAccessTTL).Unix(),
-	})
+	tokens.AccessToken, err = s.issueAccessToken(d, now)
 	if err != nil {
 		return tokens, err
 	}
-	claims, err := json.Marshal(refreshSession{SessionID: d.ID, AccountID: d.AccountID, JKT: d.JKT})
+	claims, err := marshalRefreshSession(d)
 	if err != nil {
 		return tokens, err
 	}
 	// The sealed account and key locator still authenticates after the session's account is deleted.
 	// #nosec G407 -- NewGCMWithRandomNonce generates and prepends the nonce.
 	sealed := s.seal.Seal(nil, nil, claims, []byte(refreshAAD))
-	tokens.RefreshToken = refreshPrefix + base64.RawURLEncoding.EncodeToString(sealed)
+	tokens.RefreshToken = encodeRefresh(sealed)
 	return tokens, nil
+}
+
+func (s *Service) issueAccessToken(d store.AuthDeviceSession, now time.Time) (string, error) {
+	token, err := s.signer.SignDeviceAccess(remoteproto.DeviceAccessClaims{
+		Issuer: s.issuer, AccountID: d.AccountID, SessionID: d.ID, DeviceID: remoteproto.DeviceID(d.DeviceID),
+		Cnf: remoteproto.Confirmation{JKT: d.JKT}, IssuedAt: now.Unix(), JTI: Secret(),
+		ExpiresAt: now.Add(remoteproto.DeviceAccessTTL).Unix(),
+	})
+	if err != nil {
+		return "", fmt.Errorf("sign device access token: %w", err)
+	}
+	return token, nil
+}
+
+func marshalRefreshSession(d store.AuthDeviceSession) ([]byte, error) {
+	claims, err := json.Marshal(refreshSession{SessionID: d.ID, AccountID: d.AccountID, JKT: d.JKT})
+	if err != nil {
+		return nil, fmt.Errorf("marshal refresh session: %w", err)
+	}
+	return claims, nil
+}
+
+func encodeRefresh(sealed []byte) string {
+	return refreshPrefix + base64.RawURLEncoding.EncodeToString(sealed)
+}
+
+func (s *Service) refreshSuccessor(d store.AuthDeviceSession, predecessorHash []byte) (string, error) {
+	claims, err := marshalRefreshSession(d)
+	if err != nil {
+		return "", err
+	}
+	info := fmt.Sprintf("%s:%d:%s", refreshAAD, d.SecurityEpoch, claims)
+	nonce, err := hkdf.Key(sha256.New, s.refreshNonceKey, predecessorHash, info, s.refreshSeal.NonceSize())
+	if err != nil {
+		return "", fmt.Errorf("derive refresh successor nonce: %w", err)
+	}
+	// #nosec G407 -- The keyed nonce binds the predecessor, epoch and exact plaintext for deterministic retries.
+	sealed := s.refreshSeal.Seal(nil, nonce, claims, []byte(refreshAAD))
+	return encodeRefresh(append(nonce, sealed...)), nil
 }
 
 func (s *Service) parseRefresh(raw string) (refreshSession, error) {
@@ -158,25 +197,37 @@ func validCredential(token, prefix string) bool {
 
 func (s *Service) Refresh(ctx context.Context, proof DeviceProof) (remoteproto.DeviceSessionTokens, error) {
 	var tokens remoteproto.DeviceSessionTokens
-	err := s.withRefresh(ctx, proof, func(q *store.Queries, d store.AuthDeviceSession, now time.Time) error {
-		var err error
-		tokens, err = s.issueTokens(d, now)
-		if err != nil {
-			return err
-		}
-		if err := q.RotateAuthDeviceSession(ctx, d, hashSecret(tokens.RefreshToken), now); err != nil {
-			return err
-		}
-		if err := touchDeviceActivity(ctx, q, d, now); err != nil {
-			return err
-		}
-		return sessionEvent(ctx, q, d, "device_session_refreshed", now)
-	})
+	err := s.withRefresh(
+		ctx,
+		proof,
+		func(q *store.Queries, d store.AuthDeviceSession, now time.Time, retry string) error {
+			var err error
+			tokens.AccessToken, err = s.issueAccessToken(d, now)
+			if err != nil {
+				return err
+			}
+			if retry != "" {
+				tokens.RefreshToken = retry
+				return nil
+			}
+			tokens.RefreshToken, err = s.refreshSuccessor(d, d.RefreshHash)
+			if err != nil {
+				return err
+			}
+			if err := q.RotateAuthDeviceSession(ctx, d, hashSecret(tokens.RefreshToken), now); err != nil {
+				return err
+			}
+			if err := touchDeviceActivity(ctx, q, d, now); err != nil {
+				return err
+			}
+			return sessionEvent(ctx, q, d, "device_session_refreshed", now)
+		},
+	)
 	return tokens, err
 }
 
 func (s *Service) Logout(ctx context.Context, proof DeviceProof) error {
-	err := s.withRefresh(ctx, proof, func(q *store.Queries, d store.AuthDeviceSession, now time.Time) error {
+	err := s.withRefresh(ctx, proof, func(q *store.Queries, d store.AuthDeviceSession, now time.Time, _ string) error {
 		if err := q.RevokeDeviceSessions(ctx, d.DeviceID, now); err != nil {
 			return err
 		}
@@ -188,7 +239,7 @@ func (s *Service) Logout(ctx context.Context, proof DeviceProof) error {
 	return err
 }
 
-type sessionWrite func(*store.Queries, store.AuthDeviceSession, time.Time) error
+type sessionWrite func(q *store.Queries, session store.AuthDeviceSession, now time.Time, retry string) error
 
 func (s *Service) withRefresh(ctx context.Context, proof DeviceProof, write sessionWrite) error {
 	claims, err := s.parseRefresh(proof.Token)
@@ -198,7 +249,8 @@ func (s *Service) withRefresh(ctx context.Context, proof DeviceProof, write sess
 	if err := s.verifyDeviceProof(ctx, proof, claims.JKT, "", s.now()); err != nil {
 		return err
 	}
-	return s.db.Transaction(ctx, func(q *store.Queries) error {
+	var reused bool
+	err = s.db.Transaction(ctx, func(q *store.Queries) error {
 		if err := lockRefreshAccount(ctx, q, claims.AccountID); err != nil {
 			return err
 		}
@@ -209,17 +261,58 @@ func (s *Service) withRefresh(ctx context.Context, proof DeviceProof, write sess
 		if err != nil {
 			return err
 		}
-		if d.JKT != claims.JKT || !equalHash(d.RefreshHash, hashSecret(proof.Token)) {
+		if d.JKT != claims.JKT {
 			return errSessionInvalid
 		}
 		if err := validSession(d); err != nil {
 			return err
 		}
+		now := s.now()
+		var retry string
+		if presented := hashSecret(proof.Token); !equalHash(d.RefreshHash, presented) {
+			retry, err = s.retryRefresh(d, presented, now)
+			if err != nil {
+				return err
+			}
+			if retry == "" {
+				reused = true
+				return revokeReusedRefresh(ctx, q, d, now)
+			}
+		}
 		if err := s.writeLimit(d.AccountID); err != nil {
 			return err
 		}
-		return write(q, d, s.now())
+		return write(q, d, now, retry)
 	})
+	if err == nil && reused {
+		return errSessionInvalid
+	}
+	return err
+}
+
+func (s *Service) retryRefresh(d store.AuthDeviceSession, presented []byte, now time.Time) (string, error) {
+	if d.RotatedAt.IsZero() || !now.Before(d.RotatedAt.Add(refreshRetryGrace)) {
+		return "", nil
+	}
+	// Only the immediate predecessor can reproduce the stored successor hash in the current epoch.
+	successor, err := s.refreshSuccessor(d, presented)
+	if err != nil || !equalHash(d.RefreshHash, hashSecret(successor)) {
+		return "", err
+	}
+	return successor, nil
+}
+
+func revokeReusedRefresh(ctx context.Context, q *store.Queries, d store.AuthDeviceSession, now time.Time) error {
+	if err := q.RevokeDeviceSessions(ctx, d.DeviceID, now); err != nil {
+		return fmt.Errorf("revoke device sessions after refresh reuse: %w", err)
+	}
+	if err := q.AppendSecurityEvent(ctx, store.SecurityEvent{
+		AccountID: d.AccountID, Actor: accountActorPrefix + d.DeviceID, At: now, Type: "device_session_revoked",
+		Details: map[string]any{deviceIDDetail: d.DeviceID, "session_id": d.ID, reasonDetail: "refresh_reuse"},
+	}); err != nil {
+		return fmt.Errorf("record refresh reuse: %w", err)
+	}
+	return nil
 }
 
 func lockRefreshAccount(ctx context.Context, q *store.Queries, accountID string) error {

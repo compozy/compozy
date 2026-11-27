@@ -36,6 +36,7 @@ writeFileSync(process.argv[2], JSON.stringify(Object.fromEntries(values)), { mod
 JS
 
 args=(deploy --config wrangler.toml --secrets-file "$bindings")
+args+=(--var "COMPOZY_CLOUD_STRIPE_PORTAL_CONFIG_ID:${COMPOZY_CLOUD_STRIPE_PORTAL_CONFIG_ID:?missing Stripe Customer Portal configuration ID}")
 if [[ "$COMPOZY_CLOUD_ENV" == staging ]]; then
   args+=(--env staging)
 fi

@@ -698,6 +698,7 @@ func restoreFixtureEnvironment(t *testing.T, rejectPut func(string) bool) map[st
 		"COMPOZY_CLOUD_CLOUDFLARE_TUNNEL_API_TOKEN": "fixture-cloudflare",
 		"COMPOZY_CLOUD_STRIPE_SECRET_KEY":           "sk_test_fixture",
 		"COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET":       "whsec_fixture",
+		"COMPOZY_CLOUD_STRIPE_PORTAL_CONFIG_ID":     remotetest.StripePortalConfig,
 		"STRIPE_PRICE_PRO_MONTHLY":                  remotetest.StripeMonthly,
 		"STRIPE_PRICE_PRO_ANNUAL":                   remotetest.StripeAnnual,
 	}

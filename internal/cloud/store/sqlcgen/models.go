@@ -69,6 +69,13 @@ type AccountTokenInstance struct {
 	LastSeenAt     pgtype.Timestamptz
 }
 
+type AuthIpRateWindow struct {
+	Scope          string
+	ClientIpSha256 []byte
+	ExpiresAt      pgtype.Timestamptz
+	Requests       int32
+}
+
 type BillingCheckout struct {
 	ID        string
 	AccountID string

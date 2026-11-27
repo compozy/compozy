@@ -124,7 +124,7 @@ func (q *Queries) ActivateBrowserKey(ctx context.Context, id, jkt, origin string
 func (q *Queries) SweepAuth(ctx context.Context, now time.Time) error {
 	for _, sweep := range []func(context.Context, pgtype.Timestamptz) error{
 		q.generated.SweepAuthAttempts, q.generated.SweepCloudProofs, q.generated.SweepExpiredDeviceGrants,
-		q.generated.SweepPendingBrowserKeys,
+		q.generated.SweepPendingBrowserKeys, q.generated.SweepAuthIPWindows,
 	} {
 		if err := sweep(ctx, timestamp(now)); err != nil {
 			return err
