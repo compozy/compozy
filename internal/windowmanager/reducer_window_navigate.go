@@ -30,8 +30,10 @@ func (r *reducer) navigateWindow(snapshot *Snapshot, command NavigateWindowComma
 		if err != nil {
 			return false, fmt.Errorf("window %q route: %w: %w", command.WindowID, err, ErrInvalidCommand)
 		}
+		instanceKey := valueOrZero(command.InstanceKey)
+		clearInstance := strings.TrimSpace(instanceKey) == ""
 		retargeted := command.InstanceKey != nil &&
-			(window.InstanceKey == nil || *window.InstanceKey != *command.InstanceKey)
+			(clearInstance || valueOrZero(window.InstanceKey) != instanceKey)
 		if routeIntentsEqual(window.Route, route) && !retargeted {
 			return false, nil
 		}
@@ -44,7 +46,7 @@ func (r *reducer) navigateWindow(snapshot *Snapshot, command NavigateWindowComma
 			}
 		}
 		if retargeted {
-			if strings.TrimSpace(*command.InstanceKey) == "" {
+			if clearInstance {
 				window.InstanceKey = nil
 			} else {
 				window.InstanceKey = clonePointer(command.InstanceKey)

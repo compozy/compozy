@@ -6,35 +6,43 @@ import (
 	"strings"
 )
 
-const sessionEmptyRoutePath = "/sessions"
+const (
+	sessionWindowApp      = "session"
+	sessionEmptyRoutePath = "/sessions"
+)
 
 func (r *reducer) retireDeletedSessionWindows(snapshot *Snapshot, sessionID string) (bool, error) {
 	if sessionID == "" {
 		return false, fmt.Errorf("deleted session id is required: %w", ErrInvalidCommand)
 	}
-	historyMatch := historyContainsDeletedSession(snapshot.History, sessionID)
-	windowIDs := make([]WindowID, 0)
+	changed := historyContainsDeletedSession(snapshot.History, sessionID)
 	for windowID, window := range snapshot.Windows {
-		if windowBelongsToSession(window, sessionID) {
-			windowIDs = append(windowIDs, windowID)
-		}
-	}
-	slices.Sort(windowIDs)
-	changed := false
-	for _, windowID := range windowIDs {
-		window, exists := snapshot.Windows[windowID]
-		if !exists || !windowBelongsToSession(window, sessionID) {
+		if window.App != sessionWindowApp {
 			continue
 		}
-		removeWindow(snapshot, windowID)
-		delete(snapshot.Windows, windowID)
-		r.changes.window(windowID)
-		changed = true
+		if windowShowsSession(window, sessionID) {
+			if _, err := r.navigateWindow(snapshot, NavigateWindowCommand{
+				WindowID:    windowID,
+				Mode:        NavigateReplace,
+				InstanceKey: new(""),
+				Route:       RouteIntent{Pathname: sessionEmptyRoutePath, Search: RouteSearch{}},
+			}); err != nil {
+				return false, err
+			}
+			changed = true
+			continue
+		}
+		stack := slices.DeleteFunc(window.NavStack, func(route RouteIntent) bool {
+			return routeShowsSession(route, sessionID)
+		})
+		if len(stack) != len(window.NavStack) {
+			window.NavStack = stack
+			snapshot.Windows[windowID] = window
+			r.changes.window(windowID)
+			changed = true
+		}
 	}
 	if removeDeletedSessionClosedEntries(snapshot, sessionID) {
-		changed = true
-	}
-	if historyMatch {
 		changed = true
 	}
 	if changed {
@@ -67,16 +75,21 @@ func stateContainsDeletedSession(state State, sessionID string) bool {
 }
 
 func windowBelongsToSession(window Window, sessionID string) bool {
-	if window.App != "session" {
+	if window.App != sessionWindowApp {
 		return false
 	}
-	if window.InstanceKey != nil && *window.InstanceKey == sessionID {
-		return true
-	}
-	matches := func(route RouteIntent) bool {
-		return route.Pathname == "/sessions/"+sessionID || strings.HasPrefix(route.Pathname, "/sessions/"+sessionID+"/")
-	}
-	return matches(window.Route) || slices.ContainsFunc(window.NavStack, matches)
+	return windowShowsSession(window, sessionID) || slices.ContainsFunc(window.NavStack, func(route RouteIntent) bool {
+		return routeShowsSession(route, sessionID)
+	})
+}
+
+func windowShowsSession(window Window, sessionID string) bool {
+	return valueOrZero(window.InstanceKey) == sessionID || routeShowsSession(window.Route, sessionID)
+}
+
+func routeShowsSession(route RouteIntent, sessionID string) bool {
+	path := "/sessions/" + sessionID
+	return route.Pathname == path || strings.HasPrefix(route.Pathname, path+"/")
 }
 
 func removeDeletedSessionClosedEntries(snapshot *Snapshot, sessionID string) bool {

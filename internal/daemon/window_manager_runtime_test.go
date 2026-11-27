@@ -1135,14 +1135,12 @@ func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
 					if len(snapshot.History.Undo) != 0 {
 						t.Fatalf("retirement state %s/%s: %#v", profile, partition, snapshot)
 					}
-					if retirement == "session" {
-						// The retired session's desktop is left with no tabs, not a seeded New Tab (#1799).
-						if exists || len(snapshot.Windows) != 0 || len(snapshot.Desktops[0].Tabs) != 0 {
-							t.Fatalf("deleted session remains in %s/%s: %#v", profile, partition, snapshot)
-						}
-					} else if !exists || bound.InstanceKey != nil || bound.Route.Pathname != "/sessions" ||
-						len(bound.Route.Search) != 0 || len(snapshot.Windows) != 1 {
+					if !exists || bound.InstanceKey != nil || bound.Route.Pathname != "/sessions" ||
+						len(bound.Route.Search) != 0 {
 						t.Fatalf("unretired %s/%s: %#v", profile, partition, snapshot)
+					}
+					if len(snapshot.Windows) != 1 || len(snapshot.Desktops[0].Tabs) != 1 {
+						t.Fatalf("lost Sessions tab in %s/%s: %#v", profile, partition, snapshot)
 					}
 				}
 			}

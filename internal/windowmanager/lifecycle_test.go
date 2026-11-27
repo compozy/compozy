@@ -1435,14 +1435,17 @@ func seedTestSnapshot(t *testing.T, e testEnvironment, s Snapshot) {
 }
 
 func TestLifecycleTabRepair(t *testing.T) {
-	t.Run("Should repair empty tabs and collapse splits for lifecycle removals (UT-009)", func(t *testing.T) {
+	t.Run("Should reconcile tabs after lifecycle changes (UT-009)", func(t *testing.T) {
 		t.Parallel()
 		for _, kind := range []string{"session", "terminal", "workspace"} {
 			for _, split := range []bool{false, true} {
 				e := newTestEnvironment(t, DefaultConfig(), "workspace-a")
 				s := DefaultSnapshot("workspace-a")
 				id := WindowID("bound")
-				tab := Tab{ID: "tab-bound", Root: LayoutNode{ID: "leaf-bound", Kind: NodeKindLeaf, WindowID: new(id)}}
+				tab := Tab{
+					ID:   "tab-bound",
+					Root: LayoutNode{ID: "leaf-bound", Kind: NodeKindLeaf, WindowID: new(id)},
+				}
 				s.Desktops[0].ActiveTabID = tab.ID
 				app, path := "session", "/sessions/gone"
 				if kind == "terminal" {
@@ -1451,7 +1454,7 @@ func TestLifecycleTabRepair(t *testing.T) {
 				if kind == "workspace" {
 					app, path = "files", "/files/gone"
 				}
-				s.Windows[id] = Window{
+				bound := Window{
 					ID:        id,
 					App:       app,
 					Route:     testRoute(path),
@@ -1459,23 +1462,41 @@ func TestLifecycleTabRepair(t *testing.T) {
 					DesktopID: "desktop-default",
 					TabID:     tab.ID,
 				}
+				if kind == "session" {
+					bound.NavStack = []RouteIntent{testRoute("/sessions/gone/child")}
+					if split {
+						bound.InstanceKey = new("")
+					}
+				}
+				s.Windows[id] = bound
 				s.Desktops[0].Tabs = []Tab{tab}
 				seedTestSnapshot(t, e, s)
 				if split {
+					other := WindowSpec{ID: "other", App: "Test", Route: testRoute("/other"), InsertTiled: true}
+					if kind == "session" {
+						other.App = "session"
+						other.InstanceKey = new("other")
+						other.Route = testRoute("/sessions/gone/child")
+					}
 					executeTestCommand(
 						t,
 						e.manager,
 						"workspace-a",
 						nil,
-						OpenWindowCommand{
-							Window: WindowSpec{ID: "other", App: "Test", Route: testRoute("/other"), InsertTiled: true},
-						},
+						OpenWindowCommand{Window: other},
 					)
+					if kind == "session" {
+						executeTestCommand(t, e.manager, "workspace-a", nil, NavigateWindowCommand{
+							WindowID: other.ID, Mode: NavigatePush, Route: testRoute("/sessions/other"),
+						})
+					}
 				}
+				before := mustSnapshot(t, e.manager, "workspace-a")
 				clients := []ClientID{"caller", "peer"}
+				clientViews := make(map[ClientID]ClientView, len(clients))
 				subscriptions := make([]Subscription, 0, len(clients))
 				for _, client := range clients {
-					registerTestClient(t, e.manager, "workspace-a", client)
+					clientViews[client] = registerTestClient(t, e.manager, "workspace-a", client)
 					sub, err := e.manager.Subscribe(
 						t.Context(),
 						SubscriptionRequest{WorkspaceID: "workspace-a", ClientID: new(client)},
@@ -1500,6 +1521,53 @@ func TestLifecycleTabRepair(t *testing.T) {
 				}
 				got := mustSnapshot(t, e.manager, "workspace-a")
 				requireValidSnapshot(t, got)
+				views, err := e.manager.Clients(t.Context(), "workspace-a")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if kind == "session" {
+					window, exists := got.Windows[id]
+					if !exists || window.InstanceKey != nil || window.Route.Pathname != sessionEmptyRoutePath ||
+						window.TabID != tab.ID || len(window.NavStack) != 0 ||
+						!reflect.DeepEqual(got.Desktops, before.Desktops) {
+						t.Fatalf("session deletion changed the tab layout: %+v", got)
+					}
+					if split {
+						other := got.Windows["other"]
+						if valueOrZero(other.InstanceKey) != "other" || other.Route.Pathname != "/sessions/other" ||
+							len(other.NavStack) != 0 {
+							t.Fatalf("deleted route was not pruned from the surviving window: %+v", other)
+						}
+					}
+					if len(views) != len(clientViews) {
+						t.Fatalf("session deletion changed the set of clients: %+v", views)
+					}
+					for _, view := range views {
+						previous := clientViews[view.ClientID]
+						if valueOrZero(view.FocusedWindowID) != valueOrZero(previous.FocusedWindowID) ||
+							view.ActiveTab[view.ActiveDesktopID] != previous.ActiveTab[previous.ActiveDesktopID] {
+							t.Fatalf("session deletion changed client focus: %+v", view)
+						}
+					}
+					wantChangedWindows := []WindowID{id}
+					if split {
+						wantChangedWindows = append(wantChangedWindows, "other")
+					}
+					for _, sub := range subscriptions {
+						select {
+						case update := <-sub.Updates():
+							event := update.Event
+							if event == nil || event.Revision != got.Revision ||
+								!slices.Equal(event.Changes.WindowIDs, wantChangedWindows) {
+								t.Fatalf("session retirement event = %+v, want revision %d and windows %v",
+									event, got.Revision, wantChangedWindows)
+							}
+						default:
+							t.Fatal("session retirement event was not published")
+						}
+					}
+					continue
+				}
 				if _, ok := got.Windows[id]; ok {
 					t.Fatal("retired window retained")
 				}
@@ -1512,10 +1580,6 @@ func TestLifecycleTabRepair(t *testing.T) {
 				if len(got.Desktops[0].Tabs) != wantTabs || len(got.Windows) != wantTabs ||
 					(split && got.Desktops[0].Tabs[0].Root.Kind != NodeKindLeaf) {
 					t.Fatalf("repair=%+v", got)
-				}
-				views, err := e.manager.Clients(t.Context(), "workspace-a")
-				if err != nil {
-					t.Fatal(err)
 				}
 				for _, view := range views {
 					active, recorded := view.ActiveTab[view.ActiveDesktopID]
