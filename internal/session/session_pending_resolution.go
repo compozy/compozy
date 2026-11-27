@@ -90,7 +90,7 @@ func (m *Manager) ApprovePermission(
 		if winner.Status == store.PendingInteractionStatusPending {
 			return ApprovalResult{}, mappedErr
 		}
-		return m.resolveOrphanedPermission(ctx, target, winner, req.Decision)
+		return m.resolveOrphanedPermission(ctx, winner, req.Decision)
 	}
 	return ApprovalResult{
 		Outcome:   store.PendingInteractionOutcomeApplied,
@@ -124,7 +124,7 @@ func (m *Manager) approveStoredPermission(
 				return ApprovalResult{}, true, settleErr
 			}
 			if commit.Interaction != nil && commit.Interaction.Status == store.PendingInteractionStatusResolved {
-				result, winnerErr := m.resolveOrphanedPermission(ctx, target, *commit.Interaction, decision)
+				result, winnerErr := m.resolveOrphanedPermission(ctx, *commit.Interaction, decision)
 				return result, true, winnerErr
 			}
 		}
@@ -133,7 +133,7 @@ func (m *Manager) approveStoredPermission(
 	if interaction.Status == store.PendingInteractionStatusPending {
 		return ApprovalResult{}, false, nil
 	}
-	result, err := m.resolveOrphanedPermission(ctx, target, interaction, decision)
+	result, err := m.resolveOrphanedPermission(ctx, interaction, decision)
 	return result, true, err
 }
 
@@ -172,7 +172,6 @@ func approvalError(sessionID string, err error) error {
 
 func (m *Manager) resolveOrphanedPermission(
 	ctx context.Context,
-	sessionID string,
 	interaction store.PendingInteraction,
 	decision string,
 ) (ApprovalResult, error) {
