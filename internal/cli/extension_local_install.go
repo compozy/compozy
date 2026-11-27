@@ -35,6 +35,9 @@ func prepareExtensionInstall(path string) (preparedExtensionInstall, error) {
 
 	manifest, err := extensionpkg.LoadManifest(absPath)
 	if err != nil {
+		if decodeErr, ok := errors.AsType[*extensionpkg.ManifestDecodeError](err); ok {
+			return preparedExtensionInstall{}, localExtensionManifestDecodeError{decodeErr}
+		}
 		return preparedExtensionInstall{}, err
 	}
 	checksum, err := extensionpkg.ComputeDirectoryChecksum(absPath)

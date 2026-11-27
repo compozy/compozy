@@ -4,7 +4,26 @@ import (
 	"encoding/json"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
+
+type localExtensionManifestDecodeError struct {
+	*extensionpkg.ManifestDecodeError
+}
+
+func (e localExtensionManifestDecodeError) Error() string {
+	return redactToolDiagnostic(e.ManifestDecodeError.Error())
+}
+
+func (e localExtensionManifestDecodeError) Unwrap() error { return e.ManifestDecodeError }
+
+func (e localExtensionManifestDecodeError) extensionValidationErrorPayload() contract.ExtensionValidationErrorPayload {
+	message := e.Error()
+	return contract.ExtensionValidationErrorPayload{
+		Error:  message,
+		Issues: []contract.ValidationIssue{e.Issue(message)},
+	}
+}
 
 func marshalExtensionValidationExecutionError(
 	args []string,
