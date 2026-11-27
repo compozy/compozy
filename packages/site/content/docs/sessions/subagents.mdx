@@ -260,11 +260,12 @@ per provider. The caller's current model comes first, followed by the provider d
 including models hidden for unavailable providers. Any model ID advertised by the provider is accepted
 even if it is not listed in this preview; delegation validates the full catalog.
 
-Set `target.agent` to delegate using that agent's configured provider, model, and reasoning effort.
-Explicit `target.provider`, `target.model`, and `target.reasoning_effort` take precedence. Selecting a
-different provider uses its model defaults, and selecting a different model uses its reasoning
-defaults. With no runtime configured on a named agent, omitted values inherit from the caller on the
-same provider.
+Omit `target` to inherit the caller's active runtime, including speed and ACP options. Set
+`target.agent` to use that agent's configured provider, model, and reasoning effort. Explicit
+`target.provider`, `target.model`, and `target.reasoning_effort` take precedence. If the requested
+provider differs from the agent's provider, omitted model and effort use the selected provider's
+defaults. A different model uses its own reasoning defaults. If the named agent leaves provider,
+model, and effort blank, omitted values inherit from the caller on the same provider.
 
 The intended loop is: check capabilities, delegate with `mode: "async"`, end the turn, get woken, call
 `compozy__subagent_status`, answer. The wake message is a pointer, not the answer:
