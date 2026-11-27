@@ -1,12 +1,16 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
+	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -25,4 +29,92 @@ func (s *settingsRuntimeSurface) CheckMCPServerRuntime(
 		ctx = deadentity.WithProbeRetry(ctx, key)
 	}
 	return s.MCPServerRuntimeStatus(toolspkg.WithFreshMCPDiscovery(ctx), target, server)
+}
+
+func (s *settingsRuntimeSurface) checkPublishedMCPRuntime(
+	ctx context.Context, target mcpauth.Target, server compozyconfig.MCPServer,
+	key store.DeadEntityKey, tracked bool,
+) (settingspkg.MCPServerRuntimeStatus, bool, error) {
+	if s.state == nil {
+		return settingspkg.MCPServerRuntimeStatus{}, false, nil
+	}
+	provider, hasProvider := s.state.mcpToolProvider.(*toolspkg.MCPProvider)
+	executor, hasExecutor := s.state.mcpAuthStatus.(*mcppkg.CallExecutor)
+	if !hasProvider || !hasExecutor {
+		return settingspkg.MCPServerRuntimeStatus{}, false, nil
+	}
+	source, found := s.publishedMCPCheckSource(ctx, target, server)
+	if !found {
+		return settingspkg.MCPServerRuntimeStatus{}, false, nil
+	}
+
+	var discovery mcppkg.ToolDiscovery
+	var probeErr error
+	probed := false
+	err := provider.CheckMCPSource(ctx, source, func(ctx context.Context) ([]toolspkg.MCPToolDescriptor, error) {
+		probeCtx, cancel := context.WithTimeout(ctx, s.mcpStatusTimeoutOrDefault())
+		defer cancel()
+		probed = true
+		discovery, probeErr = executor.DiscoverTools(probeCtx, source)
+		return discovery.Descriptors, probeErr
+	})
+	if err != nil {
+		return settingspkg.MCPServerRuntimeStatus{}, true, err
+	}
+	if !probed {
+		return waitingMCPRuntimeStatus(), true, nil
+	}
+	if probeErr != nil {
+		status := s.mcpRuntimeProbeFailure(target, server, probeErr)
+		status, err = s.mcpStatusAfterProbeFailure(ctx, key, tracked, status)
+		return status, true, err
+	}
+	return mcpRuntimeDiscoveryStatus(discovery), true, nil
+}
+
+func (s *settingsRuntimeSurface) publishedMCPCheckSource(
+	ctx context.Context, target mcpauth.Target, server compozyconfig.MCPServer,
+) (toolspkg.SourceRef, bool) {
+	target = target.Normalize()
+	selection := settingsConsentRequest(target, server)
+	lens := mcpauth.ConsentScopeFromContext(ctx)
+	profileID := lens.ProfileID
+	if profileID == "" {
+		var err error
+		profileID, err = (settingsMCPConsent{state: s.state}).profileID(
+			ctx,
+			cmp.Or(lens.ProfileName, selection.ProfileName),
+		)
+		if err != nil {
+			return toolspkg.SourceRef{}, false
+		}
+	}
+	sources, err := daemonMCPSources(ctx, s.state)
+	if err != nil {
+		return toolspkg.SourceRef{}, false
+	}
+	digest, err := compozyconfig.MCPDefinitionDigest(server, s.digestKey)
+	if err != nil {
+		return toolspkg.SourceRef{}, false
+	}
+	scope := toolspkg.Scope{ProfileID: profileID, WorkspaceID: selection.WorkspaceID}
+	for _, source := range toolspkg.MCPSourcesForScope(sources, scope) {
+		if source.RawServerName != server.EffectiveRuntimeName() {
+			continue
+		}
+		published, err := resolveDaemonMCPServer(ctx, s.state, source, target.Owner)
+		if err != nil || published.Target.Normalize() != target || published.Server.IsDisabled() ||
+			strings.TrimSpace(published.Server.DefinitionSource) != strings.TrimSpace(server.DefinitionSource) {
+			continue
+		}
+		// Settings can select a file whose contents have yet to be published to the catalog.
+		if current, err := compozyconfig.MCPDefinitionDigest(
+			published.Server,
+			s.digestKey,
+		); err == nil &&
+			current == digest {
+			return source, true
+		}
+	}
+	return toolspkg.SourceRef{}, false
 }

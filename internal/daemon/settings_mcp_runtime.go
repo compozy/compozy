@@ -30,10 +30,7 @@ func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 	}
 	status := settingspkg.MCPServerRuntimeStatus{Configured: true}
 	if err := s.requireMCPConsent(ctx, target, server); err != nil {
-		status.State = mcpWaitingApproval
-		status.Probe = settingspkg.MCPServerProbeSkipped
-		status.Reason = mcpWaitingApproval
-		return status, nil
+		return waitingMCPRuntimeStatus(), nil
 	}
 	key, tracked, err := s.settingsMCPDeadEntityKey(ctx, target, server.EffectiveRuntimeName())
 	if err != nil {
@@ -66,6 +63,11 @@ func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 			return s.recordMCPProbeFailure(ctx, key, tracked, deadentity.FailurePermanent, status)
 		}
 	}
+	if toolspkg.FreshMCPDiscovery(ctx) {
+		if checked, handled, err := s.checkPublishedMCPRuntime(ctx, target, server, key, tracked); handled {
+			return checked, err
+		}
+	}
 
 	executor, err := s.newMCPProbeExecutor(target, server)
 	if err != nil {
@@ -81,16 +83,12 @@ func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 		WorkspaceID:   strings.TrimSpace(target.WorkspaceID),
 	})
 	if err != nil {
-		status = runtimeStatusFromMCPProbeError(err)
-		if server.EffectiveTransport() == compozyconfig.MCPServerTransportStdio {
-			status.Diagnostic = withMCPStderrTail(status.Diagnostic, s.mcpStdioPool.StderrTail(target))
-		}
 		return s.recordMCPProbeFailure(
 			ctx,
 			key,
 			tracked,
 			toolspkg.MCPDiscoveryFailureClass(err),
-			status,
+			s.mcpRuntimeProbeFailure(target, server, err),
 		)
 	}
 	if tracked && s.deadEntities != nil {
@@ -98,9 +96,32 @@ func (s *settingsRuntimeSurface) probeMCPServerRuntimeStatus(
 			return settingspkg.MCPServerRuntimeStatus{}, fmt.Errorf("daemon: record MCP runtime recovery: %w", err)
 		}
 	}
-	status = readyMCPRuntimeStatus(discovery.ToolCount, discovery.ProtocolVersion)
+	return mcpRuntimeDiscoveryStatus(discovery), nil
+}
+
+func waitingMCPRuntimeStatus() settingspkg.MCPServerRuntimeStatus {
+	return settingspkg.MCPServerRuntimeStatus{
+		Configured: true,
+		State:      mcpWaitingApproval,
+		Probe:      settingspkg.MCPServerProbeSkipped,
+		Reason:     mcpWaitingApproval,
+	}
+}
+
+func (s *settingsRuntimeSurface) mcpRuntimeProbeFailure(
+	target mcpauth.Target, server compozyconfig.MCPServer, err error,
+) settingspkg.MCPServerRuntimeStatus {
+	status := runtimeStatusFromMCPProbeError(err)
+	if server.EffectiveTransport() == compozyconfig.MCPServerTransportStdio {
+		status.Diagnostic = withMCPStderrTail(status.Diagnostic, s.mcpStdioPool.StderrTail(target))
+	}
+	return status
+}
+
+func mcpRuntimeDiscoveryStatus(discovery mcppkg.ToolDiscovery) settingspkg.MCPServerRuntimeStatus {
+	status := readyMCPRuntimeStatus(discovery.ToolCount, discovery.ProtocolVersion)
 	status.Diagnostic = discovery.Diagnostic
-	return status, nil
+	return status
 }
 
 func mcpAuthLookupErrorStatus(server compozyconfig.MCPServer, err error) settingspkg.MCPServerRuntimeStatus {
@@ -221,6 +242,15 @@ func (s *settingsRuntimeSurface) recordMCPProbeFailure(
 	}
 	if err := s.deadEntities.RecordFailure(ctx, key, class, reason); err != nil {
 		return settingspkg.MCPServerRuntimeStatus{}, fmt.Errorf("daemon: record MCP runtime failure: %w", err)
+	}
+	return s.mcpStatusAfterProbeFailure(ctx, key, tracked, status)
+}
+
+func (s *settingsRuntimeSurface) mcpStatusAfterProbeFailure(
+	ctx context.Context, key store.DeadEntityKey, tracked bool, status settingspkg.MCPServerRuntimeStatus,
+) (settingspkg.MCPServerRuntimeStatus, error) {
+	if !tracked || s.deadEntities == nil {
+		return status, nil
 	}
 	deadStatus, err := s.deadEntities.Status(ctx, key)
 	if err != nil {

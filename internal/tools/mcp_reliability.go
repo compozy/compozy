@@ -64,6 +64,17 @@ func (p *MCPProvider) listSourceDescriptors(
 	profileID string,
 	timeout time.Duration,
 ) ([]Descriptor, bool, error) {
+	return p.listSourceDiscovery(ctx, source, profileID, func(ctx context.Context) ([]MCPToolDescriptor, error) {
+		return p.discoverSource(ctx, source, timeout)
+	})
+}
+
+func (p *MCPProvider) listSourceDiscovery(
+	ctx context.Context,
+	source SourceRef,
+	profileID string,
+	discover func(context.Context) ([]MCPToolDescriptor, error),
+) ([]Descriptor, bool, error) {
 	if p.consent != nil {
 		admitted, err := p.consent(ctx, source, profileID)
 		if err != nil {
@@ -95,7 +106,7 @@ func (p *MCPProvider) listSourceDescriptors(
 	}
 
 	generation := p.nextDiscoveryGeneration(source, FreshMCPDiscovery(ctx))
-	discovered, err := p.discoverSource(ctx, source, timeout)
+	discovered, err := discover(ctx)
 	p.discoveryMu.Lock()
 	defer p.discoveryMu.Unlock()
 	current := p.discoveryGenerations[source]

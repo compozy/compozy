@@ -3850,6 +3850,10 @@ func importRuntimeMCPHTTP(
 func TestDaemonMCPHotActivation(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
+	t.Run(
+		"Should recover the open session catalog after a successful Settings check",
+		testDaemonMCPSettingsCheckRecovery,
+	)
 	for _, change := range []string{"settings", "file", "launch failure"} {
 		t.Run("Should activate an MCP after "+change, func(t *testing.T) {
 			t.Parallel()
@@ -4005,6 +4009,93 @@ func TestDaemonMCPHotActivation(t *testing.T) {
 			)
 		})
 	}
+}
+
+func testDaemonMCPSettingsCheckRecovery(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+	var recovered atomic.Bool
+	handler := mcpfixture.MustNew(mcpfixture.ProfileModern2026).StreamableHTTPHandler()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !recovered.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(upstream.Close)
+	const agent = "mock-mcp-check"
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{
+			{
+				FixturePath: mockFixturePath(
+					t,
+					"hosted_protocol_fixture.json",
+				),
+				FixtureAgent: "hosted-native",
+				AgentName:    agent,
+			},
+		},
+	})
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+	const settingsPath = "/api/settings/mcp-servers/echo"
+	definition := compozycontract.PutSettingsMCPServerRequest{
+		Server: compozycontract.SettingsMCPServerPayload{Name: "echo", Transport: "http", URL: upstream.URL},
+	}
+	if err := harness.HTTPJSON(ctx, http.MethodPut, settingsPath+"?scope=user", definition, nil); err != nil {
+		t.Fatal(err)
+	}
+	active := createBoundFixtureBackedSession(t, ctx, harness, agent, "mcp-check")
+	retainActivationCatalog(t, ctx, harness, agent, active.ID)
+	mcpPath := "/api/workspaces/" + active.WorkspaceID + "/sessions/" + active.ID + "/mcp"
+	catalogReportsFailure := func() bool {
+		var body compozycontract.SessionMCPResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, mcpPath, nil, &body); err != nil {
+			return false
+		}
+		return slices.ContainsFunc(body.CompozyServers, func(row session.MCPServerRow) bool {
+			return row.Name == "echo" && row.State == "failed" && row.CallableCount == 0 &&
+				row.Reason == "Server unavailable during tool discovery"
+		})
+	}
+	waitForRuntimeCondition(t, "failed discovery in the session catalog", 15*time.Second, catalogReportsFailure)
+
+	var failed compozycontract.SettingsMCPServerItemPayload
+	if err := harness.HTTPJSON(ctx, http.MethodPost, settingsPath+"/check?scope=user", nil, &failed); err != nil {
+		t.Fatal(err)
+	}
+	if failed.RuntimeStatus == nil || failed.RuntimeStatus.Probe != "failed" || !catalogReportsFailure() {
+		t.Fatalf("failed check lost the catalog failure, check status=%+v", failed.RuntimeStatus)
+	}
+
+	recovered.Store(true)
+	var ready compozycontract.SettingsMCPServerItemPayload
+	if err := harness.CLI.RunJSON(ctx, &ready, "mcp", "check", "echo", "--scope", "user", "-o", "json"); err != nil {
+		t.Fatal(err)
+	}
+	if ready.RuntimeStatus == nil || ready.RuntimeStatus.State != "ready" || ready.RuntimeStatus.ToolCount != 2 {
+		t.Fatalf("recovery check status=%+v", ready.RuntimeStatus)
+	}
+	var sessionMCP compozycontract.SessionMCPResponse
+	if err := harness.HTTPJSON(ctx, http.MethodGet, mcpPath, nil, &sessionMCP); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(sessionMCP.CompozyServers, func(row session.MCPServerRow) bool {
+		return row.Name == "echo" && row.CallableCount == 2 &&
+			(row.State == "ready" || row.State == "applies_next_message")
+	}) {
+		t.Fatalf("session MCP after successful check = %+v", sessionMCP.CompozyServers)
+	}
+	activationCallHostedTool(
+		t,
+		ctx,
+		harness,
+		agent,
+		active.ID,
+		"mcp__echo__echo",
+		map[string]any{"message": "recovered"},
+	)
 }
 
 func activationSessionHasTool(ctx context.Context, harness *e2etest.RuntimeHarness, sessionID, tool string) bool {

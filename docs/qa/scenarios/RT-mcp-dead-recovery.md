@@ -71,3 +71,11 @@ QA impact 2026-11-18 ([#1850](https://github.com/compozy/compozy/issues/1850))
 Keep one fixture unreachable while establishing a new hosted bind. The prior successful catalog
 remains available to the runtime. Confirm the affected row reports discovery failure and recovers
 after an explicit check succeeds.
+
+For [#2010](https://github.com/compozy/compozy/issues/2010), start a session while a remote fixture
+returns a discovery failure. Run `compozy mcp check <name> -o json` while the fixture is failing and
+confirm that the session still reports the failure. Repair the fixture without editing its definition.
+Run the same command again and confirm it reports `ready` and the expected tool count. Before the
+background retry is due, confirm the existing session can discover and call the recovered tool
+without toggling the server. For a runtime that reloads MCP on the next message, send that message
+before calling the tool.

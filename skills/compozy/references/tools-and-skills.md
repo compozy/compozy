@@ -393,7 +393,8 @@ Settings can retry one item with `compozy mcp check <name>` or
 `POST /api/settings/mcp-servers/{name}/check` with the same
 `scope`, `workspace_id`, `profile`, and `owner` selectors as authentication. It returns the item
 with `runtime_status`, including `state: "off"`, `probe: "skipped"` and `reason: "server_disabled"`
-for an off server. These check routes deny app tokens and preserve consent requirements.
+for an off server. A successful check refreshes the selected server's session catalog and clears its
+previous discovery failure. These check routes deny app tokens and preserve consent requirements.
 Session rows expose `scope`, optional `workspace_id`/`profile`, `transport`, and `source.kind`.
 Only `waiting_approval` rows expose the definition preview (`command`/`args`/`url`, `source.path`)
 and `approval{reason,definition_digest}`. Preview text is redacted; URLs omit userinfo and mask

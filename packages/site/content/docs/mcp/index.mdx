@@ -49,8 +49,9 @@ default is two minutes without a hint. An unchanged list reuses the existing cat
 from these servers become visible after the next successful refresh. Runtimes that need to
 reload pick up the change on the next message.
 
-Use **Check again** to contact one server immediately. If the check fails, CompozyOS keeps
-its last successful catalog. The status shows when a stdio server is backing off before
+Use **Check again** or `compozy mcp check <name>` to contact one server immediately. A successful
+check refreshes the server's tools for sessions and clears the previous discovery failure. A failed
+check keeps the last successful catalog. The status shows when a stdio server is backing off before
 another launch attempt.
 
 ## Who can turn a server on

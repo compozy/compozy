@@ -17,14 +17,23 @@ func (p *MCPProvider) CheckMCPServer(ctx context.Context, scope Scope, name stri
 		if mcpSourceServerName(source) != name {
 			continue
 		}
-		if key, tracked := mcpDeadEntityKey(source, scope.ProfileID); tracked && p.reliability != nil {
-			ctx = deadentity.WithProbeRetry(ctx, key)
-		}
-		ctx = WithFreshMCPDiscovery(context.WithValue(ctx, cachedMCPProjectionKey{}, false))
-		_, _, err := p.listSourceDescriptors(ctx, source, scope.ProfileID, p.discoveryBudget)
-		return err
+		return p.CheckMCPSource(ctx, source, func(ctx context.Context) ([]MCPToolDescriptor, error) {
+			return p.discoverSource(ctx, source, p.discoveryBudget)
+		})
 	}
 	return NewValidationError("name", ReasonSourceDisabled, "MCP server is not available in this scope")
+}
+
+// CheckMCPSource publishes a fresh probe of an already selected catalog source.
+func (p *MCPProvider) CheckMCPSource(
+	ctx context.Context, source SourceRef, discover func(context.Context) ([]MCPToolDescriptor, error),
+) error {
+	if key, tracked := mcpDeadEntityKey(source, source.ProfileID); tracked && p.reliability != nil {
+		ctx = deadentity.WithProbeRetry(ctx, key)
+	}
+	ctx = WithFreshMCPDiscovery(context.WithValue(ctx, cachedMCPProjectionKey{}, false))
+	_, _, err := p.listSourceDiscovery(ctx, source, source.ProfileID, discover)
+	return err
 }
 
 type freshMCPDiscoveryKey struct{}
