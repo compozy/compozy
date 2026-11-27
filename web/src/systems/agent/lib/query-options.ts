@@ -32,8 +32,9 @@ import {
   type AgentSkillReviewRef,
 } from "../adapters/agent-skill-review-api";
 import { fetchAgentMemory, fetchAgentMemoryHistory } from "../adapters/agent-memory-api";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { fetchAgentSoul, fetchAgentSoulHistory } from "../adapters/agent-soul-api";
-import { agentKeys } from "./query-keys";
+import { agentKeys, agentKeysFor } from "./query-keys";
 import {
   agentCatalogRequest,
   keepCatalogAcrossSearch,
@@ -50,10 +51,18 @@ const OCCURRENCE_POLL_MS = 1_500;
 const GROUPED_CATALOG_PAGE = 100;
 
 /** Every instance a view sees, across scopes; `agent_instance.updated` keeps it live between reads. */
-export function agentInstancesOptions(view: string, profiles: readonly string[]) {
+export function agentInstancesOptions(
+  view: string,
+  profiles: readonly string[],
+  computerId?: ComputerId
+) {
+  const remote = isRemoteComputerId(computerId);
   return queryOptions({
-    queryKey: agentKeys.instanceList(view, profiles),
-    queryFn: ({ signal }) => fetchAgentInstances(profiles, signal),
+    queryKey: remote
+      ? agentKeysFor(computerId).instanceList(view, profiles)
+      : agentKeys.instanceList(view, profiles),
+    queryFn: ({ signal }) =>
+      remote ? fetchAgentInstances(profiles, signal, computerId) : fetchAgentInstances(profiles, signal),
     staleTime: 30_000,
     retry: false,
     enabled: profiles.length > 0,

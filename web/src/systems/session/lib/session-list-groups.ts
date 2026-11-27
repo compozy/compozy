@@ -194,7 +194,16 @@ export function withInstanceProjectGroups(
  */
 export function profileSessionGroups(
   facets: Pick<SessionCatalogFacets, "by_profile"> | undefined,
-  input: { profiles: readonly ProfileOwner[]; scope: DataScope; computerId?: ComputerId }
+  input: {
+    profiles: readonly ProfileOwner[];
+    scope: DataScope;
+    computerId?: ComputerId;
+    computerName?: string;
+    computerPlatform?: ComputerPlatform;
+    computerIconKind?: ComputerIconKind;
+    offline?: boolean;
+    qualifyKey?: boolean;
+  }
 ): SessionListGroupSpec[] {
   if (!facets) return [];
   const remote = isRemoteComputerId(input.computerId);
@@ -203,9 +212,13 @@ export function profileSessionGroups(
     const row = byId.get(owner.id);
     if (!row || row.all === 0) return [];
     const lens: ProfileScopeParams = { profile: owner.name };
+    const key =
+      input.qualifyKey && input.computerId
+        ? `profile:${input.computerId}:${owner.id}`
+        : `profile:${owner.id}`;
     return [
       {
-        key: `profile:${owner.id}`,
+        key,
         kind: "profile" as const,
         owner,
         ...counts(row),
@@ -213,6 +226,14 @@ export function profileSessionGroups(
         lens,
         pair: sessionListPair(input.scope, lens, input.computerId),
         ...(remote ? { computerId: input.computerId } : {}),
+        ...(input.computerName !== undefined ? { computerName: input.computerName } : {}),
+        ...(input.computerPlatform !== undefined
+          ? { computerPlatform: input.computerPlatform }
+          : {}),
+        ...(input.computerIconKind !== undefined
+          ? { computerIconKind: input.computerIconKind }
+          : {}),
+        ...(input.offline ? { offline: true } : {}),
       },
     ];
   });

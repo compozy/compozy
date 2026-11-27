@@ -1,10 +1,15 @@
 import { LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import type { ProfileScopeParams } from "@/systems/profiles";
+import type { DataScope } from "@/systems/workspace";
 
 import type { ComputerSessionsSource } from "../hooks/use-computer-sessions-sources";
 import { sessionBadgeSignal } from "./session-badge";
 import type { SessionRowComputerInfo } from "./session-list-computer";
-import { projectSessionGroups, type SessionListGroupSpec } from "./session-list-groups";
+import {
+  profileSessionGroups,
+  projectSessionGroups,
+  type SessionListGroupSpec,
+} from "./session-list-groups";
 import type { SessionListSort } from "./session-list-preferences";
 import { sessionRowKey } from "./session-row-ref";
 import type { SessionPayload } from "../types";
@@ -62,6 +67,44 @@ export function buildTogetherProjectGroups(
     if (leftUser !== rightUser) return leftUser ? 1 : -1;
     const leftName = (left.group.badge?.name ?? "").toLocaleLowerCase();
     const rightName = (right.group.badge?.name ?? "").toLocaleLowerCase();
+    if (leftName !== rightName) return leftName.localeCompare(rightName);
+    return left.sourceIndex - right.sourceIndex;
+  });
+  return groups.map(item => item.group);
+}
+
+/**
+ * Builds Together + Profile groups (`profile · computer`) from per-computer facets (`Opus 3`, `Astra 9`).
+ * Same-named profiles sit next to each other (this computer first, then registry order);
+ * never merges two computers into one group.
+ */
+export function buildTogetherProfileGroups(
+  sources: readonly ComputerSessionsSource[],
+  scope: DataScope
+): SessionListGroupSpec[] {
+  const groups: Array<{ group: SessionListGroupSpec; sourceIndex: number }> = [];
+  for (let index = 0; index < sources.length; index++) {
+    const source = sources[index]!;
+    if (source.read !== "ok" && source.read !== "offline") continue;
+    const groupScope: DataScope =
+      !source.isLocal && scope.kind === "project" ? { kind: "all" } : scope;
+    const perComputer = profileSessionGroups(source.facets, {
+      profiles: source.profiles ?? [],
+      scope: groupScope,
+      computerId: source.key,
+      computerName: source.name,
+      computerPlatform: source.computer.platform,
+      computerIconKind: source.computer.iconKind,
+      offline: source.read === "offline",
+      qualifyKey: true,
+    });
+    for (const group of perComputer) {
+      groups.push({ group, sourceIndex: index });
+    }
+  }
+  groups.sort((left, right) => {
+    const leftName = (left.group.owner?.name ?? "").toLocaleLowerCase();
+    const rightName = (right.group.owner?.name ?? "").toLocaleLowerCase();
     if (leftName !== rightName) return leftName.localeCompare(rightName);
     return left.sourceIndex - right.sourceIndex;
   });

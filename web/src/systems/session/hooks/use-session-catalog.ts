@@ -12,7 +12,7 @@ import { sessionCatalogOptions, sessionFacetsOptions } from "../lib/session-cata
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import type { SessionCatalogPageResponse, SessionListFilters } from "../types";
 
-function scopedCatalogFilters(
+export function scopedCatalogFilters(
   scope: DataScope | null,
   filters: SessionListFilters,
   lens: ProfileScopeParams,
@@ -76,6 +76,7 @@ export function useSessionCatalog(
     ...pageOptions,
     enabled: active,
     placeholderData: (previousData, previousQuery) => {
+      if (previousQuery?.queryKey[1] !== computerId) return undefined;
       const previousFilters = previousQuery?.queryKey[6];
       if (!previousFilters || typeof previousFilters !== "object") return undefined;
       const { q: _previousSearch, ...previousPopulation } = previousFilters;

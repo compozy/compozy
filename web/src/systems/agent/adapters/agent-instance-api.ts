@@ -1,4 +1,5 @@
-import { apiBaseUrl, clientID, daemonFetch } from "@/lib/api-client";
+import { apiBaseUrl, clientID, computerApiPath, daemonFetch } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
 
 import type {
   AgentActivityPayload,
@@ -40,6 +41,7 @@ interface RequestOptions {
   body?: unknown;
   signal?: AbortSignal;
   fallback: string;
+  computerId?: ComputerId;
 }
 
 /** No route answers yet. A page says so plainly; it never shows made-up data in its place. */
@@ -65,8 +67,8 @@ async function failure(response: Response, fallback: string) {
  * `../types`. Same headers and base as `apiClient`.
  */
 async function request<T>(path: string, options: RequestOptions): Promise<T> {
-  const { method = "GET", body, signal, fallback } = options;
-  const response = await daemonFetch(new URL(path, apiBaseUrl), {
+  const { method = "GET", body, signal, fallback, computerId } = options;
+  const response = await daemonFetch(new URL(computerApiPath(computerId, path), apiBaseUrl), {
     method,
     signal,
     headers: {
@@ -98,7 +100,11 @@ function owned(instance: AgentInstanceWirePayload, profile_name: string) {
   return { ...instance, profile_name };
 }
 
-async function fetchProfileInstances(profile: string, signal?: AbortSignal) {
+async function fetchProfileInstances(
+  profile: string,
+  signal?: AbortSignal,
+  computerId?: ComputerId
+) {
   const instances: AgentInstancePayload[] = [];
   let cursor = "";
   let page: AgentInstancesResponse;
@@ -112,6 +118,7 @@ async function fetchProfileInstances(profile: string, signal?: AbortSignal) {
     page = await request<AgentInstancesResponse>(`/api/agent-instances?${query}`, {
       signal,
       fallback: "Failed to fetch always-on agents",
+      computerId,
     });
     instances.push(...page.instances.map(instance => owned(instance, profile)));
     cursor = page.next_cursor;
@@ -129,10 +136,11 @@ async function fetchProfileInstances(profile: string, signal?: AbortSignal) {
  */
 export async function fetchAgentInstances(
   profiles: readonly string[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<AgentInstancesRead> {
   const settled = await Promise.allSettled(
-    profiles.map(profile => fetchProfileInstances(profile, signal))
+    profiles.map(profile => fetchProfileInstances(profile, signal, computerId))
   );
   const reads = settled.flatMap(result => (result.status === "fulfilled" ? [result.value] : []));
   if (reads.length === 0 && settled[0]?.status === "rejected") throw settled[0].reason;

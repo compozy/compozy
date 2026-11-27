@@ -1,5 +1,6 @@
 import { Eyebrow } from "@compozy/ui";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
   GLOBAL_SCOPE,
@@ -31,20 +32,27 @@ export function AlwaysOnGlobalRow(props: ScopedRowProps & { instances?: never })
 export function AlwaysOnProjectRow({
   workspaceId,
   name,
+  computerId,
   ...props
-}: ScopedRowProps & { workspaceId: string; name: string }) {
+}: ScopedRowProps & { workspaceId: string; name: string; computerId?: ComputerId }) {
   return (
     <AlwaysOnRow
       {...props}
-      instances={projectGroupInstances(useAgentInstances(), workspaceId)}
+      instances={projectGroupInstances(useAgentInstances(computerId), workspaceId)}
       scopeName={name}
     />
   );
 }
 
 /** A closed project still shows who wants you, by face rather than a dot. */
-export function AlwaysOnCollapsedSignal({ workspaceId }: { workspaceId: string }) {
-  const waiting = projectGroupInstances(useAgentInstances(), workspaceId).filter(
+export function AlwaysOnCollapsedSignal({
+  workspaceId,
+  computerId,
+}: {
+  workspaceId: string;
+  computerId?: ComputerId;
+}) {
+  const waiting = projectGroupInstances(useAgentInstances(computerId), workspaceId).filter(
     instance => agentInstanceAvatarState(instance) === "needs-you"
   );
   const lead = waiting[0];

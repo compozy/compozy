@@ -36,13 +36,12 @@ export function SessionListGroupSignal({
   group: SessionListGroupSpec;
   states?: boolean;
 }) {
-  const scope =
-    group.kind === "project" && !isRemoteComputerId(group.computerId)
-      ? sessionListGroupTarget(group).workspaceId
-      : null;
+  const scope = group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
   return (
     <>
-      {scope ? <AlwaysOnCollapsedSignal workspaceId={scope} /> : null}
+      {scope ? (
+        <AlwaysOnCollapsedSignal computerId={group.computerId} workspaceId={scope} />
+      ) : null}
       {states ? <SessionGroupSignal group={group} /> : null}
     </>
   );
@@ -77,7 +76,18 @@ export function SessionListGroupIdentity({ group }: { group: SessionListGroupSpe
     }
     return badge;
   }
-  if (group.owner) return <ProfileOwnerTag owner={group.owner} />;
+  if (group.owner) {
+    const tag = <ProfileOwnerTag owner={group.owner} />;
+    if (group.computerName) {
+      return (
+        <span className="flex min-w-0 items-center gap-1.5">
+          {tag}
+          <ComputerTag bare name={group.computerName} />
+        </span>
+      );
+    }
+    return tag;
+  }
   return null;
 }
 

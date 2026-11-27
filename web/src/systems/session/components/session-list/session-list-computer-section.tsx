@@ -6,23 +6,23 @@ import { useContext, useState } from "react";
 import { Button, Spinner, cn, toast } from "@compozy/ui";
 
 import { isRemoteComputerId, normalizeComputerId } from "@/lib/computer-scope";
-import {
-  ComputerPlatformIcon,
-  computerRegistryKeys,
-  isComputerCounted,
-  patchComputer,
-} from "@/systems/computers";
+import { ComputerPlatformIcon, computerRegistryKeys, patchComputer } from "@/systems/computers";
+import type { ProfileScopeParams } from "@/systems/profiles";
+import type { DataScope } from "@/systems/workspace";
 
+import { useComputerSectionSearch } from "../../hooks/use-computer-section-search";
 import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
+import { SESSION_DROP_CROSS_COMPUTER_REASON } from "../../hooks/use-session-list-dnd";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
 import { useSessionSidebarState } from "../../hooks/use-session-sidebar-state";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
-import { SESSION_DROP_CROSS_COMPUTER_REASON } from "../../hooks/use-session-list-dnd";
 import type { SessionListGroupBy } from "../../lib/session-list-preferences";
+import type { SessionListShelf } from "../../lib/session-list-shelf";
 import { sessionDragComputerStore } from "../../lib/session-row-ref";
 import {
   computerFoldKey,
+  resolveComputerSectionFold,
   type SessionFoldSet,
   type SessionSubagentFolds,
 } from "../../lib/session-sidebar-scope";
@@ -39,6 +39,10 @@ export interface SessionListComputerSectionProps {
   source: ComputerSessionsSource;
   groupBy: SessionListGroupBy;
   search: string;
+  scope?: DataScope | null;
+  localLens?: ProfileScopeParams;
+  shelf?: SessionListShelf;
+  showAutomation?: boolean;
   collapsedThreads: SessionFoldSet;
   subagentThreads: SessionSubagentFolds;
   currentSessionId?: string;
@@ -154,6 +158,10 @@ export function SessionListComputerSection({
   source,
   groupBy,
   search,
+  scope = null,
+  localLens,
+  shelf = "active",
+  showAutomation = false,
   collapsedThreads,
   subagentThreads,
   currentSessionId,
@@ -176,30 +184,33 @@ export function SessionListComputerSection({
     useState<SessionFolderDialogState<WorkspaceFolderPayload>>(null);
 
   const filtering = search.trim() !== "";
-  // Search hides sections with 0 matches (`R11`).
-  if (filtering && source.read === "ok" && source.count === 0) return null;
+  const searchState = useComputerSectionSearch({
+    source,
+    scope,
+    localLens,
+    search,
+    shelf,
+    showAutomation,
+    worktreeId,
+  });
+  if (searchState.hidden) return null;
 
   const foldKey = computerFoldKey(source.key);
-  const explicit = sidebar.groupFolds.has(foldKey);
   const defaultFolded = defaultComputerFolded(source);
-  const collapsed = filtering
-    ? false
-    : sidebar.foldAll === "collapsed"
-      ? !explicit
-      : sidebar.foldAll === "groups"
-        ? explicit
-        : defaultFolded
-          ? !explicit
-          : explicit;
+  const collapsed = resolveComputerSectionFold({
+    flag: sidebar.groupFlag(foldKey),
+    foldAll: sidebar.foldAll,
+    defaultFolded,
+    filtering,
+  });
 
   const toggle = () => {
-    if (!filtering) sidebar.toggleGroup(foldKey);
+    if (!filtering) sidebar.toggleGroup(foldKey, defaultFolded);
   };
 
   const draggingFromOtherComputer =
     dragComputer !== null && normalizeComputerId(dragComputer) !== normalizeComputerId(source.key);
   const refused = hoverRefused && draggingFromOtherComputer;
-  const counted = isComputerCounted(source.read);
   const testId = `${testIdPrefix}-computer-${source.key}`;
 
   return (
@@ -227,7 +238,7 @@ export function SessionListComputerSection({
       <div className="sticky top-0 z-10 flex min-h-8 min-w-0 items-center gap-1 rounded-sm bg-sunken">
         <SessionListGroupToggle
           collapsed={collapsed}
-          count={counted ? source.count : null}
+          count={searchState.headerCount}
           identity={<ComputerSectionIdentity source={source} />}
           leading={{ needsYou: source.needsYou, working: source.working, slot: "session-group" }}
           onToggle={toggle}
@@ -238,7 +249,7 @@ export function SessionListComputerSection({
           onNewProjectFolder={
             source.canOperate && groupBy === "project"
               ? () => {
-                  if (collapsed) sidebar.toggleGroup(foldKey);
+                  if (collapsed) sidebar.toggleGroup(foldKey, defaultFolded);
                   setProjectFolderDialog({ kind: "create" });
                 }
               : undefined

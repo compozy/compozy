@@ -1,17 +1,24 @@
+import { useSelector } from "@xstate/store-react";
 import type { ReactNode } from "react";
 
 import { SearchInput } from "@compozy/ui";
 
+import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+import { useComputers } from "@/systems/computers";
 
 import { SessionMenuOpenContext } from "../../contexts/session-menu-open-context-value";
 import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
+import { useSessionListComputers } from "../../hooks/use-session-list-computers";
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
 import { useSessionListSearch } from "../../hooks/use-session-list-local-state";
-import { useSessionListComputers } from "../../hooks/use-session-list-computers";
 import { useSessionListContent } from "../../hooks/use-session-list-reveal-current";
 import { useSessionListSelection } from "../../hooks/use-session-list-selection";
+import {
+  resolveSessionWindowOrder,
+  sessionSidebarStore,
+} from "../../hooks/use-session-sidebar-state";
 import type {
   SessionListTotals as Totals,
   SessionListViewModel,
@@ -21,7 +28,8 @@ import { buildSessionListThreads, countThreadSessions } from "../../lib/session-
 import { SESSION_LIST_NEW_FOLDER_MULTI_COMPUTER_NOTE } from "../../lib/session-list-view-helpers";
 import { sessionThreadFolds } from "../../lib/session-sidebar-scope";
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
-import type { SessionListTarget, SessionPayload } from "../../types";
+import type { SessionListTarget, SessionPayload, WorkspaceFolderPayload } from "../../types";
+import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
 import { AlwaysOnListTop } from "../always-on/always-on-list-top";
 import { ArchivedCleanup } from "./archived-cleanup";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
@@ -61,6 +69,8 @@ export interface SessionListProps {
   onOpenComputerDetails?: (computerId: string) => void;
 }
 
+type MultiComputerListState = ReturnType<typeof useSessionListComputers>;
+
 function aggregateSourcesTotals(
   sources: readonly ComputerSessionsSource[],
   shelf: SessionListViewModel["shelf"]
@@ -94,11 +104,99 @@ function aggregateLaterCount(sources: readonly ComputerSessionsSource[]): number
   return answered ? total : undefined;
 }
 
+function resolveToolbarNewFolder(input: {
+  multiComputerVisible: boolean;
+  scopedRemoteSource: ComputerSessionsSource | null;
+  view: SessionListViewModel;
+  hasSessionLayout: boolean;
+  hasProjectLayout: boolean;
+  openSessionFolder: () => void;
+  openProjectFolder: () => void;
+}): { onNewFolder?: () => void; newFolderUnavailable: string | null } {
+  const {
+    multiComputerVisible,
+    scopedRemoteSource,
+    view,
+    hasSessionLayout,
+    hasProjectLayout,
+    openSessionFolder,
+    openProjectFolder,
+  } = input;
+  if (multiComputerVisible) {
+    return { onNewFolder: undefined, newFolderUnavailable: SESSION_LIST_NEW_FOLDER_MULTI_COMPUTER_NOTE };
+  }
+  if (scopedRemoteSource) {
+    const operable = scopedRemoteSource.canOperate && scopedRemoteSource.read === "ok";
+    if (operable && view.groupBy === "project" && view.allProjects) {
+      return { onNewFolder: openProjectFolder, newFolderUnavailable: null };
+    }
+    return {
+      onNewFolder: undefined,
+      newFolderUnavailable: operable
+        ? "Group by Project to add folders."
+        : "Folders aren't available on this computer right now.",
+    };
+  }
+  const onNewFolder = hasSessionLayout
+    ? openSessionFolder
+    : hasProjectLayout
+      ? openProjectFolder
+      : undefined;
+  return { onNewFolder, newFolderUnavailable: onNewFolder ? null : view.newFolderUnavailable };
+}
+
+function resolveScopeNotice(
+  multi: MultiComputerListState | null,
+  testIdPrefix: string
+): ReactNode {
+  if (!multi) return null;
+  if (multi.computerScopeState.removedName) {
+    return (
+      <SessionListScopeRemovedNotice
+        name={multi.computerScopeState.removedName}
+        onDismiss={multi.computerScopeState.dismissRemovedNotice}
+        testIdPrefix={testIdPrefix}
+      />
+    );
+  }
+  if (multi.scopedOfflineComputer) {
+    const offlineComputer = multi.scopedOfflineComputer;
+    return (
+      <SessionListOfflineNotice
+        computer={offlineComputer}
+        onReconnect={() => multi.reconnectScopedComputer(offlineComputer.id)}
+        reconnecting={multi.reconnectingScoped}
+        testIdPrefix={testIdPrefix}
+      />
+    );
+  }
+  return null;
+}
+
 /**
  * Shared sessions catalog body for the topbar breadth: one flat list of
  * provenance threads, Group-by groups, or multi-computer sections (`F6`–`F9`).
+ * When no remote computers are enabled, avoids mounting multi-computer hooks so
+ * local-only windows issue zero extra workspace/profile/computer reads (`N6`).
  */
-export function SessionList({
+export function SessionList(props: SessionListProps) {
+  const { canRead, enabledComputers } = useComputers({ passive: true });
+  const scopeId = useWorktreeScopeId();
+  const windowComputerScope = useSelector(
+    sessionSidebarStore,
+    snapshot => resolveSessionWindowOrder(snapshot.context.byScope, scopeId).computerScope
+  );
+  const needsComputers = (canRead && enabledComputers.length > 0) || windowComputerScope !== "all";
+  if (!needsComputers) return <SessionListCore {...props} multi={null} />;
+  return <SessionListWithComputers {...props} />;
+}
+
+function SessionListWithComputers(props: SessionListProps) {
+  const multi = useSessionListComputers(props.view);
+  return <SessionListCore {...props} multi={multi} />;
+}
+
+function SessionListCore({
   sessions,
   disconnected,
   collapsedThreadIds,
@@ -114,7 +212,8 @@ export function SessionList({
   header,
   scopeNotice,
   onOpenComputerDetails,
-}: SessionListProps) {
+  multi,
+}: SessionListProps & { multi: MultiComputerListState | null }) {
   const { contentRef, sessionActions, announcement } = useSessionListContent(
     hostActions,
     testIdPrefix,
@@ -141,24 +240,15 @@ export function SessionList({
     filtering,
   });
 
-  const {
-    computerScopeState,
-    computerSources,
-    computersLayout,
-    dataScope,
-    isScopedToLocal,
-    multiComputerPinned,
-    multiComputerVisible,
-    reconnectingScoped,
-    reconnectScopedComputer,
-    scopedOfflineComputer,
-    scopedRemoteSource,
-  } = useSessionListComputers(view);
+  const multiComputerVisible = multi?.multiComputerVisible === true;
+  const scopedRemoteSource = multi?.scopedRemoteSource ?? null;
+  const isScopedToLocal = multi?.isScopedToLocal === true;
+  const computersLayout = multi?.computersLayout ?? "separate";
 
   const pinnedSection = (
     <SessionListPinned
       view={view}
-      pinnedOverride={multiComputerPinned}
+      pinnedOverride={multi?.multiComputerPinned}
       filtering={filtering}
       collapsedThreads={collapsedThreads}
       subagentThreads={subagentThreads}
@@ -194,25 +284,15 @@ export function SessionList({
     onNewSession();
   };
 
-  const toolbarNewFolder = multiComputerVisible
-    ? { onNewFolder: undefined, newFolderUnavailable: SESSION_LIST_NEW_FOLDER_MULTI_COMPUTER_NOTE }
-    : scopedRemoteSource
-      ? scopedRemoteSource.canOperate &&
-        scopedRemoteSource.read === "ok" &&
-        view.groupBy === "project" &&
-        view.allProjects
-        ? { onNewFolder: () => setProjectFolderDialog({ kind: "create" }), newFolderUnavailable: null }
-        : {
-            onNewFolder: undefined,
-            newFolderUnavailable:
-              scopedRemoteSource.canOperate && scopedRemoteSource.read === "ok"
-                ? "Group by Project to add folders."
-                : "Folders aren't available on this computer right now.",
-          }
-      : listNewFolder(view, {
-          session: layout ? () => folders.setDialog({ kind: "create" }) : undefined,
-          project: projectLayout ? () => setProjectFolderDialog({ kind: "create" }) : undefined,
-        });
+  const toolbarNewFolder = resolveToolbarNewFolder({
+    multiComputerVisible,
+    scopedRemoteSource,
+    view,
+    hasSessionLayout: layout !== undefined,
+    hasProjectLayout: projectLayout !== undefined,
+    openSessionFolder: () => folders.setDialog({ kind: "create" }),
+    openProjectFolder: () => setProjectFolderDialog({ kind: "create" }),
+  });
 
   const computerLayoutOption =
     multiComputerVisible && view.setComputers
@@ -220,34 +300,19 @@ export function SessionList({
       : undefined;
 
   const effectiveTotals = multiComputerVisible
-    ? (aggregateSourcesTotals(computerSources.sources, view.shelf) ?? view.totals)
+    ? (aggregateSourcesTotals(multi!.computerSources.sources, view.shelf) ?? view.totals)
     : scopedRemoteSource
       ? aggregateSourcesTotals([scopedRemoteSource], view.shelf)
       : view.totals;
   const effectiveLaterCount = multiComputerVisible
-    ? (aggregateLaterCount(computerSources.sources) ?? view.laterCount)
+    ? (aggregateLaterCount(multi!.computerSources.sources) ?? view.laterCount)
     : scopedRemoteSource
       ? scopedRemoteSource.laterCount
       : view.laterCount;
 
-  // Always-on top strip shows under Together or a local scope, not above Separate computer sections (`R1`).
   const showAlwaysOnTop =
     !scopedRemoteSource && (!multiComputerVisible || computersLayout === "together");
-
-  const builtInNotice = computerScopeState.removedName ? (
-    <SessionListScopeRemovedNotice
-      name={computerScopeState.removedName}
-      onDismiss={computerScopeState.dismissRemovedNotice}
-      testIdPrefix={testIdPrefix}
-    />
-  ) : scopedOfflineComputer ? (
-    <SessionListOfflineNotice
-      computer={scopedOfflineComputer}
-      onReconnect={() => reconnectScopedComputer(scopedOfflineComputer.id)}
-      reconnecting={reconnectingScoped}
-      testIdPrefix={testIdPrefix}
-    />
-  ) : null;
+  const isRemoteOrMulti = multiComputerVisible || scopedRemoteSource !== null;
 
   return (
     <SessionMenuOpenContext value={onSelectSession}>
@@ -263,10 +328,10 @@ export function SessionList({
           </span>
           {header?.(visibleCount)}
           <SessionListControls
-            archiveStoppedDisabled={multiComputerVisible || scopedRemoteSource !== null}
+            archiveStoppedDisabled={isRemoteOrMulti}
             bulk={bulk}
             computerLayout={computerLayoutOption}
-            disableAlwaysOnCreate={multiComputerVisible || scopedRemoteSource !== null}
+            disableAlwaysOnCreate={isRemoteOrMulti}
             laterCount={effectiveLaterCount}
             view={view}
             onNewSession={toolbarNewSession}
@@ -282,7 +347,7 @@ export function SessionList({
               containerClassName="min-w-0"
             />
           </div>
-          {scopeNotice ?? builtInNotice}
+          {scopeNotice ?? resolveScopeNotice(multi, testIdPrefix)}
           {showAlwaysOnTop ? (
             <AlwaysOnListTop
               currentSessionId={currentSessionId}
@@ -292,7 +357,7 @@ export function SessionList({
             />
           ) : null}
           <SessionListStatus disconnected={disconnected} view={view} />
-          {multiComputerVisible || scopedRemoteSource ? (
+          {isRemoteOrMulti && multi ? (
             <SessionListMultiComputerBody
               bulk={bulk}
               collapsedThreads={collapsedThreads}
@@ -300,6 +365,7 @@ export function SessionList({
               currentSessionId={currentSessionId}
               filtering={filtering}
               groupSelection={groupSelection}
+              localLens={multi.localLens}
               onNewSession={onNewSession}
               onOpenComputerDetails={onOpenComputerDetails}
               onProjectFolderDialog={setProjectFolderDialog}
@@ -307,11 +373,11 @@ export function SessionList({
               onThreadBranchChange={onThreadBranchChange}
               pinnedSection={pinnedSection}
               projectFolderDialog={scopedRemoteSource ? projectFolderDialog : undefined}
-              scope={dataScope}
+              scope={multi.dataScope}
               scopedSource={scopedRemoteSource}
               search={activeSearch}
               sessionActions={sessionActions}
-              sources={computerSources.sources}
+              sources={multi.computerSources.sources}
               subagentThreads={subagentThreads}
               testIdPrefix={testIdPrefix}
               view={view}
@@ -337,33 +403,21 @@ export function SessionList({
               view={view}
             />
           )}
-          {!scopedRemoteSource && layout ? (
-            <SessionFolderDialogs
-              state={folders.dialog}
-              onClose={() => folders.setDialog(null)}
-              onCreate={layout.createFolder}
-              onRename={layout.renameFolder}
-              onDelete={layout.deleteFolder}
-            />
-          ) : null}
-          {!scopedRemoteSource && projectLayout ? (
-            <SessionFolderDialogs
-              holds="projects"
-              state={projectFolderDialog}
-              onClose={() => setProjectFolderDialog(null)}
-              onCreate={projectLayout.createFolder}
-              onRename={projectLayout.renameFolder}
-              onDelete={projectLayout.deleteFolder}
-            />
-          ) : null}
+          <SessionListLocalDialogs
+            folders={folders}
+            projectFolderDialog={projectFolderDialog}
+            projectLayout={projectLayout}
+            scopedRemoteSource={scopedRemoteSource}
+            setProjectFolderDialog={setProjectFolderDialog}
+          />
           <SessionListTotals
             totals={effectiveTotals}
-            uncountedNames={multiComputerVisible ? computerSources.uncountedNames : undefined}
+            uncountedNames={
+              multiComputerVisible ? multi!.computerSources.uncountedNames : undefined
+            }
             testIdPrefix={testIdPrefix}
           />
-          {!multiComputerVisible && !scopedRemoteSource ? (
-            <ArchivedCleanup view={view} testIdPrefix={testIdPrefix} />
-          ) : null}
+          {!isRemoteOrMulti ? <ArchivedCleanup view={view} testIdPrefix={testIdPrefix} /> : null}
           {bulk.folderMove ? (
             <SessionListSelectionFolders folders={bulk.folderMove} active={bulk.active} />
           ) : null}
@@ -373,16 +427,43 @@ export function SessionList({
   );
 }
 
-/**
- * The toolbar's New folder: one pair's session folder, else the profile's project
- * folder under All projects by project, else disabled with the view's reason.
- */
-function listNewFolder(
-  view: SessionListViewModel,
-  create: { session?: () => void; project?: () => void }
-): { onNewFolder?: () => void; newFolderUnavailable: string | null } {
-  const onNewFolder = create.session ?? create.project;
-  return { onNewFolder, newFolderUnavailable: onNewFolder ? null : view.newFolderUnavailable };
+function SessionListLocalDialogs({
+  folders,
+  projectLayout,
+  projectFolderDialog,
+  setProjectFolderDialog,
+  scopedRemoteSource,
+}: {
+  folders: ReturnType<typeof useSessionListFolderLayout>;
+  projectLayout: NonNullable<SessionListViewModel["projectFolders"]>["layout"] | undefined;
+  projectFolderDialog: SessionFolderDialogState<WorkspaceFolderPayload>;
+  setProjectFolderDialog: (state: SessionFolderDialogState<WorkspaceFolderPayload>) => void;
+  scopedRemoteSource: ComputerSessionsSource | null;
+}) {
+  if (scopedRemoteSource) return null;
+  return (
+    <>
+      {folders.layout ? (
+        <SessionFolderDialogs
+          state={folders.dialog}
+          onClose={() => folders.setDialog(null)}
+          onCreate={folders.layout.createFolder}
+          onRename={folders.layout.renameFolder}
+          onDelete={folders.layout.deleteFolder}
+        />
+      ) : null}
+      {projectLayout ? (
+        <SessionFolderDialogs
+          holds="projects"
+          state={projectFolderDialog}
+          onClose={() => setProjectFolderDialog(null)}
+          onCreate={projectLayout.createFolder}
+          onRename={projectLayout.renameFolder}
+          onDelete={projectLayout.deleteFolder}
+        />
+      ) : null}
+    </>
+  );
 }
 
 function sessionListVisibleCount(

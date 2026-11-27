@@ -64,9 +64,7 @@ export function SessionsBoardSwimlane({
   const name = laneName(lane);
   const testId = `sessions-board-lane-${lane.group.key}`;
   const alwaysOnScope =
-    lane.group.kind === "project" && !isRemoteComputerId(computerId)
-      ? sessionListGroupTarget(lane.group).workspaceId
-      : null;
+    lane.group.kind === "project" ? sessionListGroupTarget(lane.group).workspaceId : null;
   // The lane's select-all covers the cards its columns show; a folded column shows none.
   const shownIds = open
     ? columns.flatMap(column =>
@@ -90,6 +88,7 @@ export function SessionsBoardSwimlane({
         {alwaysOnScope ? (
           <AlwaysOnProjectRow
             className="flex-1 pl-2"
+            computerId={computerId}
             currentSessionId={props.currentSessionId}
             limit={BOARD_ROW_LIMIT}
             name={name}

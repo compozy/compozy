@@ -1,4 +1,5 @@
-import { use } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
+import { use, useContext } from "react";
 import { cn } from "@compozy/ui";
 
 import { isRemoteComputerId } from "@/lib/computer-scope";
@@ -6,7 +7,10 @@ import { useOptionalUpgradeSheetActions } from "@/systems/account";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
-import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
+import {
+  readCachedOfflineRowsForComputer,
+  type ComputerSessionsSource,
+} from "../../hooks/use-computer-sessions-sources";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import {
   useSessionListFolderLayout,
@@ -14,11 +18,10 @@ import {
 } from "../../hooks/use-session-list-folder-layout";
 import { usePublishSessionListGroupRows } from "../../hooks/use-session-list-group-rows";
 import { useSessionListLocalState } from "../../hooks/use-session-list-local-state";
-import { useSessionListView } from "../../hooks/use-session-list-view";
-import { matchesOfflineSessionQuery } from "../../lib/session-list-computer-filter";
+import { useSessionListView, type SessionListViewModel } from "../../hooks/use-session-list-view";
+import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import { sessionListGroupRank } from "../../lib/session-list-group-rows";
 import { buildSessionListThreads, threadVisibleOrder } from "../../lib/session-list-threads";
-import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import type { SessionFoldSet, SessionSubagentFolds } from "../../lib/session-sidebar-scope";
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import type { SessionListTarget, WorkspaceFolderPayload } from "../../types";
@@ -51,6 +54,25 @@ export interface SessionListComputerBodyProps {
   sectionRank?: number;
   /** Active worktree filter forwarded from the parent list view. */
   worktreeId?: string;
+}
+
+function isEmptyOnlineComputer(input: {
+  filtering: boolean;
+  source: ComputerSessionsSource;
+  view: SessionListViewModel;
+  threadCount: number;
+  folderCount: number;
+}): boolean {
+  const { filtering, source, view, threadCount, folderCount } = input;
+  return (
+    !filtering &&
+    source.read === "ok" &&
+    source.count === 0 &&
+    !view.groupsLoading &&
+    view.groups.length === 0 &&
+    threadCount === 0 &&
+    folderCount === 0
+  );
 }
 
 /**
@@ -99,6 +121,7 @@ function SessionListComputerLiveBody({
   sectionRank = 0,
   worktreeId,
 }: SessionListComputerBodyProps) {
+  const queryClient = useContext(QueryClientContext);
   const { dataScope } = useActiveWorkspace();
   const parentGroupSelection = use(SessionListGroupSelectionContext);
   const offline = source.read === "offline";
@@ -123,11 +146,10 @@ function SessionListComputerLiveBody({
   const projectFolderDialog = externalProjectDialog ?? localProjectDialog;
   const setProjectFolderDialog = onProjectFolderDialogChange ?? setLocalProjectDialog;
 
-  const rawSessions = computerView.catalog?.sessions ?? [];
-  const listedSessions =
-    offline && filtering
-      ? rawSessions.filter(session => matchesOfflineSessionQuery(session, search))
-      : rawSessions;
+  // Offline computers filter rows already cached before disconnect (`Opus 6`, `Astra 15`).
+  const listedSessions = offline
+    ? readCachedOfflineRowsForComputer(queryClient, source.key, search)
+    : (computerView.catalog?.sessions ?? []);
   const threads = buildSessionListThreads(listedSessions, "");
   const folders = useSessionListFolderLayout(computerView, threads, filtering);
   const grouped = computerView.groupBy !== "none";
@@ -156,15 +178,14 @@ function SessionListComputerLiveBody({
     });
   };
 
-  // Connected computer with zero sessions in view (`Q9`, `R19`).
   if (
-    !filtering &&
-    source.read === "ok" &&
-    source.count === 0 &&
-    !computerView.groupsLoading &&
-    computerView.groups.length === 0 &&
-    threads.length === 0 &&
-    !folders.sections?.folders.length
+    isEmptyOnlineComputer({
+      filtering,
+      source,
+      view: computerView,
+      threadCount: threads.length,
+      folderCount: folders.sections?.folders.length ?? 0,
+    })
   ) {
     return (
       <SessionListComputerNote testId={`${testIdPrefix}-computer-${source.key}-empty`}>

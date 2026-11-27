@@ -200,10 +200,35 @@ export function projectComputerFoldKey(computerId: ComputerId, workspaceId: stri
     : `project:${workspaceId}`;
 }
 
+/** Fold key for one profile on one computer (List + Kanban, Together + Separate). */
+export function profileComputerFoldKey(computerId: ComputerId, profileId: string): string {
+  const normalized = normalizeComputerId(computerId);
+  return isRemoteComputerId(normalized)
+    ? `profile:${normalized}:${profileId}`
+    : `profile:${profileId}`;
+}
+
 /** Fold key for a folder on a specific computer (local keeps bare id; remote prefixes computer). */
 export function folderComputerFoldKey(computerId: ComputerId, folderId: string): string {
   const normalized = normalizeComputerId(computerId);
   return isRemoteComputerId(normalized) ? `folder:${normalized}:${folderId}` : folderId;
+}
+
+/**
+ * Resolves a computer section or band's collapsed state without double-applying `foldAll`.
+ * An explicit operator flag wins; otherwise `foldAll` wins; otherwise the section's default applies.
+ */
+export function resolveComputerSectionFold(options: {
+  flag: boolean | undefined;
+  foldAll: SessionFoldAll;
+  defaultFolded: boolean;
+  filtering?: boolean;
+}): boolean {
+  if (options.filtering) return false;
+  if (options.flag !== undefined) return options.flag;
+  if (options.foldAll === "collapsed") return true;
+  if (options.foldAll === "groups" || options.foldAll === "expanded") return false;
+  return options.defaultFolded;
 }
 
 /** True when a stored fold key belongs to a remote computer (evicted on sign-out/switch, C3). */
@@ -212,7 +237,12 @@ export function isRemoteFoldKey(key: string): boolean {
   if (segment.startsWith("computer:")) {
     return isRemoteComputerId(segment.slice("computer:".length));
   }
-  if (segment.startsWith("project:") || segment.startsWith("folder:")) {
+  if (
+    segment.startsWith("project:") ||
+    segment.startsWith("profile:") ||
+    segment.startsWith("folder:") ||
+    segment.startsWith("board:")
+  ) {
     const rest = segment.slice(segment.indexOf(":") + 1);
     const colon = rest.indexOf(":");
     if (colon > 0) return isRemoteComputerId(rest.slice(0, colon));
@@ -233,7 +263,9 @@ export function withoutRemoteFoldFlags(
       return !(
         segment === `computer:${target}` ||
         segment.startsWith(`project:${target}:`) ||
-        segment.startsWith(`folder:${target}:`)
+        segment.startsWith(`profile:${target}:`) ||
+        segment.startsWith(`folder:${target}:`) ||
+        segment.startsWith(`board:${target}:`)
       );
     }
     return !isRemoteFoldKey(key);

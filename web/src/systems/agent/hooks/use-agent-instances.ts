@@ -1,8 +1,9 @@
 import { useAgentWindowScope } from "./use-agent-window-scope";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
-import { useProfilePerProfileScope, useProfileReadScope } from "@/systems/profiles";
+import { useProfilePerProfileScope, useProfileReadScope, useProfiles } from "@/systems/profiles";
 
 import {
   archiveAgentInstance,
@@ -67,9 +68,18 @@ export function invalidateAgentInstances(queryClient: QueryClient) {
   return queryClient.invalidateQueries({ queryKey: agentKeys.instanceLists() });
 }
 
-function useAgentInstancesRead() {
-  const { key, names } = useProfilePerProfileScope();
-  return useQuery(agentInstancesOptions(key, names)).data;
+function useAgentInstancesRead(computerId?: ComputerId) {
+  const remote = isRemoteComputerId(computerId);
+  const { key, names: localNames } = useProfilePerProfileScope();
+  const remoteProfiles = useProfiles(remote, remote ? computerId : undefined);
+  const names = remote
+    ? (remoteProfiles.data ?? []).map(profile => profile.name)
+    : localNames;
+  const viewKey = remote ? "remote-all" : key;
+  return useQuery({
+    ...agentInstancesOptions(viewKey, names, computerId),
+    enabled: names.length > 0,
+  }).data;
 }
 
 /**
@@ -88,9 +98,9 @@ export function useAgentInstancesState(): {
   };
 }
 
-/** Every always-on instance of the active view; no route behind it yet reads as none, so no row shows. */
-export function useAgentInstances(): readonly AgentInstancePayload[] {
-  return useAgentInstancesRead()?.instances ?? NO_INSTANCES;
+/** Every always-on instance of the active view (or owning remote computer); no route behind it yet reads as none. */
+export function useAgentInstances(computerId?: ComputerId): readonly AgentInstancePayload[] {
+  return useAgentInstancesRead(computerId)?.instances ?? NO_INSTANCES;
 }
 
 /**

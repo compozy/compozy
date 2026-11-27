@@ -1,4 +1,4 @@
-import { ComputerScopePicker, type ComputerScopeCount } from "@/systems/computers";
+import { ComputerScopePicker, useComputers, type ComputerScopeCount } from "@/systems/computers";
 
 import { useSessionWindowComputerControls } from "../../hooks/use-session-window-computer-controls";
 import type { SessionWindowViewMode } from "../../lib/session-sidebar-scope";
@@ -14,9 +14,28 @@ export interface SessionWindowViewControlsProps {
 /**
  * Shared Sessions window topbar controls: List | Kanban toggle plus the per-window
  * computer scope picker (`F8`). Mounted at all three Sessions window sites so they
- * stay identical; the picker hides when no remote computer is enabled (`N6`).
+ * stay identical; the picker hides when no remote computer is enabled (`N6`) without
+ * firing workspace or profile reads.
  */
 export function SessionWindowViewControls({
+  value,
+  onValueChange,
+  onManageComputers,
+}: SessionWindowViewControlsProps) {
+  const { canRead, enabledComputers } = useComputers({ passive: true });
+  if (!canRead || enabledComputers.length === 0) {
+    return <SessionViewToggle onValueChange={onValueChange} value={value} />;
+  }
+  return (
+    <SessionWindowMultiComputerControls
+      onManageComputers={onManageComputers}
+      onValueChange={onValueChange}
+      value={value}
+    />
+  );
+}
+
+function SessionWindowMultiComputerControls({
   value,
   onValueChange,
   onManageComputers,

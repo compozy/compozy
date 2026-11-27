@@ -37,9 +37,7 @@ export function SessionListGroupSection({
   const { view, testIdPrefix } = props;
   const collapsed = view.collapsedGroupKeys.has(group.key);
   const alwaysOnScope =
-    group.kind === "project" && !group.computerId
-      ? sessionListGroupTarget(group).workspaceId
-      : null;
+    group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
   return (
     <section data-collapsed={collapsed ? "true" : undefined} data-group-key={group.key}>
       <SessionListGroupHeader
@@ -54,6 +52,7 @@ export function SessionListGroupSection({
       {collapsed || !alwaysOnScope ? null : (
         <AlwaysOnProjectRow
           className="px-1 pt-1 pb-1.5 pl-3.5"
+          computerId={group.computerId}
           currentSessionId={props.currentSessionId}
           name={group.badge?.name ?? "this project"}
           onOpenSession={props.onSelectSession}

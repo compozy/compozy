@@ -207,15 +207,11 @@ export {
 } from "./lib/merge-automation-jobs";
 export {
   COMPUTER_SESSION_PAGE_LIMIT,
-  groupSessionsByProjectAndComputer,
   mergeSessionPages,
-  selectNextComputerToLoadMore,
   type ComputerSessionPageInput,
   type MergeableSession,
   type MergedSessionRow,
   type MergeSessionComputer,
-  type NextComputerPageSelection,
-  type ProjectComputerGroup,
 } from "./lib/merge-sessions";
 export { computerRegistryKeys } from "./lib/query-keys";
 export {

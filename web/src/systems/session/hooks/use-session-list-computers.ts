@@ -16,7 +16,7 @@ import type { SessionListViewModel } from "./use-session-list-view";
 export function useSessionListComputers(view: SessionListViewModel) {
   const queryClient = useContext(QueryClientContext);
   const [reconnectingScoped, setReconnectingScoped] = useState(false);
-  const { dataScope } = useActiveWorkspace();
+  const { dataScope, registeredWorkspaces } = useActiveWorkspace();
   const profile = useProfileReadScope();
 
   const computerSources = useComputerSessionsSources({
@@ -26,6 +26,8 @@ export function useSessionListComputers(view: SessionListViewModel) {
     showAutomation: view.showAutomation,
     search: view.groupFilters.q,
     worktreeId: view.worktreeId,
+    includeProfiles: view.groupBy === "profile",
+    workspaces: registeredWorkspaces,
   });
   const computerScopeState = useSessionComputerScope();
   const hasRemote = computerSources.hasRemoteComputers;
@@ -44,6 +46,7 @@ export function useSessionListComputers(view: SessionListViewModel) {
     localLens: profile.params,
     groupFilters: view.groupFilters,
     allProjects: view.allProjects === true,
+    sort: view.sort,
   });
 
   const scopedOfflineComputer =
@@ -69,6 +72,7 @@ export function useSessionListComputers(view: SessionListViewModel) {
     computersLayout,
     dataScope,
     isScopedToLocal,
+    localLens: profile.params,
     multiComputerPinned,
     multiComputerVisible,
     reconnectingScoped,

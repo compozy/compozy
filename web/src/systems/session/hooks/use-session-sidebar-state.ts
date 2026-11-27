@@ -194,17 +194,27 @@ export const sessionSidebarLogic = createStoreLogic({
         ),
       }));
     },
-    groupToggled: (context, event: { scopeId: string; groupId: string }) => {
+    groupToggled: (
+      context,
+      event: { scopeId: string; groupId: string; defaultCollapsed?: boolean }
+    ) => {
       if (!event.groupId) {
         return;
       }
       return withScopeState(context, event.scopeId, state => ({
         ...state,
-        collapsedGroups: toggledGroup(
-          state.collapsedGroups,
-          event.groupId,
-          state.foldAll === "collapsed"
-        ),
+        collapsedGroups:
+          event.defaultCollapsed !== undefined
+            ? toggledFlag(
+                state.collapsedGroups,
+                event.groupId,
+                state.foldAll === "collapsed"
+                  ? true
+                  : state.foldAll === "groups" || state.foldAll === "expanded"
+                    ? false
+                    : event.defaultCollapsed
+              )
+            : toggledGroup(state.collapsedGroups, event.groupId, state.foldAll === "collapsed"),
       }));
     },
     groupLensResolved: (context, event: { from: string; to: string }) => {
@@ -358,7 +368,7 @@ export interface UseSessionSidebarStateResult {
   groupFolds: SessionFoldSet;
   /** A group's stored fold alone; `undefined` follows `foldAll`. */
   groupFlag: (groupId: string) => boolean | undefined;
-  toggleGroup: (groupId: string) => void;
+  toggleGroup: (groupId: string, defaultCollapsed?: boolean) => void;
   /** The last Collapse all, Expand groups or Expand all in this window. */
   foldAll: SessionFoldAll;
   setFoldAll: (foldAll: Exclude<SessionFoldAll, null>) => void;
@@ -419,8 +429,8 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
     collapsedGroupIds: flaggedIds(state.collapsedGroups),
     groupFolds: sessionFoldSet(state.collapsedGroups, state.foldAll),
     groupFlag: groupId => state.collapsedGroups[groupId],
-    toggleGroup: (groupId: string) =>
-      sessionSidebarStore.trigger.groupToggled({ scopeId, groupId }),
+    toggleGroup: (groupId: string, defaultCollapsed?: boolean) =>
+      sessionSidebarStore.trigger.groupToggled({ scopeId, groupId, defaultCollapsed }),
     foldAll: state.foldAll,
     setFoldAll: foldAll => sessionSidebarStore.trigger.foldAllChanged({ scopeId, foldAll }),
     showEmptyProjects: state.showEmptyProjects,

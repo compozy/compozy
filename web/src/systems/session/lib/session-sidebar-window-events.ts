@@ -32,7 +32,14 @@ export function resolveSessionWindowOrder(
   byScope: Record<string, SessionSidebarScopeState>,
   scopeId: string
 ): Pick<SessionSidebarScopeState, "sort" | "groupBy" | "computers" | "computerScope"> {
-  return byScope[scopeId] ?? NO_WINDOW_ORDER;
+  const entry = byScope[scopeId];
+  if (!entry) return NO_WINDOW_ORDER;
+  return {
+    sort: entry.sort,
+    groupBy: entry.groupBy,
+    computers: entry.computers,
+    computerScope: entry.computerScope,
+  };
 }
 
 export const NO_WINDOW_ORDER = {

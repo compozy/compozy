@@ -60,16 +60,33 @@ export function sessionCatalogFirstPageOptions(
   filters: SessionListFilters = {},
   computerId: ComputerId = LOCAL_COMPUTER_ID
 ) {
+  return sessionCatalogPageQueryOptions(filters, undefined, computerId);
+}
+
+/**
+ * One cursor-addressed session catalog page query for multi-computer pagination (`useQueries`).
+ * Keyed under `keys.catalogPage(normalized)` so workspace invalidations refresh every loaded page,
+ * and polls remote daemons every 15s (`Q-C`).
+ */
+export function sessionCatalogPageQueryOptions(
+  filters: SessionListFilters = {},
+  cursor?: string,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
   const normalized = normalizeSessionListFilters({
     ...filters,
     skip_total: filters.skip_total ?? true,
   });
   const remote = isRemoteComputerId(computerId);
   const keys = sessionKeys.forComputer(computerId);
+  const pageTag = cursor ? `cursor:${cursor}` : "first-page";
   return queryOptions({
-    queryKey: [...keys.catalogPage(normalized), "first-page"] as const,
+    queryKey: [...keys.catalogPage(normalized), pageTag] as const,
     queryFn: async ({ signal }) => {
-      const page = await fetchSessionCatalogPage(normalized, signal, computerId);
+      const request = cursor ? { ...normalized, cursor } : normalized;
+      const page = remote
+        ? await fetchSessionCatalogPage(request, signal, computerId)
+        : await fetchSessionCatalogPage(request, signal);
       return remote ? { ...page, sessions: withSessionsComputer(page.sessions, computerId) } : page;
     },
     staleTime: 5_000,

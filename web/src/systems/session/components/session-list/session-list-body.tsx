@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@compozy/ui";
 
-import { emptyForScope } from "@/systems/profiles";
+import { emptyForScope, type ProfileScopeParams } from "@/systems/profiles";
 import type { DataScope } from "@/systems/workspace";
 
 import {
@@ -31,6 +31,7 @@ import type { SessionListTarget, WorkspaceFolderPayload } from "../../types";
 import { SessionListComputerBody } from "./session-list-computer-body";
 import {
   SessionListTogetherFlatBody,
+  SessionListTogetherProfileGroups,
   SessionListTogetherProjectGroups,
 } from "./session-list-computer-groups";
 import { SessionListComputerSection } from "./session-list-computer-section";
@@ -78,144 +79,135 @@ export interface SessionListSingleBodyProps {
   readOnly?: boolean;
 }
 
-/** One daemon's list body: grouped, folder-sectioned, or flat. */
-export function SessionListSingleBody({
-  pinnedSection,
-  view,
-  threads,
-  folders,
-  bulk,
-  selection,
-  selectionDrag,
-  groupSelection,
-  rankPrefix,
-  filtering,
-  normalizedFilter,
-  collapsedThreads,
-  subagentThreads,
-  currentSessionId,
-  onThreadBranchChange,
-  onSelectSession,
-  onNewSession,
-  onProjectFolderDialog,
-  sessionActions,
-  testIdPrefix,
-  embedded = false,
-  readOnly = false,
-}: SessionListSingleBodyProps) {
-  const grouped = view.groupBy !== "none";
-  const { layout, sections } = folders;
-  const rowSelection = selection ?? bulk?.rowSelection;
-  const rowDrag = selectionDrag ?? bulk?.drag;
-  const scrollClass = embedded
+function singleBodyScrollClass(embedded: boolean): string {
+  return embedded
     ? "flex flex-col gap-0.5"
     : "flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5";
+}
 
-  if (grouped) {
-    const groupTree = (
-      <SessionListGroups
-        view={view}
-        filtering={filtering}
-        collapsedThreads={collapsedThreads}
-        subagentThreads={subagentThreads}
-        currentSessionId={currentSessionId}
-        onThreadBranchChange={onThreadBranchChange}
-        onSelectSession={onSelectSession}
-        onNewSession={onNewSession}
-        sessionActions={sessionActions}
-        testIdPrefix={testIdPrefix}
-        onProjectFolderDialog={onProjectFolderDialog}
-        rankPrefix={rankPrefix}
-      />
-    );
-    return (
-      <div
-        className={scrollClass}
-        data-session-list-scroll={embedded ? undefined : true}
-        data-group-by={view.groupBy}
-      >
-        {pinnedSection}
-        {groupSelection ? (
-          <SessionListGroupSelectionContext value={groupSelection}>
-            {groupTree}
-          </SessionListGroupSelectionContext>
-        ) : (
-          groupTree
-        )}
-      </div>
-    );
-  }
-
-  if (sections && layout && !readOnly) {
-    if (view.catalog?.loading && !view.partitions) return <SessionListSkeleton />;
-    return (
-      <div
-        className={scrollClass}
-        data-session-list-scroll={embedded ? undefined : true}
-        aria-busy={view.catalog?.paging || undefined}
-      >
-        {pinnedSection}
-        <SessionListSections
-          sections={sections}
-          partitions={view.partitions}
-          layout={layout}
-          dnd={folders.dnd}
-          selectionDrag={rowDrag}
-          orderable={folders.orderable}
-          filtering={filtering}
-          collapsedThreads={collapsedThreads}
-          subagentThreads={subagentThreads}
-          collapsedFolders={folders.collapsedFolders}
-          currentSessionId={currentSessionId}
-          onThreadBranchChange={onThreadBranchChange}
-          onToggleFolder={folders.toggleFolder}
-          onSelectSession={session => {
-            if (view.partitions || !view.catalog?.paging) onSelectSession(session);
-          }}
-          onNewSessionInFolder={folderId => onNewSession({ folderId })}
-          onFolderDialog={folders.setDialog}
-          selection={rowSelection}
-          sessionActions={sessionActions}
-          testIdPrefix={testIdPrefix}
-          emptyMessage={emptySessionListMessage(filtering, view)}
-        />
-        {view.catalog && !view.partitions ? (
-          <SessionListCatalogNavigation catalog={view.catalog} />
-        ) : null}
-      </div>
-    );
-  }
-
-  if (view.catalog?.loading) return <SessionListSkeleton />;
-  const ownerOf = view.aggregate ? view.ownerOf : undefined;
+function SessionListGroupedBody(props: SessionListSingleBodyProps) {
+  const { view, groupSelection, pinnedSection, embedded = false } = props;
+  const groupTree = (
+    <SessionListGroups
+      view={view}
+      filtering={props.filtering}
+      collapsedThreads={props.collapsedThreads}
+      subagentThreads={props.subagentThreads}
+      currentSessionId={props.currentSessionId}
+      onThreadBranchChange={props.onThreadBranchChange}
+      onSelectSession={props.onSelectSession}
+      onNewSession={props.onNewSession}
+      sessionActions={props.sessionActions}
+      testIdPrefix={props.testIdPrefix}
+      onProjectFolderDialog={props.onProjectFolderDialog}
+      rankPrefix={props.rankPrefix}
+    />
+  );
   return (
     <div
-      className={scrollClass}
+      className={singleBodyScrollClass(embedded)}
+      data-session-list-scroll={embedded ? undefined : true}
+      data-group-by={view.groupBy}
+    >
+      {pinnedSection}
+      {groupSelection ? (
+        <SessionListGroupSelectionContext value={groupSelection}>
+          {groupTree}
+        </SessionListGroupSelectionContext>
+      ) : (
+        groupTree
+      )}
+    </div>
+  );
+}
+
+function SessionListSectionsBody(props: SessionListSingleBodyProps) {
+  const { view, folders, pinnedSection, embedded = false } = props;
+  const { layout, sections } = folders;
+  if (!sections || !layout) return null;
+  if (view.catalog?.loading && !view.partitions) return <SessionListSkeleton />;
+  const rowSelection = props.selection ?? props.bulk?.rowSelection;
+  const rowDrag = props.selectionDrag ?? props.bulk?.drag;
+  return (
+    <div
+      className={singleBodyScrollClass(embedded)}
+      data-session-list-scroll={embedded ? undefined : true}
+      aria-busy={view.catalog?.paging || undefined}
+    >
+      {pinnedSection}
+      <SessionListSections
+        sections={sections}
+        partitions={view.partitions}
+        layout={layout}
+        dnd={folders.dnd}
+        selectionDrag={rowDrag}
+        orderable={folders.orderable}
+        filtering={props.filtering}
+        collapsedThreads={props.collapsedThreads}
+        subagentThreads={props.subagentThreads}
+        collapsedFolders={folders.collapsedFolders}
+        currentSessionId={props.currentSessionId}
+        onThreadBranchChange={props.onThreadBranchChange}
+        onToggleFolder={folders.toggleFolder}
+        onSelectSession={session => {
+          if (view.partitions || !view.catalog?.paging) props.onSelectSession(session);
+        }}
+        onNewSessionInFolder={folderId => props.onNewSession({ folderId })}
+        onFolderDialog={folders.setDialog}
+        selection={rowSelection}
+        sessionActions={props.sessionActions}
+        testIdPrefix={props.testIdPrefix}
+        emptyMessage={emptySessionListMessage(props.filtering, view)}
+      />
+      {view.catalog && !view.partitions ? (
+        <SessionListCatalogNavigation catalog={view.catalog} />
+      ) : null}
+    </div>
+  );
+}
+
+function SessionListFlatBody(props: SessionListSingleBodyProps) {
+  const { view, pinnedSection, embedded = false, readOnly = false } = props;
+  if (view.catalog?.loading) return <SessionListSkeleton />;
+  const ownerOf = view.aggregate ? view.ownerOf : undefined;
+  const rowSelection = props.selection ?? props.bulk?.rowSelection;
+  return (
+    <div
+      className={singleBodyScrollClass(embedded)}
       data-session-list-scroll={embedded ? undefined : true}
       aria-busy={view.catalog?.paging || undefined}
     >
       {pinnedSection}
       <SessionListBadgeContext value={view.badgeOf}>
         <SessionListThreadList
-          threads={threads}
-          collapsedThreads={collapsedThreads}
-          subagentThreads={subagentThreads}
-          currentSessionId={currentSessionId}
+          threads={props.threads}
+          collapsedThreads={props.collapsedThreads}
+          subagentThreads={props.subagentThreads}
+          currentSessionId={props.currentSessionId}
           ownerOf={ownerOf}
-          onThreadBranchChange={onThreadBranchChange}
+          onThreadBranchChange={props.onThreadBranchChange}
           onSelectSession={session => {
-            if (!view.catalog?.paging) onSelectSession(session);
+            if (!view.catalog?.paging) props.onSelectSession(session);
           }}
           selection={readOnly ? undefined : rowSelection}
           readOnly={readOnly}
-          sessionActions={sessionActions}
-          testIdPrefix={testIdPrefix}
-          emptyMessage={emptySessionListMessage(normalizedFilter !== "", view)}
+          sessionActions={props.sessionActions}
+          testIdPrefix={props.testIdPrefix}
+          emptyMessage={emptySessionListMessage(props.normalizedFilter !== "", view)}
         />
       </SessionListBadgeContext>
       {view.catalog ? <SessionListCatalogNavigation catalog={view.catalog} /> : null}
     </div>
   );
+}
+
+/** One daemon's list body: grouped, folder-sectioned, or flat. */
+export function SessionListSingleBody(props: SessionListSingleBodyProps) {
+  if (props.view.groupBy !== "none") return <SessionListGroupedBody {...props} />;
+  if (props.folders.sections && props.folders.layout && !props.readOnly) {
+    return <SessionListSectionsBody {...props} />;
+  }
+  return <SessionListFlatBody {...props} />;
 }
 
 export interface SessionListMultiComputerBodyProps {
@@ -225,6 +217,7 @@ export interface SessionListMultiComputerBodyProps {
   scopedSource: ComputerSessionsSource | null;
   computersLayout: SessionListComputerLayout;
   scope: DataScope | null;
+  localLens?: ProfileScopeParams;
   search: string;
   view: SessionListViewModel;
   bulk: ReturnType<typeof useSessionListBulkSelection>;
@@ -253,6 +246,7 @@ export function SessionListMultiComputerBody({
   scopedSource,
   computersLayout,
   scope,
+  localLens,
   search,
   view,
   bulk,
@@ -271,6 +265,7 @@ export function SessionListMultiComputerBody({
   onOpenComputerDetails,
 }: SessionListMultiComputerBodyProps) {
   const separate = scopedSource === null && computersLayout === "separate";
+  const emptyMessage = emptySessionListMessage(filtering, view);
   return (
     <div
       className={cn(
@@ -311,13 +306,17 @@ export function SessionListMultiComputerBody({
               currentSessionId={currentSessionId}
               groupBy={view.groupBy}
               key={source.key}
+              localLens={localLens}
               onNewSession={onNewSession}
               onOpenComputerDetails={onOpenComputerDetails}
               onSelectSession={onSelectSession}
               onThreadBranchChange={onThreadBranchChange}
+              scope={scope}
               search={search}
               sectionRank={index}
               sessionActions={sessionActions}
+              shelf={view.shelf}
+              showAutomation={view.showAutomation}
               source={source}
               subagentThreads={subagentThreads}
               testIdPrefix={testIdPrefix}
@@ -328,7 +327,7 @@ export function SessionListMultiComputerBody({
           <SessionListTogetherProjectGroups
             collapsedThreads={collapsedThreads}
             currentSessionId={currentSessionId}
-            emptyMessage={emptySessionListMessage(filtering, view)}
+            emptyMessage={emptyMessage}
             filtering={filtering}
             onNewSession={onNewSession}
             onSelectSession={onSelectSession}
@@ -340,15 +339,17 @@ export function SessionListMultiComputerBody({
             view={view}
           />
         ) : view.groupBy === "profile" ? (
-          <SessionListGroups
+          <SessionListTogetherProfileGroups
             collapsedThreads={collapsedThreads}
             currentSessionId={currentSessionId}
+            emptyMessage={emptyMessage}
             filtering={filtering}
             onNewSession={onNewSession}
-            onProjectFolderDialog={onProjectFolderDialog}
             onSelectSession={onSelectSession}
             onThreadBranchChange={onThreadBranchChange}
+            scope={scope}
             sessionActions={sessionActions}
+            sources={sources}
             subagentThreads={subagentThreads}
             testIdPrefix={testIdPrefix}
             view={view}
@@ -357,7 +358,7 @@ export function SessionListMultiComputerBody({
           <SessionListTogetherFlatBody
             collapsedThreads={collapsedThreads}
             currentSessionId={currentSessionId}
-            emptyMessage={emptySessionListMessage(filtering, view)}
+            emptyMessage={emptyMessage}
             filtering={filtering}
             onSelectSession={onSelectSession}
             onThreadBranchChange={onThreadBranchChange}

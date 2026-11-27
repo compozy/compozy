@@ -111,7 +111,7 @@ export function useSessionListGroups({
   });
   const byProfile = grouped && groupBy === "profile";
   const profiles = useProfiles(byProfile, remote ? computerId : undefined);
-  const instances = useAgentInstances();
+  const instances = useAgentInstances(remote ? computerId : undefined);
   const groups = resolveGroups(grouped, {
     groupBy,
     scope,
@@ -120,7 +120,7 @@ export function useSessionListGroups({
     computerId,
     facets: facets.data,
     // A project whose only resident is an agent still gets its group.
-    residents: !remote && shelf === "active" && !search ? instances.map(i => i.workspace_id) : [],
+    residents: shelf === "active" && !search ? instances.map(i => i.workspace_id) : [],
     profiles: profiles.data,
   });
   return {

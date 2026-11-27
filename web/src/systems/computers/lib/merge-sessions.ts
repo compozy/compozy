@@ -36,19 +36,6 @@ export interface MergedSessionRow<T extends MergeableSession = MergeableSession>
   readonly platform?: string;
 }
 
-export interface ProjectComputerGroup<T extends MergeableSession = MergeableSession> {
-  readonly key: string;
-  readonly projectId: string;
-  readonly projectName: string;
-  readonly computerId: ComputerId;
-  readonly computerName: string;
-  readonly label: string;
-  readonly isLocal: boolean;
-  readonly offline: boolean;
-  readonly platform?: string;
-  readonly rows: readonly MergedSessionRow<T>[];
-}
-
 function parseTimestamp(value: string | number | null | undefined): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   if (typeof value !== "string" || value.trim() === "") return 0;
@@ -94,95 +81,4 @@ export function mergeSessionPages<T extends MergeableSession>(
     return left.session.id.localeCompare(right.session.id);
   });
   return merged;
-}
-
-function oldestCursorTimestamp<T extends MergeableSession>(
-  page: ComputerSessionPageInput<T>
-): number {
-  if (page.cursorAt !== undefined && page.cursorAt !== null) {
-    return parseTimestamp(page.cursorAt);
-  }
-  let oldest = Number.POSITIVE_INFINITY;
-  for (const session of page.sessions) {
-    const ts = parseTimestamp(session.updated_at);
-    if (ts < oldest) oldest = ts;
-  }
-  return oldest;
-}
-
-export interface NextComputerPageSelection {
-  readonly computerId: ComputerId;
-  readonly nextCursor: string | null;
-  readonly oldestTimestamp: number;
-}
-
-/**
- * Chooses the single computer that "Load more" should request next (UT-087):
- * among computers with `hasMore` (and not offline), picks the one whose cursor is the oldest.
- */
-export function selectNextComputerToLoadMore<T extends MergeableSession>(
-  pages: readonly ComputerSessionPageInput<T>[]
-): NextComputerPageSelection | null {
-  let chosen: NextComputerPageSelection | null = null;
-  for (const page of pages) {
-    if (!page.hasMore || isComputerOffline(page.computer)) continue;
-    const cursorTs = oldestCursorTimestamp(page);
-    if (chosen === null || cursorTs < chosen.oldestTimestamp) {
-      chosen = {
-        computerId: page.computer.id,
-        nextCursor: page.nextCursor ?? null,
-        oldestTimestamp: cursorTs,
-      };
-    }
-  }
-  return chosen;
-}
-
-function resolveProjectName(
-  session: MergeableSession,
-  workspaceNames?: ReadonlyMap<string, string>
-): { id: string; name: string } {
-  const rawId = session.workspace_id?.trim() ?? "";
-  if (rawId !== "") {
-    const mapped = workspaceNames?.get(rawId) ?? session.workspace_name?.trim();
-    if (mapped) return { id: rawId, name: mapped };
-    const pathTail = session.workspace_path?.split("/").filter(Boolean).at(-1);
-    return { id: rawId, name: pathTail ?? "Unknown project" };
-  }
-  const fallbackName = session.workspace_name?.trim();
-  if (fallbackName) return { id: fallbackName, name: fallbackName };
-  return { id: "@user", name: "User" };
-}
-
-/**
- * Groups merged sessions by `(project, computer)` without ever merging duplicate repository names
- * across computers (UT-088, US-010.EC-2). Each group carries the label `<project> · <computer>`.
- */
-export function groupSessionsByProjectAndComputer<T extends MergeableSession>(
-  entries: readonly MergedSessionRow<T>[],
-  workspaceNames?: ReadonlyMap<string, string>
-): ProjectComputerGroup<T>[] {
-  const groups = new Map<string, ProjectComputerGroup<T> & { rows: MergedSessionRow<T>[] }>();
-  for (const entry of entries) {
-    const project = resolveProjectName(entry.session, workspaceNames);
-    const key = `${entry.computerId}::${project.id}`;
-    const existing = groups.get(key);
-    if (existing) {
-      existing.rows.push(entry);
-      continue;
-    }
-    groups.set(key, {
-      key,
-      projectId: project.id,
-      projectName: project.name,
-      computerId: entry.computerId,
-      computerName: entry.computerName,
-      label: `${project.name} · ${entry.computerName}`,
-      isLocal: entry.isLocal,
-      offline: entry.offline,
-      platform: entry.platform,
-      rows: [entry],
-    });
-  }
-  return [...groups.values()];
 }
