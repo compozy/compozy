@@ -123,7 +123,8 @@ runtime, one app package carries both updates; the new app starts its bundled ru
 stays open while its native installer prepares the verified package. A closed app is staged for
 the next launch. Standalone runtime updates keep their existing update path.
 
-On Windows, the app verifies the signed NSIS installer, installs it, and relaunches automatically.
+When a Windows release includes the installer, the app verifies its signature before installation.
+The app relaunches automatically after installation.
 Windows standalone CLI archives retain their existing manual replacement path.
 
 On Linux, automatic app-track installation is available only for the AppImage. A `.deb` install
