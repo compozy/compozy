@@ -416,6 +416,11 @@ For a workspace installation with missing inputs, the error identifies the works
 `compozy extension setup <name> --workspace <workspace>` in the same profile to fill them.
 You can disable an installation while its inputs are missing.
 
+Named profiles start their own tool or view subprocess on demand. A missing input in the default
+profile remains visible in that profile's runtime status and affects capabilities served by its
+base process. Agent calls to the legacy HTTP/UDS enable and disable endpoints require a global
+installation.
+
 Inside a workspace, `remove` unlinks a dev overlay and lets the published installation resume;
 `--global` removes the published installation. Removal deletes the managed install directory and
 registry row with rollback handling. Post-commit cleanup failure leaves `status: "removed"` with an

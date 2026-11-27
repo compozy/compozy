@@ -25,7 +25,6 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/extensionmcp"
-	"github.com/compozy/compozy/internal/heartbeat/source"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -1140,12 +1139,6 @@ func testWorkspaceExtensionInputEnablement(t *testing.T) {
 		[]byte(`min_compozy_version = "0.7.9"`),
 		1,
 	)
-	manifest = bytes.Replace(
-		manifest,
-		[]byte(`provides = ["tool.provider"]`),
-		[]byte(`provides = ["heartbeat.source"]`),
-		1,
-	)
 	manifest = append(manifest, []byte(`
 [[inputs]]
 id = "token"
@@ -1247,13 +1240,22 @@ binding = { type = "env", name = "BOUND_SECRET" }
 		t.Fatal("agent input refusal named another workspace")
 	}
 	agentTransport := newExtensionTransportEngine(service, agent, "uds")
-	denied := performExtensionTransportRequest(t, agentTransport, http.MethodPost, "/extensions/"+name+"/enable", nil)
-	if denied.Code != http.StatusForbidden || strings.Contains(denied.Body.String(), other) ||
-		strings.Contains(denied.Body.String(), "BOUND_SECRET") {
-		t.Fatalf(
-			"agent enable refusal status = %d, want scope denial without another workspace's input state",
-			denied.Code,
+	for _, action := range []string{"enable", "disable"} {
+		denied := performExtensionTransportRequest(
+			t,
+			agentTransport,
+			http.MethodPost,
+			"/extensions/"+name+"/"+action,
+			nil,
 		)
+		if denied.Code != http.StatusNotFound || strings.Contains(denied.Body.String(), other) ||
+			strings.Contains(denied.Body.String(), "BOUND_SECRET") {
+			t.Fatalf(
+				"legacy agent %s status = %d, want global not found without workspace readiness",
+				action,
+				denied.Code,
+			)
+		}
 	}
 	if err := service.registry.DetachInstallation(ctx, name, foreign); err != nil {
 		t.Fatal(err)
@@ -1322,13 +1324,11 @@ binding = { type = "env", name = "BOUND_SECRET" }
 		t.Fatalf("enable configured profile with unconfigured default profile: %v", err)
 	}
 	manager := service.runtime.(*extensionpkg.Manager)
-	if _, err := manager.SourceKinds(
-		ctx,
-		source.CatalogScope{ProfileID: marketing.ID, WorkspaceID: workspace},
-	); err != nil {
-		t.Fatal(err)
+	key := extensionpkg.ProfileInstanceKey(name, marketing.ID, workspace)
+	if _, err := manager.ProvideToolsForInstance(ctx, key); err != nil {
+		t.Fatalf("discover tools in configured profile: %v", err)
 	}
-	runtime, err := manager.GetForInstance(extensionpkg.ProfileInstanceKey(name, marketing.ID, workspace))
+	runtime, err := manager.GetForInstance(key)
 	if err != nil || !runtime.Status.Active || runtime.Status.PID == 0 {
 		t.Fatalf("configured profile runtime did not start on discovery: %v", err)
 	}
