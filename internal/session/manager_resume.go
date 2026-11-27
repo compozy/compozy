@@ -125,6 +125,10 @@ func (m *Manager) resumeSession(ctx context.Context, target string, mode resumeM
 			return nil, err
 		}
 	}
+	if mode == resumeWithoutDispatch &&
+		(State(meta.State) != StateStopped || sessionMetaStopReason(&meta) != store.StopShutdown) {
+		return nil, ErrMonitorOwnerStopped
+	}
 	if err := requirePersistedProvider(&meta); err != nil {
 		return nil, err
 	}

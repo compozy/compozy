@@ -572,14 +572,18 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 	})
 
+	unexpectedError := errors.New("session store unavailable")
+	resumeRefusal := &session.MonitorOwnerIneligibleError{Reason: "binding_changed"}
 	ownerCases := []struct {
-		name     string
-		change   func(*session.Info)
-		missing  bool
-		global   bool
-		required []string
-		refusal  error
-		resume   bool
+		name        string
+		change      func(*session.Info)
+		missing     bool
+		global      bool
+		required    []string
+		statusError error
+		resumeError error
+		wantError   error
+		resume      bool
 	}{
 		{name: "Should resume the shutdown-stopped owner even when another agent sorts first", resume: true},
 		{name: "Should keep an active owner on the normal wake path", change: func(info *session.Info) {
@@ -615,8 +619,26 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}},
 		{name: "Should skip a workspace owner for a global task", global: true},
 		{
-			name:    "Should skip activation when the session manager refuses restart recovery",
-			refusal: &session.MonitorOwnerIneligibleError{Reason: "binding_unknown"},
+			name:        "Should skip activation when the session manager refuses restart recovery",
+			resumeError: resumeRefusal,
+		},
+		{
+			name:        "Should skip activation after a binding change with successful cleanup",
+			resumeError: errors.Join(resumeRefusal, nil),
+		},
+		{
+			name:        "Should surface cleanup failures even when joined with a refusal",
+			resumeError: errors.Join(resumeRefusal, unexpectedError), wantError: unexpectedError,
+		},
+		{
+			name:        "Should surface an unexpected resume failure",
+			resumeError: unexpectedError,
+			wantError:   unexpectedError,
+		},
+		{
+			name:        "Should surface an unexpected owner lookup failure",
+			statusError: unexpectedError,
+			wantError:   unexpectedError,
 		},
 		{name: "Should resume an owner that covers the run capability", required: []string{"go"}, resume: true},
 		{
@@ -632,7 +654,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 			taskRecord.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindAgentSession, Ref: "sess-owner"}
 			run := taskRoleRuntimeRun("run-session-owner", taskRecord.ID)
 			run.RequiredCapabilities = tc.required
-			sessions := &taskRoleRuntimeSessions{resumeError: tc.refusal}
+			sessions := &taskRoleRuntimeSessions{statusError: tc.statusError, resumeError: tc.resumeError}
 			if !tc.missing {
 				owner := &session.Info{
 					ID: taskRecord.Owner.Ref, AgentName: "zeta-agent", WorkspaceID: taskRecord.WorkspaceID,
@@ -657,21 +679,19 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 			}
 
 			err := runtime.activateForStarvation(t.Context(), taskRecord, run, spawner)
-			if tc.resume {
-				if err != nil || !slices.Equal(sessions.resumeCalls, []string{taskRecord.Owner.Ref}) {
-					t.Fatalf(
-						"activateForStarvation() error/resumed = %v/%v, want only the owner",
-						err,
-						sessions.resumeCalls,
-					)
-				}
-			} else if !errors.Is(err, errStarvationSpawnUnresolvable) ||
-				(len(sessions.resumeCalls) != 0) != (tc.refusal != nil) {
-				t.Fatalf(
-					"activateForStarvation() error/resumed = %v/%v, want no replacement",
-					err,
-					sessions.resumeCalls,
-				)
+			wantError := tc.wantError
+			if wantError == nil && !tc.resume {
+				wantError = errStarvationSpawnUnresolvable
+			}
+			if !errors.Is(err, wantError) {
+				t.Fatalf("activateForStarvation() error = %v, want %v", err, wantError)
+			}
+			var wantCalls []string
+			if tc.resume || tc.resumeError != nil {
+				wantCalls = []string{taskRecord.Owner.Ref}
+			}
+			if !slices.Equal(sessions.resumeCalls, wantCalls) {
+				t.Fatalf("resume calls = %v, want %v", sessions.resumeCalls, wantCalls)
 			}
 			if got := sessions.createCount(); got != 0 {
 				t.Fatalf("create count = %d, want 0 for a session-owned task", got)
@@ -1124,6 +1144,7 @@ type taskRoleRuntimeSessions struct {
 	createCalls  []session.CreateOpts
 	resumeCalls  []string
 	resumeError  error
+	statusError  error
 	promptCalls  []taskRoleRuntimePromptCall
 	promptErrors []error
 	stopCalls    []taskRoleRuntimeStopCall
@@ -1258,6 +1279,9 @@ func (s *taskRoleRuntimeSessions) ListAll(context.Context) ([]*session.Info, err
 func (s *taskRoleRuntimeSessions) Status(_ context.Context, id string) (*session.Info, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.statusError != nil {
+		return nil, s.statusError
+	}
 	for _, info := range s.infos {
 		if info != nil && info.ID == id {
 			return new(*info), nil
@@ -1266,7 +1290,7 @@ func (s *taskRoleRuntimeSessions) Status(_ context.Context, id string) (*session
 	return nil, session.ErrSessionNotFound
 }
 
-func (s *taskRoleRuntimeSessions) ResumeWaitingSession(_ context.Context, id string) error {
+func (s *taskRoleRuntimeSessions) ResumeIdleSessionAfterRestart(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.resumeCalls = append(s.resumeCalls, id)

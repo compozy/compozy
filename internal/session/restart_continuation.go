@@ -53,15 +53,8 @@ func (m *Manager) resumeRestartWaitingSession(ctx context.Context, id string) er
 	if err != nil {
 		return err
 	}
-	if checkpoint := meta.RestartBoundary; checkpoint != nil {
-		interrupted, err := m.restartEventExists(ctx, id, checkpoint.TurnID, restartInterruptedEvent)
-		if err != nil {
-			return err
-		}
-		if interrupted {
-			// A previously skipped interruption must not acquire an idle-session bypass.
-			return fmt.Errorf("%w: interrupted turn already settled", ErrRestartContinuationSkipped)
-		}
+	if err := m.requireSettledRestartTurn(ctx, &meta); err != nil {
+		return err
 	}
 	var checkpoint store.SessionRestartCheckpoint
 	if meta.RestartBoundary != nil {
@@ -93,17 +86,62 @@ func (m *Manager) resumeRestartWaitingSession(ctx context.Context, id string) er
 		"Session remains stopped after daemon restart: "+strings.ReplaceAll(checkpoint.Reason, "_", " ")+"."))
 }
 
+// ResumeIdleSessionAfterRestart reopens a qualified settled binding for waiting work.
+func (m *Manager) ResumeIdleSessionAfterRestart(ctx context.Context, id string) error {
+	if err := m.checkPromptAdmissionSuperseded(ctx, id); err != nil {
+		return err
+	}
+	meta, err := m.readMetaWithContext(ctx, id)
+	if err != nil {
+		return err
+	}
+	if meta.RestartBoundary == nil {
+		return &MonitorOwnerIneligibleError{Reason: restartBindingUnknownReason}
+	}
+	if err := m.requireSettledRestartTurn(ctx, &meta); err != nil {
+		return err
+	}
+	instance, err := m.restartWaitingInstance(ctx, &meta)
+	if err != nil {
+		return err
+	}
+	return m.resumeMonitorOwnerBinding(ctx, meta.ID, *meta.RestartBoundary, instance != nil && instance.Main)
+}
+
+func (m *Manager) requireSettledRestartTurn(ctx context.Context, meta *store.SessionMeta) error {
+	checkpoint := meta.RestartBoundary
+	if checkpoint == nil {
+		return nil
+	}
+	interrupted, err := m.restartEventExists(ctx, meta.ID, checkpoint.TurnID, restartInterruptedEvent)
+	if err != nil {
+		return err
+	}
+	if interrupted {
+		// A previously skipped interruption must retain its operator review requirement.
+		return fmt.Errorf("%w: interrupted turn already settled", ErrRestartContinuationSkipped)
+	}
+	return nil
+}
+
+func (m *Manager) restartWaitingInstance(ctx context.Context, meta *store.SessionMeta) (*InstanceCeiling, error) {
+	if normalizeSessionType(Type(meta.SessionType)) != SessionTypeUser || m.instanceCeiling == nil {
+		return nil, nil
+	}
+	instance, err := m.instanceCeiling(ctx, meta.ID, "")
+	if err != nil {
+		return nil, err
+	}
+	if instance != nil && instance.Main && !instance.ActiveMain {
+		return nil, &MonitorOwnerIneligibleError{Reason: restartInstanceInactiveReason}
+	}
+	return instance, nil
+}
+
 func (m *Manager) reopenRestartWaitingSession(ctx context.Context, meta *store.SessionMeta) error {
-	var instance *InstanceCeiling
-	if normalizeSessionType(Type(meta.SessionType)) == SessionTypeUser && m.instanceCeiling != nil {
-		var err error
-		instance, err = m.instanceCeiling(ctx, meta.ID, "")
-		if err != nil {
-			return err
-		}
-		if instance != nil && instance.Main && !instance.ActiveMain {
-			return &MonitorOwnerIneligibleError{Reason: restartInstanceInactiveReason}
-		}
+	instance, err := m.restartWaitingInstance(ctx, meta)
+	if err != nil {
+		return err
 	}
 	if meta.RestartBoundary != nil {
 		return m.ResumeWaitingSession(ctx, meta.ID)

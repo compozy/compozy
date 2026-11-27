@@ -5,16 +5,19 @@ package daemon
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/hooks"
+	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/session"
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/workspace"
+	"github.com/jonboulle/clockwork"
 )
 
 func TestTaskRoleRuntimeRecoveredSessionOwnerIntegration(t *testing.T) {
@@ -122,8 +125,13 @@ func testRecoveredSessionOwner(t *testing.T, cause session.StopCause, disabled, 
 		t.Fatalf("GetTask().Owner = %#v, want %#v", stored.Owner, record.Owner)
 	}
 
-	runtime := newTaskRoleRuntimeForTest(t, db, sessions)
-	activationErr := runtime.activateForStarvation(ctx, stored, recovered.Run, starvationSpawner{})
+	tasks := &taskRuntime{manager: manager, store: db}
+	tasks.roles.Store(newTaskRoleRuntimeForTest(t, db, sessions))
+	scheduler := newRecoveredRunTestScheduler(t, tasks, sessions, recovered.Run.QueuedAt)
+	activation, err := scheduler.RunOnce(ctx)
+	if err != nil {
+		t.Fatalf("RunOnce() starvation error = %v", err)
+	}
 	info, err := sessions.StoredStatus(ctx, owner.ID)
 	if err != nil || info == nil {
 		t.Fatalf("StoredStatus() owner error = %v", err)
@@ -132,27 +140,56 @@ func testRecoveredSessionOwner(t *testing.T, cause session.StopCause, disabled, 
 	starts := len(driver.startCalls)
 	driver.mu.Unlock()
 	if !wantResumed {
-		if !errors.Is(activationErr, errStarvationSpawnUnresolvable) || info.State != session.StateStopped ||
-			starts != 1 {
+		if activation.SpawnRequested != 0 || info.State != session.StateStopped || starts != 1 {
 			t.Fatalf(
-				"owner state = %s, starts = %d, activation error = %v, want stopped and no eligible replacement",
+				"owner state = %s, starts = %d, spawn requests = %d, want stopped and no eligible replacement",
 				info.State,
 				starts,
-				activationErr,
+				activation.SpawnRequested,
 			)
 		}
 		return
 	}
-	if activationErr != nil || info.State != session.StateActive || info.AgentName != owner.AgentName || starts != 2 {
+	if !slices.Equal(activation.SpawnRequestedRunIDs, []string{recovered.Run.ID}) ||
+		info.State != session.StateActive || info.AgentName != owner.AgentName || starts != 2 {
 		t.Fatalf(
-			"owner state = %s, agent = %q, starts = %d, activation error = %v",
+			"owner state = %s, agent = %q, starts = %d, spawn requests = %v",
 			info.State,
 			info.AgentName,
 			starts,
-			activationErr,
+			activation.SpawnRequestedRunIDs,
 		)
 	}
+	wake, err := scheduler.RunOnce(ctx)
+	if err != nil || wake.WakeSucceeded != 1 || !slices.Equal(wake.SelectedRunIDs, []string{recovered.Run.ID}) {
+		t.Fatalf("RunOnce() after resume = %+v, error = %v, want a wake for the continuation", wake, err)
+	}
 	assertRecoveredRunClaim(t, manager, recovered.Run, info, actor)
+}
+
+func newRecoveredRunTestScheduler(
+	t *testing.T, tasks *taskRuntime, sessions *session.Manager, queuedAt time.Time,
+) *schedulerpkg.Scheduler {
+	t.Helper()
+	ctx := testutil.Context(t)
+	waker, err := newSchedulerSessionWaker(ctx, sessions, discardLogger())
+	if err != nil {
+		t.Fatalf("newSchedulerSessionWaker() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := waker.shutdown(context.WithoutCancel(ctx)); err != nil {
+			t.Errorf("scheduler waker shutdown error = %v", err)
+		}
+	})
+	runtime, err := newSchedulerRuntime(ctx, tasks, sessions, nil, waker, starvationSpawner{},
+		schedulerpkg.StarvationThresholds{
+			FanOutAfter: 1, SpawnAfter: 1, EventAfter: 3, NeedsAttentionAfter: 4, MinQueuedAge: time.Second,
+		}, discardLogger(), schedulerpkg.WithClock(clockwork.NewFakeClockAt(queuedAt.Add(time.Minute))),
+	)
+	if err != nil {
+		t.Fatalf("newSchedulerRuntime() error = %v", err)
+	}
+	return runtime.scheduler
 }
 
 func assertRecoveredRunClaim(

@@ -1026,6 +1026,74 @@ func TestResumeMonitorOwner(t *testing.T) {
 			}
 		})
 	}
+	for _, tc := range []struct {
+		name        string
+		interrupted bool
+	}{
+		{name: "Should keep a skipped interruption staged for operator review", interrupted: true},
+		{name: "Should keep the main of a paused instance stopped"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			h := newHarness(
+				t,
+				WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}),
+			)
+			target := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+			stream, err := h.manager.Prompt(ctx, target.ID, "record the restart binding")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, stream)
+			if err := h.manager.StopWithCause(ctx, target.ID, CauseShutdown, "daemon restart"); err != nil {
+				t.Fatal(err)
+			}
+			if tc.interrupted {
+				meta := readMeta(t, target.MetaPath())
+				if meta.RestartBoundary == nil {
+					t.Fatal("missing durable restart binding")
+				}
+				checkpoint := *meta.RestartBoundary
+				if err := h.manager.appendRestartEvent(
+					ctx,
+					&meta,
+					restartInterruptedEvent,
+					checkpoint,
+					"interrupted",
+				); err != nil {
+					t.Fatal(err)
+				}
+				checkpoint.Reason = "route_changed"
+				if err := h.manager.appendRestartEvent(
+					ctx,
+					&meta,
+					restartSkippedEvent,
+					checkpoint,
+					"skipped",
+				); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				h.manager.SetInstanceCeilingReader(func(context.Context, string, string) (*InstanceCeiling, error) {
+					return &InstanceCeiling{Main: true}, nil
+				})
+			}
+			err = h.manager.ResumeIdleSessionAfterRestart(ctx, target.ID)
+			if tc.interrupted {
+				if !errors.Is(err, ErrRestartContinuationSkipped) {
+					t.Fatalf("ResumeIdleSessionAfterRestart() = %v, want operator review", err)
+				}
+			} else if refusal, ok := errors.AsType[*MonitorOwnerIneligibleError](err); !ok ||
+				refusal.Reason != restartInstanceInactiveReason {
+				t.Fatalf("ResumeIdleSessionAfterRestart() = %v, want %s", err, restartInstanceInactiveReason)
+			}
+			if _, live := h.manager.Get(target.ID); live || len(h.driver.startCalls) != 1 {
+				t.Fatalf("live = %t, starts = %d, want the owner to stay stopped", live, len(h.driver.startCalls))
+			}
+		})
+	}
 }
 
 // Invariant: an owner that is already live is still checked against the binding captured for its

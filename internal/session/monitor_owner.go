@@ -65,6 +65,12 @@ func (m *Manager) ResumeMonitorOwner(ctx context.Context, id, binding string) er
 	if binding == "" || json.Unmarshal([]byte(binding), &checkpoint) != nil {
 		return &MonitorOwnerIneligibleError{Reason: restartBindingUnknownReason}
 	}
+	return m.resumeMonitorOwnerBinding(ctx, id, checkpoint, false)
+}
+
+func (m *Manager) resumeMonitorOwnerBinding(
+	ctx context.Context, id string, checkpoint store.SessionRestartCheckpoint, recheckInstanceMain bool,
+) error {
 	if active, ok := m.Get(id); ok && active.Info().State == StateActive {
 		// A restart continuation or an operator may already have resumed the owner under a new route
 		// or policy; an old monitor must not be delivered under it.
@@ -106,6 +112,11 @@ func (m *Manager) ResumeMonitorOwner(ctx context.Context, id, binding string) er
 	}
 	if err := monitorOwnerBindingMatches(active, checkpoint); err != nil {
 		return errors.Join(err, m.StopWithCause(ctx, id, CauseShutdown, "Monitor owner needs review."))
+	}
+	if recheckInstanceMain {
+		if err := m.checkReopenedInstanceMain(ctx, id); err != nil {
+			return err
+		}
 	}
 	m.restartInputsHeld.Delete(id)
 	m.dispatchResumedInputs(ctx, id)

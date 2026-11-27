@@ -58,13 +58,13 @@ func (r *taskRoleRuntime) resumeStarvationOwner(
 		}
 	}
 	resumer, ok := r.sessions.(interface {
-		ResumeWaitingSession(context.Context, string) error
+		ResumeIdleSessionAfterRestart(context.Context, string) error
 	})
 	if !ok {
 		return errStarvationSpawnUnresolvable
 	}
 	// Restart recovery validates the durable binding. The next scheduler wake dispatches the run.
-	err = resumer.ResumeWaitingSession(admission.WithBackgroundWork(ctx), ownerID)
+	err = resumer.ResumeIdleSessionAfterRestart(admission.WithBackgroundWork(ctx), ownerID)
 	if err != nil {
 		if starvationOwnerResumeRefused(err) {
 			return errStarvationSpawnUnresolvable
@@ -80,8 +80,20 @@ func (r *taskRoleRuntime) resumeStarvationOwner(
 
 func starvationOwnerResumeRefused(err error) bool {
 	// A joined error can include a failure stopping a resumed session, which must surface.
-	_, ineligible := err.(*session.MonitorOwnerIneligibleError)
+	if joined, ok := errors.AsType[interface {
+		error
+		Unwrap() []error
+	}](err); ok {
+		for _, cause := range joined.Unwrap() {
+			if !starvationOwnerResumeRefused(cause) {
+				return false
+			}
+		}
+		return true
+	}
+	_, ineligible := errors.AsType[*session.MonitorOwnerIneligibleError](err)
 	return ineligible || errors.Is(err, session.ErrMonitorOwnerStopped) ||
+		errors.Is(err, session.ErrRestartContinuationSkipped) ||
 		errors.Is(err, session.ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotAttachable) ||
 		errors.Is(err, session.ErrSessionInLater) || errors.Is(err, session.ErrSessionArchived) ||
 		errors.Is(err, session.ErrPromptInProgress)
