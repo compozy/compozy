@@ -16,7 +16,11 @@ import type { SessionPayload } from "../types";
 export function SessionMarkSeenAction({ session }: { session: SessionPayload }) {
   const { pending, onMarkSeen } = useMarkSessionSeenAction();
   if (!session.attention_dismissible) return null;
-  const endedEarly = session.attention === ENDED_EARLY_ATTENTION;
+  const reasons = [];
+  if (session.attention === ENDED_EARLY_ATTENTION) {
+    reasons.push(ENDED_EARLY_DETAIL);
+    if (session.returned_from_later_at) reasons.push(BACK_FROM_LATER_REASON);
+  }
   const Glyph = pending ? Spinner : CheckCheck;
   return (
     <Tooltip>
@@ -31,18 +35,20 @@ export function SessionMarkSeenAction({ session }: { session: SessionPayload }) 
             disabled={pending}
             data-testid="session-mark-seen-button"
             aria-label="Mark as seen"
+            aria-description={reasons.join(". ") || undefined}
           />
         }
       >
         <Glyph aria-hidden="true" className="size-3.5" />
       </TooltipTrigger>
-      <TooltipContent>
+      <TooltipContent role="tooltip">
         <span>
           Mark as seen
-          {endedEarly ? <span className="block">{ENDED_EARLY_DETAIL}</span> : null}
-          {endedEarly && session.returned_from_later_at ? (
-            <span className="block">{BACK_FROM_LATER_REASON}</span>
-          ) : null}
+          {reasons.map(reason => (
+            <span key={reason} className="block">
+              {reason}
+            </span>
+          ))}
         </span>
       </TooltipContent>
     </Tooltip>
