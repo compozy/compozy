@@ -43,6 +43,7 @@ type taskRoleStore interface {
 }
 
 type taskRoleSessionManager interface {
+	sessionStatusReader
 	Create(ctx context.Context, opts *session.CreateOpts) (*session.Session, error)
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	ListAll(ctx context.Context) ([]*session.Info, error)

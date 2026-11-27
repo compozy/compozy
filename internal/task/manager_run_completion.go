@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
 // CompleteRun marks one running task run as completed and reconciles task state.
@@ -128,6 +130,17 @@ func (m *Service) CancelRun(
 	run, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
+	}
+	if run.Status.Normalize() == TaskRunStatusNeedsAttention {
+		return nil, forceRunDiagnosticError(
+			diagnosticcontract.CodeTaskRunStillActive,
+			"Task run needs recovery",
+			fmt.Sprintf("Run %s is needs_attention and cannot be canceled.", run.ID),
+			diagnosticcontract.SeverityError,
+			runRecoveryCommand(run.ID),
+			map[string]any{runEvidenceIDKey: run.ID, leaseStatusKey: run.Status.Normalize().String()},
+			ErrInvalidStatusTransition,
+		)
 	}
 	return m.cancelRunRecord(
 		ctx,
