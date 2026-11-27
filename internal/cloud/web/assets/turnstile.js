@@ -23,25 +23,25 @@ form.addEventListener("submit", event => {
   }
   status.hidden = true;
   submitter = event.submitter ?? form.querySelector("button[name=provider]");
-  window.turnstile.ready(() => {
-    if (widget === undefined) {
-      widget = window.turnstile.render(challenge, {
-        sitekey: challenge.dataset.siteKey,
-        action: challenge.dataset.action,
-        execution: "execute",
-        appearance: "interaction-only",
-        "response-field": false,
-        callback(response) {
-          token.value = response;
-          form.requestSubmit(submitter);
-        },
-        "error-callback": failed,
-        "expired-callback": failed,
-        "timeout-callback": failed,
-      });
-    } else {
-      window.turnstile.reset(widget);
-    }
-    window.turnstile.execute(widget);
-  });
+  // api.js loads with defer before this script, so window.turnstile is ready by the first
+  // submit. Cloudflare rejects turnstile.ready() when api.js is loaded with async or defer.
+  if (widget === undefined) {
+    widget = window.turnstile.render(challenge, {
+      sitekey: challenge.dataset.siteKey,
+      action: challenge.dataset.action,
+      execution: "execute",
+      appearance: "interaction-only",
+      "response-field": false,
+      callback(response) {
+        token.value = response;
+        form.requestSubmit(submitter);
+      },
+      "error-callback": failed,
+      "expired-callback": failed,
+      "timeout-callback": failed,
+    });
+  } else {
+    window.turnstile.reset(widget);
+  }
+  window.turnstile.execute(widget);
 });
