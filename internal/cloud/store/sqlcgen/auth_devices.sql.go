@@ -204,7 +204,7 @@ func (q *Queries) PromoteRecoveredAdmin(ctx context.Context, id string) error {
 }
 
 const readAuthDeviceSession = `-- name: ReadAuthDeviceSession :one
-SELECT s.id, s.account_id, s.device_id, s.jkt, s.refresh_token_sha256, s.provider, s.created_at, s.last_used_at, s.rotated_at, s.revoked_at, a.state AS account_state, d.admin, d.revoked_at AS device_revoked_at, k.state AS key_state
+SELECT s.id, s.account_id, s.device_id, s.jkt, s.refresh_token_sha256, s.provider, s.created_at, s.last_used_at, s.rotated_at, s.revoked_at, a.state AS account_state, a.security_epoch, d.admin, d.revoked_at AS device_revoked_at, k.state AS key_state
 FROM device_sessions s
 JOIN accounts a ON a.id = s.account_id
 JOIN devices d ON d.id = s.device_id AND d.account_id = s.account_id
@@ -229,6 +229,7 @@ type ReadAuthDeviceSessionRow struct {
 	RotatedAt          pgtype.Timestamptz
 	RevokedAt          pgtype.Timestamptz
 	AccountState       string
+	SecurityEpoch      int64
 	Admin              bool
 	DeviceRevokedAt    pgtype.Timestamptz
 	KeyState           string
@@ -249,6 +250,7 @@ func (q *Queries) ReadAuthDeviceSession(ctx context.Context, arg ReadAuthDeviceS
 		&i.RotatedAt,
 		&i.RevokedAt,
 		&i.AccountState,
+		&i.SecurityEpoch,
 		&i.Admin,
 		&i.DeviceRevokedAt,
 		&i.KeyState,

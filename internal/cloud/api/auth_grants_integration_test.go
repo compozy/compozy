@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/cloud/auth"
+	"github.com/compozy/compozy/internal/cloud/billing"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
@@ -21,6 +22,61 @@ const pollPath = deviceFlowPath + "/token"
 
 func TestCloudDeviceGrant(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should enforce the device-flow quota across replicas and clear expired windows", func(t *testing.T) {
+		t.Parallel()
+		f := newAuthFixture(t)
+		peer := f.cfg
+		peer.Postgres = f.db.Config(t, "rate2")
+		second := remotetest.StartReplica(t, peer, registerAuthProbe)
+		input := remoteproto.DeviceFlowRequest{
+			InstallationID: testInstallation, ClientName: "MacBook Pro", ClientPlatform: "macOS",
+		}
+		headers := map[string]string{"X-Compozy-Client-IP": "192.0.2.9"}
+		replicas := []*remotetest.Replica{f.replica, second}
+		for i := range 10 {
+			callAuth(t, replicas[i%len(replicas)], http.MethodPost, deviceFlowPath, input, nil, headers).
+				expect(t, http.StatusOK, "device_code")
+		}
+		headers["X-Compozy-Client-IP"] = "::ffff:192.0.2.9"
+		headers["X-Forwarded-For"] = "192.0.2.10"
+		limited := callAuth(t, second, http.MethodPost, deviceFlowPath, input, nil, headers)
+		assertSignInRateLimited(t, limited, "3600")
+		assertAuthRow(t, f, "SELECT count(*) FROM device_grants", 10)
+		headers["X-Compozy-Client-IP"] = "192.0.2.10"
+		callAuth(t, f.replica, http.MethodPost, deviceFlowPath, input, nil, headers).
+			expect(t, http.StatusOK, "device_code")
+
+		f.clock.Advance(time.Hour)
+		if err := f.replica.App.Auth.Sweep(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		assertAuthRow(t, f, "SELECT count(*) FROM auth_ip_rate_windows", 0)
+		headers["X-Compozy-Client-IP"] = "192.0.2.9"
+		callAuth(t, second, http.MethodPost, deviceFlowPath, input, nil, headers).
+			expect(t, http.StatusOK, "device_code")
+	})
+
+	t.Run("Should rate limit activation, callbacks, browser authorization and purchase sign-in", func(t *testing.T) {
+		t.Parallel()
+		f := newAuthFixture(t)
+		for range 30 {
+			f.request(t, http.MethodGet, activatePath, nil).expect(t, http.StatusOK, "Sign in to CompozyOS")
+		}
+		for _, path := range []string{activatePath, "/v1/auth/callback/google", "/v1/auth/callback/github"} {
+			assertSignInRateLimited(t, f.request(t, http.MethodGet, path, nil), "600")
+		}
+		assertSignInRateLimited(t, f.request(t, http.MethodPost, activatePath, nil), "600")
+
+		purchaseSignIn := billing.UpgradePath + "/sign-in"
+		for range 30 {
+			f.request(t, http.MethodGet, browserAuthorizePath, nil).expect(t, http.StatusBadRequest, "invalid_request")
+			f.request(t, http.MethodPost, purchaseSignIn, nil).expect(t, http.StatusBadRequest, "invalid_request")
+		}
+		assertSignInRateLimited(t, f.request(t, http.MethodGet, browserAuthorizePath, nil), "600")
+		assertSignInRateLimited(t, f.request(t, http.MethodPost, browserAuthorizePath, nil), "600")
+		assertSignInRateLimited(t, f.request(t, http.MethodPost, purchaseSignIn, nil), "600")
+	})
 
 	t.Run("Should bind activation and redeem a grant once (UT-117)", func(t *testing.T) {
 		t.Parallel()
@@ -160,6 +216,14 @@ func TestCloudDeviceGrant(t *testing.T) {
 		f.request(t, http.MethodGet, activatePath+"?user_code=wrong", nil, cookie).
 			expect(t, http.StatusBadRequest, "user_code_invalid")
 	})
+}
+
+func assertSignInRateLimited(t *testing.T, reply authReply, retryAfter string) {
+	t.Helper()
+	reply.expect(t, http.StatusTooManyRequests, `"code":"rate_limited"`)
+	if got := reply.Header.Get("Retry-After"); got != retryAfter {
+		t.Fatalf("Retry-After = %q, want %q", got, retryAfter)
+	}
 }
 
 func (f authFixture) startGrant(t *testing.T, provider string) remoteproto.DeviceFlowResponse {

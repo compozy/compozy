@@ -100,6 +100,8 @@ type AuthDeviceSession struct {
 	ID, AccountID, DeviceID, JKT, Provider string
 	AccountState, KeyState                 string
 	RefreshHash                            []byte
+	RotatedAt                              time.Time
+	SecurityEpoch                          int64
 	Revoked, DeviceRevoked, Admin          bool
 }
 
@@ -108,6 +110,7 @@ func (q *Queries) ReadDeviceSession(ctx context.Context, id, accountID string) (
 	return AuthDeviceSession{
 		ID: r.ID, AccountID: r.AccountID, DeviceID: r.DeviceID, JKT: r.Jkt, Provider: r.Provider,
 		AccountState: r.AccountState, KeyState: r.KeyState, RefreshHash: r.RefreshTokenSha256,
+		RotatedAt: r.RotatedAt.Time, SecurityEpoch: r.SecurityEpoch,
 		Revoked: r.RevokedAt.Valid, DeviceRevoked: r.DeviceRevokedAt.Valid, Admin: r.Admin,
 	}, authLookupError(err)
 }

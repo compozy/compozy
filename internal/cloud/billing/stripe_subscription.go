@@ -62,14 +62,14 @@ type stripeList[T any] struct {
 	HasMore bool `json:"has_more"`
 }
 
-func (s *Stripe) subscription(ctx context.Context, id, monthly, annual string) (plan.Subscription, error) {
+func (s *Stripe) subscription(ctx context.Context, id, monthly, annual string) (plan.Subscription, bool, error) {
 	var result stripeSubscription
 	err := s.request(ctx, http.MethodGet, "/v1/subscriptions/"+url.PathEscape(id), nil, "", &result)
 	if err != nil {
-		return plan.Subscription{}, err
+		return plan.Subscription{}, false, err
 	}
 	if id != result.ID || result.Status == "" {
-		return plan.Subscription{}, errors.New("invalid Stripe subscription")
+		return plan.Subscription{}, false, errors.New("invalid Stripe subscription")
 	}
 	sub := plan.Subscription{
 		ID: id, AccountID: result.Metadata[accountMetadata], Source: stripeSource, Status: result.Status,
@@ -89,16 +89,17 @@ func (s *Stripe) subscription(ctx context.Context, id, monthly, annual string) (
 	case "cancellation_requested", "payment_disputed", "payment_failed":
 		sub.CancellationReason = result.CancellationDetails.Reason
 	}
-	if sub.PriceID == "" || result.LatestInvoice == "" {
-		return sub, nil
-	}
-	invoice, first, err := s.lastPaidInvoice(ctx, id)
+	return sub, result.LatestInvoice != "", nil
+}
+
+func (s *Stripe) readLastPayment(ctx context.Context, sub *plan.Subscription, annual string) error {
+	invoice, first, err := s.lastPaidInvoice(ctx, sub.ID)
 	if err != nil {
-		return plan.Subscription{}, err
+		return err
 	}
 	sub.LastInvoiceID, sub.LastPaymentAt = invoice.ID, stripeTime(invoice.Transitions.PaidAt)
 	sub.RefundablePayment = first || invoice.annualRenewal(annual)
-	return sub, nil
+	return nil
 }
 
 func (i stripeInvoice) annualRenewal(annual string) bool {

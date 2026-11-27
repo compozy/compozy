@@ -40,7 +40,7 @@ func registerBilling(
 	p := billingPages{auth: service, billing: bills, limiter: limiter, template: t}
 	mux.HandleFunc("GET "+billing.UpgradePath, p.upgrade)
 	mux.HandleFunc("GET "+billing.SuccessPath, p.success)
-	mux.HandleFunc("POST "+billing.UpgradePath+"/sign-in", p.signIn)
+	mux.HandleFunc("POST "+billing.UpgradePath+"/sign-in", api.LimitSignIn(service, auth.BillingSignInRate, p.signIn))
 	mux.HandleFunc("POST "+billing.UpgradePath+"/sign-out", p.signOut)
 	mux.HandleFunc("POST "+billing.UpgradePath+"/checkout", p.checkout)
 	mux.HandleFunc("POST "+billing.UpgradePath+"/portal", p.portal)

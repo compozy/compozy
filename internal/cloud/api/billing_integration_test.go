@@ -133,6 +133,44 @@ func billingAccount(t *testing.T, f authFixture, device remoteTestDevice) remote
 func TestCloudSubscriptionRefresh(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should acknowledge other products and customers without writing billing state", func(t *testing.T) {
+		t.Parallel()
+		f, stripe := newBillingFixture(t, nil)
+		owner := newBillingDevice(t, f, "shared-stripe@example.test")
+		now := f.clock.Now()
+		current := proStripeSub(now, "sub_compozy", owner.account)
+		current.Status = "past_due"
+		stripe.Put(current)
+		deliverStripeEvent(t, f, "evt_compozy", stripeSubCreated, current.ID)
+
+		foreign := proStripeSub(now, "sub_foreign", owner.account)
+		foreign.Price = "price_foreign"
+		stripe.Put(foreign)
+		for i, kind := range []string{
+			stripeSubCreated, stripeSubUpdated, stripeSubDeleted,
+			"invoice.paid", "invoice.payment_failed", "checkout.session.completed",
+		} {
+			deliverStripeEvent(t, f, fmt.Sprintf("evt_foreign_%d", i), kind, foreign.ID)
+		}
+		deliverStripeEvent(t, f, "evt_foreign_expiry", "checkout.session.expired", "cs_foreign")
+		deliverStripeEvent(t, f, "evt_foreign_missing", "invoice.paid", "sub_missing")
+
+		current.Status = "active"
+		stripe.Put(current)
+		wrongCustomer := fmt.Appendf(nil, `{"id":"evt_foreign_customer","type":"invoice.paid","data":{"object":
+			{"subscription":%q,"customer":"cus_foreign"}}}`, current.ID)
+		status, body, err := sendStripeEvent(t.Context(), f.replica, now, wrongCustomer)
+		if err != nil || status != http.StatusNoContent || body != "" {
+			t.Fatalf("foreign customer event: HTTP %d: %v", status, err)
+		}
+		account := billingAccount(t, f, owner)
+		if account.Plan != "pro" || !account.PaymentIssue {
+			t.Fatalf("foreign Stripe events altered the Compozy subscription: %+v", account.AccountPlan)
+		}
+		assertAuthRow(t, f, "SELECT count(*) FROM subscriptions", 1)
+		assertAuthRow(t, f, "SELECT count(*) FROM stripe_events", 1)
+	})
+
 	t.Run("Should reconcile only stale subscriptions that can still affect billing", func(t *testing.T) {
 		// RC-14: Fresh webhook state and long-ended Stripe rows do not trigger redundant provider reads.
 		t.Parallel()

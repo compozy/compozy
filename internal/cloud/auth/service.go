@@ -6,11 +6,11 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hkdf"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -59,17 +59,19 @@ type TurnstileVerifier interface {
 }
 
 type Service struct {
-	db     *store.Store
-	issuer string
-	signer *remoteproto.Signer
-	access *remoteproto.JWSVerifier
-	proofs *remoteproto.DPoPVerifier
-	seal   cipher.AEAD
-	oauth  *OAuth
-	cfg    Config
-	limit  func(string) int
-	now    func() time.Time
-	codes  codeEntries
+	db              *store.Store
+	issuer          string
+	signer          *remoteproto.Signer
+	access          *remoteproto.JWSVerifier
+	proofs          *remoteproto.DPoPVerifier
+	seal            cipher.AEAD
+	refreshSeal     cipher.AEAD
+	refreshNonceKey []byte
+	oauth           *OAuth
+	cfg             Config
+	limit           func(string) int
+	now             func() time.Time
+	codes           codeEntries
 }
 
 func New(
@@ -93,6 +95,14 @@ func New(
 	if err != nil {
 		return nil, err
 	}
+	refreshSeal, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonceKey, err := hkdf.Key(sha256.New, cfg.EncryptionKey, nil, "compozy-refresh-nonce-v1", sha256.Size)
+	if err != nil {
+		return nil, err
+	}
 	access, err := remoteproto.NewJWSVerifier(issuer, keys, nil)
 	if err != nil {
 		return nil, err
@@ -100,7 +110,8 @@ func New(
 	cfg.EncryptionKey = nil
 	return &Service{
 		db: db, issuer: issuer, signer: signer, access: access, proofs: remoteproto.NewDPoPVerifier(),
-		seal: seal, oauth: cfg.OAuth, cfg: cfg, limit: limit, now: now,
+		seal: seal, refreshSeal: refreshSeal, refreshNonceKey: nonceKey,
+		oauth: cfg.OAuth, cfg: cfg, limit: limit, now: now,
 	}, nil
 }
 
@@ -145,8 +156,7 @@ func ValidSecret(value string) bool {
 
 func (s *Service) writeLimit(accountID string) error {
 	if retry := s.limit(accountID); retry > 0 {
-		return &Failure{Status: http.StatusTooManyRequests, Code: "rate_limited",
-			Message: "Too many requests. Try again shortly.", RetryAfter: retry}
+		return rateLimited(retry)
 	}
 	return nil
 }

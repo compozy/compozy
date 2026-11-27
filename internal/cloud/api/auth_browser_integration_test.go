@@ -13,15 +13,52 @@ import (
 	"encoding/json/v2"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud"
 	"github.com/compozy/compozy/internal/cloud/auth"
+	"github.com/compozy/compozy/internal/cloud/cloudflare"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
 
 func TestCloudBrowserSignIn(t *testing.T) {
 	t.Parallel()
+
+	for _, test := range []struct{ name, hosted, other string }{
+		{"Should scope production sign-in forms to the requested production host", cloudflare.ProductionDomain, cloudflare.StagingDomain},
+		{"Should scope staging sign-in forms to the requested staging host", cloudflare.StagingDomain, cloudflare.ProductionDomain},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			f := newAuthFixtureWithReplica(
+				t,
+				func(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *remotetest.Replica {
+					cfg.Auth.HostedDomain = test.hosted
+					return remotetest.StartReplica(t, cfg, register)
+				},
+			)
+			form := browserForm(t)
+			host := "testbox-a1b2." + test.hosted
+			form.Set("hostname", host)
+			page := f.request(t, http.MethodGet, browserAuthorizePath+"?"+form.Encode(), nil)
+			assertTurnstileFailure(t, page)
+			policy := page.Header.Get("Content-Security-Policy")
+			if !strings.Contains(policy, "https://"+host) || strings.Contains(policy, "https://*.") ||
+				!strings.Contains(policy, "frame-src https://challenges.cloudflare.com") {
+				t.Fatal("sign-in CSP did not scope the form target and Turnstile frame")
+			}
+			other := "testbox-a1b2." + test.other
+			form.Set("hostname", other)
+			refused := f.request(t, http.MethodGet, browserAuthorizePath+"?"+form.Encode(), nil)
+			refused.expect(t, http.StatusBadRequest, "invalid_request")
+			if strings.Contains(refused.Header.Get("Content-Security-Policy"), other) {
+				t.Fatal("sign-in CSP allowed a host from the other environment")
+			}
+		})
+	}
 
 	t.Run(
 		"Should fail closed before persisting OAuth or pending keys when Turnstile fails (UT-130)",

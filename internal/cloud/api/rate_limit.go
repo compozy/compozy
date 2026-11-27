@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/cloud/auth"
 )
 
 const (
@@ -26,6 +28,16 @@ type AccountLimiter struct {
 	windows   map[string]accountWindow
 	nextSweep time.Time
 	now       func() time.Time
+}
+
+func LimitSignIn(service *auth.Service, scope auth.SignInRate, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := service.LimitSignIn(r, scope); err != nil {
+			WriteAuthError(w, err)
+			return
+		}
+		next(w, r)
+	}
 }
 
 func NewAccountLimiter(now func() time.Time) *AccountLimiter {

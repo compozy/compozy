@@ -72,10 +72,19 @@ func TestCloudDeviceSessions(t *testing.T) {
 		if rotated.RefreshToken == enrolled.RefreshToken || rotated.AccessToken == enrolled.AccessToken {
 			t.Fatal("refresh did not issue distinct credentials")
 		}
-		f.deviceRequest(t, http.MethodPost, refreshPath, enrolled.RefreshToken, key, nil).
-			expect(t, http.StatusUnauthorized, "session_invalid")
+		// Retry without adopting the first response, using a new proof on the other replica.
+		retryProof := f.deviceProof(t, http.MethodPost, refreshPath, enrolled.RefreshToken, key)
+		retry := callAuth(t, second, http.MethodPost, refreshPath, nil, nil, retryProof)
+		retry.expect(t, http.StatusOK, "refresh_token")
+		if got := authJSON[remoteproto.DeviceSessionTokens](t, retry); got.RefreshToken != rotated.RefreshToken ||
+			got.AccessToken == "" {
+			t.Fatal("refresh retry did not recover the committed successor")
+		}
+		assertAuthRow(t, f, "SELECT count(*) FROM security_events WHERE type = 'device_session_refreshed'", 1)
 		f.deviceRequest(t, http.MethodPost, logoutPath, rotated.RefreshToken, key, nil).
 			expect(t, http.StatusNoContent, "")
+		f.deviceRequest(t, http.MethodPost, refreshPath, enrolled.RefreshToken, key, nil).
+			expect(t, http.StatusUnauthorized, "session_invalid")
 		f.deviceRequest(t, http.MethodGet, authProbePath, rotated.AccessToken, key, nil).
 			expect(t, http.StatusUnauthorized, "session_invalid")
 		f.deviceRequest(t, http.MethodPost, refreshPath, rotated.RefreshToken, key, nil).
@@ -90,6 +99,58 @@ func TestCloudDeviceSessions(t *testing.T) {
 		assertAuthRow(t, f, "SELECT count(*) FROM security_events WHERE type = 'device_enrolled'", 1)
 		assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE security_epoch = 2", 1)
 	})
+
+	for _, test := range []struct {
+		name    string
+		advance func(*testing.T, authFixture, remoteproto.DeviceSessionTokens, *ecdsa.PrivateKey) string
+	}{
+		{"Should revoke a session on reuse after its successor was used", func(
+			t *testing.T, f authFixture, successor remoteproto.DeviceSessionTokens, key *ecdsa.PrivateKey,
+		) string {
+			t.Helper()
+			response := f.deviceRequest(t, http.MethodPost, refreshPath, successor.RefreshToken, key, nil)
+			response.expect(t, http.StatusOK, "refresh_token")
+			return authJSON[remoteproto.DeviceSessionTokens](t, response).RefreshToken
+		}},
+		{"Should revoke a session on reuse outside the retry window", func(
+			t *testing.T, f authFixture, successor remoteproto.DeviceSessionTokens, _ *ecdsa.PrivateKey,
+		) string {
+			t.Helper()
+			f.clock.Advance(2 * time.Minute)
+			return successor.RefreshToken
+		}},
+		{"Should revoke a session on reuse after an account epoch change", func(
+			t *testing.T, f authFixture, successor remoteproto.DeviceSessionTokens, _ *ecdsa.PrivateKey,
+		) string {
+			t.Helper()
+			f.db.Exec(t, "UPDATE %s.accounts SET security_epoch = security_epoch + 1")
+			return successor.RefreshToken
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			f := newAuthFixture(t)
+			key, jwk := newDeviceKey(t)
+			token := newEnrollment(
+				t,
+				f,
+				auth.GitHub,
+				providerProfile{email: "reuse@example.test", verified: true},
+				false,
+			)
+			first := f.enroll(t, token, key, enrollInput(jwk))
+			response := f.deviceRequest(t, http.MethodPost, refreshPath, first.RefreshToken, key, nil)
+			response.expect(t, http.StatusOK, "refresh_token")
+			successor := authJSON[remoteproto.DeviceSessionTokens](t, response)
+			current := test.advance(t, f, successor, key)
+			f.deviceRequest(t, http.MethodPost, refreshPath, first.RefreshToken, key, nil).
+				expect(t, http.StatusUnauthorized, `"reason":"session_invalid"`)
+			f.deviceRequest(t, http.MethodPost, refreshPath, current, key, nil).
+				expect(t, http.StatusUnauthorized, `"reason":"session_invalid"`)
+			assertAuthRow(t, f, `SELECT count(*) FROM security_events WHERE type = 'device_session_revoked'
+				AND details_json->>'reason' = 'refresh_reuse'`, 1)
+		})
+	}
 
 	t.Run("Should require fresh provider authentication to recover admin access", func(t *testing.T) {
 		t.Parallel()

@@ -44,12 +44,15 @@ func (s *Service) RequestLocation(headers http.Header) string {
 }
 
 func (s *Service) VerifyBrowser(r *http.Request, token, action string) error {
-	var clientIP string
-	if s.cfg.TrustEdge {
-		clientIP = r.Header.Get("X-Compozy-Client-IP")
-	}
-	if err := s.cfg.Turnstile.Verify(r.Context(), token, clientIP, action); err != nil {
+	if err := s.cfg.Turnstile.Verify(r.Context(), token, s.edgeClientIP(r.Header), action); err != nil {
 		return ErrTurnstile
 	}
 	return nil
+}
+
+func (s *Service) edgeClientIP(headers http.Header) string {
+	if !s.cfg.TrustEdge {
+		return ""
+	}
+	return headers.Get("X-Compozy-Client-IP")
 }

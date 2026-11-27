@@ -38,7 +38,7 @@ INSERT INTO device_sessions (id, account_id, device_id, jkt, refresh_token_sha25
 VALUES ($1, $2, $3, $4, $5, $6, $7, $7);
 
 -- name: ReadAuthDeviceSession :one
-SELECT s.*, a.state AS account_state, d.admin, d.revoked_at AS device_revoked_at, k.state AS key_state
+SELECT s.*, a.state AS account_state, a.security_epoch, d.admin, d.revoked_at AS device_revoked_at, k.state AS key_state
 FROM device_sessions s
 JOIN accounts a ON a.id = s.account_id
 JOIN devices d ON d.id = s.device_id AND d.account_id = s.account_id

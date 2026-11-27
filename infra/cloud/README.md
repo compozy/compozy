@@ -28,7 +28,7 @@ Use separate OAuth clients, Stripe prices and webhook secrets, Turnstile credent
 - Configure an invisible Turnstile widget for the cloud host. Set `COMPOZY_CLOUD_TURNSTILE_SITE_KEY` and `COMPOZY_CLOUD_TURNSTILE_SECRET_KEY` for the widget. The server checks the hostname and expects the actions `activate` and `browser_authorize`.
 - Set `COMPOZY_CLOUD_PKCE_ENC_KEY` to an unpadded base64url encoding of 32 random bytes. Both replicas in the environment use the same value for OAuth verifier and refresh credential encryption. Changing it invalidates outstanding provider callbacks and existing refresh credentials, so coordinate rotation across both replicas.
 
-Apply the cloud schema migration before enabling sign-in. Cloudflare supplies the request location and client IP to private replicas. The service stores the coarse location and uses the IP only for Turnstile verification.
+Apply the cloud schema migrations before enabling sign-in. Cloudflare supplies the request location and client IP to private replicas. The service stores the coarse location and hashes the client IP for rate limiting. Turnstile verification uses the client IP supplied by the Worker.
 
 ## Account email and metrics
 
@@ -46,15 +46,15 @@ To scrape account counts, set `COMPOZY_CLOUD_METRICS_TOKEN` and send it as a bea
 
 Apply the billing migration before starting the containers. Use test-mode Checkout to walk the standalone purchase and the retained-hostname purchase before enabling live billing.
 
-## Cloudflare rate limits
+## Sign-in rate limits
 
-Configure the following zone rules for the cloud host in each environment. Count requests by client IP.
+The Cloudflare zone rule blocks bursts above 10 requests per 10 seconds per IP and colocation. The Go service enforces the longer per-IP limits with fixed windows shared by both replicas in Postgres.
 
-| Expression                                                                                         | Threshold         |
-| -------------------------------------------------------------------------------------------------- | ----------------- |
-| `http.request.method eq "POST" and http.request.uri.path eq "/v1/device-flow"`                     | 10 per hour       |
-| `http.request.uri.path eq "/activate" or starts_with(http.request.uri.path, "/v1/auth/callback/")` | 30 per 10 minutes |
-| `http.request.uri.path eq "/v1/browser/authorize"`                                                 | 30 per 10 minutes |
-| `http.request.uri.path eq "/billing/upgrade/sign-in"`                                              | 30 per 10 minutes |
+| Routes                                         | Threshold                 |
+| ---------------------------------------------- | ------------------------- |
+| `POST /v1/device-flow`                         | 10 per hour               |
+| `/activate` and `/v1/auth/callback/{provider}` | 30 per 10 minutes, shared |
+| `/v1/browser/authorize`                        | 30 per 10 minutes         |
+| `POST /billing/upgrade/sign-in`                | 30 per 10 minutes         |
 
-Use a 429 response with the JSON code `rate_limited` and a `Retry-After` value in seconds. Exercise the zone limits and the Turnstile checks in `RT-sign-in-first-run.md` after the auth routes are integrated. Inside each replica, authenticated account writes share a 60-request allowance per account per minute.
+The service returns HTTP 429 with JSON code `rate_limited` and `Retry-After` in seconds until the window resets. The auth cleanup task removes expired counters. Exercise both layers and the Turnstile checks in `RT-sign-in-first-run.md`. Inside each replica, authenticated account writes share a 60-request allowance per account per minute.
