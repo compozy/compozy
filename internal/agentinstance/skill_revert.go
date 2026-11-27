@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -86,7 +87,7 @@ func (s *SkillProposalService) RevertEligibility(
 	if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
 		return RevertEligibility{Reason: SkillRevertTargetUnavailable}, nil
 	}
-	return readRevertEligibility(review, root, review.SkillName)
+	return s.readRevertEligibility(review, root, review.SkillName)
 }
 
 // revertPrecondition is the part of eligibility that needs no files.
@@ -106,13 +107,22 @@ func revertPrecondition(review SkillReview, targetRoot string) string {
 // readRevertEligibility applies the file part of Business Rule 11: the review must be the install
 // log's current writer, the live tree must equal its installed digest, and an edit's base snapshot
 // must still verify.
-func readRevertEligibility(review SkillReview, root, name string) (RevertEligibility, error) {
+func (s *SkillProposalService) readRevertEligibility(
+	review SkillReview,
+	root, name string,
+) (RevertEligibility, error) {
 	entries, err := readSkillInstallLog(root, name)
 	if err != nil {
 		return RevertEligibility{}, err
 	}
 	current := currentSkillWriter(entries)
 	if current == nil || current.ReviewID != review.ID {
+		if slices.ContainsFunc(entries, func(entry skillInstallLogEntry) bool {
+			return entry.Action == SkillInstallActionRevert && entry.ReviewID == review.ID &&
+				entry.InstanceID == review.InstanceID && entry.HomeID == s.HomeID
+		}) {
+			return RevertEligibility{Reason: SkillRevertNotApproved}, nil
+		}
 		return RevertEligibility{Reason: SkillRevertSuperseded}, nil
 	}
 	live, err := skillTreeState(filepath.Join(root, name))
@@ -206,9 +216,13 @@ func (s *SkillProposalService) revertLocked(
 	default:
 		return SkillInstallResult{}, ErrSkillReviewStale
 	}
-	eligibility, err := readRevertEligibility(review, t.root, t.name)
+	eligibility, err := s.readRevertEligibility(review, t.root, t.name)
 	if err != nil {
 		return SkillInstallResult{}, err
+	}
+	if eligibility.Reason == SkillRevertNotApproved {
+		// Reconciliation confirmed the revert in the log even if its database projection still failed.
+		return SkillInstallResult{Warning: warning}, nil
 	}
 	if !eligibility.Allowed {
 		return SkillInstallResult{}, &SkillRevertConflictError{Name: t.name, Reason: eligibility.Reason}

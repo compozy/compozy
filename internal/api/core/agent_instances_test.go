@@ -1969,6 +1969,7 @@ func TestAgentSkillReviews(t *testing.T) {
 		fixture.Engine.GET("/reviews/:id", fixture.Handlers.GetAgentSkillReview)
 		fixture.Engine.POST("/reviews/:id/approve", fixture.Handlers.ApproveAgentSkillReview)
 		fixture.Engine.POST("/reviews/:id/reject", fixture.Handlers.RejectAgentSkillReview)
+		fixture.Engine.POST("/reviews/:id/revert", fixture.Handlers.RevertAgentSkillReview)
 		request := func(method, path, body string, agent bool) *httptest.ResponseRecorder {
 			t.Helper()
 			req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
@@ -2016,7 +2017,7 @@ func TestAgentSkillReviews(t *testing.T) {
 			}) || strings.Join(shown.Review.EvidenceSessionIDs, ",") != "sess-4f1c0b2a9d3e4f51,sess-9a2e7c1d0b4f3a62" {
 			t.Fatalf("lesson detail: %d %s", detail.Code, detail.Body.String())
 		}
-		for _, action := range []string{"approve", "reject"} {
+		for _, action := range []string{"approve", "reject", "revert"} {
 			denial := request("POST", "/reviews/"+reviews[0].ID+"/"+action, `{"digest":"`+reviews[0].Digest+`"}`, true)
 			var failure contract.ErrorPayload
 			decodeJSON(t, denial.Body.Bytes(), &failure)
@@ -2135,6 +2136,22 @@ func TestAgentSkillReviews(t *testing.T) {
 		// whose projection is pending cannot be told apart. An instance with no target still rejects.
 		lookupFailure := fmt.Errorf("resolve skill target: %w", store.ErrWorkspaceArchived)
 		targetErr.Store(&lookupFailure)
+		approvedPath := "/reviews/" + reviews[0].ID
+		revertDigest := `{"digest":"` + reviews[0].Digest + `"}`
+		unavailableDetail := request("GET", approvedPath, "", false)
+		var unavailableReview contract.AgentSkillReviewResponse
+		decodeJSON(t, unavailableDetail.Body.Bytes(), &unavailableReview)
+		if unavailableDetail.Code != http.StatusOK || unavailableReview.Review.State != "approved" ||
+			unavailableReview.Review.Revert != nil {
+			t.Fatalf("review with unknown revert eligibility: %d %s", unavailableDetail.Code, unavailableDetail.Body.String())
+		}
+		unavailableRevert := request("POST", approvedPath+"/revert", revertDigest, false)
+		var revertFailure contract.AgentSkillRevertConflictPayload
+		decodeJSON(t, unavailableRevert.Body.Bytes(), &revertFailure)
+		if unavailableRevert.Code != http.StatusConflict || revertFailure.Code != "workspace_archived" ||
+			revertFailure.Reason != "" {
+			t.Fatalf("revert with a failed target lookup: %d %s", unavailableRevert.Code, unavailableRevert.Body.String())
+		}
 		unresolved := request("POST", "/reviews/"+invalid.ID+"/reject", `{"digest":"`+invalid.Digest+`"}`, false)
 		var unresolvedFailure contract.ErrorPayload
 		decodeJSON(t, unresolved.Body.Bytes(), &unresolvedFailure)
@@ -2147,6 +2164,13 @@ func TestAgentSkillReviews(t *testing.T) {
 		}
 		noTarget := agentinstance.ErrSkillReviewNoTarget
 		targetErr.Store(&noTarget)
+		missingTargetRevert := request("POST", approvedPath+"/revert", revertDigest, false)
+		revertFailure = contract.AgentSkillRevertConflictPayload{}
+		decodeJSON(t, missingTargetRevert.Body.Bytes(), &revertFailure)
+		if missingTargetRevert.Code != http.StatusConflict || revertFailure.Code != "skill_review_revert_conflict" ||
+			revertFailure.Reason != agentinstance.SkillRevertTargetUnavailable {
+			t.Fatalf("revert without a target: %d %s", missingTargetRevert.Code, missingTargetRevert.Body.String())
+		}
 		rejected := request("POST", "/reviews/"+invalid.ID+"/reject", `{"digest":"`+invalid.Digest+`"}`, false)
 		if rejected.Code != 200 {
 			t.Fatalf("reject uninstallable: %d %s", rejected.Code, rejected.Body.String())

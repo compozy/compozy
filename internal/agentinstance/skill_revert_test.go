@@ -215,6 +215,43 @@ func TestSkillRevert(t *testing.T) {
 		}
 	})
 
+	t.Run("Should recognize a committed revert while its row projection fails", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		review := f.mustApprove(t, svc, f.propose(t, svc, skillEditName, "Check the changelog."))
+		reviewStore := skillStore(svc)
+		projectionErr := errors.New("project revert unavailable")
+		reviewStore.projectErr = projectionErr
+
+		if result, err := f.revert(t, svc, review); err != nil || !result.Committed ||
+			!errors.Is(result.Warning, projectionErr) {
+			t.Fatalf("Revert() = %+v, %v; want committed with a projection warning", result, err)
+		}
+		requireReviewState(t, svc, review.ID, skillReviewApproved)
+		if eligibility := f.eligibility(t, svc, review.ID); eligibility.Allowed ||
+			eligibility.Reason != SkillRevertNotApproved {
+			t.Fatalf("eligibility = %+v, want already reverted", eligibility)
+		}
+		before := installLogWriters(t, f.root, skillEditName)
+		if result, err := f.revert(t, svc, review); err != nil || result.Committed ||
+			!errors.Is(result.Warning, projectionErr) {
+			t.Fatalf("repeat Revert() = %+v, %v; want idempotent success with a projection warning", result, err)
+		}
+		if after := installLogWriters(t, f.root, skillEditName); len(after) != len(before) {
+			t.Fatalf("repeat revert appended to the install log: %v", after)
+		}
+		if f.digest(t, skillEditName) != "" {
+			t.Fatal("the reverted skill reappeared")
+		}
+
+		reviewStore.projectErr = nil
+		if result, err := f.revert(t, svc, review); err != nil || result.Committed || result.Warning != nil {
+			t.Fatalf("repeat Revert() after recovery = %+v, %v", result, err)
+		}
+		requireReviewState(t, svc, review.ID, SkillReviewReverted)
+	})
+
 	t.Run("Should accept the same contents again after a revert [UT-051]", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)

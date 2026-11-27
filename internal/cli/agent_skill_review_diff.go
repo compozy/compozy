@@ -19,7 +19,7 @@ const (
 )
 
 // agentSkillEditText renders an edit review's base counts, change counts and a unified diff of every
-// added, removed or modified file. Binary base files show only their name and size.
+// added, removed or modified text file. Binary contents are represented by name and size.
 func agentSkillEditText(text *strings.Builder, review contract.AgentSkillReviewPayload) {
 	proposed, base := review.RunsAutomatically, review.BaseRunsAutomatically
 	if base == nil {
@@ -54,12 +54,16 @@ func agentSkillEditText(text *strings.Builder, review contract.AgentSkillReviewP
 		if change.Change == skillChangeUnchanged {
 			continue
 		}
-		before, after := bases[change.Path], files[change.Path]
+		before := bases[change.Path]
+		after, hasProposedText := files[change.Path]
+		from, to := "a/"+change.Path, "b/"+change.Path
 		if before.Binary {
 			fmt.Fprintf(text, "Binary file %s (%d bytes) %s\n", change.Path, before.Size, change.Change)
-			continue
+			if !hasProposedText {
+				continue
+			}
+			from = skillDiffNoFile
 		}
-		from, to := "a/"+change.Path, "b/"+change.Path
 		switch change.Change {
 		case skillChangeAdded:
 			from = skillDiffNoFile
