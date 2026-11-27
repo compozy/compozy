@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { appendFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname } from "node:path";
+import { homedir } from "node:os";
+import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 import {
@@ -12,7 +12,6 @@ import {
 } from "./bootstrap-event";
 import { verifyRuntimeBundle } from "./bundle-integrity";
 import { ensurePrivateDirectory } from "../files/private-directory";
-import { resolveDesktopPaths } from "../home";
 import type { DesktopBuildChannel } from "../release/build-channel";
 
 const MAXIMUM_STDERR_BYTES = 64 * 1024;
@@ -76,10 +75,18 @@ export class BootstrapRunner {
   ): Promise<BootstrapResult> {
     await verifyRuntimeBundle(this.#bundlePath, this.#manifestPath);
     await ensurePrivateDirectory(dirname(this.#logPath), true);
+    // Windows locks a process's working directory. Use the profile directory so uninstall can
+    // remove the installation and test teardown can remove the Compozy home.
     const windows = process.platform === "win32";
-    const environment = windows
-      ? { ...this.#environment, COMPOZY_HOME: resolveDesktopPaths(this.#environment).home }
-      : this.#environment;
+    const cwd = windows ? homedir() : dirname(this.#logPath);
+    let environment = this.#environment;
+    const configuredHome = environment.COMPOZY_HOME?.trim();
+    if (windows && configuredHome) {
+      const home = resolve(configuredHome);
+      if (home !== resolve(cwd, configuredHome)) {
+        environment = { ...environment, COMPOZY_HOME: home };
+      }
+    }
     const child = spawn(
       this.#bundlePath,
       [
@@ -100,8 +107,7 @@ export class BootstrapRunner {
         "jsonl",
       ],
       {
-        // Windows locks a process's working directory. Keep it outside the installation and home.
-        cwd: windows ? tmpdir() : dirname(this.#logPath),
+        cwd,
         env: environment,
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
