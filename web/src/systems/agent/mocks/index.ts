@@ -7,9 +7,12 @@ export {
   seedAgentInstanceReports,
 } from "./instance-handlers";
 export {
+  SKILL_REVIEW_APPROVED_REVERTIBLE,
+  SKILL_REVIEW_APPROVED_SUPERSEDED,
   SKILL_REVIEW_AUTOMATIC,
   SKILL_REVIEW_HIDDEN_TEXT,
   SKILL_REVIEW_LEGACY,
   SKILL_REVIEW_PLAIN,
+  SKILL_REVIEW_REVERTED_EDIT,
   skillReviewViewFixture,
 } from "./skill-review-fixtures";

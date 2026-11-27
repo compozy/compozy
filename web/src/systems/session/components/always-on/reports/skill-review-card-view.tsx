@@ -2,14 +2,16 @@
  * S9: a skill the agent proposed. The card says why and what would run on its own, first; Review
  * skill opens the exact contents, where the operator approves or rejects them.
  */
-import { Check, FileCode, Plug, Terminal, X } from "@compozy/ui/icons";
+import { Check, FileCode, Plug, Terminal, Undo2, X } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { Alert, AlertDescription, Button, Eyebrow, Item, Receipt } from "@compozy/ui";
 
-import { AgentSkillViewerDialog } from "@/systems/agent/components/skill-review/agent-skill-viewer-dialog";
-import type { AgentSkillReviewView } from "@/systems/agent/hooks/use-agent-skill-review";
-import type { SkillAutomaticItem } from "@/systems/agent/lib/agent-skill-review";
+import type { AgentSkillReviewView, SkillAutomaticItem } from "@/systems/agent";
+import {
+  AgentSkillViewerDialog,
+  SkillInstallConflictAlert,
+} from "@/systems/agent/skill-review-view";
 
 import type { ReportAgent } from "../../../lib/session-report-identity";
 import { Notice } from "./report-entry";
@@ -92,6 +94,73 @@ function UnreadableSkillReview({
   );
 }
 
+/**
+ * An approved review: the receipt, and Revert only while the detail says the daemon would accept it.
+ * A refusal rereads the review, so Revert disappears when a newer change or an edit on disk won.
+ */
+function ApprovedSkillReview({ name, view }: { name: string; view: AgentSkillReviewView }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5" data-testid="skill-review-approved">
+      <div className="flex min-w-0 items-center gap-2">
+        <Receipt className="min-w-0 flex-1" icon={<Check aria-hidden="true" />} tone="allowed">
+          You approved <b>{name}</b>. It's active now.
+        </Receipt>
+        {view.revertAllowed ? (
+          <Button
+            disabled={view.deciding}
+            onClick={() => view.decide("revert")}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            Revert
+          </Button>
+        ) : null}
+      </div>
+      {view.installConflictOp !== null ? (
+        <SkillInstallConflictAlert op={view.installConflictOp} />
+      ) : null}
+      {view.decideError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{view.decideError.message}</AlertDescription>
+        </Alert>
+      ) : null}
+    </div>
+  );
+}
+
+function ClosedSkillReview({
+  name,
+  edit,
+  state,
+}: {
+  name: string;
+  edit: boolean;
+  state: "rejected" | "reverted";
+}) {
+  if (state === "reverted") {
+    return (
+      <Receipt icon={<Undo2 aria-hidden="true" />} tone="rejected">
+        Reverted <b>{name}</b>
+        {edit ? " to its previous contents." : "."}
+      </Receipt>
+    );
+  }
+  return (
+    <Receipt icon={<X aria-hidden="true" />} tone="rejected">
+      {edit ? (
+        <>
+          You rejected the change to <b>{name}</b>. The installed skill stays as it is.
+        </>
+      ) : (
+        <>
+          You rejected <b>{name}</b>. It stays off unless its contents change.
+        </>
+      )}
+    </Receipt>
+  );
+}
+
 /** The card for a loaded review; the container below reads and decides it. */
 export function SkillReviewCardView({
   agent,
@@ -109,13 +178,23 @@ export function SkillReviewCardView({
   const [open, setOpen] = useState(defaultOpen);
   const { review } = view;
   if (!review) return null;
-  const decide = (decision: "approve" | "reject") => view.decide(decision);
+  if (view.state === "approved") {
+    return <ApprovedSkillReview name={review.name} view={view} />;
+  }
+  if (view.state === "reverted" || view.state === "rejected") {
+    return (
+      <ClosedSkillReview edit={review.kind === "edit"} name={review.name} state={view.state} />
+    );
+  }
+  if (view.unreadable) {
+    return <UnreadableSkillReview agent={agent} name={review.name} view={view} when={when} />;
+  }
   const dialog = (
     <AgentSkillViewerDialog
       agentLabel={agent.label}
-      decided={view.state !== "pending"}
       deciding={view.deciding}
       approveDisabled={view.invalid}
+      automaticComparison={view.automaticComparison}
       error={view.decideError?.message}
       installConflictOp={view.installConflictOp}
       evidenceSessionIds={review.evidence_session_ids}
@@ -125,30 +204,13 @@ export function SkillReviewCardView({
       initialPath={initialPath}
       key={review.digest}
       name={review.name}
-      onApprove={() => decide("approve")}
+      onApprove={() => view.decide("approve")}
       onOpenChange={setOpen}
-      onReject={() => decide("reject")}
-      open={open && view.state === "pending"}
+      onReject={() => view.decide("reject")}
+      open={open}
       stale={view.stale}
     />
   );
-  if (view.unreadable && view.state === "pending") {
-    return <UnreadableSkillReview agent={agent} name={review.name} view={view} when={when} />;
-  }
-  if (view.state === "approved") {
-    return (
-      <Receipt icon={<Check aria-hidden="true" />} tone="allowed">
-        You approved <b>{review.name}</b>. It's active now.
-      </Receipt>
-    );
-  }
-  if (view.state === "rejected") {
-    return (
-      <Receipt icon={<X aria-hidden="true" />} tone="rejected">
-        You rejected <b>{review.name}</b>. It stays off unless its contents change.
-      </Receipt>
-    );
-  }
   return (
     <>
       <Notice
@@ -180,7 +242,11 @@ export function SkillReviewCardView({
           </div>
         }
         state="needs-you"
-        title={`New skill to review: ${review.name}`}
+        title={
+          review.kind === "edit"
+            ? `Change to review: ${review.name}`
+            : `New skill to review: ${review.name}`
+        }
         when={when}
       />
       {dialog}

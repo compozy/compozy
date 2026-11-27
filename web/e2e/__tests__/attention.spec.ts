@@ -37,8 +37,10 @@ const fixtureRoot = path.resolve(
 );
 const attentionFixture = path.join(fixtureRoot, "attention_truth_fixture.json");
 const faultFixture = path.join(fixtureRoot, "driver_fault_fixture.json");
+const browserLifecycleFixture = path.join(fixtureRoot, "browser_session_lifecycle_fixture.json");
 const attentionAgent = "attention-agent";
 const faultAgent = "attention-fault-agent";
+const monitoredChildAgent = "attention-monitored-child";
 
 const bell = {
   trigger: '[data-slot="os-menubar-bell"]',
@@ -84,6 +86,11 @@ test.use({
           agentName: faultAgent,
           fixtureAgent: "faulty",
           fixturePath: faultFixture,
+        },
+        {
+          agentName: monitoredChildAgent,
+          fixtureAgent: "browser-dashboard-agent",
+          fixturePath: browserLifecycleFixture,
         },
       ],
     },
@@ -365,20 +372,22 @@ test.describe("Sessions Kanban E2E-004 waiting is not done", () => {
     const created = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {
       method: "POST",
       body: JSON.stringify({
-        agent_name: attentionAgent,
+        agent_name: monitoredChildAgent,
         workspace: workspace.id,
         parent_session_id: coordinator.id,
       }),
     });
     await waitForSeedSessionActive(runtime, created.session.id);
+    await promptSession(runtime, created.session, "wait for dashboard monitor");
+    await waitForBadge(runtime, created.session.id, "waiting");
 
-    // The coordinator settles its turn while its child is live: waiting, not done.
+    // The child's armed monitor keeps the coordinator waiting after its turn settles.
     await promptSession(runtime, coordinator, "complete turn");
     const waiting = await waitForBadge(runtime, coordinator.id, "waiting");
     expect((waiting as SessionPayload & { waiting_on?: string }).waiting_on).toBe("sessions");
     const modal = await openSessionsModal(page);
     const row = modal.getByTestId(`os-sessions-modal-session-${coordinator.id}`);
-    // The child is idle (created, never prompted), so nothing lifts the mark (#1926).
+    // The child is waiting between turns, so nothing lifts the mark (#1926).
     const mark = row.getByRole("img", { name: "Session badge: waiting" });
     await expect(mark).toHaveAttribute("data-waiting-on", "sessions");
     await expect(mark).not.toHaveAttribute("data-descendants");

@@ -7,6 +7,46 @@ import (
 	"time"
 )
 
+// ToolErrorPayload is a daemon API value.
+type ToolErrorPayload struct {
+	Retryable       bool                       `json:"retryable,omitzero"`
+	ClientMessageID string                     `json:"client_message_id,omitempty"`
+	ProviderError   string                     `json:"provider_error,omitempty"`
+	Code            ErrorCode                  `json:"code"`
+	Message         string                     `json:"message"`
+	ToolID          ToolID                     `json:"tool_id,omitempty"`
+	ReasonCodes     []ReasonCode               `json:"reason_codes,omitempty"`
+	Layer           string                     `json:"layer,omitempty"`
+	Details         map[string]json.RawMessage `json:"details,omitempty"`
+	PartialResult   *ToolResult                `json:"partial_result,omitzero"`
+}
+
+// ToolErrorResponse is a daemon API value.
+type ToolErrorResponse struct {
+	Error ToolErrorPayload `json:"error"`
+}
+
+// ToolID is a daemon API value.
+type ToolID string
+
+// ToolInvokeMetadata is a daemon API value.
+type ToolInvokeMetadata struct {
+	ComputerID ComputerID `json:"computer_id"`
+}
+
+// ToolInvokeRequest is a daemon API value.
+type ToolInvokeRequest struct {
+	SessionID            string          `json:"session_id,omitempty"`
+	WorkspaceID          string          `json:"workspace_id,omitempty"`
+	AgentName            string          `json:"agent_name,omitempty"`
+	ToolCallID           string          `json:"tool_call_id,omitempty"`
+	TurnID               string          `json:"turn_id,omitempty"`
+	CorrelationID        string          `json:"correlation_id,omitempty"`
+	Input                json.RawMessage `json:"input"`
+	SensitiveInputFields []string        `json:"sensitive_input_fields,omitempty"`
+	ApprovalToken        string          `json:"approval_token,omitempty"`
+}
+
 // ToolInvokeResponse is a daemon API value.
 type ToolInvokeResponse struct {
 	Meta       *ToolInvokeMetadata    `json:"_meta,omitempty"`
@@ -404,44 +444,4 @@ type UpdateTriggerRequest struct {
 	WebhookID           *string           `json:"webhook_id,omitempty"`
 	EndpointSlug        *string           `json:"endpoint_slug,omitempty"`
 	WebhookSecretValue  *string           `json:"webhook_secret_value,omitempty"`
-}
-
-// UpdateWorkspaceRequest is a daemon API value.
-type UpdateWorkspaceRequest struct {
-	Name         *string   `json:"name"`
-	AddDirs      *[]string `json:"add_dirs"`
-	DefaultAgent *string   `json:"default_agent"`
-}
-
-// UsageSignal is a daemon API value.
-type UsageSignal struct {
-	CommandID  CommandID `json:"command_id"`
-	Weight     float64   `json:"weight"`
-	LastUsedAt int64     `json:"last_used_at"`
-}
-
-// ValidateLoopRequest is a daemon API value.
-type ValidateLoopRequest struct {
-	Definition LoopDefinitionDocument `json:"definition"`
-}
-
-// Value is a daemon API value.
-type Value struct {
-	Value    json.RawMessage `json:"value,omitempty"`
-	VaultRef *string         `json:"vault_ref,omitzero"`
-}
-
-// VaultSecretPayload is a daemon API value.
-type VaultSecretPayload struct {
-	Ref       string    `json:"ref"`
-	Namespace string    `json:"namespace"`
-	Kind      string    `json:"kind,omitempty"`
-	Present   bool      `json:"present"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-// VaultSecretResponse is a daemon API value.
-type VaultSecretResponse struct {
-	Secret VaultSecretPayload `json:"secret"`
 }

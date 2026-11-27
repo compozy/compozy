@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// BrowserStreamTicketResponse is a daemon API value.
+type BrowserStreamTicketResponse struct {
+	Ticket    string    `json:"ticket"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// Budget is a daemon API value.
+type Budget struct {
+	Tokens       int32          `json:"tokens"`
+	WallClockSec int32          `json:"wall_clock_sec"`
+	OnExceeded   BudgetExceeded `json:"on_exceeded,omitempty"`
+}
+
+// BudgetExceeded is a daemon API value.
+type BudgetExceeded string
+
+// BulkForceTaskRunItemPayload is a daemon API value.
+type BulkForceTaskRunItemPayload struct {
+	RunID string          `json:"run_id"`
+	OK    bool            `json:"ok"`
+	Run   *TaskRunPayload `json:"run,omitzero"`
+	Error *ErrorPayload   `json:"error,omitzero"`
+}
+
 // BulkForceTaskRunRequest is a daemon API value.
 type BulkForceTaskRunRequest struct {
 	RunIDs   []string        `json:"run_ids"`
@@ -416,34 +440,3 @@ type Computer struct {
 	AddedAt             time.Time           `json:"added_at"`
 	LastConnectedAt     *time.Time          `json:"last_connected_at"`
 }
-
-// ComputerChange is a daemon API value.
-type ComputerChange struct {
-	ComputerID ComputerID           `json:"computer_id,omitempty"`
-	Computer   *Computer            `json:"computer,omitempty"`
-	Removed    bool                 `json:"removed,omitzero"`
-	SetupID    string               `json:"setup_id,omitempty"`
-	Step       string               `json:"step,omitempty"`
-	State      string               `json:"state,omitempty"`
-	Prompt     *ComputerSetupPrompt `json:"prompt,omitempty"`
-	Error      *ErrorPayload        `json:"error,omitempty"`
-	Answered   bool                 `json:"answered,omitzero"`
-}
-
-// ComputerDiagnosis is a daemon API value.
-type ComputerDiagnosis struct {
-	Step    string    `json:"step"`
-	Code    string    `json:"code"`
-	Message string    `json:"message"`
-	At      time.Time `json:"at"`
-}
-
-// ComputerEvent is a daemon API value.
-type ComputerEvent struct {
-	ID    string         `json:"id"`
-	Event string         `json:"event"`
-	Data  ComputerChange `json:"data"`
-}
-
-// ComputerID is a daemon API value.
-type ComputerID string

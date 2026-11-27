@@ -143,6 +143,49 @@
             ]
         },
         {
+            "name": "browser-dashboard-agent",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "browser-dashboard-monitor",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "wait for dashboard monitor"
+                    },
+                    "steps": [
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__monitor_create",
+                            "tool_call_id": "dashboard-monitor",
+                            "raw_input": {
+                                "kind": "timer",
+                                "description": "Finish the dashboard wait",
+                                "delay_seconds": 600
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Waiting for the monitor."
+                        }
+                    ]
+                },
+                {
+                    "name": "browser-dashboard-settle",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "finish dashboard work"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Dashboard work finished."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "name": "browser-binding-replay",
             "provider": "claude",
             "permissions": "approve-reads",

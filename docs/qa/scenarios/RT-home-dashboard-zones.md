@@ -18,6 +18,12 @@ overlaps: RT-home-zero-inventory-first-run
 
 story: As an end user I open Home and see what agents did, what needs me, and what it costs — all from persisted daemon data.
 
+Working now (#2011): open Home with a running turn, a session waiting on an armed monitor,
+and an idle parent whose child finished its turn and remains open. The cards and KPI include the
+running and waiting sessions alongside live task runs. The parent and child stay out once their work
+settles. Repeat with a detached session whose ACP processes are still visible in process inspection.
+Those processes do not make the session live work.
+
 New behavior shipped 2026-07-23 (dashboard redesign): zones replace the old daemon-status + 4-metric home. Verify zone order, truthful empties (no runs → axis-free empty chart; no attention → quiet "Nothing needs you right now"), pulse insights omission when the window is empty, and that magnitude charts stay neutral-ink while outcome bars alone use success/danger.
 
 QA completion 2026-07-29: the isolated Home window rendered all seven zones in order from a fresh

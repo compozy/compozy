@@ -56,14 +56,16 @@ profiles from `config.toml` and removes their local credential directory. Add ea
 - App tokens (with their allowed origins) and webhook triggers migrate automatically. Any webhook
   trigger whose public base address changed shows **Needs confirmation** until confirmed.
 - Former Gateway users see a one-time notice in Settings → Computers with the launch post and a
-  migration coupon for 3 months of Compozy Pro free (redeemable in Stripe Checkout for 60 days).
+  promotion code for 3 months of Compozy Pro free. Enter the code at Pro checkout by January 27,
+  2027 on your first purchase.
   The removed verbs and flag exit 2 with a migration pointer in 0.8.0. The pointers expire in 0.9.0.
 - Replace `/api/gateway/ingress-bindings` with `/api/ingress/bindings`. Other Gateway API routes
   and the `compozy__gateway` tool are retired. Use a hosted route or configure
   `remote.ingress.public_url` before confirming a new webhook address.
-- Official install methods no longer include `go install`; use the desktop app, verified installer,
-  Homebrew, npm, or Linux release packages from [Download](https://compozy.com/download). Source builds live in the
-  contributor guide and run as development builds without the sign-in gate.
+- Official install methods no longer include `go install`. Use the desktop app, verified installer,
+  Homebrew, npm, or Linux release packages from
+  [Download](https://compozy.com/download). [Build from source](https://compozy.com/docs/getting-started/installation#build-from-source)
+  for optional sign-in. Run `compozy account login` to use Compozy Cloud features in a source build.
 
 <a id="always-on-vocabulary"></a>
 

@@ -7,6 +7,40 @@ import (
 	"time"
 )
 
+// StrategyThreshold is a daemon API value.
+// StrategyThreshold preserves its custom JSON wire representation.
+type StrategyThreshold = json.RawMessage
+
+// StuckTaskRunPayload is a daemon API value.
+type StuckTaskRunPayload struct {
+	TaskID     string `json:"task_id"`
+	RunID      string `json:"run_id"`
+	Status     string `json:"status"`
+	OriginKind string `json:"origin_kind"`
+	SessionID  string `json:"session_id,omitempty"`
+	AgeMillis  int64  `json:"age_ms"`
+}
+
+// SubagentCancelPayload is a daemon API value.
+type SubagentCancelPayload struct {
+	SubagentID string `json:"subagent_id"`
+	Status     string `json:"status"`
+}
+
+// SubagentCancelRequest is a daemon API value.
+type SubagentCancelRequest struct {
+	Reason string `json:"reason"`
+}
+
+// SubagentChildActivity is a daemon API value.
+type SubagentChildActivity string
+
+// SubagentListPayload is a daemon API value.
+type SubagentListPayload struct {
+	Subagents  []SubagentPayload `json:"subagents"`
+	NextCursor *string           `json:"next_cursor"`
+}
+
 // SubagentPayload is a daemon API value.
 type SubagentPayload struct {
 	Isolation          string                   `json:"isolation"`
@@ -408,27 +442,4 @@ type TaskDashboardQueueDepthPayload struct {
 	Count               int       `json:"count"`
 	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
 	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
-}
-
-// TaskDashboardQueuePayload is a daemon API value.
-type TaskDashboardQueuePayload struct {
-	Total                 int                              `json:"total"`
-	Depth                 []TaskDashboardQueueDepthPayload `json:"depth,omitempty"`
-	OldestQueuedAt        time.Time                        `json:"oldest_queued_at"`
-	OldestQueueAgeMilli   int64                            `json:"oldest_queue_age_ms"`
-	BacklogWarning        bool                             `json:"backlog_warning"`
-	BacklogStatus         string                           `json:"backlog_status"`
-	BacklogThresholdMilli int64                            `json:"backlog_threshold_ms"`
-}
-
-// TaskDashboardResponse is a daemon API value.
-type TaskDashboardResponse struct {
-	Dashboard TaskDashboardPayload `json:"dashboard"`
-}
-
-// TaskDashboardStatusBreakdownPayload is a daemon API value.
-type TaskDashboardStatusBreakdownPayload struct {
-	Status       TaskStatus `json:"status"`
-	Count        int        `json:"count"`
-	SharePercent int        `json:"share_percent"`
 }

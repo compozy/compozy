@@ -7,6 +7,66 @@ import (
 	"time"
 )
 
+// IngressPayload is a daemon API value.
+type IngressPayload struct {
+	SubjectKind                 string     `json:"subject_kind"`
+	SubjectID                   string     `json:"subject_id"`
+	ScopeKind                   string     `json:"scope_kind"`
+	WorkspaceID                 string     `json:"workspace_id,omitempty"`
+	URL                         string     `json:"url,omitempty"`
+	Reachability                string     `json:"reachability"`
+	EndpointGeneration          uint64     `json:"endpoint_generation"`
+	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
+	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
+	EnablePath                  string     `json:"enable_path,omitempty"`
+}
+
+// Input is a daemon API value.
+type Input struct {
+	Type        InputType `json:"type"`
+	Required    bool      `json:"required,omitzero"`
+	Description string    `json:"description,omitempty"`
+	Ref         *InputRef `json:"ref,omitzero"`
+	Enum        []string  `json:"enum,omitempty"`
+	Default     any       `json:"default,omitempty"`
+}
+
+// InputRef is a daemon API value.
+type InputRef struct {
+	Kind InputRefKind `json:"kind"`
+}
+
+// InputRefKind is a daemon API value.
+type InputRefKind string
+
+// InputType is a daemon API value.
+type InputType string
+
+// InstallExtensionRequest is a daemon API value.
+type InstallExtensionRequest struct {
+	Enable           bool                                  `json:"enable,omitzero"`
+	Scope            string                                `json:"scope,omitempty"`
+	WorkspaceID      string                                `json:"workspace_id,omitempty"`
+	Profile          string                                `json:"profile,omitempty"`
+	Inputs           map[string]Value                      `json:"inputs,omitempty"`
+	ExpectedDigest   string                                `json:"expected_digest,omitempty"`
+	Source           InstallExtensionSource                `json:"source"`
+	Ref              string                                `json:"ref"`
+	Version          string                                `json:"version,omitempty"`
+	Asset            string                                `json:"asset,omitempty"`
+	AllowUnverified  bool                                  `json:"allow_unverified,omitzero"`
+	Replace          bool                                  `json:"replace,omitzero"`
+	WithDependencies bool                                  `json:"with_dependencies,omitzero"`
+	Dependencies     map[string]ExtensionDependencyConsent `json:"dependencies,omitempty"`
+}
+
+// InstallExtensionResponse is a daemon API value.
+type InstallExtensionResponse struct {
+	EnableError           *ExtensionEnableError `json:"enable_error,omitzero"`
+	Extension             ExtensionPayload      `json:"extension"`
+	DependenciesInstalled []string              `json:"dependencies_installed,omitempty"`
+}
+
 // InstallExtensionSource is a daemon API value.
 type InstallExtensionSource string
 
@@ -377,68 +437,4 @@ type LoopEffectSpec struct {
 	Emit *LoopEmitSpec  `json:"emit,omitzero"`
 	Tool string         `json:"tool,omitempty"`
 	With map[string]any `json:"with,omitempty"`
-}
-
-// LoopEffectiveConfig is a daemon API value.
-type LoopEffectiveConfig struct {
-	HumanGateEnabled   bool                  `json:"human_gate_enabled"`
-	ReattemptStrategy  LoopReattemptStrategy `json:"reattempt_strategy"`
-	EnabledChecks      json.RawMessage       `json:"enabled_checks_json"`
-	IterationCap       int                   `json:"iteration_cap"`
-	BudgetTokens       int                   `json:"budget_tokens"`
-	BudgetWallSec      int                   `json:"budget_wall_sec"`
-	BudgetOnExceeded   LoopBudgetExceeded    `json:"budget_on_exceeded"`
-	NoProgressWindow   int                   `json:"no_progress_window"`
-	FanOutWidth        int                   `json:"fan_out_width"`
-	GateMaxRevisions   int                   `json:"gate_max_revisions"`
-	RuntimeDefaults    LoopRuntimeDefaults   `json:"runtime_defaults"`
-	RuntimeRules       []LoopRuntimeRule     `json:"runtime_rules"`
-	RunRuntimeRules    []LoopRuntimeRule     `json:"run_runtime_rules,omitempty"`
-	Environment        LoopEnvironment       `json:"environment"`
-	RequestExpireAfter string                `json:"request_expire_after"`
-	Sources            map[string]string     `json:"sources,omitempty"`
-}
-
-// LoopEmitSpec is a daemon API value.
-type LoopEmitSpec struct {
-	Kind    string         `json:"kind"`
-	Payload map[string]any `json:"payload,omitempty"`
-}
-
-// LoopEnvironment is a daemon API value.
-type LoopEnvironment struct {
-	Mode        LoopEnvironmentMode `json:"mode"`
-	WorktreeRef string              `json:"worktree_ref,omitempty"`
-	Directory   string              `json:"directory,omitempty"`
-}
-
-// LoopEnvironmentMode is a daemon API value.
-type LoopEnvironmentMode string
-
-// LoopForkRef is a daemon API value.
-type LoopForkRef struct {
-	RunID      string `json:"run_id"`
-	Generation int64  `json:"generation"`
-}
-
-// LoopGateBlockingIssuePayload is a daemon API value.
-type LoopGateBlockingIssuePayload struct {
-	ID   string `json:"id"`
-	Note string `json:"note"`
-}
-
-// LoopGateCriterion is a daemon API value.
-type LoopGateCriterion struct {
-	ID       string          `json:"id"`
-	Type     string          `json:"type"`
-	Check    string          `json:"check,omitempty"`
-	Expect   string          `json:"expect,omitempty"`
-	Contains string          `json:"contains,omitempty"`
-	Agent    string          `json:"agent,omitempty"`
-	Runtime  LoopRuntimeSpec `json:"runtime,omitempty,omitzero"`
-	Rubric   string          `json:"rubric,omitempty"`
-	Prompt   string          `json:"prompt,omitempty"`
-	Tool     string          `json:"tool,omitempty"`
-	Inputs   map[string]any  `json:"inputs,omitempty"`
-	Metric   *LoopMetricSpec `json:"metric,omitzero"`
 }

@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import { computerRegistryKeys } from "@/systems/computers/lib/query-keys";
+import { createDeferred } from "@/test/event-recorder";
 import {
   AccountApiError,
   type AccountSignInStreamHandlers,
@@ -23,7 +24,7 @@ import {
   COMPOZY_TERMS_URL,
   COMPOZY_WHY_SIGN_IN_URL,
 } from "../../lib/account-view";
-import { resolveSignInView } from "../../lib/sign-in-gate";
+import { noticeFromSignInError, resolveSignInView } from "../../lib/sign-in-gate";
 import { useSignInPage } from "../../hooks/use-sign-in-page";
 import { AccountSignInNoticesSection } from "../account-sign-in-notices-section";
 import { GateGraceBannerView } from "../gate-grace-banner";
@@ -104,6 +105,7 @@ function LiveSignInHarness({ redirectTo }: { redirectTo?: string }) {
   return (
     <SignInScreen
       buttonsDisabled={page.view.buttonsDisabled}
+      isRetrying={page.isRetrying}
       isUnlinking={page.isUnlinking}
       marketingOptIn={page.marketingOptIn}
       notice={page.view.notice}
@@ -215,9 +217,11 @@ describe("U0 SignInScreen states and legal/help links (UT-120, UT-138)", () => {
     expect(screen.getByText(/compozy account login/)).toBeInTheDocument();
 
     // UT-138: account_suspended shows mailto:support@compozy.com link and keeps provider buttons.
-    const suspendedView = resolveSignInView(
-      makeStatus({ state: "reauth_required", signed_out_reason: "account_suspended" })
-    );
+    const suspendedStatus = makeStatus({
+      state: "reauth_required",
+      signed_out_reason: "account_suspended",
+    });
+    const suspendedView = resolveSignInView(suspendedStatus);
     rerender(
       <SignInScreen
         buttonsDisabled={suspendedView.buttonsDisabled}
@@ -232,9 +236,26 @@ describe("U0 SignInScreen states and legal/help links (UT-120, UT-138)", () => {
     );
     expect(screen.getByRole("button", { name: /Continue with Google/i })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Continue with GitHub/i })).toBeEnabled();
+
+    const suspendedOutage = resolveSignInView(suspendedStatus, {
+      notice: noticeFromSignInError({ code: "account_cloud_unreachable" }),
+    });
+    rerender(
+      <SignInScreen
+        buttonsDisabled={suspendedOutage.buttonsDisabled}
+        notice={suspendedOutage.notice}
+        title={suspendedOutage.title}
+      />
+    );
+    expect(screen.getByRole("link", { name: "support@compozy.com" })).toHaveAttribute(
+      "href",
+      COMPOZY_SUPPORT_MAILTO
+    );
+    expect(screen.getByText("Can't reach CompozyOS. Check your connection.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
   });
 
-  it("UT-120: handles waiting, Cancel, expired, cloud_unreachable (with Status link), and installation_linked_to_other_account", async () => {
+  it("UT-120: handles waiting, Cancel, expiry, unlinking, and retry after a cloud outage", async () => {
     mocks.fetchAccountStatus.mockResolvedValue(makeStatus());
     mocks.startAccountLogin.mockResolvedValue({
       attempt_id: "att_1",
@@ -284,9 +305,13 @@ describe("U0 SignInScreen states and legal/help links (UT-120, UT-138)", () => {
     await waitFor(() => expect(mocks.unlinkRemoteHost).toHaveBeenCalledTimes(1));
 
     // Cloud unreachable disables provider buttons and shows Status link.
-    mocks.startAccountLogin.mockRejectedValueOnce(
-      new AccountApiError("Can't reach Compozy Cloud.", 503, "account_cloud_unreachable")
+    const cloudUnavailable = new AccountApiError(
+      "Can't reach Compozy Cloud.",
+      503,
+      "account_cloud_unreachable"
     );
+    mocks.startAccountLogin.mockRejectedValueOnce(cloudUnavailable);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Email me product news and offers/i }));
     fireEvent.click(screen.getByRole("button", { name: /Continue with GitHub/i }));
     expect(
       await screen.findByText("Can't reach CompozyOS. Check your connection.")
@@ -296,6 +321,50 @@ describe("U0 SignInScreen states and legal/help links (UT-120, UT-138)", () => {
       COMPOZY_STATUS_URL
     );
     expect(screen.getByRole("button", { name: /Continue with Google/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Continue with GitHub/i })).toBeDisabled();
+
+    // A second outage keeps the same retry action available.
+    const retryResponse = createDeferred<never>();
+    mocks.startAccountLogin.mockReturnValueOnce(retryResponse.promise);
+    const retry = screen.getByRole("button", { name: "Try again" });
+    fireEvent.click(retry);
+    await waitFor(() => {
+      expect(mocks.startAccountLogin).toHaveBeenNthCalledWith(3, {
+        provider: "github",
+        marketing_opt_in: true,
+      });
+      expect(retry).toBeDisabled();
+    });
+    await act(async () => retryResponse.reject(cloudUnavailable));
+    await waitFor(() => expect(retry).toBeEnabled());
+    expect(screen.getByRole("button", { name: /Continue with Google/i })).toBeDisabled();
+
+    mocks.startAccountLogin.mockResolvedValueOnce({
+      attempt_id: "att_4",
+      user_code: "KCZG-TNPF",
+      verification_uri: "https://cloud.compozy.com/activate",
+      verification_uri_complete:
+        "https://cloud.compozy.com/activate?user_code=KCZG-TNPF&provider=github",
+      expires_at: "2026-11-24T19:00:00Z",
+    });
+    fireEvent.click(retry);
+    expect(await screen.findByText("KCZG-TNPF")).toBeInTheDocument();
+    expect(mocks.startAccountLogin).toHaveBeenNthCalledWith(4, {
+      provider: "github",
+      marketing_opt_in: true,
+    });
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Continue with Google/i })).toBeEnabled();
+
+    await act(async () => {
+      streamHandlers?.onProgress?.({ attempt_id: "att_4", state: "failed", code: "dpop_invalid" });
+    });
+    expect(
+      screen.getByText(
+        "Couldn't verify this computer. Set its date and time automatically, then try signing in again."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Continue with GitHub/i })).toBeEnabled();
   });
 
   it("UT-138: rate_limited disables provider buttons until Retry-After elapses", async () => {

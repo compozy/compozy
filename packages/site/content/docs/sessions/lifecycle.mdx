@@ -455,9 +455,11 @@ affect a newer turn.
 ### Runtime activity supervision
 
 Supervision inspects every live session. Provider updates restart the quiet window.
-Fresh evidence of ongoing work keeps the session alive: a verified running tool, an active child, a recently
-reconciled Loop run, a held task lease, a scheduled wait with a future deadline, or a reply the
-session is awaiting (`awaiting_reply`). A session that sent `compozy__session_prompt` with
+Verified running tools, recently reconciled Loop runs, held task leases, scheduled waits with
+future deadlines, and awaited replies (`awaiting_reply`) keep the session alive. A child counts
+while it starts, stops, runs a turn, or has current evidence of a wait such as an armed monitor.
+An unfinished subagent delegation still counts between turns until it settles.
+A session that sent `compozy__session_prompt` with
 `notify_on_complete: true` stays alive while the session it asked is live, and while the reply
 wake is waiting to be delivered. An interim reply leaves the watch outstanding while the target
 finishes its work. The original `session.messaging.reply_watch_ttl` (24 hours by default) also caps

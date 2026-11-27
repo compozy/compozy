@@ -1,4 +1,4 @@
 {
     "title": "Review",
-    "pages": ["index", "approve", "list", "reject", "show"]
+    "pages": ["index", "approve", "list", "reject", "revert", "show"]
 }

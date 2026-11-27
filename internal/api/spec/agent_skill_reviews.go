@@ -38,7 +38,17 @@ func agentSkillReviewOperations() []OperationSpec {
 	for _, decision := range []struct{ path, id string }{
 		{authorityApproveAction, "approveAgentSkillReview"},
 		{"reject", "rejectAgentSkillReview"},
+		{"revert", "revertAgentSkillReview"},
 	} {
+		responses := []ResponseSpec{
+			{Status: 200, Description: "Decided review", Body: contract.AgentSkillReviewResponse{}},
+		}
+		if decision.path == "revert" {
+			responses = append(responses, ResponseSpec{
+				Status: 409, Description: "Revert refused; eligibility failures include a reason",
+				Body: contract.AgentSkillRevertConflictPayload{},
+			})
+		}
 		result = append(
 			result,
 			OperationSpec{
@@ -48,9 +58,7 @@ func agentSkillReviewOperations() []OperationSpec {
 				Summary:     "Decide a skill review as the operator (experimental)",
 				Parameters:  []ParameterSpec{pathParam("id", "Review ID")},
 				RequestBody: contract.AgentSkillReviewDecisionRequest{},
-				Responses: []ResponseSpec{
-					{Status: 200, Description: "Decided review", Body: contract.AgentSkillReviewResponse{}},
-				},
+				Responses:   responses,
 			},
 		)
 	}

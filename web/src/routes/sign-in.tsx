@@ -20,6 +20,7 @@ function SignInRoutePage() {
     <SignInScreen
       autoFocusFirstProvider
       buttonsDisabled={page.view.buttonsDisabled}
+      isRetrying={page.isRetrying}
       isUnlinking={page.isUnlinking}
       marketingOptIn={page.marketingOptIn}
       notice={page.view.notice}

@@ -126,7 +126,7 @@ func seedCoreSkillInstallConflict(t *testing.T, skillsRoot string) string {
 	}
 	backup := filepath.Join(skillsRoot, journal.BackupName)
 	writeSkill(backup, "Previous checklist")
-	original, err := agentinstance.SkillTreeDigest(backup)
+	original, err := agentinstance.SkillTreeDigest(t.Context(), backup)
 	if err != nil {
 		t.Fatal(err)
 	}

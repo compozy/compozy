@@ -10,10 +10,19 @@ qa_status: pending
 ---
 
 1. Start the packaged app with an empty home and verify a protected read returns `401 sign_in_required`. Run `compozy session list` and verify it exits with code 1 and shows the sign-in hint. Confirm `compozy status --json`, account status, update status, and application assets still load.
+   - With the home still signed out, make the Cloud unavailable and select **Continue with Google**.
+     Confirm that the connection notice disables both providers. Select **Try again** during the
+     outage and verify it remains available. Restore the Cloud and select **Try again**. Confirm a
+     fresh Google verification code opens in the browser and **Continue with GitHub** is available.
 2. Sign in with Google. Compare the activation page's code, computer name, and location against the challenge. Verify the shell opens and the protected read returns 200.
 3. Repeat on a headless host with `compozy account login --provider github --no-browser --news`. Use the printed URL and code, then verify the CLI reports the account and a local read succeeds.
 4. Confirm the email preference, follow its unsubscribe link, and confirm it turns off. Open the first sign-in notice and check its linked revoke flow from a freshly authenticated browser.
 5. Delete the test account after confirming the email. Confirm the initiating installation is signed out, an enrolled second installation learns the deletion at refresh, and the local workspace data remains readable after signing in again.
+6. With a disposable home's clock more than 60 seconds ahead, start sign-in and complete provider
+   authorization. Confirm that the app and CLI prompt you to correct the computer's date and time
+   if device verification fails. Restore automatic time and sign in.
+7. Use a separate signed-out disposable home to run `compozy uninstall`. Repeat with the daemon
+   stopped. Verify that the runtime artifacts are removed and persistent data is still present.
 
 Use IT-094, IT-096, IT-098, IT-099, IT-104, and E2E-011 for the related automated evidence.
 
@@ -30,7 +39,11 @@ Use IT-094, IT-096, IT-098, IT-099, IT-104, and E2E-011 for the related automate
 10. Leave product news unchecked during one enrollment and opt in during a separate fresh enrollment. Confirm the second account appears in the staging news segment. Open its unsubscribe link, check that opening it leaves the setting enabled, then confirm and verify the contact is removed.
 11. Enroll a second device. Check the sign-in email and both installations' notices. Dismiss on one installation and check the other still shows the notice. Reuse the device key and confirm there is only one email. Open the email link with an ordinary web session, complete a fresh Google sign-in, and revoke the device.
 12. Delete a fresh Free account from a trusted admin device. Check that the caller signs out immediately and local work stays on disk. Verify another installation is signed out on its next credential refresh, the host is unlinked, and the Resend contact is removed.
-13. In the staged admin scenario, suspend an account with a linked computer and an open terminal stream. Check that the stream closes and sign-in reports the suspension reason. Lift the suspension and confirm the linked computer recovers on its next revalidation while the device signs in again.
+13. In the staged admin scenario, suspend an account with a linked computer and an open terminal
+    stream. Check that the stream closes and sign-in reports the suspension. During a Cloud outage,
+    try to sign in with another account and verify the support link remains available alongside the
+    connection notice and **Try again**. Restore the Cloud and lift the suspension. Confirm the
+    linked computer recovers on its next revalidation while the device signs in again.
 
 The S1b HTTP and Postgres integration suite covers the cloud portion with fake provider and Turnstile endpoints. Keep the staging walk pending until the real OAuth apps, Turnstile widget, and hosted listener are available.
 

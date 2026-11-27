@@ -7,6 +7,58 @@ import (
 	"time"
 )
 
+// HeartbeatConfigProvenancePayload is a daemon API value.
+type HeartbeatConfigProvenancePayload struct {
+	Digest string                       `json:"digest"`
+	Subset HeartbeatConfigSubsetPayload `json:"subset"`
+}
+
+// HeartbeatConfigSubsetPayload is a daemon API value.
+type HeartbeatConfigSubsetPayload struct {
+	Enabled                      bool   `json:"enabled"`
+	MaxBodyBytes                 int64  `json:"max_body_bytes"`
+	ContextProjectionBytes       int64  `json:"context_projection_bytes"`
+	MinInterval                  string `json:"min_interval"`
+	DefaultInterval              string `json:"default_interval"`
+	WakeCooldown                 string `json:"wake_cooldown"`
+	MaxWakesPerCycle             int    `json:"max_wakes_per_cycle"`
+	ActiveSessionOnly            bool   `json:"active_session_only"`
+	AllowActiveHoursPreferences  bool   `json:"allow_active_hours_preferences"`
+	WakeEventRetention           string `json:"wake_event_retention"`
+	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
+	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
+}
+
+// HeartbeatContextProjectionPayload is a daemon API value.
+type HeartbeatContextProjectionPayload struct {
+	Sources []Ref    `json:"sources,omitempty"`
+	Include []string `json:"include,omitzero"`
+}
+
+// HeartbeatDeleteByPathRequest is a daemon API value.
+type HeartbeatDeleteByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	ExpectedDigest string `json:"expected_digest"`
+}
+
+// HeartbeatFrontmatterPayload is a daemon API value.
+type HeartbeatFrontmatterPayload struct {
+	Actions     []ActionDecl                           `json:"actions"`
+	CheckIns    CheckInsPolicy                         `json:"check_ins"`
+	Version     int                                    `json:"version"`
+	Enabled     bool                                   `json:"enabled"`
+	Summary     string                                 `json:"summary,omitempty"`
+	Preferences HeartbeatFrontmatterPreferencesPayload `json:"preferences"`
+	Context     HeartbeatContextProjectionPayload      `json:"context"`
+}
+
+// HeartbeatFrontmatterPreferencesPayload is a daemon API value.
+type HeartbeatFrontmatterPreferencesPayload struct {
+	MinInterval  string                       `json:"min_interval,omitempty"`
+	ActiveHours  []HeartbeatTimeWindowPayload `json:"active_hours,omitempty"`
+	QuietWindows []HeartbeatTimeWindowPayload `json:"quiet_windows,omitempty"`
+}
+
 // HeartbeatHistoryResponse is a daemon API value.
 type HeartbeatHistoryResponse struct {
 	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
@@ -385,64 +437,4 @@ type IngressBindRequest struct {
 type IngressBindingResponse struct {
 	Binding IngressPayload `json:"binding"`
 	Changed bool           `json:"changed"`
-}
-
-// IngressPayload is a daemon API value.
-type IngressPayload struct {
-	SubjectKind                 string     `json:"subject_kind"`
-	SubjectID                   string     `json:"subject_id"`
-	ScopeKind                   string     `json:"scope_kind"`
-	WorkspaceID                 string     `json:"workspace_id,omitempty"`
-	URL                         string     `json:"url,omitempty"`
-	Reachability                string     `json:"reachability"`
-	EndpointGeneration          uint64     `json:"endpoint_generation"`
-	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
-	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
-	EnablePath                  string     `json:"enable_path,omitempty"`
-}
-
-// Input is a daemon API value.
-type Input struct {
-	Type        InputType `json:"type"`
-	Required    bool      `json:"required,omitzero"`
-	Description string    `json:"description,omitempty"`
-	Ref         *InputRef `json:"ref,omitzero"`
-	Enum        []string  `json:"enum,omitempty"`
-	Default     any       `json:"default,omitempty"`
-}
-
-// InputRef is a daemon API value.
-type InputRef struct {
-	Kind InputRefKind `json:"kind"`
-}
-
-// InputRefKind is a daemon API value.
-type InputRefKind string
-
-// InputType is a daemon API value.
-type InputType string
-
-// InstallExtensionRequest is a daemon API value.
-type InstallExtensionRequest struct {
-	Enable           bool                                  `json:"enable,omitzero"`
-	Scope            string                                `json:"scope,omitempty"`
-	WorkspaceID      string                                `json:"workspace_id,omitempty"`
-	Profile          string                                `json:"profile,omitempty"`
-	Inputs           map[string]Value                      `json:"inputs,omitempty"`
-	ExpectedDigest   string                                `json:"expected_digest,omitempty"`
-	Source           InstallExtensionSource                `json:"source"`
-	Ref              string                                `json:"ref"`
-	Version          string                                `json:"version,omitempty"`
-	Asset            string                                `json:"asset,omitempty"`
-	AllowUnverified  bool                                  `json:"allow_unverified,omitzero"`
-	Replace          bool                                  `json:"replace,omitzero"`
-	WithDependencies bool                                  `json:"with_dependencies,omitzero"`
-	Dependencies     map[string]ExtensionDependencyConsent `json:"dependencies,omitempty"`
-}
-
-// InstallExtensionResponse is a daemon API value.
-type InstallExtensionResponse struct {
-	EnableError           *ExtensionEnableError `json:"enable_error,omitzero"`
-	Extension             ExtensionPayload      `json:"extension"`
-	DependenciesInstalled []string              `json:"dependencies_installed,omitempty"`
 }

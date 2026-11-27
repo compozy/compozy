@@ -7,6 +7,70 @@ import (
 	"time"
 )
 
+// SettingsWindowManagerDefaultPayload is a daemon API value.
+type SettingsWindowManagerDefaultPayload struct {
+	CommandID    string   `json:"command"`
+	Binding      []string `json:"binding"`
+	Dormant      bool     `json:"dormant"`
+	ConflictWith string   `json:"conflict_with,omitempty"`
+}
+
+// SettingsWindowManagerDiagnosticPayload is a daemon API value.
+type SettingsWindowManagerDiagnosticPayload struct {
+	CommandID string `json:"command_id"`
+	Message   string `json:"message"`
+}
+
+// SettingsWindowManagerGapsPayload is a daemon API value.
+type SettingsWindowManagerGapsPayload struct {
+	Inner  int `json:"inner"`
+	Top    int `json:"top"`
+	Right  int `json:"right"`
+	Bottom int `json:"bottom"`
+	Left   int `json:"left"`
+}
+
+// SettingsWindowManagerMutationResponse is a daemon API value.
+type SettingsWindowManagerMutationResponse struct {
+	Section            SettingsSectionName                      `json:"section"`
+	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
+	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
+	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
+	Config             SettingsWindowManagerConfigPayload       `json:"config"`
+	Defaults           map[string][]string                      `json:"defaults"`
+	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
+	Aliases            map[string]string                        `json:"aliases"`
+	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
+	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
+	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
+	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
+	Apply              SettingsApplyResponse                    `json:"apply"`
+}
+
+// SettingsWindowManagerResponse is a daemon API value.
+type SettingsWindowManagerResponse struct {
+	Section            SettingsSectionName                      `json:"section"`
+	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
+	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
+	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
+	Config             SettingsWindowManagerConfigPayload       `json:"config"`
+	Defaults           map[string][]string                      `json:"defaults"`
+	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
+	Aliases            map[string]string                        `json:"aliases"`
+	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
+	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
+	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
+	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
+}
+
+// SettingsWindowManagerSnapPayload is a daemon API value.
+type SettingsWindowManagerSnapPayload struct {
+	EdgeBand     int       `json:"edge_band"`
+	CornerReach  int       `json:"corner_reach"`
+	ExitSlack    int       `json:"exit_slack"`
+	RepeatRatios []float64 `json:"repeat_ratios"`
+}
+
 // SettingsWindowNewPolicy is a daemon API value.
 type SettingsWindowNewPolicy string
 
@@ -382,37 +446,3 @@ type StrategyKind string
 // StrategySpec is a daemon API value.
 // StrategySpec preserves its custom JSON wire representation.
 type StrategySpec = json.RawMessage
-
-// StrategyThreshold is a daemon API value.
-// StrategyThreshold preserves its custom JSON wire representation.
-type StrategyThreshold = json.RawMessage
-
-// StuckTaskRunPayload is a daemon API value.
-type StuckTaskRunPayload struct {
-	TaskID     string `json:"task_id"`
-	RunID      string `json:"run_id"`
-	Status     string `json:"status"`
-	OriginKind string `json:"origin_kind"`
-	SessionID  string `json:"session_id,omitempty"`
-	AgeMillis  int64  `json:"age_ms"`
-}
-
-// SubagentCancelPayload is a daemon API value.
-type SubagentCancelPayload struct {
-	SubagentID string `json:"subagent_id"`
-	Status     string `json:"status"`
-}
-
-// SubagentCancelRequest is a daemon API value.
-type SubagentCancelRequest struct {
-	Reason string `json:"reason"`
-}
-
-// SubagentChildActivity is a daemon API value.
-type SubagentChildActivity string
-
-// SubagentListPayload is a daemon API value.
-type SubagentListPayload struct {
-	Subagents  []SubagentPayload `json:"subagents"`
-	NextCursor *string           `json:"next_cursor"`
-}

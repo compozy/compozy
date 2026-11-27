@@ -130,9 +130,13 @@ Tagged releases publish archive checksums, `checksums.txt.sigstore.json`, SBOMs,
 and `.rpm` packages. Download the package for your architecture from the GitHub release, verify it
 against `checksums.txt`, then install it with your distribution package manager.
 
+### Build from source
+
 Building from source is documented in the
 [contributor guide](https://github.com/compozy/compozy/blob/main/.github/CONTRIBUTING.md#building-from-source).
-Source builds are development builds without the sign-in gate and without Compozy Cloud features.
+Source builds are development builds with optional sign-in. To use Compozy Cloud features, run
+`compozy account login`. The daemon uses `https://cloud.compozy.com` by default. To use staging, set
+`COMPOZY_CLOUD_URL=https://staging.cloud.compozy.com` in the daemon's environment.
 
 ## Verify the command install
 
@@ -192,8 +196,8 @@ check. Managed installs defer to their package manager and return the command to
 mutating files directly: `brew upgrade compozy/compozy/compozy`, `npm install -g @compozy/cli`, or
 the hosted installer (<CurrentReleaseTag />). Windows direct-binary installs remain manual in this
 first cut.
-`compozy uninstall` removes runtime launch artifacts idempotently and preserves `~/.compozy` unless
-you explicitly pass `--purge --force`.
+`compozy uninstall` removes runtime launch artifacts and preserves `~/.compozy` unless you
+explicitly pass `--purge --force`. You can uninstall while signed out or with the daemon stopped.
 
 ## Sanity Check the Runtime Inputs
 

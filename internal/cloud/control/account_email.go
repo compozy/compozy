@@ -209,15 +209,15 @@ func (s *Service) deliverSecurityEmail(ctx context.Context, entry store.AccountE
 
 func (s *Service) securityEmail(address string, id int64, event store.AccountEmail) email.Message {
 	if event.Type == store.EventAccountSuspended {
-		return email.Message{To: address, Subject: "Your Compozy account was suspended",
+		return email.Message{To: address, Subject: "Your CompozyOS account was suspended",
 			Text: "This account is suspended. Contact support@compozy.com."}
 	}
 	name, location := event.Notice.Name, cmp.Or(event.Notice.Location, "Unknown location")
 	link := s.config.Issuer + "/account/sign-ins/" + strconv.FormatInt(id, 10)
 	return email.Message{
 		To:      address,
-		Subject: "New sign-in to Compozy on " + name + " (" + location + ")",
-		Text: "A device signed in to your Compozy account. " +
+		Subject: "New sign-in to CompozyOS on " + name + " (" + location + ")",
+		Text: "A device signed in to your CompozyOS account. " +
 			"If this wasn’t you, sign in again to revoke this device:\n" + link,
 	}
 }

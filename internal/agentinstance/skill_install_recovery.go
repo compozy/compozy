@@ -51,7 +51,8 @@ func (s *SkillProposalService) recoverSkill(ctx context.Context, t *skillTarget)
 	}
 	// The skill policy classifies trees by digest, not by dirpublish's directory layout, which would
 	// refuse a symlink that replaced the target before the policy could retain it as a conflict.
-	policy := &skillRecoveryPolicy{ctx: ctx, s: s, t: t}
+	// Recovery settles a durable journal even when the request that found it is canceled.
+	policy := &skillRecoveryPolicy{ctx: context.WithoutCancel(ctx), s: s, t: t}
 	if err := policy.RecoverLayout(t.parent, journal, 0); err != nil {
 		return nil, err
 	}
@@ -160,7 +161,7 @@ func (p *skillRecoveryPolicy) RecoverLayout(
 		}
 		// The call that committed may have returned before publishing, so the catalog refreshes too.
 		p.s.markCatalogRefreshPending()
-		if err := finalizeSkillOp(p.t, journal, payload); err != nil {
+		if err := finalizeSkillOp(p.ctx, p.t, journal, payload); err != nil {
 			return dirpublish.RecoveryError("finalize committed skill install", err)
 		}
 		p.logged(payload, "finalized")
@@ -185,11 +186,11 @@ func (p *skillRecoveryPolicy) rollback(journal dirpublish.Journal, payload Skill
 		return p.conflict(journal, payload)
 	}
 	original := expectedSkillOriginal(payload)
-	target, err := recoveryTreeState(p.t.dir)
+	target, err := recoveryTreeState(p.ctx, p.t.dir)
 	if err != nil {
 		return dirpublish.RecoveryError("inspect skill target", err)
 	}
-	backup, err := recoveryTreeState(p.t.path(journal.BackupName))
+	backup, err := recoveryTreeState(p.ctx, p.t.path(journal.BackupName))
 	if err != nil {
 		return dirpublish.RecoveryError("inspect skill backup", err)
 	}
@@ -199,7 +200,7 @@ func (p *skillRecoveryPolicy) rollback(journal dirpublish.Journal, payload Skill
 		// Not yet moved, or the rollback already restored the original.
 	case (target == "" || (staged != "" && target == staged)) && backup == original:
 		if target != "" {
-			if err := discardVerifiedChild(p.t, journal, p.t.name, staged); err != nil {
+			if err := discardVerifiedChild(p.ctx, p.t, journal, p.t.name, staged); err != nil {
 				return p.conflict(journal, payload)
 			}
 		}
@@ -226,7 +227,7 @@ func (p *skillRecoveryPolicy) restoreAsideTree(
 	journal dirpublish.Journal,
 	payload SkillInstallPayload,
 ) (retained string, err error) {
-	aside, err := recoveryTreeState(p.t.path(journal.IncomingName))
+	aside, err := recoveryTreeState(p.ctx, p.t.path(journal.IncomingName))
 	if err != nil {
 		return "", dirpublish.RecoveryError("inspect skill incoming slot", err)
 	}
@@ -243,7 +244,7 @@ func (p *skillRecoveryPolicy) restoreAsideTree(
 		}
 		return "", dirpublish.RecoveryError("inspect retained unverified skill tree", statErr)
 	}
-	target, err := recoveryTreeState(p.t.dir)
+	target, err := recoveryTreeState(p.ctx, p.t.dir)
 	if err != nil {
 		return "", dirpublish.RecoveryError("inspect skill target", err)
 	}
@@ -332,11 +333,11 @@ func (p *skillRecoveryPolicy) normalizeConflictLayout(
 	journal dirpublish.Journal,
 	payload SkillInstallPayload,
 ) (SkillInstallPayload, error) {
-	target, err := recoveryTreeState(p.t.dir)
+	target, err := recoveryTreeState(p.ctx, p.t.dir)
 	if err != nil {
 		return payload, dirpublish.RecoveryError("inspect conflicting skill target", err)
 	}
-	backup, err := recoveryTreeState(p.t.path(journal.BackupName))
+	backup, err := recoveryTreeState(p.ctx, p.t.path(journal.BackupName))
 	if err != nil {
 		return payload, dirpublish.RecoveryError("inspect conflicting skill backup", err)
 	}
@@ -377,7 +378,7 @@ func (p *skillRecoveryPolicy) originalCopyValid(payload SkillInstallPayload) boo
 	if !payload.PreExists || payload.OriginalCopyName == "" {
 		return false
 	}
-	digest, err := skillTreeState(p.t.path(payload.OriginalCopyName))
+	digest, err := skillTreeState(p.ctx, p.t.path(payload.OriginalCopyName))
 	return err == nil && digest != "" && digest == payload.PreDigest
 }
 
@@ -401,7 +402,7 @@ func (p *skillRecoveryPolicy) moveEditedToTarget(
 		}
 		copyValid = true
 	case target != "":
-		if err := discardVerifiedChild(p.t, journal, p.t.name, target); err != nil {
+		if err := discardVerifiedChild(p.ctx, p.t, journal, p.t.name, target); err != nil {
 			return false, dirpublish.RecoveryError("clear skill target for conflict", err)
 		}
 	}
@@ -431,14 +432,14 @@ func removeSkillOpLeftovers(
 
 // discardVerifiedChild moves name aside to the journal's incoming name and removes it only when its
 // digest is want; other contents are moved back and reported.
-func discardVerifiedChild(t *skillTarget, journal dirpublish.Journal, name, want string) error {
+func discardVerifiedChild(ctx context.Context, t *skillTarget, journal dirpublish.Journal, name, want string) error {
 	if err := t.parent.RemoveAll(journal.IncomingName); err != nil {
 		return err
 	}
 	if err := moveSkillChild(t.parent, name, journal.IncomingName); err != nil {
 		return err
 	}
-	digest, err := skillTreeState(t.path(journal.IncomingName))
+	digest, err := skillTreeState(ctx, t.path(journal.IncomingName))
 	if err != nil || digest != want {
 		return errors.Join(errSkillInstallRaced, err, moveSkillChild(t.parent, journal.IncomingName, name))
 	}

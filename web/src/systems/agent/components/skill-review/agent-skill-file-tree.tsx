@@ -1,5 +1,6 @@
 /**
  * The proposed skill's folders and files: a nested list of buttons, the open file marked current.
+ * For an edit, each changed file is marked added, removed or modified.
  * The surrounding `nav` names it; no tree role, since it has no tree keyboard model.
  */
 import { ChevronRight, FileCode, FileText, Folder, FolderOpen } from "@compozy/ui/icons";
@@ -34,6 +35,13 @@ function buildTree(files: readonly SkillFile[]): TreeFolder {
   }
   return root;
 }
+
+/** Edit reviews mark each changed file; unchanged files carry no mark. */
+const CHANGE_MARK = {
+  added: { letter: "A", label: "Added", tone: "text-success" },
+  removed: { letter: "D", label: "Removed", tone: "text-destructive" },
+  modified: { letter: "M", label: "Modified", tone: "text-warning" },
+} as const;
 
 const ROW =
   "flex h-8 w-full min-w-0 items-center gap-1.5 rounded-sm pr-2 text-left text-small-body outline-none hover:bg-hover focus-visible:shadow-focus-ring";
@@ -116,6 +124,7 @@ function FileRow({
 }) {
   const Glyph = file.language === "markdown" ? FileText : FileCode;
   const name = file.path.split("/").at(-1);
+  const mark = file.change && file.change !== "unchanged" ? CHANGE_MARK[file.change] : null;
   return (
     <li>
       <TreeRowButton
@@ -125,14 +134,25 @@ function FileRow({
         onClick={onSelect}
       >
         <Glyph aria-hidden="true" className="size-4 shrink-0 text-subtle" />
-        <span className="truncate">{name}</span>
-        {file.automatic ? (
-          <span
-            aria-label="Runs automatically"
-            className="ml-auto size-1.5 shrink-0 rounded-full bg-warning"
-            role="img"
-          />
-        ) : null}
+        <span className={cn("truncate", file.change === "removed" && "line-through")}>{name}</span>
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {file.automatic ? (
+            <span
+              aria-label="Runs automatically"
+              className="size-1.5 shrink-0 rounded-full bg-warning"
+              role="img"
+            />
+          ) : null}
+          {mark ? (
+            <span
+              aria-label={mark.label}
+              className={cn("font-mono text-transcript-caption font-medium", mark.tone)}
+              role="img"
+            >
+              {mark.letter}
+            </span>
+          ) : null}
+        </span>
       </TreeRowButton>
     </li>
   );

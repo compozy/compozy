@@ -7,6 +7,37 @@ import (
 	"time"
 )
 
+// ComputerChange is a daemon API value.
+type ComputerChange struct {
+	ComputerID ComputerID           `json:"computer_id,omitempty"`
+	Computer   *Computer            `json:"computer,omitempty"`
+	Removed    bool                 `json:"removed,omitzero"`
+	SetupID    string               `json:"setup_id,omitempty"`
+	Step       string               `json:"step,omitempty"`
+	State      string               `json:"state,omitempty"`
+	Prompt     *ComputerSetupPrompt `json:"prompt,omitempty"`
+	Error      *ErrorPayload        `json:"error,omitempty"`
+	Answered   bool                 `json:"answered,omitzero"`
+}
+
+// ComputerDiagnosis is a daemon API value.
+type ComputerDiagnosis struct {
+	Step    string    `json:"step"`
+	Code    string    `json:"code"`
+	Message string    `json:"message"`
+	At      time.Time `json:"at"`
+}
+
+// ComputerEvent is a daemon API value.
+type ComputerEvent struct {
+	ID    string         `json:"id"`
+	Event string         `json:"event"`
+	Data  ComputerChange `json:"data"`
+}
+
+// ComputerID is a daemon API value.
+type ComputerID string
+
 // ComputerListResponse is a daemon API value.
 type ComputerListResponse struct {
 	Computers []Computer    `json:"computers"`
@@ -409,37 +440,4 @@ type CreateTaskRequest struct {
 	Owner              *Ownership      `json:"owner,omitempty"`
 	WakeCreator        *bool           `json:"wake_creator,omitempty"`
 	Metadata           json.RawMessage `json:"metadata,omitempty"`
-}
-
-// CreateTriggerRequest is a daemon API value.
-type CreateTriggerRequest struct {
-	TargetInstanceScope string            `json:"target_instance_scope,omitempty"`
-	Scope               ModelScope        `json:"scope"`
-	Name                string            `json:"name"`
-	TargetKind          TargetKind        `json:"target_kind,omitempty"`
-	AgentName           string            `json:"agent_name"`
-	WorkspaceID         string            `json:"workspace_id,omitempty"`
-	Prompt              string            `json:"prompt,omitempty"`
-	Event               string            `json:"event"`
-	Filter              map[string]string `json:"filter,omitempty"`
-	LoopTarget          *LoopTarget       `json:"loop_target,omitempty"`
-	Enabled             *bool             `json:"enabled,omitempty"`
-	Retry               *RetryConfig      `json:"retry,omitempty"`
-	FireLimit           *FireLimitConfig  `json:"fire_limit,omitempty"`
-	WebhookID           string            `json:"webhook_id,omitempty"`
-	EndpointSlug        string            `json:"endpoint_slug,omitempty"`
-	WebhookSecretValue  string            `json:"webhook_secret_value,omitempty"`
-}
-
-// CreateWorkspaceFolderRequest is a daemon API value.
-type CreateWorkspaceFolderRequest struct {
-	Name string `json:"name"`
-}
-
-// CreateWorkspaceRequest is a daemon API value.
-type CreateWorkspaceRequest struct {
-	RootDir      string   `json:"root_dir"`
-	Name         string   `json:"name,omitempty"`
-	AddDirs      []string `json:"add_dirs,omitempty"`
-	DefaultAgent string   `json:"default_agent,omitempty"`
 }

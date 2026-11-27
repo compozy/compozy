@@ -4,6 +4,34 @@ package client
 
 import "time"
 
+// AgentTaskLeaseResponse is a daemon API value.
+type AgentTaskLeaseResponse struct {
+	Lease TaskRunLeaseSummaryPayload `json:"lease"`
+}
+
+// AgentTaskReleaseRequest is a daemon API value.
+type AgentTaskReleaseRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
+
+// AgentWorkspacePayload is a daemon API value.
+type AgentWorkspacePayload struct {
+	ID      string `json:"id,omitempty"`
+	Name    string `json:"name,omitempty"`
+	RootDir string `json:"root_dir,omitempty"`
+}
+
+// AgentsResponse is a daemon API value.
+type AgentsResponse struct {
+	Agents []AgentPayload `json:"agents"`
+}
+
+// AppTokenIssuedResponse is a daemon API value.
+type AppTokenIssuedResponse struct {
+	AppToken AppTokenPayload `json:"app_token"`
+	Token    string          `json:"token"`
+}
+
 // AppTokenPayload is a daemon API value.
 type AppTokenPayload struct {
 	ID         string     `json:"id"`
@@ -416,28 +444,4 @@ type BrowserStatus struct {
 // BrowserStreamTicketRequest is a daemon API value.
 type BrowserStreamTicketRequest struct {
 	Path string `json:"path"`
-}
-
-// BrowserStreamTicketResponse is a daemon API value.
-type BrowserStreamTicketResponse struct {
-	Ticket    string    `json:"ticket"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
-// Budget is a daemon API value.
-type Budget struct {
-	Tokens       int32          `json:"tokens"`
-	WallClockSec int32          `json:"wall_clock_sec"`
-	OnExceeded   BudgetExceeded `json:"on_exceeded,omitempty"`
-}
-
-// BudgetExceeded is a daemon API value.
-type BudgetExceeded string
-
-// BulkForceTaskRunItemPayload is a daemon API value.
-type BulkForceTaskRunItemPayload struct {
-	RunID string          `json:"run_id"`
-	OK    bool            `json:"ok"`
-	Run   *TaskRunPayload `json:"run,omitzero"`
-	Error *ErrorPayload   `json:"error,omitzero"`
 }

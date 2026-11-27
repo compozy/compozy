@@ -1,6 +1,7 @@
 package agentinstance
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json/v2"
@@ -34,9 +35,22 @@ type SkillDraftFile struct {
 	Content string `json:"content"`
 }
 
+// SkillDraft is the stored proposal. For an edit, Files are the regenerated SKILL.md plus added or
+// replaced files, and Mode and RemovePaths are recorded so the draft digest (proposal identity) covers
+// them; both are omitted for new skills, keeping their digests unchanged.
 type SkillDraft struct {
-	Name  string           `json:"name"`
-	Files []SkillDraftFile `json:"files"`
+	Name        string            `json:"name"`
+	Files       []SkillDraftFile  `json:"files"`
+	Mode        SkillProposalMode `json:"mode,omitempty"`
+	RemovePaths []string          `json:"remove_paths,omitempty"`
+}
+
+// kind is the review kind the draft proposes; drafts without a mode are new skills.
+func (draft SkillDraft) kind() SkillProposalMode {
+	if draft.Mode == SkillProposalEdit {
+		return SkillProposalEdit
+	}
+	return SkillProposalNew
 }
 
 func PrepareSkillDraft(name, description, body string, files []SkillDraftFile) (SkillDraft, error) {
@@ -139,7 +153,10 @@ func WriteSkillDraft(root string, scanRoots []string, draft SkillDraft) (path, d
 	return path, skillDraftDigest(data), nil
 }
 
-func ReadSkillDraft(path, digest string) (SkillDraft, error) {
+func ReadSkillDraft(ctx context.Context, path, digest string) (SkillDraft, error) {
+	if err := ctx.Err(); err != nil {
+		return SkillDraft{}, err
+	}
 	info, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		// A deleted draft can't be installed or shown; the review stays readable and rejectable.
@@ -155,7 +172,8 @@ func ReadSkillDraft(path, digest string) (SkillDraft, error) {
 	if err != nil {
 		return SkillDraft{}, err
 	}
-	data, readErr := io.ReadAll(io.LimitReader(file, maxSkillDraftBytes+1))
+	reader := skillContextReader{ctx: ctx, source: file}
+	data, readErr := io.ReadAll(io.LimitReader(reader, maxSkillDraftBytes+1))
 	if err := errors.Join(readErr, file.Close()); err != nil {
 		return SkillDraft{}, err
 	}

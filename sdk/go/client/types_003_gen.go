@@ -124,10 +124,25 @@ type AgentSkillAutomaticContents struct {
 	Scripts    int `json:"scripts"`
 }
 
+// AgentSkillBaseFile is a daemon API value.
+type AgentSkillBaseFile struct {
+	Path     string `json:"path"`
+	Content  string `json:"content,omitempty"`
+	Redacted bool   `json:"redacted,omitzero"`
+	Binary   bool   `json:"binary,omitempty"`
+	Size     int64  `json:"size,omitempty"`
+}
+
 // AgentSkillDraftFile is a daemon API value.
 type AgentSkillDraftFile struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
+}
+
+// AgentSkillFileChange is a daemon API value.
+type AgentSkillFileChange struct {
+	Path   string `json:"path"`
+	Change string `json:"change"`
 }
 
 // AgentSkillInstallConflictPayload is a daemon API value.
@@ -170,6 +185,12 @@ type AgentSkillLesson struct {
 	Confidence string `json:"confidence,omitempty"`
 }
 
+// AgentSkillRevertEligibility is a daemon API value.
+type AgentSkillRevertEligibility struct {
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason,omitempty"`
+}
+
 // AgentSkillReviewDecisionRequest is a daemon API value.
 type AgentSkillReviewDecisionRequest struct {
 	Digest string `json:"digest"`
@@ -177,25 +198,31 @@ type AgentSkillReviewDecisionRequest struct {
 
 // AgentSkillReviewPayload is a daemon API value.
 type AgentSkillReviewPayload struct {
-	ID                 string                      `json:"id"`
-	InstanceID         string                      `json:"instance_id"`
-	ProfileID          string                      `json:"profile_id"`
-	WorkspaceID        string                      `json:"workspace_id"`
-	Agent              string                      `json:"agent"`
-	Name               string                      `json:"name"`
-	State              string                      `json:"state"`
-	Kind               string                      `json:"kind"`
-	Digest             string                      `json:"digest"`
-	BaseDigest         string                      `json:"base_digest,omitempty"`
-	Lesson             *AgentSkillLesson           `json:"lesson,omitempty"`
-	EvidenceSessionIDs []string                    `json:"evidence_session_ids"`
-	RunsAutomatically  AgentSkillAutomaticContents `json:"runs_automatically"`
-	Files              []AgentSkillDraftFile       `json:"files,omitempty"`
-	CreatedAt          time.Time                   `json:"created_at"`
-	DecidedAt          *time.Time                  `json:"decided_at,omitempty"`
-	DecidedBy          string                      `json:"decided_by,omitempty"`
-	DecidedVia         string                      `json:"decided_via,omitempty"`
-	Problem            string                      `json:"problem,omitempty"`
+	ID                    string                       `json:"id"`
+	InstanceID            string                       `json:"instance_id"`
+	ProfileID             string                       `json:"profile_id"`
+	WorkspaceID           string                       `json:"workspace_id"`
+	Agent                 string                       `json:"agent"`
+	Name                  string                       `json:"name"`
+	State                 string                       `json:"state"`
+	Kind                  string                       `json:"kind"`
+	Digest                string                       `json:"digest"`
+	BaseDigest            string                       `json:"base_digest,omitempty"`
+	Lesson                *AgentSkillLesson            `json:"lesson,omitempty"`
+	EvidenceSessionIDs    []string                     `json:"evidence_session_ids"`
+	RunsAutomatically     AgentSkillAutomaticContents  `json:"runs_automatically"`
+	BaseRunsAutomatically *AgentSkillAutomaticContents `json:"base_runs_automatically,omitempty"`
+	Changes               []AgentSkillFileChange       `json:"changes,omitempty"`
+	Files                 []AgentSkillDraftFile        `json:"files,omitempty"`
+	BaseFiles             []AgentSkillBaseFile         `json:"base_files,omitzero"`
+	CreatedAt             time.Time                    `json:"created_at"`
+	DecidedAt             *time.Time                   `json:"decided_at,omitempty"`
+	DecidedBy             string                       `json:"decided_by,omitempty"`
+	DecidedVia            string                       `json:"decided_via,omitempty"`
+	RevertedBy            string                       `json:"reverted_by,omitempty"`
+	RevertedAt            *time.Time                   `json:"reverted_at,omitempty"`
+	Revert                *AgentSkillRevertEligibility `json:"revert,omitempty"`
+	Problem               string                       `json:"problem,omitempty"`
 }
 
 // AgentSkillReviewResponse is a daemon API value.
@@ -418,32 +445,4 @@ type AgentTaskFailRequest struct {
 // AgentTaskHeartbeatRequest is a daemon API value.
 type AgentTaskHeartbeatRequest struct {
 	LeaseSeconds int64 `json:"lease_seconds,omitzero"`
-}
-
-// AgentTaskLeaseResponse is a daemon API value.
-type AgentTaskLeaseResponse struct {
-	Lease TaskRunLeaseSummaryPayload `json:"lease"`
-}
-
-// AgentTaskReleaseRequest is a daemon API value.
-type AgentTaskReleaseRequest struct {
-	Reason string `json:"reason,omitempty"`
-}
-
-// AgentWorkspacePayload is a daemon API value.
-type AgentWorkspacePayload struct {
-	ID      string `json:"id,omitempty"`
-	Name    string `json:"name,omitempty"`
-	RootDir string `json:"root_dir,omitempty"`
-}
-
-// AgentsResponse is a daemon API value.
-type AgentsResponse struct {
-	Agents []AgentPayload `json:"agents"`
-}
-
-// AppTokenIssuedResponse is a daemon API value.
-type AppTokenIssuedResponse struct {
-	AppToken AppTokenPayload `json:"app_token"`
-	Token    string          `json:"token"`
 }

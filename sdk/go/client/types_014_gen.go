@@ -4,6 +4,63 @@ package client
 
 import "time"
 
+// MarketplaceListResponse is a daemon API value.
+type MarketplaceListResponse struct {
+	Categories []MarketplaceCategoryCount  `json:"categories"`
+	Refreshing bool                        `json:"refreshing,omitzero"`
+	Total      int                         `json:"total"`
+	NextCursor string                      `json:"next_cursor,omitempty"`
+	Revision   string                      `json:"revision"`
+	Stale      bool                        `json:"stale"`
+	ErrorClass string                      `json:"error_class,omitempty"`
+	Error      string                      `json:"error,omitempty"`
+	Sources    []MarketplaceSourceSummary  `json:"sources"`
+	Items      []MarketplaceListingPayload `json:"items"`
+}
+
+// MarketplaceListingPayload is a daemon API value.
+type MarketplaceListingPayload struct {
+	Category         string                       `json:"category"`
+	CategoryLabel    string                       `json:"category_label"`
+	Featured         bool                         `json:"featured"`
+	SourceRef        string                       `json:"source_ref,omitempty"`
+	Icon             string                       `json:"icon,omitempty"`
+	Layout           string                       `json:"layout,omitempty"`
+	Installable      bool                         `json:"installable"`
+	InstallBlocker   string                       `json:"install_blocker,omitempty"`
+	DigestSHA256     string                       `json:"digest_sha256"`
+	NameConflict     *MarketplaceOriginPayload    `json:"name_conflict,omitzero"`
+	EntryID          string                       `json:"entry_id"`
+	Name             string                       `json:"name"`
+	Description      string                       `json:"description"`
+	Version          string                       `json:"version,omitempty"`
+	Author           string                       `json:"author,omitempty"`
+	InstallSlug      string                       `json:"install_slug"`
+	Source           string                       `json:"source"`
+	Tier             string                       `json:"tier,omitempty"`
+	Format           string                       `json:"format,omitempty"`
+	PublishedAt      *time.Time                   `json:"published_at,omitempty"`
+	UpdatedAt        *time.Time                   `json:"updated_at,omitempty"`
+	Installed        bool                         `json:"installed"`
+	InstalledName    string                       `json:"installed_name,omitempty"`
+	InstalledVersion string                       `json:"installed_version,omitempty"`
+	UpdateAvailable  bool                         `json:"update_available"`
+	ManagePath       string                       `json:"manage_path,omitempty"`
+	Trust            *ExtensionTrustReportPayload `json:"trust,omitzero"`
+}
+
+// MarketplaceOriginPayload is a daemon API value.
+type MarketplaceOriginPayload struct {
+	Source    string `json:"source"`
+	SourceRef string `json:"source_ref"`
+	EntryID   string `json:"entry_id"`
+}
+
+// MarketplaceRefreshResponse is a daemon API value.
+type MarketplaceRefreshResponse struct {
+	Sources []MarketplaceRefreshSourcePayload `json:"sources"`
+}
+
 // MarketplaceRefreshSourcePayload is a daemon API value.
 type MarketplaceRefreshSourcePayload struct {
 	Source     string `json:"source"`
@@ -384,64 +441,4 @@ type ObserveOverviewPayload struct {
 // ObserveOverviewResponse is a daemon API value.
 type ObserveOverviewResponse struct {
 	Overview ObserveOverviewPayload `json:"overview"`
-}
-
-// ObservePersistenceHealthPayload is a daemon API value.
-type ObservePersistenceHealthPayload struct {
-	Status             string `json:"status"`
-	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
-}
-
-// ObserveRetentionHealthPayload is a daemon API value.
-type ObserveRetentionHealthPayload struct {
-	Enabled                  bool       `json:"enabled"`
-	RetentionDays            int        `json:"retention_days"`
-	SweepIntervalSeconds     int64      `json:"sweep_interval_seconds"`
-	LastSweepStatus          string     `json:"last_sweep_status"`
-	LastSweepAt              *time.Time `json:"last_sweep_at,omitempty"`
-	LastCutoffAt             *time.Time `json:"last_cutoff_at,omitempty"`
-	LastSweepError           string     `json:"last_sweep_error,omitempty"`
-	DeletedEventSummaries    int64      `json:"deleted_event_summaries"`
-	DeletedTokenStats        int64      `json:"deleted_token_stats"`
-	DeletedTokenUsageDaily   int64      `json:"deleted_token_usage_daily"`
-	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
-}
-
-// OnboardingStatusPayload is a daemon API value.
-type OnboardingStatusPayload struct {
-	Completed   bool   `json:"completed"`
-	CompletedAt string `json:"completed_at,omitempty"`
-}
-
-// OnboardingStatusResponse is a daemon API value.
-type OnboardingStatusResponse struct {
-	Onboarding OnboardingStatusPayload `json:"onboarding"`
-}
-
-// OpenAIModelCompozyPayload is a daemon API value.
-type OpenAIModelCompozyPayload struct {
-	ProviderID             string                   `json:"provider_id"`
-	ModelID                string                   `json:"model_id"`
-	DisplayName            string                   `json:"display_name,omitempty"`
-	Sources                []string                 `json:"sources"`
-	Available              *bool                    `json:"available"`
-	AvailabilityState      string                   `json:"availability_state"`
-	Stale                  bool                     `json:"stale"`
-	RefreshedAt            string                   `json:"refreshed_at,omitempty"`
-	ContextWindow          *int64                   `json:"context_window,omitzero"`
-	MaxInputTokens         *int64                   `json:"max_input_tokens,omitzero"`
-	MaxOutputTokens        *int64                   `json:"max_output_tokens,omitzero"`
-	SupportsTools          *bool                    `json:"supports_tools,omitzero"`
-	SupportsReasoning      *bool                    `json:"supports_reasoning,omitzero"`
-	ReasoningEfforts       []Effort                 `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *Effort                  `json:"default_reasoning_effort,omitzero"`
-	Cost                   *ModelCatalogCostPayload `json:"cost,omitzero"`
-	LastError              string                   `json:"last_error,omitempty"`
-}
-
-// OpenAIModelListResponse is a daemon API value.
-type OpenAIModelListResponse struct {
-	Object string               `json:"object"`
-	Data   []OpenAIModelPayload `json:"data"`
 }

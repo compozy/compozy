@@ -362,6 +362,8 @@ export {
   type SessionToolVisualStatus,
 } from "./lib/session-tool-visual-state";
 export { getToolIcon, humanizeToolId, resolveRegisteredToolName } from "./lib/tool-labels";
+export { alignLines, splitLines, type AlignedDiffLine } from "./lib/tool-diff-stat";
+export { ToolDiffBody } from "./components/tool-renderers/tool-diff-body";
 export {
   formatPayloadSize,
   PAYLOAD_PREVIEW_MAX_LINES,

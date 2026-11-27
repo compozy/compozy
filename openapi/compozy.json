@@ -3227,6 +3227,30 @@
         ],
         "type": "object"
       },
+      "AgentSkillBaseFile": {
+        "properties": {
+          "binary": {
+            "type": "boolean"
+          },
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "redacted": {
+            "type": "boolean"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
       "AgentSkillDraftFile": {
         "properties": {
           "content": {
@@ -3238,6 +3262,21 @@
         },
         "required": [
           "content",
+          "path"
+        ],
+        "type": "object"
+      },
+      "AgentSkillFileChange": {
+        "properties": {
+          "change": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "change",
           "path"
         ],
         "type": "object"
@@ -3354,6 +3393,38 @@
         ],
         "type": "object"
       },
+      "AgentSkillRevertConflictPayload": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "error"
+        ],
+        "type": "object"
+      },
+      "AgentSkillRevertEligibility": {
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "allowed"
+        ],
+        "type": "object"
+      },
       "AgentSkillReviewDecisionRequest": {
         "properties": {
           "digest": {
@@ -3372,6 +3443,31 @@
           },
           "base_digest": {
             "type": "string"
+          },
+          "base_files": {
+            "items": {
+              "$ref": "#/components/schemas/AgentSkillBaseFile"
+            },
+            "type": "array"
+          },
+          "base_runs_automatically": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentSkillAutomaticContents"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/AgentSkillFileChange"
+            },
+            "type": "array"
           },
           "created_at": {
             "format": "date-time",
@@ -3432,6 +3528,27 @@
             "type": "string"
           },
           "profile_id": {
+            "type": "string"
+          },
+          "revert": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentSkillRevertEligibility"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "reverted_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "reverted_by": {
             "type": "string"
           },
           "runs_automatically": {
@@ -58708,6 +58825,142 @@
     "/api/agent-skill-reviews/{id}/reject": {
       "post": {
         "operationId": "rejectAgentSkillReview",
+        "parameters": [
+          {
+            "description": "Review ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentSkillReviewDecisionRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSkillReviewResponse"
+                }
+              }
+            },
+            "description": "Decided review"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid profile selection"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          }
+        },
+        "summary": "Decide a skill review as the operator (experimental)",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agent-skill-reviews/{id}/revert": {
+      "post": {
+        "operationId": "revertAgentSkillReview",
         "parameters": [
           {
             "description": "Review ID",

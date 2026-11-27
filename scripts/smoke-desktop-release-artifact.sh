@@ -167,17 +167,33 @@ assert_signed_out_runtime() (
     if [[ -S "${signed_out_socket}" ]]; then
       protected_status=$(curl --silent --show-error --max-time 5 --unix-socket "${signed_out_socket}" \
         -o "${signed_out_home}/read.json" -w '%{http_code}' "http://localhost/api/workspaces" || true)
-      [[ "${protected_status}" == "401" ]] && jq -e '.code == "sign_in_required"' \
-        "${signed_out_home}/read.json" >/dev/null && return 0
       if [[ "${protected_status}" != "000" && -n "${protected_status}" ]]; then
-        echo "desktop release smoke: expected signed-out workspaces rejection, got ${protected_status}" >&2
+        account_status=$(curl --silent --show-error --max-time 5 --unix-socket "${signed_out_socket}" \
+          -o "${signed_out_home}/account.json" -w '%{http_code}' "http://localhost/api/account" || true)
+        account_gate=""
+        if [[ "${account_status}" == "200" ]]; then
+          account_gate=$(jq -er 'select(.state == "signed_out" and .signed_in == false) | .gate' \
+            "${signed_out_home}/account.json" || true)
+        fi
+        case "${account_gate}:${protected_status}" in
+          grace:200) return 0 ;;
+          enforced:200)
+            # Grace can expire between the workspace and account reads.
+            sleep 1
+            continue
+            ;;
+          enforced:401)
+            jq -e '.code == "sign_in_required"' "${signed_out_home}/read.json" >/dev/null && return 0
+            ;;
+        esac
+        echo "desktop release smoke: unexpected workspaces response ${protected_status} for signed-out gate ${account_gate:-unknown} (account HTTP ${account_status})" >&2
         return 1
       fi
     fi
     kill -0 "${signed_out_pid}" 2>/dev/null || return 1
     sleep 1
   done
-  echo "desktop release smoke: signed-out runtime did not serve its API" >&2
+  echo "desktop release smoke: timed out confirming the signed-out gate (workspaces HTTP ${protected_status:-unavailable}, gate ${account_gate:-unknown})" >&2
   return 1
 )
 

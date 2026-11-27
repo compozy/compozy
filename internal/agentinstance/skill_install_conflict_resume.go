@@ -47,7 +47,8 @@ func (s *SkillProposalService) continueResolution(
 	if err := s.syncSkillParent(t); err != nil {
 		return nil, fmt.Errorf("confirm published skill conflict resolution: %w", err)
 	}
-	warning = errors.Join(finalizeSkillOp(t, journal, payload), s.publishSkills(ctx))
+	ctx = context.WithoutCancel(ctx)
+	warning = errors.Join(finalizeSkillOp(ctx, t, journal, payload), s.publishSkills(ctx))
 	slog.InfoContext(ctx, "skill.install.conflict_resolved", "op_id", payload.OpID, "skill", t.name,
 		"keep", payload.Keep, "retained_backup", payload.RetainedBackupName)
 	if warning != nil {
@@ -68,7 +69,7 @@ func (s *SkillProposalService) discardPrevious(
 	journal dirpublish.Journal,
 	payload SkillInstallPayload,
 ) (SkillInstallPayload, error) {
-	live, err := skillTreeState(t.dir)
+	live, err := skillTreeState(ctx, t.dir)
 	if err != nil {
 		return payload, err
 	}
@@ -77,8 +78,11 @@ func (s *SkillProposalService) discardPrevious(
 		chosen = payload.NextMarker.InstalledDigest
 	}
 	if live != chosen {
-		if previousRestorable(t, journal, payload) {
+		if previousRestorable(ctx, t, journal, payload) {
 			return payload, s.reopenConflict(ctx, t, journal, payload)
+		}
+		if err := ctx.Err(); err != nil {
+			return payload, err
 		}
 		slog.WarnContext(ctx, "skill.install.conflict_current_changed", "op_id", payload.OpID, "skill", t.name)
 		if payload, err = s.recordCurrentWriter(ctx, t, journal, payload, live); err != nil {
@@ -103,7 +107,10 @@ func requireUnchangedOriginal(
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		digest, err := skillTreeState(t.path(name))
+		digest, err := skillTreeState(ctx, t.path(name))
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
+		}
 		if err == nil && (digest == "" || digest == payload.PreDigest) {
 			continue
 		}
@@ -184,7 +191,7 @@ func (s *SkillProposalService) restorePrevious(
 	payload SkillInstallPayload,
 ) error {
 	// An edited copy that is a symlink or holds other entries is moved aside as it is, never followed.
-	target, err := skillTreeState(t.dir)
+	target, err := skillTreeState(ctx, t.dir)
 	unsupported := errors.Is(err, ErrSkillTreeUnsupported)
 	if err != nil && !unsupported {
 		return err
@@ -192,7 +199,10 @@ func (s *SkillProposalService) restorePrevious(
 	if !unsupported && target == expectedSkillOriginal(payload) {
 		return nil // already restored by an interrupted run, or a new skill already absent
 	}
-	if !previousRestorable(t, journal, payload) {
+	if !previousRestorable(ctx, t, journal, payload) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		source := t.path(journal.BackupName)
 		if payload.OriginalSource == skillOriginalInCopy {
 			source = t.path(payload.OriginalCopyName)

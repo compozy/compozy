@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -1968,6 +1969,7 @@ func TestAgentSkillReviews(t *testing.T) {
 		fixture.Engine.GET("/reviews/:id", fixture.Handlers.GetAgentSkillReview)
 		fixture.Engine.POST("/reviews/:id/approve", fixture.Handlers.ApproveAgentSkillReview)
 		fixture.Engine.POST("/reviews/:id/reject", fixture.Handlers.RejectAgentSkillReview)
+		fixture.Engine.POST("/reviews/:id/revert", fixture.Handlers.RevertAgentSkillReview)
 		request := func(method, path, body string, agent bool) *httptest.ResponseRecorder {
 			t.Helper()
 			req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
@@ -2015,7 +2017,7 @@ func TestAgentSkillReviews(t *testing.T) {
 			}) || strings.Join(shown.Review.EvidenceSessionIDs, ",") != "sess-4f1c0b2a9d3e4f51,sess-9a2e7c1d0b4f3a62" {
 			t.Fatalf("lesson detail: %d %s", detail.Code, detail.Body.String())
 		}
-		for _, action := range []string{"approve", "reject"} {
+		for _, action := range []string{"approve", "reject", "revert"} {
 			denial := request("POST", "/reviews/"+reviews[0].ID+"/"+action, `{"digest":"`+reviews[0].Digest+`"}`, true)
 			var failure contract.ErrorPayload
 			decodeJSON(t, denial.Body.Bytes(), &failure)
@@ -2040,6 +2042,68 @@ func TestAgentSkillReviews(t *testing.T) {
 		}
 		if string(installed) != decision.Review.Files[0].Content {
 			t.Fatal("installed bytes differ from review")
+		}
+
+		// An edit review details its changes and base; IT-004: approving it after the installed
+		// skill changed on disk is refused with base_stale, nothing installed, and Reject still works.
+		const hiddenValue = "fixture-only-secret-value"
+		installed = append(installed, "\nAuthorization: Bearer "+hiddenValue+"\n"...)
+		if err := os.WriteFile(filepath.Join(scanRoot, "first", "SKILL.md"), installed, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		edit, err := service.Propose(t.Context(), workspaceaccess.ActorRef{Operator: true}, instance, scanRoot,
+			agentinstance.SkillProposalInput{
+				Name: "first", Description: "Review changes", Body: "Read the diff twice.",
+				Mode: agentinstance.SkillProposalEdit, Lesson: lesson,
+				EvidenceSessionIDs: []string{"sess-4f1c0b2a9d3e4f51"},
+			})
+		if err != nil {
+			t.Fatal(err)
+		}
+		editDetail := request("GET", "/reviews/"+edit.Review.ID, "", true)
+		var editShown contract.AgentSkillReviewResponse
+		decodeJSON(t, editDetail.Body.Bytes(), &editShown)
+		if editDetail.Code != 200 || editShown.Review.Kind != "edit" || editShown.Review.BaseDigest == "" ||
+			len(editShown.Review.Changes) != 2 || editShown.Review.Changes[0] != (contract.AgentSkillFileChange{
+			Path: "SKILL.md", Change: "modified",
+		}) || editShown.Review.Changes[1].Change != "unchanged" || len(editShown.Review.BaseFiles) != 2 ||
+			editShown.Review.BaseRunsAutomatically == nil || editShown.Review.BaseRunsAutomatically.Scripts != 1 ||
+			editShown.Review.RunsAutomatically.Scripts != 1 {
+			t.Fatalf("edit detail: %d %s", editDetail.Code, editDetail.Body.String())
+		}
+		baseFile := editShown.Review.BaseFiles[0]
+		if baseFile.Path != "SKILL.md" || !baseFile.Redacted || !strings.Contains(baseFile.Content, "[REDACTED]") ||
+			strings.Contains(editDetail.Body.String(), hiddenValue) || editShown.Review.BaseFiles[1].Redacted {
+			t.Fatal("edit detail did not flag and mask only the redacted base file")
+		}
+		if err := os.WriteFile(filepath.Join(scanRoot, "first", "notes.md"), []byte("operator"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		editDigest := `{"digest":"` + edit.Review.Digest + `"}`
+		staleBase := request("POST", "/reviews/"+edit.Review.ID+"/approve", editDigest, false)
+		var staleBaseFailure contract.ErrorPayload
+		decodeJSON(t, staleBase.Body.Bytes(), &staleBaseFailure)
+		if staleBase.Code != 409 || staleBaseFailure.Code != "skill_review_base_stale" {
+			t.Fatalf("stale base approval: %d %s", staleBase.Code, staleBase.Body.String())
+		}
+		kept, err := os.ReadFile(filepath.Join(scanRoot, "first", "SKILL.md"))
+		if err != nil || !bytes.Equal(kept, installed) {
+			t.Fatalf("stale edit changed the skill: %v", err)
+		}
+		rejectEdit := request("POST", "/reviews/"+edit.Review.ID+"/reject", editDigest, false)
+		if rejectEdit.Code != 200 {
+			t.Fatalf("reject stale edit: %d %s", rejectEdit.Code, rejectEdit.Body.String())
+		}
+		// A base snapshot that no longer verifies is reported with base_files present and empty.
+		if err := os.WriteFile(filepath.Join(edit.Review.SnapshotPath, "SKILL.md"), []byte("tampered"),
+			0o600); err != nil {
+			t.Fatal(err)
+		}
+		tampered := request("GET", "/reviews/"+edit.Review.ID, "", true)
+		if tampered.Code != 200 || !strings.Contains(tampered.Body.String(), `"base_files":[]`) ||
+			!strings.Contains(tampered.Body.String(), `"problem":"skill_review_snapshot_invalid"`) ||
+			strings.Contains(tampered.Body.String(), `"changes"`) {
+			t.Fatalf("tampered snapshot detail: %d %s", tampered.Code, tampered.Body.String())
 		}
 
 		// A draft whose digest still matches but cannot be installed is invalid, not stale, and
@@ -2082,6 +2146,30 @@ func TestAgentSkillReviews(t *testing.T) {
 		// whose projection is pending cannot be told apart. An instance with no target still rejects.
 		lookupFailure := fmt.Errorf("resolve skill target: %w", store.ErrWorkspaceArchived)
 		targetErr.Store(&lookupFailure)
+		approvedPath := "/reviews/" + reviews[0].ID
+		revertDigest := `{"digest":"` + reviews[0].Digest + `"}`
+		unavailableDetail := request("GET", approvedPath, "", false)
+		var unavailableReview contract.AgentSkillReviewResponse
+		decodeJSON(t, unavailableDetail.Body.Bytes(), &unavailableReview)
+		if unavailableDetail.Code != http.StatusOK || unavailableReview.Review.State != "approved" ||
+			unavailableReview.Review.Revert != nil {
+			t.Fatalf(
+				"review with unknown revert eligibility: %d %s",
+				unavailableDetail.Code,
+				unavailableDetail.Body.String(),
+			)
+		}
+		unavailableRevert := request("POST", approvedPath+"/revert", revertDigest, false)
+		var revertFailure contract.AgentSkillRevertConflictPayload
+		decodeJSON(t, unavailableRevert.Body.Bytes(), &revertFailure)
+		if unavailableRevert.Code != http.StatusConflict || revertFailure.Code != "workspace_archived" ||
+			revertFailure.Reason != "" {
+			t.Fatalf(
+				"revert with a failed target lookup: %d %s",
+				unavailableRevert.Code,
+				unavailableRevert.Body.String(),
+			)
+		}
 		unresolved := request("POST", "/reviews/"+invalid.ID+"/reject", `{"digest":"`+invalid.Digest+`"}`, false)
 		var unresolvedFailure contract.ErrorPayload
 		decodeJSON(t, unresolved.Body.Bytes(), &unresolvedFailure)
@@ -2094,6 +2182,13 @@ func TestAgentSkillReviews(t *testing.T) {
 		}
 		noTarget := agentinstance.ErrSkillReviewNoTarget
 		targetErr.Store(&noTarget)
+		missingTargetRevert := request("POST", approvedPath+"/revert", revertDigest, false)
+		revertFailure = contract.AgentSkillRevertConflictPayload{}
+		decodeJSON(t, missingTargetRevert.Body.Bytes(), &revertFailure)
+		if missingTargetRevert.Code != http.StatusConflict || revertFailure.Code != "skill_review_revert_conflict" ||
+			revertFailure.Reason != agentinstance.SkillRevertTargetUnavailable {
+			t.Fatalf("revert without a target: %d %s", missingTargetRevert.Code, missingTargetRevert.Body.String())
+		}
 		rejected := request("POST", "/reviews/"+invalid.ID+"/reject", `{"digest":"`+invalid.Digest+`"}`, false)
 		if rejected.Code != 200 {
 			t.Fatalf("reject uninstallable: %d %s", rejected.Code, rejected.Body.String())
@@ -2114,7 +2209,7 @@ func TestAgentSkillReviews(t *testing.T) {
 		if taken.Code != 409 || takenFailure.Code != "skill_review_target_exists" {
 			t.Fatalf("approval over an existing skill: %d %+v", taken.Code, takenFailure)
 		}
-		kept, err := os.ReadFile(filepath.Join(existing, "SKILL.md"))
+		kept, err = os.ReadFile(filepath.Join(existing, "SKILL.md"))
 		if err != nil || string(kept) != "operator skill" {
 			t.Fatalf("existing skill changed: %q %v", kept, err)
 		}

@@ -67,6 +67,21 @@ describe("LegalPage", () => {
     expect(screen.getByText(/analytics scripts are never loaded/)).toBeDefined();
   });
 
+  it("offers a hosted-route abuse reporting link from acceptable use in the Terms", () => {
+    const { rerender } = render(<LegalPage docId="terms" />);
+
+    const acceptableUse = screen.getByRole("region", { name: "Acceptable use and suspension" });
+    const reportLink = within(acceptableUse).getByRole("link", {
+      name: "Report hosted-route abuse",
+    });
+    expect(reportLink.getAttribute("href")).toBe("/abuse");
+
+    rerender(<LegalPage docId="abuse" />);
+    expect(screen.getByRole("link", { name: "abuse@compozy.com" }).getAttribute("href")).toBe(
+      "mailto:abuse@compozy.com"
+    );
+  });
+
   it("renders Refund Policy with the 14-day refund window and account-deletion rules", () => {
     render(<LegalPage docId="refunds" />);
 

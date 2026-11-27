@@ -8,6 +8,7 @@ func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
 	reviews.GET("/:id", handlers.GetAgentSkillReview)
 	reviews.POST("/:id/approve", handlers.ApproveAgentSkillReview)
 	reviews.POST("/:id/reject", handlers.RejectAgentSkillReview)
+	reviews.POST("/:id/revert", handlers.RevertAgentSkillReview)
 	conflicts := api.Group("/agent-skill-install-conflicts")
 	conflicts.GET("", handlers.ListAgentSkillInstallConflicts)
 	conflicts.POST("/:op_id/resolve", handlers.ResolveAgentSkillInstallConflict)

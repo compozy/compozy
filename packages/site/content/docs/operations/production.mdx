@@ -12,6 +12,10 @@ or self-managed production-like environments where one service user owns one `CO
   direct ownership of the daemon process.
 </OperatorNote>
 
+Before scheduling unattended work on an official release build, sign in from the service user's
+`COMPOZY_HOME` using `compozy account login`. Check `compozy account status` from that same home.
+For short-lived runners that only need local work, use an [account token](/docs/account/tokens).
+
 ## 1. Pin the daemon identity and home
 
 | Check            | Pass condition                                                                                                     |

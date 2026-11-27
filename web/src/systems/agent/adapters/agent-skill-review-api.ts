@@ -12,13 +12,21 @@ import type { AgentSkillReviewPayload } from "../types";
 export class AgentSkillReviewApiError extends Error {
   readonly status: number;
   readonly code: string;
+  /** Why a revert was refused (`superseded`, `changed_on_disk`, ...); empty for other refusals. */
+  readonly reason: string;
 
-  constructor(message: string, status: number, code = "") {
+  constructor(message: string, status: number, code = "", reason = "") {
     super(message);
     this.name = "AgentSkillReviewApiError";
     this.status = status;
     this.code = code;
+    this.reason = reason;
   }
+}
+
+function errorReason(error: unknown) {
+  const reason = error && typeof error === "object" ? Reflect.get(error, "reason") : undefined;
+  return typeof reason === "string" ? reason : "";
 }
 
 /** Which review, and the profile that owns its instance: the route refuses any other. */
@@ -35,7 +43,8 @@ function failure(fallback: string, response: Response, error: unknown) {
   return new AgentSkillReviewApiError(
     defaultApiErrorMessage(fallback, response, error),
     response.status,
-    apiErrorCode(error) ?? ""
+    apiErrorCode(error) ?? "",
+    errorReason(error)
   );
 }
 
@@ -54,9 +63,15 @@ export async function fetchAgentSkillReview(
   return requireResponseData(data, response, "Failed to fetch the skill review").review;
 }
 
-export type AgentSkillReviewDecision = "approve" | "reject";
+export type AgentSkillReviewDecision = "approve" | "reject" | "revert";
 
-/** Approves or rejects the exact contents the operator read, named by their digest. */
+const DECISION_FALLBACK: Record<AgentSkillReviewDecision, string> = {
+  approve: "Failed to approve",
+  reject: "Failed to reject",
+  revert: "Failed to revert",
+};
+
+/** Approves, rejects or reverts the exact contents the operator read, named by their digest. */
 export async function decideAgentSkillReview(
   ref: AgentSkillReviewRef,
   decision: AgentSkillReviewDecision,
@@ -69,8 +84,10 @@ export async function decideAgentSkillReview(
   const { data, error, response } =
     decision === "approve"
       ? await apiClient.POST("/api/agent-skill-reviews/{id}/approve", options)
-      : await apiClient.POST("/api/agent-skill-reviews/{id}/reject", options);
-  const fallback = decision === "approve" ? "Failed to approve" : "Failed to reject";
+      : decision === "revert"
+        ? await apiClient.POST("/api/agent-skill-reviews/{id}/revert", options)
+        : await apiClient.POST("/api/agent-skill-reviews/{id}/reject", options);
+  const fallback = DECISION_FALLBACK[decision];
   if (apiRequestFailed(response, error)) throw failure(fallback, response, error);
   return requireResponseData(data, response, fallback).review;
 }
@@ -97,4 +114,14 @@ export function skillInstallConflictOp(error: unknown) {
     return null;
   }
   return /\(op ([^)\s]+)\)/.exec(error.message)?.[1] ?? "";
+}
+
+/** The installed skill changed after an edit was proposed: Approve can never apply, Reject still can. */
+export function isSkillReviewBaseStale(error: unknown) {
+  return error instanceof AgentSkillReviewApiError && error.code === "skill_review_base_stale";
+}
+
+/** A newer change or an edit on disk means this approval can't be reverted any more. */
+export function isSkillReviewRevertConflict(error: unknown) {
+  return error instanceof AgentSkillReviewApiError && error.code === "skill_review_revert_conflict";
 }
