@@ -109,6 +109,10 @@ type commandDeps struct {
 	inputIsTerminal             func(io.Reader) bool
 	outputIsTerminal            func(io.Writer) bool
 	runMCPServe                 mcpServeRunner
+	// defaultLoadConfig and defaultNewClient record that withDefaults supplied these
+	// closures, so shell completion can rebuild them with warning output suppressed.
+	defaultLoadConfig bool
+	defaultNewClient  bool
 }
 
 // NewRootCommand constructs the CompozyOS v1 CLI command tree.
@@ -146,6 +150,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	registerRemovedGatewayCommands(cmd)
 	configureAccountGate(cmd, deps)
 	configureProfileIndependentCompletionCommands(cmd)
+	configureDynamicCompletions(cmd, deps)
 
 	return cmd
 }
