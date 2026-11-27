@@ -2749,6 +2749,35 @@ describe("session lifecycle batches", () => {
     expect(result.current.deleteDialog.processCount).toBe(0);
   });
 
+  it("uses confirm-time refreshed rows when recounting remaining processes after a partial delete", async () => {
+    const first = { ...createdSession, id: "first-target" };
+    const second = { ...createdSession, id: "second-target" };
+    let secondRunning = false;
+    vi.mocked(fetchSessionById).mockImplementation(async id => {
+      if (id === first.id) return withSessionProcessSummary(first);
+      return secondRunning ? withSessionProcessSummary(second) : second;
+    });
+    vi.mocked(deleteSession).mockImplementation(async (_workspaceId, id) => {
+      if (id === second.id) throw new Error("Session is locked");
+    });
+    const { result } = lifecycle();
+
+    act(() => result.current.actions.onDeleteMany?.([first, second]));
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+    expect(result.current.deleteDialog.processCount).toBe(3);
+
+    secondRunning = true;
+    act(() => result.current.deleteDialog.onConfirm("keep"));
+
+    await waitFor(() =>
+      expect(result.current.deleteDialog.results).toEqual([
+        { id: first.id, status: "done" },
+        { id: second.id, status: "failed", error: "Session is locked" },
+      ])
+    );
+    expect(result.current.deleteDialog.processCount).toBe(3);
+  });
+
   // Feedback invariant: one lifetime-total toast on Close; row errors remain in the dialog.
   // Owner: lifecycle batch coordinator, this existing suite at the adapter I/O boundary.
   it.each([0, 1, 2])(

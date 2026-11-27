@@ -276,11 +276,13 @@ describe("SessionBoardWindow drawer", () => {
 
     harness.deleteDialog = { open: false, session: card("delete-target", "working") };
     rerenderBoard();
-    expect(screen.getByTestId("session-delete-dialog-host")).toHaveAttribute("data-open", "false");
+    expect(screen.getByTestId("session-delete-dialog-host")).toBe(dialog);
+    expect(dialog).toHaveAttribute("data-open", "false");
 
     harness.deleteDialog = { open: true, session: card("delete-target", "working") };
     rerenderBoard();
-    expect(screen.getByTestId("session-delete-dialog-host")).toHaveAttribute("data-open", "true");
+    expect(screen.getByTestId("session-delete-dialog-host")).toBe(dialog);
+    expect(dialog).toHaveAttribute("data-open", "true");
   });
 
   it("Should open a card's session in the drawer beside the live board", async () => {

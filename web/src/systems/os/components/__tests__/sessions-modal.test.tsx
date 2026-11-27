@@ -216,10 +216,12 @@ describe("OsSessionsModal", () => {
     expect(dialog).toHaveAttribute("data-open", "true");
 
     view.rerender(renderHost(false));
-    expect(screen.getByTestId("session-delete-dialog-host")).toHaveAttribute("data-open", "false");
+    expect(screen.getByTestId("session-delete-dialog-host")).toBe(dialog);
+    expect(dialog).toHaveAttribute("data-open", "false");
 
     view.rerender(renderHost(true));
-    expect(screen.getByTestId("session-delete-dialog-host")).toHaveAttribute("data-open", "true");
+    expect(screen.getByTestId("session-delete-dialog-host")).toBe(dialog);
+    expect(dialog).toHaveAttribute("data-open", "true");
   });
 
   it.each([

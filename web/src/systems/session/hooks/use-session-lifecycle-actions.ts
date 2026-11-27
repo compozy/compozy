@@ -267,7 +267,8 @@ export function useSessionLifecycleActions(
   /** Retry failed IDs while preserving successful results across the dialog lifetime. */
   const confirmDeleteMany = async (
     readErrors?: ReadonlyMap<string, unknown>,
-    trees?: SessionTrees
+    trees?: SessionTrees,
+    refreshedSessions?: ReadonlyMap<string, SessionPayload>
   ) => {
     if (!deleteTarget?.open || childrenPending) return;
     const failedIds = new Set(
@@ -293,9 +294,11 @@ export function useSessionLifecycleActions(
       reportDeletedSessions(results);
     } else
       narrowDeleteTarget(
-        deleteTarget.sessions.filter(
-          session => !results.some(result => result.id === session.id && result.status === "done")
-        )
+        deleteTarget.sessions
+          .filter(
+            session => !results.some(result => result.id === session.id && result.status === "done")
+          )
+          .map(session => refreshedSessions?.get(session.id) ?? session)
       );
   };
 
@@ -303,12 +306,13 @@ export function useSessionLifecycleActions(
   const performDelete = (
     processes?: SessionProcessPolicy,
     readErrors?: ReadonlyMap<string, unknown>,
-    trees?: SessionTrees
+    trees?: SessionTrees,
+    refreshedSessions?: ReadonlyMap<string, SessionPayload>
   ) => {
     if (!deleteTarget?.open || !deleteSession || remove.isPending || batchRunning.held()) return;
     if (processes) deletePolicy.current = processes;
     if (deleteTarget?.bulk) {
-      void confirmDeleteMany(readErrors, trees);
+      void confirmDeleteMany(readErrors, trees, refreshedSessions);
       return;
     }
     const { id } = deleteSession;

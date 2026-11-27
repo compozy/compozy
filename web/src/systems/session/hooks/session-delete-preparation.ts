@@ -4,7 +4,7 @@ import type { ComputerId } from "@/lib/computer-scope";
 
 import { readCurrentSessions } from "../lib/session-batch";
 import { sessionsRunningProcesses } from "../lib/session-processes";
-import { sessionSidesOptions } from "../lib/session-side-query-options";
+import { sessionSidesRawOptions } from "../lib/session-side-query-options";
 import {
   readSessionTrees,
   sessionChildrenScope,
@@ -30,26 +30,17 @@ export async function prepareSessionDeleteTarget(
   computerId: ComputerId
 ): Promise<PreparedSessionDeleteTarget> {
   const catalogRows = Object.freeze([...sessions]);
-  const sideOptions =
-    catalogRows.length === 1 && catalogRows[0]!.id.trim() !== ""
-      ? sessionSidesOptions(catalogRows[0]!.workspace_id ?? "", catalogRows[0]!.id, {
-          archived: true,
-          computerId,
-        })
-      : null;
   const [currentRead, treeRead, sideChats] = await Promise.all([
     readCurrentSessions(queryClient, catalogRows, bulk).catch(() => null),
     readSessionTrees(queryClient, catalogRows),
-    sideOptions
+    catalogRows.length === 1 && catalogRows[0]!.id.trim() !== ""
       ? queryClient
-          // Omit `select`: fetchQuery always resolves the raw `{ sides }` payload.
-          .fetchQuery({
-            queryKey: sideOptions.queryKey,
-            queryFn: sideOptions.queryFn,
-            ...(typeof sideOptions.staleTime === "number"
-              ? { staleTime: sideOptions.staleTime }
-              : {}),
-          })
+          .fetchQuery(
+            sessionSidesRawOptions(catalogRows[0]!.workspace_id ?? "", catalogRows[0]!.id, {
+              archived: true,
+              computerId,
+            })
+          )
           .then(response => response.sides.length > 0)
           .catch(() => false)
       : Promise.resolve(false),
