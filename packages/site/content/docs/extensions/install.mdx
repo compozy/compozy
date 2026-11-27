@@ -412,8 +412,9 @@ enable deletes the exception and republishes resources whose placement matches t
 change writes `extension.enablement_changed`.
 
 Re-enabling checks the required inputs stored for each installation visible to that profile.
-For a workspace installation, use `compozy extension setup <name> --workspace <workspace>` in the
-same profile to fill missing inputs. You can disable an installation while its inputs are missing.
+For a workspace installation with missing inputs, the error identifies the workspace. Run
+`compozy extension setup <name> --workspace <workspace>` in the same profile to fill them.
+You can disable an installation while its inputs are missing.
 
 Inside a workspace, `remove` unlinks a dev overlay and lets the published installation resume;
 `--global` removes the published installation. Removal deletes the managed install directory and

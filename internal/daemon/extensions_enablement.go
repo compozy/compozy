@@ -107,7 +107,7 @@ func (s *daemonExtensionService) applyProfileEnablement(
 		return nil
 	}
 	if enabled {
-		if err := s.checkProfileEnablementInputs(ctx, name, profileID); err != nil {
+		if err := s.checkProfileEnablementInputs(ctx, name, profileID, actor.Scope.Operator); err != nil {
 			return err
 		}
 		if err := s.checkProfileEnablementDependencies(ctx, name, profileID); err != nil {

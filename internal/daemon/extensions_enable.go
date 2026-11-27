@@ -19,13 +19,22 @@ func (s *daemonExtensionService) enableTargetUnlocked(
 	if getErr != nil {
 		return result, getErr
 	}
-	preview, previewErr := s.previewExtensionTarget(ctx, name, target, additionalTargets...)
+	preview, previewErr := s.previewExtensionTarget(ctx, name, target)
 	if previewErr != nil {
 		return result, previewErr
 	}
 	if len(preview.MissingInputs) > 0 || len(preview.MissingEnv) > 0 {
-		return result, &extensionpkg.InputsRequiredError{
-			MissingInputs: slices.Clone(preview.MissingInputs), MissingEnv: slices.Clone(preview.MissingEnv),
+		err := &extensionpkg.InputsRequiredError{MissingInputs: preview.MissingInputs, MissingEnv: preview.MissingEnv}
+		return result, extensionEnablementInputError(err, target.scope.WorkspaceID, actor.Scope.Operator)
+	}
+	for _, extra := range additionalTargets {
+		item, err := s.installedTargetStatus(ctx, name, extra)
+		if err != nil {
+			return result, err
+		}
+		if !item.Dev && (len(item.MissingInputs) > 0 || len(item.MissingEnv) > 0) {
+			err := &extensionpkg.InputsRequiredError{MissingInputs: item.MissingInputs, MissingEnv: item.MissingEnv}
+			return result, extensionEnablementInputError(err, extra.scope.WorkspaceID, actor.Scope.Operator)
 		}
 	}
 	if len(preview.AgentConflicts) > 0 {

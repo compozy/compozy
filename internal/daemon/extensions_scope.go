@@ -26,7 +26,7 @@ func (target extensionMutationTarget) key(name string) extensionpkg.InstanceKey 
 }
 
 func (s *daemonExtensionService) defaultProfileExtensionTargets(
-	ctx context.Context, name string,
+	ctx context.Context, name string, actor taskpkg.ActorContext,
 ) ([]extensionMutationTarget, error) {
 	profile := extensionDefaultProfileLens()
 	workspaces, err := s.extensionEnablementWorkspaces(ctx, name, profile.ID)
@@ -38,6 +38,9 @@ func (s *daemonExtensionService) defaultProfileExtensionTargets(
 	}
 	targets := make([]extensionMutationTarget, 0, len(workspaces))
 	for _, workspaceID := range workspaces {
+		if !actor.Scope.Operator && workspaceID != "" && workspaceID != actor.Scope.WorkspaceID {
+			return nil, taskpkg.ErrPermissionDenied
+		}
 		targets = append(targets, extensionMutationTarget{
 			scope: extensionpkg.InstallationScope{WorkspaceID: workspaceID}, profile: profile,
 		})

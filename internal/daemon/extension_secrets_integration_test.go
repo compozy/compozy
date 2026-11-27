@@ -1179,6 +1179,18 @@ binding = { type = "env", name = "BOUND_SECRET" }
 	if err := setEnabled("default", false); err != nil {
 		t.Fatal(err)
 	}
+	eventWriter := service.eventWriter
+	eventFailure := errors.New("injected enablement event failure")
+	service.eventWriter = &daemonExtensionEventStoreStub{writeErr: eventFailure}
+	err = setEnabled("default", true)
+	service.eventWriter = eventWriter
+	if !errors.Is(err, eventFailure) || errors.Is(err, extensionpkg.ErrExtensionInputsRequired) {
+		t.Fatalf("enablement rollback = %v, want only the event failure", err)
+	}
+	stillEnabled, err := service.registry.IsEnabledForProfileContext(ctx, name, store.DefaultProfileID)
+	if err != nil || stillEnabled {
+		t.Fatalf("failed enable restored disabled state = %t, error = %v", !stillEnabled, err)
+	}
 	if err := setEnabled("default", true); err != nil {
 		t.Fatal(err)
 	}
@@ -1203,10 +1215,25 @@ binding = { type = "env", name = "BOUND_SECRET" }
 	if err := setEnabled("default", false); err != nil {
 		t.Fatal(err)
 	}
-	assertMissing(setEnabled("default", true))
-	preview, err := service.Preview(ctx, name)
-	if err != nil || len(preview.MissingEnv) != 1 || preview.MissingEnv[0] != "BOUND_SECRET" {
-		t.Fatalf("enable preview = %#v, error = %v", preview, err)
+	err = setEnabled("default", true)
+	assertMissing(err)
+	if !strings.Contains(err.Error(), other) {
+		t.Fatal("operator refusal did not identify the missing workspace")
+	}
+	_, err = service.Enable(ctx, name, contract.EnableExtensionRequest{}, actor)
+	assertMissing(err)
+	agent, err := taskpkg.DeriveAgentSessionActorContext("session-enable", workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agentTransport := newExtensionTransportEngine(service, agent, "uds")
+	denied := performExtensionTransportRequest(t, agentTransport, http.MethodPost, "/extensions/"+name+"/enable", nil)
+	if denied.Code != http.StatusForbidden || strings.Contains(denied.Body.String(), other) ||
+		strings.Contains(denied.Body.String(), "BOUND_SECRET") {
+		t.Fatalf(
+			"agent enable refusal status = %d, want scope denial without another workspace's input state",
+			denied.Code,
+		)
 	}
 	if err := service.registry.DetachInstallation(ctx, name, foreign); err != nil {
 		t.Fatal(err)
@@ -1232,6 +1259,28 @@ binding = { type = "env", name = "BOUND_SECRET" }
 	if err := setEnabled("default", false); err != nil {
 		t.Fatalf("disable unconfigured workspace install: %v", err)
 	}
+	if err := service.registry.SetEnabledForProfile(name, store.DefaultProfileID, true); err != nil {
+		t.Fatal(err)
+	}
+	disabled := performExtensionTransportRequest(
+		t,
+		harness.transport,
+		http.MethodPost,
+		"/extensions/"+name+"/disable",
+		nil,
+	)
+	var payload contract.ExtensionResponse
+	if err := json.Unmarshal(disabled.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if disabled.Code != http.StatusOK || payload.Extension.Enabled {
+		t.Fatalf(
+			"workspace disable with missing inputs: status=%d enabled=%t",
+			disabled.Code,
+			payload.Extension.Enabled,
+		)
+	}
+	assertSecretsAbsent(t, "disable result", disabled.Body.String(), []string{secret})
 	otherEnabled, err := service.registry.IsEnabledForProfileContext(ctx, name, marketing.ID)
 	if err != nil || !otherEnabled {
 		t.Fatalf("disable changed other profile: enabled=%t error=%v", otherEnabled, err)

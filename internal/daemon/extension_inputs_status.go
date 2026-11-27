@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -12,7 +13,7 @@ import (
 
 func (s *daemonExtensionService) checkProfileEnablementInputs(
 	ctx context.Context,
-	name, profileID string,
+	name, profileID string, operator bool,
 ) error {
 	ext, err := s.runtime.InspectPackageResources(ctx, name)
 	if err != nil {
@@ -29,6 +30,15 @@ func (s *daemonExtensionService) checkProfileEnablementInputs(
 		return err
 	}
 	for _, workspaceID := range workspaces {
+		if workspaceID != "" {
+			_, err := s.registry.GetDevLink(name, workspaceID)
+			if err == nil {
+				continue
+			}
+			if !errors.Is(err, extensionpkg.ErrExtensionNotDevLinked) {
+				return err
+			}
+		}
 		state, err := s.inputReader().load(ctx, extensioninput.Instance{
 			Extension: ext.Info.Name, ProfileID: profileID, WorkspaceID: workspaceID,
 		}, ext.Manifest)
@@ -36,10 +46,17 @@ func (s *daemonExtensionService) checkProfileEnablementInputs(
 			return err
 		}
 		if err := extensionpkg.InputReadiness(ext.Manifest, state, s.getenv).RequiredError(ext.Manifest); err != nil {
-			return err
+			return extensionEnablementInputError(err, workspaceID, operator)
 		}
 	}
 	return nil
+}
+
+func extensionEnablementInputError(err error, workspaceID string, operator bool) error {
+	if operator && workspaceID != "" {
+		return fmt.Errorf("workspace %q: %w", workspaceID, err)
+	}
+	return err
 }
 
 func (s *daemonExtensionService) extensionEnablementWorkspaces(

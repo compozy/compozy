@@ -390,12 +390,9 @@ func (s *daemonExtensionService) Enable(
 	}
 	var result contract.ExtensionEnableResult
 	err := s.lifecycle.withName(ctx, name, func() error {
-		targets, err := s.defaultProfileExtensionTargets(ctx, name)
+		targets, err := s.defaultProfileExtensionTargets(ctx, name, actor)
 		if err != nil {
 			return err
-		}
-		if !actor.Scope.Operator && targets[0].scope.WorkspaceID != "" {
-			return &extensionpkg.ExtensionNotFoundError{Name: name}
 		}
 		result, err = s.enableTargetUnlocked(ctx, name, actor, targets[0], targets[1:]...)
 		return err
@@ -425,12 +422,9 @@ func (s *daemonExtensionService) Disable(
 		if err != nil {
 			return err
 		}
-		targets, err := s.defaultProfileExtensionTargets(ctx, name)
+		targets, err := s.defaultProfileExtensionTargets(ctx, name, actor)
 		if err != nil {
 			return err
-		}
-		if !actor.Scope.Operator && targets[0].scope.WorkspaceID != "" {
-			return &extensionpkg.ExtensionNotFoundError{Name: name}
 		}
 		if disableErr := s.registry.Disable(name); disableErr != nil {
 			return disableErr
