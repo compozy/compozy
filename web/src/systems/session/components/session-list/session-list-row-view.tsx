@@ -1,61 +1,52 @@
-import { useContext } from "react";
+import { sessionSelectionGesture } from "../../lib/session-selection-gesture";
+import { useContext, type HTMLAttributes, type ReactElement, type ReactNode } from "react";
 
-import { Pin } from "@compozy/ui/icons";
-import { Checkbox, Icon, Time, formatAbsoluteTime } from "@compozy/ui";
-import type { SessionRowSelection } from "../../hooks/use-session-selection";
-
+import type { ComputerId } from "@/lib/computer-scope";
 import { cn } from "@/lib/utils";
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
+import type { ProfileOwner } from "@/systems/profiles/lib/profile-scope";
 
-import { getSessionDisplayTitle } from "../../lib/session-display-title";
-import { SessionListPinnedSectionContext } from "../../lib/session-list-pinned";
-import { sessionBadgeSignal } from "../../lib/session-badge";
-import { sessionWaitingOn } from "../../lib/session-pull-request";
-import type { SessionRuntimeLabel } from "../../hooks/use-session-runtime-label";
-import { SessionBadgeMark } from "../session-badge-mark";
-import type { SessionPayload } from "../../types";
-import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
-import type { HTMLAttributes, ReactElement, ReactNode } from "react";
-import type { SessionRowLayoutMenu } from "../../lib/session-menu-tree";
-import type { SessionDragHandlers, SessionRowDropEdge } from "../../hooks/use-session-list-dnd";
-import { hasRunningDescendant } from "../../lib/session-running";
-import { SessionRowDragFrame } from "./session-list-row-drag-frame";
-import { SessionListAgentMark } from "./session-list-agent-mark";
-import { SessionListProviderMark } from "./session-list-provider-mark";
-import {
-  SESSION_ROW_END_SLOT_FRAME,
-  SESSION_ROW_FRAME,
-  SESSION_ROW_LATER_FRAME,
-  SESSION_ROW_MARK_TOOLTIP_DELAY,
-  SESSION_ROW_META_FRAME,
-  SESSION_ROW_TARGET_FRAME,
-  SESSION_ROW_TRAILING_FRAME,
-  SESSION_ROW_WHO_FRAME,
-} from "./session-list-row-frame";
-import { SessionListRowWho } from "./session-list-row-meta";
-import { SessionUnrestrictedBadge } from "../session-unrestricted-badge";
-import { SessionLaterDetails } from "../session-later-details";
-import { sessionIsUnrestricted } from "../../lib/session-unrestricted";
-import { rowMeta, type RowMeta } from "../../lib/session-row-meta";
 import { useKeyboardFocusToken } from "../../hooks/use-keyboard-focus-token";
 import type { useSessionEntryPreload } from "../../hooks/use-session-entry-preload";
-import { ProfileOwnerTag } from "@/systems/profiles/components/profile-owner-tag";
-import type { ProfileOwner } from "@/systems/profiles/lib/profile-scope";
-import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
-import type { WorkspaceBadgeIdentity } from "@/systems/workspace/lib/workspace-badge-identity";
-import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
+import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
+import type { SessionDragHandlers, SessionRowDropEdge } from "../../hooks/use-session-list-dnd";
+import type { SessionRuntimeLabel } from "../../hooks/use-session-runtime-label";
+import type { SessionRowSelection } from "../../hooks/use-session-selection";
+import { sessionBadgeSignal } from "../../lib/session-badge";
+import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import {
+  lookupSessionComputer,
   SessionListComputerContext,
   type SessionRowComputerInfo,
 } from "../../lib/session-list-computer";
-import { ComputerMetaLabel } from "@/systems/computers/components/computer-chip";
+import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
+import type { SessionRowLayoutMenu } from "../../lib/session-menu-tree";
+import { sessionWaitingOn } from "../../lib/session-pull-request";
+import { rowMeta } from "../../lib/session-row-meta";
+import { sessionComputerOf, sessionRowKey } from "../../lib/session-row-ref";
+import type { SessionPayload } from "../../types";
+import { SessionLaterDetails } from "../session-later-details";
+import { SessionListAgentMark } from "./session-list-agent-mark";
+import { SessionListProviderMark } from "./session-list-provider-mark";
+import { SessionRowDragFrame } from "./session-list-row-drag-frame";
 import {
-  sessionCheckboxGesture,
-  sessionSelectionGesture,
-} from "../../lib/session-selection-gesture";
-import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
+  SESSION_ROW_FRAME,
+  SESSION_ROW_LATER_FRAME,
+  SESSION_ROW_MARK_TOOLTIP_DELAY,
+} from "./session-list-row-frame";
+import {
+  SessionRowBadgeMark,
+  SessionRowCheckbox,
+  SessionRowEndSlot,
+  SessionRowMetaLine,
+  SessionRowTarget,
+  SessionRowTrailing,
+} from "./session-list-row-parts";
 
 export interface SessionListRowProps {
   session: SessionPayload;
+  /** The computer owning this row; omitted defaults to the session's recorded provenance or local. */
+  computerId?: ComputerId;
   /**
    * The row's profile, supplied only while the aggregate is on and only where it
    * adds information: a scoped list already answers "whose work is this", and a
@@ -72,7 +63,7 @@ export interface SessionListRowProps {
   /** A subagent session whose ancestry was deleted: it leads its thread, labelled. */
   orphanedSubagent?: boolean;
   /** Controls rendered in the meta line's trailing cluster (the branch toggle). */
-  trailing?: React.ReactNode;
+  trailing?: ReactNode;
   selection?: SessionRowSelection;
   /** Folder moves and manual-order verbs for a root row in the workspace list. */
   layoutMenu?: SessionRowLayoutMenu;
@@ -97,49 +88,99 @@ export interface SessionListRowViewProps extends SessionListRowProps {
   wrapRow?: (row: ReactElement<HTMLAttributes<HTMLElement>>) => ReactNode;
 }
 
+function activateSessionRow(
+  event: React.MouseEvent<HTMLElement>,
+  sessionId: string,
+  selection: SessionRowSelection | undefined,
+  onSelect: () => void
+) {
+  const gesture = selection ? sessionSelectionGesture(event, selection.mode) : "open";
+  if (gesture === "range") selection?.toggleRange(sessionId);
+  else if (gesture === "toggle") selection?.toggle(sessionId);
+  else onSelect();
+}
+
+function rowDataComputerId(
+  computer: SessionRowComputerInfo | undefined,
+  effectiveComputerId: ComputerId | undefined
+): string | undefined {
+  if (computer?.id) return computer.id;
+  if (effectiveComputerId && effectiveComputerId !== "local") return effectiveComputerId;
+  return undefined;
+}
+
+function runtimeModelLabel(runtime: SessionRuntimeLabel): string {
+  return runtime.model || (runtime.next ? runtime.label : "");
+}
+
+function runtimeNextModelLabel(runtime: SessionRuntimeLabel): string {
+  return runtime.next ? runtime.next.model || runtime.next.label : "";
+}
+
 /**
  * Two-line session row. Line 1 belongs to the title: only the end slot shares it,
  * holding the compact time at rest and the row actions on hover or focus. Line 2
  * carries where and who runs it (project, owner, the agent's face, the provider
  * mark) and one phrase: the model, or the needs-you words that replace it, then the
- * trailing cluster. The agent's name rides on its face's resting-hover tooltip. The title button's `::after` stretches over the row so the whole row
- * navigates, while the checkbox, branch toggle, and actions sit above it as
- * siblings — no interactive control nests inside another.
- * `SessionListRow` binds the live runtime label and entry preload to this view.
+ * trailing cluster. The title button's `::after` stretches over the row so the whole
+ * row navigates, while the checkbox, branch toggle, and actions sit above it as siblings.
  */
 export function SessionListRowView(props: SessionListRowViewProps) {
-  const { session, showActions = true, wrapRow, selection } = props;
-  const selected = selection?.selectedIds.has(session.id) ?? false;
-  const computer = useContext(SessionListComputerContext)?.get(session.id);
+  const { session, showActions = true, wrapRow, selection, computerId } = props;
+  const effectiveComputerId = computerId ?? sessionComputerOf(session);
+  const rowKey = sessionRowKey({ computerId: effectiveComputerId, sessionId: session.id });
+  const selected = selection?.selectedIds.has(rowKey) ?? false;
+  const computer = lookupSessionComputer(
+    useContext(SessionListComputerContext),
+    session.id,
+    effectiveComputerId
+  );
+  const offline = computer?.offline === true;
+  const canAct = showActions && !offline && computer?.canOperate !== false;
   const row = (
     <SessionRowDragFrame
       className={cn(
         SESSION_ROW_FRAME,
         "group/session-row transition-colors hover:bg-surface-2 has-[[data-slot=session-row-target]:focus-visible]:shadow-focus-ring",
         (selected || props.current) && "bg-selected",
-        computer?.offline && "opacity-70"
+        offline && "opacity-70"
       )}
-      data-computer-id={computer?.id}
-      data-computer-offline={computer?.offline ? "true" : undefined}
+      data-computer-id={rowDataComputerId(computer, effectiveComputerId)}
+      data-computer-offline={offline ? "true" : undefined}
       data-slot="session-list-row"
-      drag={props.drag}
+      drag={canAct ? props.drag : undefined}
       dropEdge={props.dropEdge ?? null}
       dragging={props.dragging ?? false}
       dropTestId={`${props.testIdPrefix}-drop-${props.dropEdge}-${session.id}`}
       onContextMenu={() => {
-        // Finder's rule: a context click outside the selection makes that row the selection.
-        if (selection?.mode && !selected) selection.selectOnly(session.id);
+        if (canAct && selection?.mode && !selected) selection.selectOnly(rowKey);
       }}
     >
-      <SessionListRowBody {...props} />
+      <SessionListRowBody
+        {...props}
+        computer={computer}
+        rowKey={rowKey}
+        selected={selected}
+        selection={canAct ? selection : undefined}
+        showActions={canAct}
+      />
     </SessionRowDragFrame>
   );
-  if (!showActions || !wrapRow) return row;
+  if (!canAct || !wrapRow) return row;
   return wrapRow(row);
+}
+
+interface SessionListRowBodyProps extends SessionListRowViewProps {
+  rowKey: string;
+  selected: boolean;
+  computer: SessionRowComputerInfo | undefined;
 }
 
 function SessionListRowBody({
   session,
+  rowKey,
+  selected,
+  computer,
   owner,
   inheritsProject = false,
   current = false,
@@ -153,8 +194,7 @@ function SessionListRowBody({
   preloadHandlers,
   rowActions,
   descendantsRunning,
-}: SessionListRowViewProps) {
-  const selected = selection?.selectedIds.has(session.id) ?? false;
+}: SessionListRowBodyProps) {
   const title = getSessionDisplayTitle(session);
   const signal = sessionBadgeSignal(session.badge, sessionWaitingOn(session));
   const { keyboardFocus, focusHandlers } = useKeyboardFocusToken();
@@ -163,13 +203,17 @@ function SessionListRowBody({
     workspace: session.workspace_id,
     profile: session.profile_name,
   });
-  const agentLabel = session.agent_name ? agent.label : "";
-  const meta = rowMeta({ session, agentLabel, runtime, signal, orphanedSubagent });
+  const meta = rowMeta({
+    session,
+    agentLabel: session.agent_name ? agent.label : "",
+    runtime,
+    signal,
+    orphanedSubagent,
+  });
   const badgeOf = useContext(SessionListBadgeContext);
-  const computer = useContext(SessionListComputerContext)?.get(session.id);
   const badge = inheritsProject ? undefined : badgeOf?.(session);
   const activate = (event: React.MouseEvent<HTMLElement>) =>
-    activateSessionRow(event, session.id, selection, onSelect);
+    activateSessionRow(event, rowKey, selection, onSelect);
   return (
     <>
       <SessionRowTarget
@@ -195,7 +239,7 @@ function SessionListRowBody({
       {selection ? (
         <SessionRowCheckbox
           title={title}
-          sessionId={session.id}
+          sessionId={rowKey}
           selected={selected}
           selection={selection}
         />
@@ -203,9 +247,8 @@ function SessionListRowBody({
       <SessionRowEndSlot session={session} actions={actionsVisible ? (rowActions ?? null) : null} />
       <SessionRowMetaLine
         session={session}
-        // A provider-only runtime names its provider so a pending switch has a left side.
-        model={runtime.model || (runtime.next ? runtime.label : "")}
-        nextModel={runtime.next ? runtime.next.model || runtime.next.label : ""}
+        model={runtimeModelLabel(runtime)}
+        nextModel={runtimeNextModelLabel(runtime)}
         badge={badge}
         computer={computer}
         owner={owner}
@@ -233,241 +276,5 @@ function SessionListRowBody({
       />
       <SessionLaterDetails className={SESSION_ROW_LATER_FRAME} session={session} />
     </>
-  );
-}
-
-/** Line 1's title target; its `::after` stretches over the row so the whole row navigates. */
-function SessionRowTarget({
-  session,
-  title,
-  meta,
-  emphasized,
-  current,
-  selected,
-  selection,
-  badgeMark,
-  testId,
-  onClick,
-  focusHandlers,
-  preloadHandlers,
-}: {
-  session: SessionPayload;
-  title: string;
-  meta: RowMeta;
-  emphasized: boolean;
-  current: boolean;
-  selected: boolean;
-  selection: SessionRowSelection | undefined;
-  /** Line 1's leading status mark. */
-  badgeMark: ReactNode;
-  testId: string;
-  onClick: (event: React.MouseEvent<HTMLElement>) => void;
-  focusHandlers: ReturnType<typeof useKeyboardFocusToken>["focusHandlers"];
-  preloadHandlers: ReturnType<typeof useSessionEntryPreload>;
-}) {
-  // Outside the Pinned section (the archive, Later) a pin waiting to return is marked.
-  const inPinnedSection = useContext(SessionListPinnedSectionContext);
-  const pinnedMark = Boolean(session.pinned_at) && !inPinnedSection;
-  return (
-    <button
-      type="button"
-      className={cn(
-        SESSION_ROW_TARGET_FRAME,
-        "outline-none after:absolute after:inset-0 after:rounded-md",
-        emphasized && "font-medium"
-      )}
-      data-slot="session-row-target"
-      data-sidebar-stop="session"
-      data-session-id={session.id}
-      // The end slot swaps the time for actions on hover, and the meta line sits
-      // under the target, so the full timestamp and attention detail ride on the row.
-      title={[formatAbsoluteTime(session.updated_at), meta.reason?.detail]
-        .filter(Boolean)
-        .join("\n")}
-      data-status={session.badge}
-      data-testid={testId}
-      aria-current={current ? "true" : undefined}
-      // While a selection is open, activating the row toggles its membership,
-      // so the row reads as a toggle button; otherwise it only navigates.
-      aria-pressed={selection?.mode ? selected : undefined}
-      data-selected={selected || undefined}
-      onClick={onClick}
-      {...preloadHandlers}
-      onFocus={event => {
-        focusHandlers.onFocus(event);
-        preloadHandlers.onFocus();
-      }}
-      onBlur={() => {
-        focusHandlers.onBlur();
-        preloadHandlers.onBlur();
-      }}
-    >
-      {badgeMark}
-      {pinnedMark ? (
-        <span className="flex min-w-0 items-center gap-1">
-          <span className="min-w-0 truncate">{title}</span>
-          <Icon as={Pin} size="xs" className="shrink-0 text-faint" aria-hidden="true" />
-          <span className="sr-only">, pinned</span>
-        </span>
-      ) : (
-        <span className="min-w-0 truncate">{title}</span>
-      )}
-      {/* The meta line is drawn outside the target; its words still name the row. */}
-      <span className="sr-only">{meta.spoken}</span>
-    </button>
-  );
-}
-
-/**
- * Line 2: where and who (project badge, owner, agent face, provider mark), its
- * phrase, and the trailing cluster. The project name gives way before the phrase.
- */
-function SessionRowMetaLine({
-  session,
-  model,
-  nextModel,
-  badge,
-  computer,
-  owner,
-  meta,
-  mark,
-  trailing,
-}: {
-  session: SessionPayload;
-  model: string;
-  /** The model the next message switches to; empty when nothing is pending. */
-  nextModel: string;
-  badge: WorkspaceBadgeIdentity | undefined;
-  computer: SessionRowComputerInfo | undefined;
-  owner: ProfileOwner | undefined;
-  meta: RowMeta;
-  mark: React.ReactNode;
-  trailing: React.ReactNode;
-}) {
-  return (
-    <span className={SESSION_ROW_META_FRAME}>
-      <span className={SESSION_ROW_WHO_FRAME}>
-        {badge ? (
-          <WorkspaceBadge
-            identity={badge}
-            className="max-w-40 shrink-[1000]"
-            data-testid={`session-row-project-${session.id}`}
-          />
-        ) : null}
-        {computer ? (
-          <ComputerMetaLabel
-            iconKind={computer.iconKind}
-            name={computer.name}
-            offline={computer.offline}
-            platform={computer.platform}
-          />
-        ) : null}
-        {owner ? <ProfileOwnerTag compact size="xs" owner={owner} /> : null}
-        {mark}
-        <SessionListRowWho model={model} nextModel={nextModel} session={session} meta={meta} />
-        {sessionIsUnrestricted(session) ? (
-          <SessionUnrestrictedBadge data-testid={`session-row-unrestricted-${session.id}`} />
-        ) : null}
-      </span>
-      {trailing}
-    </span>
-  );
-}
-
-/** Line 1's end slot: the compact time at rest, the row actions on hover or focus. */
-function SessionRowEndSlot({ session, actions }: { session: SessionPayload; actions: ReactNode }) {
-  return (
-    <span className={SESSION_ROW_END_SLOT_FRAME}>
-      <Time
-        iso={session.updated_at}
-        mode="compact"
-        className={cn(
-          "font-mono text-micro text-subtle transition-opacity duration-fast motion-reduce:transition-none",
-          actions !== null &&
-            "group-focus-within/session-row:opacity-0 group-hover/session-row:opacity-0 group-has-data-popup-open/session-row:opacity-0"
-        )}
-      />
-      {actions !== null ? (
-        <span className="relative z-10 -my-1 opacity-0 transition-opacity duration-fast group-focus-within/session-row:opacity-100 group-hover/session-row:opacity-100 group-has-data-popup-open/session-row:opacity-100 motion-reduce:transition-none">
-          {actions}
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-/** The meta line's trailing cluster, lifted above the row target; none without controls. */
-function SessionRowTrailing({ children }: { children: React.ReactNode }) {
-  if (children === undefined) return null;
-  return <span className={SESSION_ROW_TRAILING_FRAME}>{children}</span>;
-}
-
-/** Line 1's status mark; running work below lifts it (#1926), the row's own subagents by default. */
-function SessionRowBadgeMark({
-  session,
-  selection,
-  descendantsRunning = hasRunningDescendant(session, []),
-}: {
-  session: SessionPayload;
-  selection: SessionRowSelection | undefined;
-  descendantsRunning?: boolean;
-}) {
-  return (
-    <SessionBadgeMark
-      badge={session.badge}
-      waitingOn={sessionWaitingOn(session)}
-      descendantsRunning={descendantsRunning}
-      className={badgeMarkClass(selection)}
-    />
-  );
-}
-
-/** With a selection available, the badge gives way to the checkbox on hover or focus. */
-function badgeMarkClass(selection: SessionRowSelection | undefined): string | undefined {
-  if (!selection) return undefined;
-  return cn(
-    "transition-opacity duration-fast motion-reduce:transition-none group-hover/session-row:opacity-0 group-focus-within/session-row:opacity-0",
-    selection.mode && "opacity-0"
-  );
-}
-
-function activateSessionRow(
-  event: React.MouseEvent<HTMLElement>,
-  sessionId: string,
-  selection: SessionRowSelection | undefined,
-  onSelect: () => void
-) {
-  const gesture = selection ? sessionSelectionGesture(event, selection.mode) : "open";
-  if (gesture === "range") selection?.toggleRange(sessionId);
-  else if (gesture === "toggle") selection?.toggle(sessionId);
-  else onSelect();
-}
-
-function SessionRowCheckbox({
-  title,
-  sessionId,
-  selected,
-  selection,
-}: {
-  title: string;
-  sessionId: string;
-  selected: boolean;
-  selection: SessionRowSelection;
-}) {
-  return (
-    <Checkbox
-      aria-label={`Select ${title}`}
-      checked={selected}
-      className={cn(
-        "absolute top-2 left-1 z-10 transition-opacity duration-fast motion-reduce:transition-none after:inset-0",
-        selection.mode
-          ? "opacity-100"
-          : "pointer-events-none opacity-0 group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100 group-focus-within/session-row:pointer-events-auto group-focus-within/session-row:opacity-100"
-      )}
-      onCheckedChange={(_checked, details) => {
-        if (sessionCheckboxGesture(details.event) === "range") selection.toggleRange(sessionId);
-        else selection.toggle(sessionId);
-      }}
-    />
   );
 }

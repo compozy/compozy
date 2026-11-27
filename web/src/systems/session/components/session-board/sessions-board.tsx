@@ -4,11 +4,15 @@ import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lif
 import { useSessionBoardColumnFolds } from "../../hooks/use-session-window-view-state";
 import type { SessionsBoardView as SessionsBoardModel } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
-import { SessionListComputerContext } from "../../lib/session-list-computer";
+import {
+  SessionListComputerContext,
+  SessionWritableComputersContext,
+} from "../../lib/session-list-computer";
 import type { SessionListTarget } from "../../types";
 import { AlwaysOnListTop } from "../always-on/always-on-list-top";
 import { SessionBoardCard } from "./session-board-card";
 import { SessionBoardCardSlot } from "./session-board-card-slot";
+import { SessionsBoardComputerBandView } from "./sessions-board-computer-band";
 import { SessionsBoardSwimlane } from "./sessions-board-swimlane";
 import { SessionsBoardView } from "./sessions-board-view";
 
@@ -31,32 +35,49 @@ export function SessionsBoard(props: SessionsBoardProps) {
   const folds = useSessionBoardColumnFolds();
   // A card's menu opens a rolled-up item's child session in the drawer, like a card click.
   const openTarget = (session: SessionListTarget) => props.onOpen(session as SessionBoardPayload);
+  const banded = (props.board.computerBands ?? null) !== null;
   return (
-    <SessionListComputerContext value={props.board.computerBySessionId}>
-      <SessionMenuOpenContext value={openTarget}>
-        <SessionBoardCardSlot value={SessionBoardCard}>
-          <SessionsBoardView
-            {...props}
-            collapsedColumns={folds.collapsed}
-            onColumnCollapsedChange={folds.setCollapsed}
-            header={
-              <>
-                <AlwaysOnListTop
-                  currentSessionId={props.currentSessionId}
-                  groupBy={props.board.groupBy}
-                  onOpenSession={openTarget}
-                  surface="ring-canvas"
-                  workspaceId={props.board.focusedWorkspaceId}
+    <SessionWritableComputersContext value={props.board.writableComputers}>
+      <SessionListComputerContext value={props.board.computerBySessionId}>
+        <SessionMenuOpenContext value={openTarget}>
+          <SessionBoardCardSlot value={SessionBoardCard}>
+            <SessionsBoardView
+              {...props}
+              collapsedColumns={folds.collapsed}
+              onColumnCollapsedChange={folds.setCollapsed}
+              header={
+                banded ? null : (
+                  <>
+                    {props.board.hideAlwaysOnTop ? null : (
+                      <AlwaysOnListTop
+                        computerId={props.board.scopedComputerId}
+                        currentSessionId={props.currentSessionId}
+                        groupBy={props.board.groupBy}
+                        onOpenSession={openTarget}
+                        surface="ring-canvas"
+                        workspaceId={props.board.focusedWorkspaceId}
+                      />
+                    )}
+                    <ScopedComputerBoardFailureStrip failures={props.board.failedComputers ?? []} />
+                  </>
+                )
+              }
+              renderBand={(band, row, rank) => (
+                <SessionsBoardComputerBandView
+                  band={band}
+                  focusedWorkspaceId={props.board.focusedWorkspaceId}
+                  key={band.source.key}
+                  rank={rank}
+                  row={row}
                 />
-                <ScopedComputerBoardFailureStrip failures={props.board.failedComputers ?? []} />
-              </>
-            }
-            renderLane={(lane, row) => (
-              <SessionsBoardSwimlane {...row} key={lane.group.key} lane={lane} />
-            )}
-          />
-        </SessionBoardCardSlot>
-      </SessionMenuOpenContext>
-    </SessionListComputerContext>
+              )}
+              renderLane={(lane, row) => (
+                <SessionsBoardSwimlane {...row} key={lane.group.key} lane={lane} />
+              )}
+            />
+          </SessionBoardCardSlot>
+        </SessionMenuOpenContext>
+      </SessionListComputerContext>
+    </SessionWritableComputersContext>
   );
 }

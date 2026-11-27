@@ -1,4 +1,5 @@
 import { ChevronRight } from "@compozy/ui/icons";
+import type { ReactNode } from "react";
 
 import { Icon, StateGlyph, cn } from "@compozy/ui";
 
@@ -24,10 +25,13 @@ export interface SessionListLeadingSignal {
 export function SessionListDisclosureMark({
   open,
   signal,
+  mark,
 }: {
   open: boolean;
   /** Drawn only while the header is collapsed; an open header shows its rows instead. */
   signal?: SessionListLeadingSignal;
+  /** The group's own 12 px mark at rest, such as its computer; a collapsed signal outranks it. */
+  mark?: ReactNode;
 }) {
   const chevron = (
     <Icon
@@ -39,7 +43,8 @@ export function SessionListDisclosureMark({
   );
   const label = open || !signal ? null : sessionListLeadingSignalLabel(signal);
   if (!signal || label === null) {
-    return <span className="grid size-3 shrink-0 place-items-center">{chevron}</span>;
+    if (!mark) return <span className="grid size-3 shrink-0 place-items-center">{chevron}</span>;
+    return <RestingMark chevron={chevron}>{mark}</RestingMark>;
   }
   const needsYou = signal.needsYou > 0;
   return (
@@ -55,6 +60,20 @@ export function SessionListDisclosureMark({
         className="grid size-3 place-items-center transition-opacity duration-fast group-hover/disclosure:opacity-0 group-focus-visible/disclosure:opacity-0 motion-reduce:transition-none [@media(hover:none)]:opacity-100!"
       >
         <StateGlyph size="sm" state={needsYou ? "attention" : "running"} label={label} />
+      </span>
+    </span>
+  );
+}
+
+/** A mark that holds the leading cell at rest and yields it to the chevron on hover or focus. */
+function RestingMark({ chevron, children }: { chevron: ReactNode; children: ReactNode }) {
+  return (
+    <span className="grid size-3 shrink-0 place-items-center *:col-start-1 *:row-start-1">
+      <span className="grid size-3 place-items-center opacity-0 transition-opacity duration-fast group-hover/disclosure:opacity-100 group-focus-visible/disclosure:opacity-100 motion-reduce:transition-none">
+        {chevron}
+      </span>
+      <span className="grid size-3 place-items-center transition-opacity duration-fast group-hover/disclosure:opacity-0 group-focus-visible/disclosure:opacity-0 motion-reduce:transition-none">
+        {children}
       </span>
     </span>
   );

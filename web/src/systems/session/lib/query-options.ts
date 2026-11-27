@@ -47,6 +47,7 @@ import {
   type ComputerId,
 } from "@/lib/computer-scope";
 import { fetchSessionAcrossProfiles, fetchSessionById } from "../adapters/session-owner-api";
+import { withSessionComputer, withSessionsComputer } from "./session-row-ref";
 
 const SESSION_DETAIL_STALE_TIME_MS = 2_000;
 export const SESSION_OWNER_STALE_TIME_MS = 30_000;
@@ -124,7 +125,8 @@ export function sessionAttentionSummaryOptions() {
 export function sessionDetailOptions(workspace: string, id: string, computerId?: ComputerId) {
   return queryOptions({
     queryKey: sessionKeys.forComputer(computerId).detail(workspace, id),
-    queryFn: ({ signal }) => fetchSession(workspace, id, signal, computerId),
+    queryFn: async ({ signal }) =>
+      withSessionComputer(await fetchSession(workspace, id, signal, computerId), computerId),
     refetchInterval: query =>
       isSessionUnavailable(query.state.error)
         ? false
@@ -419,10 +421,13 @@ export function sessionScopedDetailOptions(
   const { enabled = true, liveTail = true } = options;
   return queryOptions({
     queryKey: sessionKeys.forComputer(scopedComputerId).byId(id, profileKey),
-    queryFn: ({ signal }) =>
-      isRemoteComputerId(scopedComputerId)
-        ? fetchSessionById(id, normalizedScope, signal, scopedComputerId)
-        : fetchSessionById(id, normalizedScope, signal),
+    queryFn: async ({ signal }) =>
+      withSessionComputer(
+        isRemoteComputerId(scopedComputerId)
+          ? await fetchSessionById(id, normalizedScope, signal, scopedComputerId)
+          : await fetchSessionById(id, normalizedScope, signal),
+        scopedComputerId
+      ),
     refetchInterval: query => {
       if (!liveTail || isSessionUnavailable(query.state.error)) return false;
       return sessionDetailRefetchInterval(id, query.state.data, scopedComputerId);
@@ -454,12 +459,29 @@ export function sessionAcrossProfilesOptions(sessionId: string, enabled = true) 
 
 /** The target's whole subtree from the daemon: a loaded catalog page cannot count it. */
 export function sessionDescendantsOptions(
-  session: Pick<SessionPayload, "id" | "workspace_id" | "profile_name">
+  session: Pick<SessionPayload, "id" | "workspace_id" | "profile_name">,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
 ) {
+  const remote = isRemoteComputerId(computerId);
   return queryOptions({
-    queryKey: sessionKeys.descendants(session.id, session.profile_name),
-    queryFn: ({ signal }) =>
-      listSessionDescendants(session.workspace_id ?? "", session.id, session.profile_name, signal),
+    queryKey: sessionKeys.forComputer(computerId).descendants(session.id, session.profile_name),
+    queryFn: async ({ signal }) => {
+      const descendants = remote
+        ? await listSessionDescendants(
+            session.workspace_id ?? "",
+            session.id,
+            session.profile_name,
+            signal,
+            computerId
+          )
+        : await listSessionDescendants(
+            session.workspace_id ?? "",
+            session.id,
+            session.profile_name,
+            signal
+          );
+      return remote ? withSessionsComputer(descendants, computerId) : descendants;
+    },
     staleTime: 0,
   });
 }

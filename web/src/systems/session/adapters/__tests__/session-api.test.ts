@@ -10,9 +10,35 @@ import {
 } from "../../lib/query-options";
 import { sessionLinkedWorkOptions } from "../../lib/session-linked-work-options";
 import { sessionSidesOptions } from "../../lib/session-side-query-options";
+import {
+  archiveStoppedSessions,
+  archiveSessionTree,
+  deleteSessionTree,
+  listSessionDescendants,
+} from "../session-archive-api";
+import {
+  createSessionFolder,
+  deleteSessionFolder,
+  fetchSessionFolders,
+  moveSessionToFolder,
+  renameSessionFolder,
+  reorderPinnedSessions,
+  reorderSessionFolders,
+  reorderSessions,
+} from "../session-folders-api";
 import { moveSessionToLater, resumeSessionFromLater } from "../session-later-api";
 import { markSessionSeen } from "../session-mark-seen-api";
+import { setSessionPinned } from "../session-pin-api";
 import { fetchSessionSubagents, cancelSubagent, deleteSubagent } from "../subagent-api";
+import {
+  createWorkspaceFolder,
+  deleteWorkspaceFolder,
+  fetchWorkspaceLayout,
+  moveWorkspace,
+  renameWorkspaceFolder,
+  reorderWorkspaceFolders,
+  reorderWorkspaces,
+} from "../workspace-layout-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   expectFetchRequest,
@@ -30,6 +56,7 @@ import {
   cancelSessionPrompt,
   clearSessionRuntime,
   clearSessionConversation,
+  clearSessionParent,
   compactSession,
   createSession,
   deleteSession,
@@ -46,6 +73,7 @@ import {
   replaceSessionInput,
   rewindSession,
   sendSessionPrompt,
+  setSessionParent,
   setSessionRuntime,
   stopSession,
   unarchiveSession,
@@ -1717,5 +1745,300 @@ describe("profile-bound subagents", () => {
     const failure = await deleteSubagent(WORKSPACE_ID, "sub-2", "design").catch(error => error);
     expect(failure).toBeInstanceOf(SessionApiError);
     expect(failure).toMatchObject({ status: 409, code: "subagent_not_deletable" });
+  });
+});
+
+describe("computer-scoped folder, pin, Later and lifecycle adapters (T-F1)", () => {
+  const folder = {
+    id: "fold-1",
+    name: "Release",
+    workspace_id: WORKSPACE_ID,
+    profile_id: "default",
+    position: 0,
+    session_count: 0,
+    created_at: "2026-10-01T00:00:00Z",
+    updated_at: "2026-10-01T00:00:00Z",
+  };
+  const scope = { workspaceId: WORKSPACE_ID, profile: "default" };
+  const layout = { folders: [], placements: [] };
+
+  it("routes each folder, layout, pin, Later and lifecycle adapter through /c/{id} for remote computers and keeps local calls unprefixed", async () => {
+    const cases: ReadonlyArray<{
+      name: string;
+      method: string;
+      path: string;
+      response: unknown;
+      empty?: boolean;
+      call: (computerId?: ComputerId) => Promise<unknown>;
+    }> = [
+      {
+        name: "fetchSessionFolders",
+        method: "GET",
+        path: `/api/workspaces/${WORKSPACE_ID}/session-folders?profile=default`,
+        response: { folders: [folder] },
+        call: computerId => fetchSessionFolders(scope, undefined, computerId),
+      },
+      {
+        name: "createSessionFolder",
+        method: "POST",
+        path: `/api/workspaces/${WORKSPACE_ID}/session-folders?profile=default`,
+        response: { folder },
+        call: computerId => createSessionFolder(scope, "Release", computerId),
+      },
+      {
+        name: "renameSessionFolder",
+        method: "PATCH",
+        path: `/api/workspaces/${WORKSPACE_ID}/session-folders/fold-1?profile=default`,
+        response: { folder },
+        call: computerId => renameSessionFolder(scope, "fold-1", "Renamed", computerId),
+      },
+      {
+        name: "deleteSessionFolder",
+        method: "DELETE",
+        path: `/api/workspaces/${WORKSPACE_ID}/session-folders/fold-1?profile=default`,
+        response: { folders: [] },
+        call: computerId => deleteSessionFolder(scope, "fold-1", computerId),
+      },
+      {
+        name: "reorderSessionFolders",
+        method: "PUT",
+        path: `/api/workspaces/${WORKSPACE_ID}/session-order/folders?profile=default`,
+        response: { folders: [folder] },
+        call: computerId => reorderSessionFolders(scope, ["fold-1"], computerId),
+      },
+      {
+        name: "reorderSessions",
+        method: "PUT",
+        path: `/api/workspaces/${WORKSPACE_ID}/session-order/sessions?profile=default`,
+        response: { folders: [folder] },
+        call: computerId => reorderSessions(scope, null, ["sess-001"], computerId),
+      },
+      {
+        name: "reorderPinnedSessions",
+        method: "PUT",
+        path: `/api/workspaces/${WORKSPACE_ID}/session-order/sessions?profile=default`,
+        response: { folders: [folder] },
+        call: computerId => reorderPinnedSessions(scope, ["sess-001"], computerId),
+      },
+      {
+        name: "moveSessionToFolder",
+        method: "POST",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/move?profile=default`,
+        response: { folders: [folder] },
+        call: computerId => moveSessionToFolder(scope, "sess-001", "fold-1", computerId),
+      },
+      {
+        name: "fetchWorkspaceLayout",
+        method: "GET",
+        path: "/api/workspace-folders?profile=default",
+        response: layout,
+        call: computerId => fetchWorkspaceLayout("default", undefined, computerId),
+      },
+      {
+        name: "createWorkspaceFolder",
+        method: "POST",
+        path: "/api/workspace-folders?profile=default",
+        response: { folder },
+        call: computerId => createWorkspaceFolder("default", "Core", undefined, computerId),
+      },
+      {
+        name: "renameWorkspaceFolder",
+        method: "PATCH",
+        path: "/api/workspace-folders/pf-1?profile=default",
+        response: { folder },
+        call: computerId =>
+          renameWorkspaceFolder("default", "pf-1", "Renamed", undefined, computerId),
+      },
+      {
+        name: "deleteWorkspaceFolder",
+        method: "DELETE",
+        path: "/api/workspace-folders/pf-1?profile=default",
+        response: layout,
+        call: computerId => deleteWorkspaceFolder("default", "pf-1", undefined, computerId),
+      },
+      {
+        name: "reorderWorkspaceFolders",
+        method: "PUT",
+        path: "/api/workspace-order/folders?profile=default",
+        response: layout,
+        call: computerId => reorderWorkspaceFolders("default", ["pf-1"], undefined, computerId),
+      },
+      {
+        name: "reorderWorkspaces",
+        method: "PUT",
+        path: "/api/workspace-order/workspaces?profile=default",
+        response: layout,
+        call: computerId =>
+          reorderWorkspaces("default", null, [WORKSPACE_ID], undefined, computerId),
+      },
+      {
+        name: "moveWorkspace",
+        method: "POST",
+        path: "/api/workspace-order/move?profile=default",
+        response: layout,
+        call: computerId => moveWorkspace("default", WORKSPACE_ID, "pf-1", undefined, computerId),
+      },
+      {
+        name: "setSessionPinned",
+        method: "POST",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/pin?profile=default`,
+        response: { session: mockSession },
+        call: computerId =>
+          setSessionPinned(WORKSPACE_ID, "sess-001", "default", true, undefined, computerId),
+      },
+      {
+        name: "moveSessionToLater",
+        method: "POST",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/later?profile=default`,
+        response: { session: mockSession },
+        call: computerId =>
+          moveSessionToLater(WORKSPACE_ID, "sess-001", "default", {}, undefined, computerId),
+      },
+      {
+        name: "resumeSessionFromLater",
+        method: "POST",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/resume-later?profile=default`,
+        response: { session: mockSession },
+        call: computerId =>
+          resumeSessionFromLater(WORKSPACE_ID, "sess-001", "default", {}, undefined, computerId),
+      },
+      {
+        name: "markSessionSeen",
+        method: "POST",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/mark-seen?profile=default`,
+        response: { session: mockSession },
+        call: computerId =>
+          markSessionSeen(WORKSPACE_ID, "sess-001", "default", undefined, computerId),
+      },
+      {
+        name: "deleteSession",
+        method: "DELETE",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001?profile=default`,
+        response: null,
+        empty: true,
+        call: computerId =>
+          deleteSession(WORKSPACE_ID, "sess-001", "default", undefined, undefined, computerId),
+      },
+      {
+        name: "renameSession",
+        method: "PATCH",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001?profile=default`,
+        response: { session: mockSession },
+        call: computerId =>
+          renameSession(
+            WORKSPACE_ID,
+            "sess-001",
+            "default",
+            { name: "New" },
+            undefined,
+            computerId
+          ),
+      },
+      {
+        name: "setSessionParent",
+        method: "PUT",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/parent?profile=default`,
+        response: { session: mockSession },
+        call: computerId =>
+          setSessionParent(
+            WORKSPACE_ID,
+            "sess-001",
+            "default",
+            "sess-parent",
+            undefined,
+            computerId
+          ),
+      },
+      {
+        name: "clearSessionParent",
+        method: "DELETE",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/parent?profile=default`,
+        response: { session: mockSession },
+        call: computerId =>
+          clearSessionParent(WORKSPACE_ID, "sess-001", "default", undefined, computerId),
+      },
+      {
+        name: "stopSession",
+        method: "POST",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/stop?profile=default`,
+        response: {
+          session_id: "sess-001",
+          state: "stopped",
+          status: "stopped",
+          verified: true,
+          escalated: false,
+        },
+        call: computerId => stopSession(WORKSPACE_ID, "sess-001", "default", {}, computerId),
+      },
+      {
+        name: "archiveSessionTree",
+        method: "POST",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/archive?profile=default&with_children=true`,
+        response: { session: mockSession },
+        call: computerId =>
+          archiveSessionTree(
+            WORKSPACE_ID,
+            "sess-001",
+            "default",
+            undefined,
+            false,
+            undefined,
+            computerId
+          ),
+      },
+      {
+        name: "deleteSessionTree",
+        method: "DELETE",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001?profile=default&with_children=true`,
+        response: null,
+        empty: true,
+        call: computerId =>
+          deleteSessionTree(WORKSPACE_ID, "sess-001", "default", undefined, undefined, computerId),
+      },
+      {
+        name: "listSessionDescendants",
+        method: "GET",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/descendants?profile=default`,
+        response: { sessions: [] },
+        call: computerId =>
+          listSessionDescendants(WORKSPACE_ID, "sess-001", "default", undefined, computerId),
+      },
+      {
+        name: "unarchiveSession",
+        method: "POST",
+        path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/unarchive?profile=default`,
+        response: { session: mockSession },
+        call: computerId =>
+          unarchiveSession(WORKSPACE_ID, "sess-001", "default", undefined, computerId),
+      },
+      {
+        name: "archiveStoppedSessions",
+        method: "POST",
+        path: "/api/sessions/archive-stopped?profile=default",
+        response: { archived: [], skipped: [] },
+        call: computerId =>
+          archiveStoppedSessions("default", { kind: "all" }, undefined, computerId),
+      },
+    ];
+
+    for (const [index, entry] of cases.entries()) {
+      if (entry.empty) mockEmptyResponse();
+      else mockJsonResponse(entry.response);
+      await entry.call("cmp_devbox");
+      await expectFetchRequest({
+        method: entry.method,
+        path: `/c/cmp_devbox${entry.path}`,
+        callIndex: index * 2,
+      });
+
+      if (entry.empty) mockEmptyResponse();
+      else mockJsonResponse(entry.response);
+      await entry.call();
+      await expectFetchRequest({
+        method: entry.method,
+        path: entry.path,
+        callIndex: index * 2 + 1,
+      });
+    }
   });
 });

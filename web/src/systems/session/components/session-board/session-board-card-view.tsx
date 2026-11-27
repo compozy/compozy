@@ -1,3 +1,4 @@
+import { SessionBoardCardTitle } from "./session-board-card-title";
 import { useContext, type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import {
   ArrowRightLeft,
@@ -24,12 +25,15 @@ import {
   TooltipTrigger,
 } from "@compozy/ui";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { cn } from "@/lib/utils";
 import { ComputerMetaLabel } from "@/systems/computers/components/computer-chip";
 import {
+  lookupSessionComputer,
   SessionListComputerContext,
   type SessionRowComputerInfo,
 } from "../../lib/session-list-computer";
+import { sessionComputerOf } from "../../lib/session-row-ref";
 
 import type { SessionRuntimeLabel } from "../../hooks/use-session-runtime-label";
 import { ENDED_EARLY_ATTENTION, sessionAttentionReason } from "../../lib/session-attention-reason";
@@ -55,8 +59,6 @@ import {
   SESSION_BOARD_CARD_FOOTER_ROW,
   SESSION_BOARD_CARD_FRAME,
   SESSION_BOARD_CARD_META_ROW,
-  SESSION_BOARD_CARD_TITLE_ROW,
-  SESSION_BOARD_CARD_TITLE_TYPE,
 } from "./sessions-board-frame";
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
@@ -83,6 +85,8 @@ type CardIntentHandlers = Pick<
 
 export interface SessionBoardCardViewProps extends CardIntentHandlers {
   session: SessionBoardPayload;
+  /** The computer owning this card; omitted falls back to context lookup. */
+  computerId?: ComputerId;
   /** All projects: the workspace name, shown in the meta row when the card has no PR. */
   workspaceName?: string | null;
   current?: boolean;
@@ -151,6 +155,7 @@ function sessionBoardCardLabel({
  */
 export function SessionBoardCardView({
   session,
+  computerId,
   workspaceName = null,
   current = false,
   archived = false,
@@ -165,7 +170,12 @@ export function SessionBoardCardView({
   ...intentHandlers
 }: SessionBoardCardViewProps) {
   const selected = selection?.selected === true;
-  const computer = useContext(SessionListComputerContext)?.get(session.id);
+  const effectiveComputerId = computerId ?? sessionComputerOf(session);
+  const computer = lookupSessionComputer(
+    useContext(SessionListComputerContext),
+    session.id,
+    effectiveComputerId
+  );
   const title = getSessionDisplayTitle(session);
   const untitled = title === UNTITLED_SESSION_TITLE;
   const status = sessionBoardCardStatus(session);
@@ -205,7 +215,7 @@ export function SessionBoardCardView({
       data-archived={archived ? "true" : undefined}
       data-agent-name={session.agent_name}
       data-board-column={session.board_column}
-      data-computer-id={computer?.id}
+      data-computer-id={remoteDataComputerId(effectiveComputerId)}
       data-computer-offline={computer?.offline ? "true" : undefined}
       data-selected={selected ? "true" : undefined}
       data-session-id={session.id}
@@ -223,25 +233,13 @@ export function SessionBoardCardView({
         sessionId={session.id}
         status={status}
       />
-      <span className={SESSION_BOARD_CARD_TITLE_ROW}>
-        {sessionBoardCardUnread(session) ? (
-          <span
-            aria-hidden="true"
-            className="mt-1.5 size-1.5 shrink-0 rounded-full bg-fg-strong"
-            data-testid={`session-board-card-unread-${session.id}`}
-          />
-        ) : null}
-        <span
-          className={cn(
-            "line-clamp-2 min-w-0",
-            SESSION_BOARD_CARD_TITLE_TYPE,
-            untitled && "font-normal text-subtle",
-            archived && "text-muted-foreground"
-          )}
-        >
-          {title}
-        </span>
-      </span>
+      <SessionBoardCardTitle
+        archived={archived}
+        sessionId={session.id}
+        title={title}
+        unread={sessionBoardCardUnread(session)}
+        untitled={untitled}
+      />
       <SessionLaterDetails session={session} />
       <SessionBoardCardFooter
         creatorBadge={creatorBadge}
@@ -255,6 +253,10 @@ export function SessionBoardCardView({
       />
     </button>
   );
+}
+
+function remoteDataComputerId(computerId: ComputerId) {
+  return isRemoteComputerId(computerId) ? computerId : undefined;
 }
 
 function SessionBoardCardMetaRow({

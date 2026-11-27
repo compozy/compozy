@@ -1,15 +1,18 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
 import { sessionDetailOptions, SessionNotFoundError } from "@/systems/session";
 import { ownerDataScope, workspaceSelectorForScope } from "@/systems/workspace";
 
 import type { OsOpenTarget } from "../lib/os-types";
+import { sessionWindowInstanceKey } from "../lib/session-window-identity";
 import { useOpenTarget } from "./use-open-target";
 
 export interface AttentionJumpTarget {
   sessionId: string;
+  computerId?: ComputerId;
   agentName?: string;
   /** The session's own `workspace_id`; empty for a User session. */
   workspaceId: string;
@@ -37,10 +40,10 @@ export type AttentionJump = (target: AttentionJumpTarget) => void;
 
 const OPEN_FAILURE = "Couldn't open this session. Try again.";
 
-function sessionRoute(agentName: string, sessionId: string) {
+function sessionRoute(agentName: string, sessionId: string, computerId: ComputerId) {
   return {
     pathname: `/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
-    search: {},
+    search: isRemoteComputerId(computerId) ? { computer: computerId } : {},
   };
 }
 
@@ -59,6 +62,7 @@ export function useAttentionJump(): AttentionJump {
 
   return target => {
     const sessionId = target.sessionId.trim();
+    const computerId = normalizeComputerId(target.computerId);
     const binding = ownerDataScope(target.workspaceId);
     const activation = ++activationRef.current;
     if (sessionId === "") {
@@ -69,9 +73,9 @@ export function useAttentionJump(): AttentionJump {
       open(
         {
           app: "session",
-          instanceKey: sessionId,
+          instanceKey: sessionWindowInstanceKey(sessionId, computerId),
           binding,
-          route: sessionRoute(agentName, sessionId),
+          route: sessionRoute(agentName, sessionId, computerId),
           ...(target.placement ? { placement: target.placement } : {}),
           ...(target.desktopId?.trim() ? { desktopId: target.desktopId.trim() } : {}),
           ...(target.reuseSessionWindow ? { reuseSessionWindow: true } : {}),
@@ -85,7 +89,9 @@ export function useAttentionJump(): AttentionJump {
     }
 
     void queryClient
-      .ensureQueryData(sessionDetailOptions(workspaceSelectorForScope(binding), sessionId))
+      .ensureQueryData(
+        sessionDetailOptions(workspaceSelectorForScope(binding), sessionId, computerId)
+      )
       .then(session => {
         if (activation !== activationRef.current) return;
         const resolvedAgentName = session.agent_name.trim();

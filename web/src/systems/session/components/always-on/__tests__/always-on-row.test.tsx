@@ -13,7 +13,13 @@ import { AlwaysOnRow } from "../always-on-row";
 
 const { mockNavigate, mockApi, mockLineage } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
-  mockApi: { ensureMain: vi.fn(), pause: vi.fn(), resume: vi.fn(), seen: vi.fn() },
+  mockApi: {
+    ensureMain: vi.fn(),
+    pause: vi.fn(),
+    resume: vi.fn(),
+    seen: vi.fn(),
+    archive: vi.fn(),
+  },
   mockLineage: new Map<string, { parent_session_id?: string; root_session_id?: string }>(),
 }));
 
@@ -29,6 +35,17 @@ vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => (
   ensureAgentInstanceMain: mockApi.ensureMain,
   pauseAgentInstance: mockApi.pause,
   resumeAgentInstance: mockApi.resume,
+  archiveAgentInstance: mockApi.archive,
+}));
+
+vi.mock("@/systems/computers", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/computers")>()),
+  useComputers: () => ({
+    computers: [
+      { id: "cmp_remote", status: "connected", scopes: ["settings:write", "sessions:operate"] },
+      { id: "cmp_read_only", status: "connected", scopes: [] },
+    ],
+  }),
 }));
 
 vi.mock("@tanstack/react-router", async importOriginal => ({
@@ -75,7 +92,7 @@ describe("AlwaysOnRow", () => {
     renderRow([instance]);
     await user.hover(screen.getByTestId(`always-on-seat-${instance.id}`));
     await user.click(await screen.findByRole("button", { name: "Mark as seen" }));
-    await waitFor(() => expect(mockApi.seen).toHaveBeenCalledWith(instance, expect.anything()));
+    await waitFor(() => expect(mockApi.seen).toHaveBeenCalledExactlyOnceWith(instance));
   });
 
   it("Should keep live requests actionable instead of offering mark as seen", async () => {
@@ -100,7 +117,28 @@ describe("AlwaysOnRow", () => {
       target: screen.getByTestId(`always-on-seat-${instance.id}`),
     });
     await user.click(await screen.findByRole("menuitem", { name: "Mark as seen" }));
-    await waitFor(() => expect(mockApi.seen).toHaveBeenCalledWith(instance, expect.anything()));
+    await waitFor(() => expect(mockApi.seen).toHaveBeenCalledExactlyOnceWith(instance));
+  });
+
+  it("Should open the remote conversation and archive the instance on its own computer", async () => {
+    const user = userEvent.setup();
+    const instance = agentInstanceFixture();
+    const { onOpenSession } = renderRow([instance], { computerId: "cmp_remote" });
+    const seat = screen.getByTestId(`always-on-seat-${instance.id}`);
+    await user.click(seat);
+    expect(onOpenSession).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        id: instance.main_session_id,
+        computerId: "cmp_remote",
+      })
+    );
+
+    await user.pointer({ keys: "[MouseRight]", target: seat });
+    expect(screen.queryByRole("menuitem", { name: "Open agent" })).toBeNull();
+    await user.click(await screen.findByRole("menuitem", { name: "Archive" }));
+    await waitFor(() =>
+      expect(mockApi.archive).toHaveBeenCalledExactlyOnceWith(instance, "cmp_remote")
+    );
   });
 
   it("Should render nothing with no instances", () => {

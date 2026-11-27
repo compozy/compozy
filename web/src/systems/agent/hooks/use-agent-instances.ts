@@ -1,8 +1,9 @@
 import { useAgentWindowScope } from "./use-agent-window-scope";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
-import { useProfilePerProfileScope, useProfileReadScope } from "@/systems/profiles";
+import { useProfilePerProfileScope, useProfileReadScope, useProfiles } from "@/systems/profiles";
 
 import {
   archiveAgentInstance,
@@ -34,11 +35,15 @@ const NO_INSTANCES: readonly AgentInstancePayload[] = [];
  * Merges one instance into every view that holds it; an unknown id rereads, since order is the
  * server's. A row that took or gave back a slot rereads too, because the count is the server's.
  */
-export function applyAgentInstanceUpdate(queryClient: QueryClient, next: AgentInstanceWirePayload) {
+export function applyAgentInstanceUpdate(
+  queryClient: QueryClient,
+  next: AgentInstanceWirePayload,
+  computerId?: ComputerId
+) {
   let known = false;
   let slotMoved = false;
   queryClient.setQueriesData<AgentInstancesRead>(
-    { queryKey: agentKeys.instanceLists() },
+    { queryKey: agentKeys.forComputer(computerId).instanceLists() },
     current => {
       const held = current?.instances.find(instance => instance.id === next.id);
       if (!current || !held) return current;
@@ -51,25 +56,42 @@ export function applyAgentInstanceUpdate(queryClient: QueryClient, next: AgentIn
       };
     }
   );
-  if (!known || slotMoved) void invalidateAgentInstances(queryClient);
+  if (!known || slotMoved) void invalidateAgentInstances(queryClient, computerId);
 }
 
 /**
  * An instance changed: a pick, an auto pick or a finished check-in. Its reports and check-ins are
  * reread where something shows them, so a transcript report shows its live pick state.
  */
-export function invalidateAgentInstanceReads(queryClient: QueryClient, id: string) {
-  void queryClient.invalidateQueries({ queryKey: agentKeys.instanceReports(id) });
-  void queryClient.invalidateQueries({ queryKey: agentKeys.instanceCheckIns(id) });
+export function invalidateAgentInstanceReads(
+  queryClient: QueryClient,
+  id: string,
+  computerId?: ComputerId
+) {
+  void queryClient.invalidateQueries({
+    queryKey: agentKeys.forComputer(computerId).instanceReports(id),
+  });
+  void queryClient.invalidateQueries({
+    queryKey: agentKeys.forComputer(computerId).instanceCheckIns(id),
+  });
 }
 
-export function invalidateAgentInstances(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: agentKeys.instanceLists() });
+export function invalidateAgentInstances(queryClient: QueryClient, computerId?: ComputerId) {
+  return queryClient.invalidateQueries({
+    queryKey: agentKeys.forComputer(computerId).instanceLists(),
+  });
 }
 
-function useAgentInstancesRead() {
-  const { key, names } = useProfilePerProfileScope();
-  return useQuery(agentInstancesOptions(key, names)).data;
+function useAgentInstancesRead(computerId?: ComputerId) {
+  const remote = isRemoteComputerId(computerId);
+  const { key, names: localNames } = useProfilePerProfileScope();
+  const remoteProfiles = useProfiles(remote, remote ? computerId : undefined);
+  const names = remote ? (remoteProfiles.data ?? []).map(profile => profile.name) : localNames;
+  const viewKey = remote ? "remote-all" : key;
+  return useQuery({
+    ...agentInstancesOptions(viewKey, names, computerId),
+    enabled: names.length > 0,
+  }).data;
 }
 
 /**
@@ -88,9 +110,9 @@ export function useAgentInstancesState(): {
   };
 }
 
-/** Every always-on instance of the active view; no route behind it yet reads as none, so no row shows. */
-export function useAgentInstances(): readonly AgentInstancePayload[] {
-  return useAgentInstancesRead()?.instances ?? NO_INSTANCES;
+/** Every always-on instance of the active view (or owning remote computer); no route behind it yet reads as none. */
+export function useAgentInstances(computerId?: ComputerId): readonly AgentInstancePayload[] {
+  return useAgentInstancesRead(computerId)?.instances ?? NO_INSTANCES;
 }
 
 /**
@@ -111,7 +133,8 @@ export function useAlwaysOnAgents(workspaceId: string, enabled: boolean) {
 /** `failure` null leaves the error to a caller that says so in place. */
 function useInstanceMutation<TInput, TResult>(
   run: (input: TInput) => Promise<TResult>,
-  failure: string | null
+  failure: string | null,
+  computerId?: ComputerId
 ) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -120,7 +143,7 @@ function useInstanceMutation<TInput, TResult>(
       if (failure === null) return;
       notifyUser({ message: error instanceof Error ? error.message : failure, tone: "error" });
     },
-    onSettled: () => invalidateAgentInstances(queryClient),
+    onSettled: () => invalidateAgentInstances(queryClient, computerId),
   });
 }
 
@@ -135,21 +158,44 @@ export function useCreateAgentInstance() {
   });
 }
 
-export function useAgentInstanceActions() {
+export function useAgentInstanceActions(computerId?: ComputerId) {
   const { destination } = useProfilePerProfileScope();
-  const pause = useInstanceMutation(pauseAgentInstance, "Failed to pause this agent.");
+  const pause = useInstanceMutation(
+    (instance: AgentInstancePayload) =>
+      computerId ? pauseAgentInstance(instance, computerId) : pauseAgentInstance(instance),
+    "Failed to pause this agent.",
+    computerId
+  );
   const queryClient = useQueryClient();
-  const resume = useInstanceMutation(async (instance: AgentInstancePayload) => {
-    const resumed = await resumeAgentInstance(instance);
-    applyAgentInstanceUpdate(queryClient, resumed);
-    return resumed;
-  }, "Failed to resume this agent.");
-  const archive = useInstanceMutation(archiveAgentInstance, "Failed to archive this agent.");
+  const resume = useInstanceMutation(
+    async (instance: AgentInstancePayload) => {
+      const resumed = await (computerId
+        ? resumeAgentInstance(instance, computerId)
+        : resumeAgentInstance(instance));
+      applyAgentInstanceUpdate(queryClient, resumed, computerId);
+      return resumed;
+    },
+    "Failed to resume this agent.",
+    computerId
+  );
+  const archive = useInstanceMutation(
+    (instance: AgentInstancePayload) =>
+      computerId ? archiveAgentInstance(instance, computerId) : archiveAgentInstance(instance),
+    "Failed to archive this agent.",
+    computerId
+  );
   const add = useInstanceMutation(
     (params: CreateAgentInstanceParams) => createAgentInstance(params, destination),
     "Failed to start this agent."
   );
-  const ensureMain = useInstanceMutation(ensureAgentInstanceMain, "Failed to open this agent.");
+  const ensureMain = useInstanceMutation(
+    (instance: AgentInstancePayload) =>
+      computerId
+        ? ensureAgentInstanceMain(instance, computerId)
+        : ensureAgentInstanceMain(instance),
+    "Failed to open this agent.",
+    computerId
+  );
   return {
     pause: pause.mutate,
     resume: resume.mutate,
@@ -164,15 +210,25 @@ export function useAgentInstanceActions() {
  * in place. Every resume is attempted; a refusal fails with `AgentResumeError`, naming each
  * agent that stayed paused. `inline` drops the toast for a caller that shows the failure itself.
  */
-export function useResumeAgentInstances({ inline = false }: { inline?: boolean } = {}) {
+export function useResumeAgentInstances({
+  inline = false,
+  computerId,
+}: { inline?: boolean; computerId?: ComputerId } = {}) {
   const queryClient = useQueryClient();
   return useInstanceMutation(
     (instances: readonly AgentInstancePayload[]) =>
       // Each resumed agent moves in every open view at once, before the lists reread.
       resumeInOrder(instances, async instance =>
-        applyAgentInstanceUpdate(queryClient, await resumeAgentInstance(instance))
+        applyAgentInstanceUpdate(
+          queryClient,
+          await (computerId
+            ? resumeAgentInstance(instance, computerId)
+            : resumeAgentInstance(instance)),
+          computerId
+        )
       ),
-    inline ? null : "Failed to resume this agent."
+    inline ? null : "Failed to resume this agent.",
+    computerId
   );
 }
 
@@ -203,16 +259,19 @@ export function useAgentInstanceInScope(name: string, workspace: string | null) 
   );
 }
 
-export function useMarkAgentInstanceSeen() {
+export function useMarkAgentInstanceSeen(computerId?: ComputerId) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: markAgentInstanceSeen,
+    mutationFn: (instance: AgentInstancePayload) =>
+      computerId ? markAgentInstanceSeen(instance, computerId) : markAgentInstanceSeen(instance),
     onError: error => notifyUser({ message: error.message, tone: "error" }),
     onSuccess: async (_, instance) => {
-      invalidateAgentInstanceReads(queryClient, instance.id);
+      invalidateAgentInstanceReads(queryClient, instance.id, computerId);
       await Promise.all([
-        invalidateAgentInstances(queryClient),
-        queryClient.invalidateQueries({ queryKey: agentKeys.instanceAway(instance.id) }),
+        invalidateAgentInstances(queryClient, computerId),
+        queryClient.invalidateQueries({
+          queryKey: agentKeys.forComputer(computerId).instanceAway(instance.id),
+        }),
       ]);
     },
   });

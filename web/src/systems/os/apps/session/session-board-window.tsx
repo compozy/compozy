@@ -9,12 +9,14 @@ import {
   SessionsBoardSelection,
   SessionFoldAllButton,
   SessionViewOptionsMenu,
-  SessionViewToggle,
+  SessionWindowViewControls,
   sessionBoardSort,
 } from "@/systems/session";
+import { sessionRowKeyFor } from "@/systems/session/lib/session-row-ref";
 import { useDataScope } from "@/systems/workspace";
 
 import { OsSessionsDeriveHost } from "../../components/os-sessions-derive-host";
+import { useOsAppLauncher } from "../../hooks/use-os-app-launcher";
 import { useSessionBoardWindow } from "./hooks/use-session-board-window";
 import { useSessionWindowRuntime } from "./hooks/use-session-window-runtime";
 import { SessionBoardDrawer } from "./session-board-drawer";
@@ -59,6 +61,7 @@ export function SessionBoardWindow({
   session: ReactNode;
 }) {
   const scope = useDataScope();
+  const launcher = useOsAppLauncher();
   const runtime = useSessionWindowRuntime(windowId);
   const { sessionId } = runtime;
   const drawerOpen = runtime.drawerOpen && sessionId !== null;
@@ -79,10 +82,16 @@ export function SessionBoardWindow({
   const topbar: TopbarSlotValue = {
     glyph: <SquareKanban />,
     crumb: "Sessions",
-    overflow: <SessionViewToggle onValueChange={setView} value={view.view} />,
+    overflow: (
+      <SessionWindowViewControls
+        onManageComputers={() => launcher.openSettingsSection("computers")}
+        onValueChange={setView}
+        value={view.view}
+      />
+    ),
     actions: (
       <>
-        {board.lanes === null ? null : (
+        {board.lanes === null && (board.computerBands ?? null) === null ? null : (
           <SessionFoldAllButton
             allCollapsed={sidebar.foldAll === "collapsed"}
             onAllCollapsedChange={collapsed =>
@@ -92,6 +101,11 @@ export function SessionBoardWindow({
           />
         )}
         <SessionViewOptionsMenu
+          computerLayout={
+            board.hasRemoteComputers && order.computerScope === "all"
+              ? { value: order.computers, onValueChange: order.setComputers }
+              : undefined
+          }
           groupBy={board.groupBy}
           groupByOptions={board.groupByOptions}
           hideChildren={view.hideChildren}
@@ -108,7 +122,12 @@ export function SessionBoardWindow({
         />
         <Button
           data-testid="sessions-board-new-session"
-          onClick={() => openForAgent("")}
+          onClick={() =>
+            openForAgent(
+              "",
+              order.computerScope !== "all" ? { computerId: order.computerScope } : undefined
+            )
+          }
           size="sm"
           type="button"
           variant="secondary"
@@ -127,6 +146,7 @@ export function SessionBoardWindow({
         <>
           <SessionBoardDrawer
             actions={actions}
+            computerId={runtime.computerId}
             onClose={drawer.close}
             onExpand={() => setView("list")}
             onOpenSession={openInDrawer}
@@ -152,7 +172,11 @@ export function SessionBoardWindow({
                 <SessionsBoard
                   actions={actions}
                   board={board}
-                  currentSessionId={sessionId}
+                  currentSessionId={
+                    sessionId === null
+                      ? null
+                      : sessionRowKeyFor({ id: sessionId, computerId: runtime.computerId })
+                  }
                   onOpen={onOpen}
                 />
               </div>

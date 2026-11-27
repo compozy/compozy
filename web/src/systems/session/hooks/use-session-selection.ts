@@ -7,6 +7,7 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 import { isSubagentSession } from "../lib/session-hierarchy";
 import { sessionIsInLater } from "../lib/session-later";
 import type { SessionListShelf } from "../lib/session-list-shelf";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import type { SessionPayload } from "../types";
 import type { SessionSelectionVerbs } from "../lib/session-selection-verbs";
 
@@ -100,7 +101,7 @@ export function sessionSelectionCounts(
     backFromLaterable: sessions.filter(
       session => sessionIsInLater(session) && !isSubagentSession(session)
     ).length,
-    hiddenByFilter: sessions.filter(session => !visible.has(session.id)).length,
+    hiddenByFilter: sessions.filter(session => !visible.has(sessionRowKeyFor(session))).length,
   };
 }
 
@@ -122,12 +123,12 @@ export function useSessionSelection(
     sessionSelectionLogic.createStore()
   );
   const context = useSelector(store, snapshot => snapshot.context);
-  const currentIds = sessions ? new Set(sessions.map(session => session.id)) : null;
+  const currentIds = sessions ? new Set(sessions.map(session => sessionRowKeyFor(session))) : null;
   const missing = currentIds ? context.selectedIds.filter(id => !currentIds.has(id)) : [];
   const held = missing.length > 0 && holdMissing?.(missing) === true;
   const pruneTo = held ? undefined : sessions;
   useEffect(() => {
-    if (pruneTo) store.trigger.prune({ ids: pruneTo.map(session => session.id) });
+    if (pruneTo) store.trigger.prune({ ids: pruneTo.map(session => sessionRowKeyFor(session)) });
   }, [store, pruneTo]);
   const selectedIds =
     currentIds && !held

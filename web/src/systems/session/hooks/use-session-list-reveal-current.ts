@@ -1,11 +1,14 @@
 import { useEffect, type RefObject } from "react";
 
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import { useSessionListPin } from "./use-session-pin-actions";
 
 function currentRow(root: HTMLElement, sessionId: string): HTMLElement | null {
   for (const row of root.querySelectorAll<HTMLElement>('[data-slot="session-row-target"]')) {
-    if (row.dataset.sessionId === sessionId) return row;
+    const id = row.dataset.sessionId;
+    const computerId = row.closest<HTMLElement>("[data-computer-id]")?.dataset.computerId;
+    if (id && sessionRowKeyFor({ id, computerId }) === sessionId) return row;
   }
   return null;
 }

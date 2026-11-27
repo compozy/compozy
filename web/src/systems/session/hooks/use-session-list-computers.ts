@@ -1,0 +1,88 @@
+import { QueryClientContext } from "@tanstack/react-query";
+import { useContext, useState } from "react";
+
+import { toast } from "@compozy/ui";
+
+import { isRemoteComputerId, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+import { computerRegistryKeys, patchComputer } from "@/systems/computers";
+import { useProfileReadScope } from "@/systems/profiles";
+import { useActiveWorkspace } from "@/systems/workspace";
+
+import {
+  useComputerSessionsSources,
+  type ComputerSessionsSource,
+} from "./use-computer-sessions-sources";
+import { useMultiComputerPinned } from "./use-multi-computer-pinned";
+import { useSessionComputerScope } from "./use-session-computer-scope";
+import type { SessionListViewModel } from "./use-session-list-view";
+
+export function useSessionListComputers(view: SessionListViewModel) {
+  const queryClient = useContext(QueryClientContext);
+  const [reconnectingScoped, setReconnectingScoped] = useState(false);
+  const { dataScope, registeredWorkspaces } = useActiveWorkspace();
+  const profile = useProfileReadScope();
+  const computerScopeState = useSessionComputerScope();
+
+  const computerSources = useComputerSessionsSources({
+    scope: dataScope,
+    lens: profile.params,
+    shelf: view.shelf,
+    showAutomation: view.showAutomation,
+    search: view.groupFilters.q,
+    worktreeId: view.worktreeId,
+    includeResidents:
+      view.groupBy === "project" && view.shelf === "active" && !view.groupFilters.q?.trim(),
+    includeProfiles: view.groupBy === "profile" || isRemoteComputerId(computerScopeState.scope),
+    workspaces: registeredWorkspaces,
+  });
+  const hasRemote = computerSources.hasRemoteComputers;
+  const effectiveComputerScope = hasRemote ? computerScopeState.scope : "all";
+  const isScopedToLocal = hasRemote && effectiveComputerScope === LOCAL_COMPUTER_ID;
+  const scopedRemoteSource = isRemoteComputerId(effectiveComputerScope)
+    ? (computerSources.sources.find(source => source.key === effectiveComputerScope) ?? null)
+    : null;
+  const multiComputerVisible = hasRemote && effectiveComputerScope === "all";
+  const computersLayout = view.computers ?? "separate";
+
+  const multiComputerPinned = useMultiComputerPinned({
+    enabled: (multiComputerVisible || scopedRemoteSource !== null) && view.shelf === "active",
+    sources: scopedRemoteSource ? [scopedRemoteSource] : computerSources.sources,
+    scope: dataScope,
+    localLens: profile.params,
+    groupFilters: view.groupFilters,
+    allProjects: view.allProjects === true,
+    sort: view.sort,
+  });
+
+  const reconnectScopedComputer = (computerId: string) => {
+    setReconnectingScoped(true);
+    void patchComputer(computerId, { enabled: true })
+      .then(() => queryClient?.invalidateQueries({ queryKey: computerRegistryKeys.all }))
+      .catch(err => {
+        toast.error(err instanceof Error ? err.message : "Failed to reconnect computer.");
+      })
+      .finally(() => setReconnectingScoped(false));
+  };
+
+  return {
+    computerScopeState,
+    computerSources,
+    computersLayout,
+    dataScope,
+    isScopedToLocal,
+    localLens: profile.params,
+    multiComputerPinned,
+    multiComputerVisible,
+    reconnectingScoped,
+    reconnectScopedComputer,
+    scopedOfflineComputer: offlineComputer(scopedRemoteSource),
+    scopedRemoteSource,
+  };
+}
+
+function offlineComputer(source: ComputerSessionsSource | null) {
+  if (source === null || (source.read !== "offline" && source.read !== "offline_empty")) {
+    return null;
+  }
+  return "lastConnectedLabel" in source.computer ? source.computer : null;
+}

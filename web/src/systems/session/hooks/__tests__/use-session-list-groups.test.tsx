@@ -108,6 +108,45 @@ function groupsInput(overrides: Partial<SessionListGroupsInput> = {}): SessionLi
 describe("useSessionListGroups", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("Should keep a focused remote profile group on the matched workspace and profile", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const computerId = "cmp_profile";
+    client.setQueryData(profilesListOptions(true, computerId).queryKey, [defaultProfileFixture]);
+    vi.mocked(fetchSessionFacets).mockResolvedValue(
+      facetsResponse([["ws-remote-alpha", counts(2)]], [[defaultProfileFixture.id, counts(2)]])
+    );
+    const { result } = renderHook(
+      () =>
+        useSessionListGroups(
+          groupsInput({
+            computerId,
+            groupBy: "profile",
+            scope: ALPHA,
+            lens: { all_profiles: true },
+            matchedWorkspaceIds: ["ws-remote-alpha"],
+          })
+        ),
+      { wrapper: clientWrapper(client) }
+    );
+
+    await waitFor(() => expect(result.current.groups).toHaveLength(1));
+    expect(result.current.groups[0]).toMatchObject({
+      scope: { kind: "project", workspaceId: "ws-remote-alpha" },
+      matchedWorkspaceIds: ["ws-remote-alpha"],
+      lens: { profile: defaultProfileFixture.name },
+      pair: {
+        computerId,
+        workspaceId: "ws-remote-alpha",
+        profile: defaultProfileFixture.name,
+      },
+    });
+    expect(fetchSessionFacets).toHaveBeenCalledWith(
+      expect.objectContaining({ workspace_ids: ["ws-remote-alpha"], all_profiles: true }),
+      expect.any(AbortSignal),
+      computerId
+    );
+  });
+
   it("W-09: Should list every project group from facets, in switcher order with User last", async () => {
     // ws-alpha's sessions sit on no loaded page; its group still exists because
     // membership comes from facets, not from whatever page the list has read.
@@ -940,6 +979,97 @@ describe("useWorkspaceWorkingSessions", () => {
     const { result } = renderHook(() => useWorkspaceWorkingSessions(false), { wrapper });
 
     expect(result.current).toEqual({});
+    expect(fetchSessionFacets).not.toHaveBeenCalled();
+  });
+});
+
+describe("remote computer session-list pipeline (T-F5)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("Should route remote facets through computerId with all_profiles, population filters and resolved project names", async () => {
+    vi.mocked(fetchSessionFacets).mockResolvedValue(
+      facetsResponse([
+        ["ws_remote_known", counts(4, 1, 1)],
+        ["ws_remote_unmapped", counts(2, 0, 0)],
+      ])
+    );
+    const { result } = renderHook(
+      () =>
+        useSessionListGroups(
+          groupsInput({
+            computerId: "cmp_devbox",
+            lens: { all_profiles: true },
+            workspaces: [{ id: "ws_remote_known", name: "compozy" }],
+          })
+        ),
+      { wrapper }
+    );
+
+    await waitFor(() => expect(result.current.groups).toHaveLength(2));
+    expect(fetchSessionFacets).toHaveBeenCalledWith(
+      expect.objectContaining({
+        all_workspaces: true,
+        all_profiles: true,
+        subagents: "exclude",
+        exclude_automation: true,
+      }),
+      expect.any(AbortSignal),
+      "cmp_devbox"
+    );
+    expect(result.current.groups[0]).toMatchObject({
+      computerId: "cmp_devbox",
+      badge: { kind: "project", name: "compozy" },
+      total: 4,
+    });
+    // Unmapped remote workspace id must never render as raw `ws_…` (P1).
+    expect(result.current.groups[1]?.badge).toEqual({
+      kind: "unknown",
+      name: "Unknown project",
+    });
+  });
+
+  it("Should narrow remote facets by matched workspace_ids under a focused project (Q5) and skip when unmatched", async () => {
+    vi.mocked(fetchSessionFacets).mockResolvedValue(facetsResponse([["ws_r1", counts(3)]]));
+    const { result: matched } = renderHook(
+      () =>
+        useSessionListGroups(
+          groupsInput({
+            computerId: "cmp_devbox",
+            scope: ALPHA,
+            lens: { all_profiles: true },
+            workspaces: [{ id: "ws_r1", name: "Alpha" }],
+            matchedWorkspaceIds: ["ws_r1"],
+          })
+        ),
+      { wrapper }
+    );
+
+    await waitFor(() => expect(matched.current.groups).toHaveLength(1));
+    expect(fetchSessionFacets).toHaveBeenCalledWith(
+      expect.objectContaining({
+        all_workspaces: true,
+        workspace_ids: ["ws_r1"],
+        all_profiles: true,
+      }),
+      expect.any(AbortSignal),
+      "cmp_devbox"
+    );
+
+    vi.clearAllMocks();
+    const { result: unmatched } = renderHook(
+      () =>
+        useSessionListGroups(
+          groupsInput({
+            computerId: "cmp_devbox",
+            scope: ALPHA,
+            lens: { all_profiles: true },
+            workspaces: [],
+            matchedWorkspaceIds: [],
+          })
+        ),
+      { wrapper }
+    );
+    expect(unmatched.current.groups).toEqual([]);
     expect(fetchSessionFacets).not.toHaveBeenCalled();
   });
 });

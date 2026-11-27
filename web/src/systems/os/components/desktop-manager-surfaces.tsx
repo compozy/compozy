@@ -6,6 +6,7 @@ import { useDesktopOverviewDrag } from "../hooks/use-desktop-overview-drag";
 import { useOsShell } from "../hooks/use-os-shell";
 import { tabSessionIds, useTabSessions } from "../hooks/use-os-tab-bar";
 import type { OsWindow } from "../lib/os-types";
+import { sessionWindowLookupKey } from "../lib/session-window-identity";
 import { windowManagerStore } from "../stores/window-manager-store";
 import type { DesktopOverviewItem, DesktopsOverviewState } from "../lib/desktops-overview-model";
 import { DesktopsOverview } from "./desktops-overview";
@@ -86,7 +87,9 @@ export function DesktopManagerSurfaces({
     tabSessionIds(desktops.flatMap(desktop => desktop.tabs.flatMap(tab => tab.members)))
   );
   const sessionOf = (win: OsWindow) =>
-    win.app === "session" && win.instanceKey ? sessionById.get(win.instanceKey) : undefined;
+    win.app === "session" && win.instanceKey
+      ? sessionById.get(sessionWindowLookupKey(win))
+      : undefined;
   const overview = overviewState({
     hydration: model.hydration,
     activeDesktopId: model.activeDesktopId,

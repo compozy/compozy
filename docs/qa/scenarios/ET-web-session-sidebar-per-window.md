@@ -4,16 +4,16 @@ area: ET
 title: Each session window owns its sessions sidebar state
 persona: Bruno
 journey: J-14
-expected: With two session windows side by side, opening or closing the sessions sidebar, collapsing a folder, a child-session thread, or a grouped list's project/profile group in one window leaves the other window unchanged. ⌘B, the palette `sidebar.toggle` command, and the session-cycle shortcut act on the focused window's sidebar. A new session window opens with the sidebar state the operator used last and diverges from then on. A reload restores each window's own sidebar state; closing a window drops its stored sidebar state, while switching to another workspace or profile and back keeps the first one's windows' state. Selecting a session in a window keeps every fold that window had, including a collapsed group. Upgrading from a build with one shared sidebar keeps the operator's open/closed choice and every collapsed folder and thread. Sort order, list scope, and the All profiles lens stay global.
+expected: With two session windows side by side, opening or closing the sessions sidebar, collapsing a folder, a child-session thread, or a grouped list's project/profile group in one window leaves the other window unchanged. ⌘B, the palette `sidebar.toggle` command, and the session-cycle shortcut act on the focused window's sidebar. A new session window opens with the sidebar state the operator used last and diverges from then on. A reload restores each window's own sidebar state; closing a window drops its stored sidebar state, while switching to another workspace or profile and back keeps the first one's windows' state. Selecting a session in a window keeps every fold that window had, including a collapsed group. Upgrading from a build with one shared sidebar keeps the operator's open/closed choice and every collapsed folder and thread. The topbar project scope and profile lens stay global. Each window remembers its computer layout and scope. A new window starts at All computers.
 entry_points: web session window topbar (session-sidebar-toggle); ⌘B and palette `sidebar.toggle`; session-cycle shortcut; SessionSidebar folder and thread toggles; localStorage key compozy:session:sidebar:v1 (schema 3, `byScope` keyed by window id)
-qa_status: pass
+qa_status: untested
 bug_ids: compozy/compozy#843
 fix_status: fixed
 retest_status: pass
 fix_commits:
 evidence: https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/pr-evidence/issue-843/01-two-windows-default.png;https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/pr-evidence/issue-843/02-folder-collapsed-right-only.png;https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/pr-evidence/issue-843/03-cmd-b-focused-left-only.png;https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/pr-evidence/issue-843/04-after-reload-restored.png;https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/pr-evidence/issue-843/05-left-closed-pruned.png
 last_report:
-overlaps: ET-web-session-sidebar-threads; ET-web-session-folders-manual-order
+overlaps: ET-web-session-sidebar-threads; ET-web-session-folders-manual-order; ET-web-sessions-by-computer-list
 ---
 
 Introduced for issue #843. Before the fix one persisted store held the sidebar state for every session window, so a toggle in one window changed all of them.
@@ -27,3 +27,12 @@ QA impact 2026-10-22 (issue #903): group-by group collapse (grouped by project o
 QA impact 2026-10-23 (Sessions Kanban): the same per-window store now also holds the window's List | Kanban view and the board's "Hide child sessions" filter. Both are window-only: a reload restores them, but they never enter the last-used (shell) state, so a new session window always opens in List with children hidden (#1118). Walks live in `ET-web-sessions-board-toggle` and `ET-web-sessions-board-children`; the store invariant is owned by `use-session-sidebar-state.test.ts` (UT-067).
 
 QA impact 2026-11-11 (#1487): the `session-sidebar-toggle` moved from the head's right-side actions to the start of the head, before the project name, in every session window (including the empty Sessions window and always-on mains, where it stays while the list is collapsed). Per-window state, ⌘B and `sidebar.toggle` are unchanged; the lab walk confirmed ⌘B still collapses and reopens the list.
+
+## Sessions by computer
+
+1. Open two Session windows with a remote computer enabled.
+2. Keep **All computers** and select **Together** in the first window.
+3. Select the remote computer in the second window.
+4. Switch each window to Kanban. Confirm that it uses its own layout and scope.
+5. Reload. Confirm both choices persist.
+6. Open a third window. Confirm that it starts at **All computers** and uses the daemon's layout default.

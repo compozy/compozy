@@ -103,7 +103,9 @@ func (r *Registry) Update(ctx context.Context, id remoteproto.ComputerID, patch 
 	if patch.Weight != nil {
 		entry.view.Weight = *patch.Weight
 	}
-	if patch.Enabled != nil && *patch.Enabled != entry.view.Enabled {
+	if patch.Enabled != nil &&
+		(*patch.Enabled != entry.view.Enabled ||
+			(*patch.Enabled && (entry.view.Status == Offline || entry.view.Status == NeedsAttention))) {
 		entry.view.Enabled = *patch.Enabled
 		s.restart(entry)
 	}

@@ -3,6 +3,7 @@ import { shallowEqual } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 import { useEffect, useState } from "react";
 
+import { normalizeComputerId } from "@/lib/computer-scope";
 import { useProfileReadScopeParams } from "@/systems/profiles";
 import { sessionScopedDetailOptions, type SessionPayload, useSessions } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -14,6 +15,7 @@ import type {
   OsWindow,
 } from "../lib/os-types";
 import { leadWindowId, resolveActiveTabId, tabWindowIds } from "../lib/tab-model";
+import { sessionWindowLookupKey } from "../lib/session-window-identity";
 import { allocateTabWidths, type TabWidthAllocation } from "../lib/tab-width";
 import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
 import type { LayoutTab } from "../lib/window-manager-types";
@@ -102,9 +104,12 @@ export function useOsTabModels(): readonly OsTabModel[] {
 }
 
 /** The session IDs a set of windows holds, once each, for `useTabSessions`. */
-export function tabSessionIds(windows: Iterable<Pick<OsWindow, "app" | "instanceKey">>): string[] {
+export function tabSessionIds(
+  windows: Iterable<Pick<OsWindow, "app" | "instanceKey" | "route">>
+): string[] {
   const ids = new Set<string>();
-  for (const win of windows) if (win.app === "session" && win.instanceKey) ids.add(win.instanceKey);
+  for (const win of windows)
+    if (win.app === "session" && win.instanceKey) ids.add(sessionWindowLookupKey(win));
   return [...ids];
 }
 
@@ -135,15 +140,27 @@ export function useTabSessions(sessionIds: readonly string[]): ReadonlyMap<strin
 
 function useSessionsById(sessionIds: readonly string[]): ReadonlyMap<string, SessionPayload> {
   const { runtimeWorkspaceId } = useActiveWorkspace();
-  const listEnabled = sessionIds.length > 0 && runtimeWorkspaceId !== null;
+  const listEnabled = sessionIds.some(id => !id.includes(":")) && runtimeWorkspaceId !== null;
   const sessions = useSessions(runtimeWorkspaceId, { enabled: listEnabled });
   const byId = new Map<string, SessionPayload>();
   for (const session of sessions.data ?? []) byId.set(session.id, session);
   const listSettled = !listEnabled || sessions.data !== undefined || sessions.isError === true;
-  const missing = listSettled ? sessionIds.filter(id => !byId.has(id)) : [];
+  const missing = sessionIds.filter(id => id.includes(":") || (listSettled && !byId.has(id)));
   const params = useProfileReadScopeParams();
   const details = useQueries({
-    queries: missing.map(id => sessionScopedDetailOptions(id, params, { liveTail: false })),
+    queries: missing.map(key => {
+      const separator = key.indexOf(":");
+      if (separator === -1) return sessionScopedDetailOptions(key, params, { liveTail: false });
+      const computerId = normalizeComputerId(key.slice(0, separator));
+      return sessionScopedDetailOptions(
+        key.slice(separator + 1),
+        { all_profiles: true },
+        {
+          computerId,
+          liveTail: false,
+        }
+      );
+    }),
   });
   details.forEach((detail, index) => {
     const id = missing[index];

@@ -1,3 +1,4 @@
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import { notifyUser } from "@/lib/user-feedback";
 import { useAgents } from "@/systems/agent";
@@ -110,7 +111,7 @@ export function useSessionPromptFallback({
           ...(worktreeId ? { worktree: worktreeId } : {}),
         });
         sessionStore.trigger.firstPromptQueued({
-          sessionId: session.id,
+          sessionId: sessionRowKeyFor({ id: session.id, computerId: session.computer_id }),
           text: query,
           ...(options.files?.length ? { files: options.files } : {}),
           ...(options.runtime ? { runtime: options.runtime } : {}),

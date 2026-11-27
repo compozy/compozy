@@ -1,3 +1,5 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { isRemoteComputerId } from "@/lib/computer-scope";
 import { use, type ReactNode } from "react";
 
 import type { SubagentOpenOptions } from "../components/subagents/subagent-card";
@@ -24,16 +26,19 @@ export function SessionSubagentsProvider({
 }) {
   const navigation = use(SubagentNavigationContext);
   const drawer = use(SubagentDrawerContext);
+  const computerId = useCurrentComputerId();
+  const remote = isRemoteComputerId(computerId);
   const onOpen = drawer
     ? (subagent: SubagentView, options: SubagentOpenOptions) =>
         drawer.open(
           { ...subagent, parent_session_id: subagent.parent_session_id || sessionId },
           options,
-          workspaceId
+          workspaceId,
+          ...(remote ? ([computerId] as const) : [])
         )
     : navigation
       ? (subagent: SubagentView, { newWindow }: SubagentOpenOptions) => {
-          const target = subagentNavigationTarget(subagent, workspaceId);
+          const target = subagentNavigationTarget(subagent, workspaceId, computerId);
           if (target) navigation.openSession(target, { newWindow });
         }
       : undefined;

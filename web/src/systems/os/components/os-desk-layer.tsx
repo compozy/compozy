@@ -19,6 +19,7 @@ import { useOsShell } from "../hooks/use-os-shell";
 import { useOsSplitSeam } from "../hooks/use-os-split-seam";
 import { useOsTabDrag } from "../hooks/use-os-tab-drag";
 import type { OsWindow } from "../lib/os-types";
+import { sessionWindowLookupKey } from "../lib/session-window-identity";
 import type { WindowPaneHosts } from "../lib/window-pane-hosts";
 import type { LayoutTab, TabProjection } from "../lib/window-manager-types";
 import type { TabDragState } from "../stores/os-tab-drag-store";
@@ -313,7 +314,7 @@ export function OsDeskLayer({
   const sessionIds = useDesktop(state => tabSessionIds(Object.values(state.windows)), shallowEqual);
   const sessionById = useTabSessions(sessionIds);
   const sessionOf = (win: OsWindow) =>
-    win.app === "session" ? sessionById.get(win.instanceKey ?? "") : undefined;
+    win.app === "session" ? sessionById.get(sessionWindowLookupKey(win)) : undefined;
   return (
     <div ref={layerRef} data-slot="os-desk-layer" className="absolute inset-0">
       {desktops.map(desktop => (

@@ -1,3 +1,4 @@
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { useState } from "react";
 
 import { sessionStore } from "../stores/session-store";
@@ -67,7 +68,7 @@ export function useSessionPromptStaging({
   return {
     session,
     stagePrompt: (text: string) => {
-      sessionStore.trigger.composerDraftChanged({ sessionId: session.id, text });
+      sessionStore.trigger.composerDraftChanged({ sessionId: sessionRowKeyFor(session), text });
       setStaged(true);
     },
     startSession: undefined,

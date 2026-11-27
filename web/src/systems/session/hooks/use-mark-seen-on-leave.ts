@@ -1,9 +1,14 @@
 import { useEffect } from "react";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { markAgentInstanceSeen, type AgentInstanceRef } from "@/systems/agent";
 
 /** Leaving is what marks the visit seen, so the digest stays put while you read it. */
-export function useMarkSeenOnLeave(instance: AgentInstanceRef | undefined, active: boolean) {
+export function useMarkSeenOnLeave(
+  instance: AgentInstanceRef | undefined,
+  active: boolean,
+  computerId?: ComputerId
+) {
   const id = instance?.id;
   const profile_name = instance?.profile_name;
   useEffect(() => {
@@ -12,8 +17,12 @@ export function useMarkSeenOnLeave(instance: AgentInstanceRef | undefined, activ
     return () => {
       // A remount in the same tick isn't leaving.
       if (Date.now() - openedAt > 1000) {
-        void markAgentInstanceSeen({ id, profile_name }).catch(() => undefined);
+        const target = { id, profile_name };
+        const request = isRemoteComputerId(computerId)
+          ? markAgentInstanceSeen(target, computerId)
+          : markAgentInstanceSeen(target);
+        void request.catch(() => undefined);
       }
     };
-  }, [active, id, profile_name]);
+  }, [active, id, profile_name, computerId]);
 }

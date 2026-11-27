@@ -19,6 +19,18 @@ The controller keeps the entry while the computer is offline. It prefers a direc
 
 If the hosted route fails its public TLS handshake and the controller has no working route, `compozy computer status <id> --json` can report `diagnosis.code` as `hosted_route_tls_failed`. Check the hosted route on the target with `compozy remote status --json`.
 
+## View sessions from linked computers
+
+List shows a section for each computer by default. Kanban shows a band for each computer.
+In **View options**, select **Computers → Together** to combine computers in one view.
+To limit a window to one computer, use the picker beside **List | Kanban**.
+
+Each computer owns its folders. To change a remote folder, connect to its computer with the
+`sessions:operate` scope. If the computer goes offline, the controller can show previously loaded
+rows from memory. Those rows are read-only.
+
+See [View sessions by computer](/docs/sessions#view-sessions-by-computer) for the window options.
+
 ## Change how the controller connects
 
 - Run `compozy computer routes devbox` to see available routes. Remove a learned address with `compozy computer routes devbox remove direct:10.0.0.42:47823`.

@@ -1,10 +1,12 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
 import type { SessionPayload } from "../types";
 import { sessionDescendantsOptions } from "./query-options";
 import { readCurrentSessions } from "./session-batch";
 import { isSubagentSession } from "./session-hierarchy";
 import { sessionsRunningProcesses } from "./session-processes";
+import { sessionComputerOf, sessionRowKeyFor, withSessionsComputer } from "./session-row-ref";
 
 export type SessionTreeAction = "archive" | "delete";
 
@@ -42,43 +44,47 @@ export interface SessionChildrenScope {
  */
 export function sessionChildrenScope(
   action: SessionTreeAction,
-  targets: readonly Pick<SessionPayload, "id">[],
+  targets: readonly Pick<SessionPayload, "id" | "computerId">[],
   trees: SessionTrees
 ): SessionChildrenScope {
-  const targetIds = new Set(targets.map(target => target.id));
+  const targetKeys = new Set(targets.map(target => sessionRowKeyFor(target)));
   const members = new Map<string, SessionPayload>();
   const reached = new Map<string, SessionPayload>();
   const covered = new Set<string>();
   for (const target of targets) {
-    for (const child of trees.get(target.id) ?? []) {
-      if (targetIds.has(child.id)) {
-        covered.add(child.id);
+    const targetKey = sessionRowKeyFor(target);
+    for (const child of trees.get(targetKey) ?? []) {
+      const childKey = sessionRowKeyFor(child);
+      if (targetKeys.has(childKey)) {
+        covered.add(childKey);
         continue;
       }
-      if (action === "delete" || !child.archived_at) reached.set(child.id, child);
+      if (action === "delete" || !child.archived_at) reached.set(childKey, child);
       if (action === "delete" || !(isSubagentSession(child) || child.archived_at)) {
-        members.set(child.id, child);
+        members.set(childKey, child);
       }
     }
   }
   const coveredBy = new Map<string, string>();
   for (const target of targets) {
-    if (covered.has(target.id)) continue;
-    for (const child of trees.get(target.id) ?? []) {
-      if (covered.has(child.id)) coveredBy.set(child.id, target.id);
+    const targetKey = sessionRowKeyFor(target);
+    if (covered.has(targetKey)) continue;
+    for (const child of trees.get(targetKey) ?? []) {
+      const childKey = sessionRowKeyFor(child);
+      if (covered.has(childKey)) coveredBy.set(childKey, targetKey);
     }
   }
   return { members: [...members.values()], reached: [...reached.values()], coveredBy };
 }
 
 /** Targets whose tree another target includes run last, so their root can cover them. */
-export function sessionTreeBatchOrder<T extends Pick<SessionPayload, "id">>(
+export function sessionTreeBatchOrder<T extends Pick<SessionPayload, "id" | "computerId">>(
   targets: readonly T[],
   coveredBy: ReadonlyMap<string, string>
 ): T[] {
   return [
-    ...targets.filter(target => !coveredBy.has(target.id)),
-    ...targets.filter(target => coveredBy.has(target.id)),
+    ...targets.filter(target => !coveredBy.has(sessionRowKeyFor(target))),
+    ...targets.filter(target => coveredBy.has(sessionRowKeyFor(target))),
   ];
 }
 
@@ -89,21 +95,27 @@ export async function readSessionTrees(
 ) {
   const reads = await Promise.allSettled(
     sessions.map(async session => {
-      const options = sessionDescendantsOptions(session);
+      const computerId = sessionComputerOf(session);
+      const options = isRemoteComputerId(computerId)
+        ? sessionDescendantsOptions(session, computerId)
+        : sessionDescendantsOptions(session);
       // An already-running read may predate the click; let it settle before refreshing.
       const existing = queryClient
         .getQueryCache()
         .find({ queryKey: options.queryKey, exact: true });
       if (existing?.state.fetchStatus === "fetching") await existing.promise?.catch(() => {});
-      return queryClient.fetchQuery({ ...options, staleTime: 0 });
+      const descendants = await queryClient.fetchQuery({ ...options, staleTime: 0 });
+      return isRemoteComputerId(computerId)
+        ? withSessionsComputer(descendants, computerId)
+        : descendants;
     })
   );
   const trees = new Map<string, readonly SessionPayload[]>();
   const errors = new Map<string, unknown>();
   reads.forEach((read, index) => {
-    const id = sessions[index]!.id;
-    if (read.status === "fulfilled") trees.set(id, read.value);
-    else errors.set(id, read.reason);
+    const key = sessionRowKeyFor(sessions[index]!);
+    if (read.status === "fulfilled") trees.set(key, read.value);
+    else errors.set(key, read.reason);
   });
   return { trees, errors };
 }
@@ -127,7 +139,7 @@ export async function readSessionChoiceTargets(
   }
   return {
     current: {
-      sessions: current.sessions.filter(session => !errors.has(session.id)),
+      sessions: current.sessions.filter(session => !errors.has(sessionRowKeyFor(session))),
       errors: new Map([...current.errors, ...errors]),
     },
     trees,
@@ -147,8 +159,8 @@ export async function readArchivedDescendants(
   if (candidates.length === 0) return [];
   const { sessions } = await readCurrentSessions(queryClient, candidates, true);
   const stayed = new Set<string>();
-  for (const child of sessions) if (!child.archived_at) stayed.add(child.id);
-  return candidates.filter(child => !stayed.has(child.id));
+  for (const child of sessions) if (!child.archived_at) stayed.add(sessionRowKeyFor(child));
+  return candidates.filter(child => !stayed.has(sessionRowKeyFor(child)));
 }
 
 export function sessionChildrenChoice(

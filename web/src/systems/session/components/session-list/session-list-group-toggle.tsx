@@ -16,6 +16,8 @@ export interface SessionListGroupToggleProps {
   signal?: ReactNode;
   /** A collapsed group's needs-you and running counts, for its leading glyph (#1926). */
   leading?: SessionListLeadingSignal;
+  /** The group's own mark in the leading cell at rest; hover shows the chevron. */
+  mark?: ReactNode;
   testId?: string;
 }
 
@@ -27,6 +29,7 @@ export function SessionListGroupToggle({
   onToggle,
   signal,
   leading,
+  mark,
   testId,
 }: SessionListGroupToggleProps) {
   return (
@@ -39,7 +42,7 @@ export function SessionListGroupToggle({
       onClick={onToggle}
       onKeyDown={event => onDisclosureArrowKey(event, !collapsed, onToggle)}
     >
-      <SessionListDisclosureMark open={!collapsed} signal={leading} />
+      <SessionListDisclosureMark mark={mark} open={!collapsed} signal={leading} />
       <span className="flex min-w-0 flex-1 items-center">{identity}</span>
       {collapsed ? signal : null}
       {count === null ? null : <span className="font-mono text-micro text-faint">{count}</span>}

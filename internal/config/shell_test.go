@@ -18,8 +18,12 @@ func TestShellConfig(t *testing.T) {
 
 		got := DefaultShellConfig()
 		if got.Sessions.Sort != ShellSessionSortCreated || got.Sessions.Scope != ShellSessionScopeWorkspace ||
-			got.Sessions.GroupBy != ShellSessionGroupByProject || got.Sessions.GroupByExplicit {
-			t.Fatalf("DefaultShellConfig() = %#v, want created/workspace/project (unset)", got)
+			got.Sessions.GroupBy != ShellSessionGroupByProject || got.Sessions.GroupByExplicit ||
+			got.Sessions.Computers != ShellSessionComputersSeparate || got.Sessions.ComputersExplicit {
+			t.Fatalf(
+				"DefaultShellConfig() = %#v, want created/workspace/project/separate with implicit grouping and layout",
+				got,
+			)
 		}
 		if err := got.Validate(); err != nil {
 			t.Fatalf("Validate(defaults) error = %v", err)
@@ -90,6 +94,13 @@ func TestShellConfig(t *testing.T) {
 				}},
 				path: shellSessionsScopePath,
 			},
+			{
+				name: "Should reject an unsupported computer layout",
+				cfg: ShellConfig{Sessions: ShellSessionsConfig{
+					Sort: ShellSessionSortCreated, Scope: ShellSessionScopeWorkspace, Computers: "merged",
+				}},
+				path: shellSessionsComputersPath,
+			},
 		}
 		for _, testCase := range cases {
 			t.Run(testCase.name, func(t *testing.T) {
@@ -100,8 +111,13 @@ func TestShellConfig(t *testing.T) {
 				if !validationErrOK {
 					t.Fatalf("Validate() error = %v, want ValidationError", err)
 				}
-				if validationErr.Path != testCase.path {
-					t.Fatalf("ValidationError.Path = %q, want %q", validationErr.Path, testCase.path)
+				if validationErr.Code != shellConfigInvalidCode || validationErr.Path != testCase.path {
+					t.Fatalf(
+						"ValidationError = %#v, want %s at %s",
+						validationErr,
+						shellConfigInvalidCode,
+						testCase.path,
+					)
 				}
 			})
 		}
@@ -280,6 +296,27 @@ func TestShellConfig(t *testing.T) {
 }
 
 func TestShellGroupingCompatibility(t *testing.T) {
+	t.Run("Should retain an explicit computer layout across overlays that omit it", func(t *testing.T) {
+		t.Parallel()
+		cfg := Config{Shell: DefaultShellConfig()}
+		dir := t.TempDir()
+		layoutPath := filepath.Join(dir, "layout.toml")
+		sortPath := filepath.Join(dir, "sort.toml")
+		writeFile(t, layoutPath, "[shell.sessions]\ncomputers = \"together\"\n")
+		writeFile(t, sortPath, "[shell.sessions]\nsort = \"name\"\n")
+		for _, path := range []string{layoutPath, sortPath} {
+			if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+				t.Fatalf("ApplyConfigOverlayFile(%s) error = %v", path, err)
+			}
+		}
+		if err := cfg.Shell.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Shell.Sessions.Computers != ShellSessionComputersTogether || !cfg.Shell.Sessions.ComputersExplicit {
+			t.Fatalf("overlay sessions = %#v, want explicit together", cfg.Shell.Sessions)
+		}
+	})
+
 	t.Run("Should derive legacy grouping only until an explicit preference is present", func(t *testing.T) {
 		t.Parallel()
 		for _, legacy := range []ShellSessionScope{ShellSessionScopeAllWorkspaces, ShellSessionScopeWorkspace} {

@@ -1,6 +1,5 @@
 import { emptyForScope } from "@/systems/profiles";
 
-import { useRemoteSessionsFanout } from "../../hooks/use-remote-sessions-fanout";
 import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
 import type { WorkspaceFolderPayload } from "../../types";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
@@ -12,7 +11,6 @@ import { SessionListGroupBody, type GroupRowProps } from "./session-list-group-b
 import { GroupLoadFailure } from "./session-list-group-note";
 import { SessionListGroupHeader, type SessionListGroupArrange } from "./session-list-group-header";
 import { SessionListProjectFolders } from "./session-list-project-folders";
-import { SessionListRemoteGroups } from "./session-list-remote-body";
 import { SessionGroupsSkeleton } from "./session-list-skeleton";
 
 /**
@@ -20,11 +18,12 @@ import { SessionGroupsSkeleton } from "./session-list-skeleton";
  * body. A group that spans pairs renders its split subgroups through this same
  * section, one level in.
  */
-function SessionListGroupSection({
+export function SessionListGroupSection({
   group,
   path,
   nested = false,
   arrange,
+  readOnly,
   ...props
 }: GroupRowProps & {
   group: SessionListGroupSpec;
@@ -33,6 +32,7 @@ function SessionListGroupSection({
   nested?: boolean;
   /** The header's part in project folders, where they apply. */
   arrange?: SessionListGroupArrange;
+  readOnly?: boolean;
 }) {
   const { view, testIdPrefix } = props;
   const collapsed = view.collapsedGroupKeys.has(group.key);
@@ -46,10 +46,12 @@ function SessionListGroupSection({
         onNewSession={props.onNewSession}
         testIdPrefix={testIdPrefix}
         arrange={arrange}
+        readOnly={readOnly || view.readOnly || group.offline}
       />
       {collapsed || !alwaysOnScope ? null : (
         <AlwaysOnProjectRow
           className="px-1 pt-1 pb-1.5 pl-3.5"
+          computerId={group.computerId}
           currentSessionId={props.currentSessionId}
           name={group.badge?.name ?? "this project"}
           onOpenSession={props.onSelectSession}
@@ -72,6 +74,7 @@ function SessionListGroupSection({
                 group={subgroup}
                 path={subPath}
                 nested
+                readOnly={readOnly}
               />
             )}
           />
@@ -87,36 +90,16 @@ export interface SessionListProjectFoldersHost {
 }
 
 /**
- * Group-by groups (ADR-004): membership, counts, and the collapsed needs-you or
- * working dot come from server facets, so an off-page group is never missing.
- * Every expanded group reads and pages its own query; a failed group retries in
- * place. Inside a project group rows omit the project badge; inside a profile
- * group they omit the profile tag.
+ * Group-by groups for one daemon (ADR-004): membership, counts, and the collapsed
+ * needs-you or working dot come from server facets, so an off-page group is never
+ * missing. Every expanded group reads and pages its own query; a failed group
+ * retries in place. Inside a project group rows omit the project badge; inside a
+ * profile group they omit the profile tag.
  */
-export function SessionListGroups(props: GroupRowProps & SessionListProjectFoldersHost) {
-  const { view } = props;
-  const showRemote = view.shelf === "active";
-  const remote = useRemoteSessionsFanout({
-    enabled: showRemote,
-    filters: view.groupFilters.q ? { q: view.groupFilters.q } : undefined,
-  });
-  const hasRemoteResults =
-    showRemote &&
-    (remote.remoteSessions.length > 0 ||
-      remote.loadingComputers.length > 0 ||
-      remote.failedComputers.length > 0);
-  return (
-    <>
-      <LocalSessionListGroups {...props} hasRemoteResults={hasRemoteResults} />
-      {showRemote ? <SessionListRemoteGroups {...props} remote={remote} /> : null}
-    </>
-  );
-}
-
-function LocalSessionListGroups(
-  props: GroupRowProps & SessionListProjectFoldersHost & { hasRemoteResults: boolean }
+export function SessionListGroups(
+  props: GroupRowProps & SessionListProjectFoldersHost & { rankPrefix?: readonly number[] }
 ) {
-  const { view, testIdPrefix } = props;
+  const { view, testIdPrefix, rankPrefix = [] } = props;
   if (view.groupsError) {
     return (
       <GroupLoadFailure
@@ -127,23 +110,25 @@ function LocalSessionListGroups(
   }
   if (view.groupsLoading) return <SessionGroupsSkeleton />;
   if (view.projectFolders) {
-    const { onProjectFolderDialog, ...rows } = props;
+    const { onProjectFolderDialog, rankPrefix: _prefix, ...rows } = props;
     return (
       <SessionListProjectFolders
+        computerId={view.computerId}
         projectFolders={view.projectFolders}
         filtering={props.filtering}
         onFolderDialog={onProjectFolderDialog}
+        readOnly={view.readOnly}
         renderGroup={(group, path, arrange) => (
           <SessionListGroupSection
             key={group.key}
             {...rows}
             group={group}
-            path={path}
+            path={[...rankPrefix, ...path]}
             arrange={arrange}
           />
         )}
         emptyMessage={
-          props.hasRemoteResults || sessionListHasPinnedRows(view)
+          sessionListHasPinnedRows(view)
             ? null
             : `${emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.`
         }
@@ -152,7 +137,7 @@ function LocalSessionListGroups(
     );
   }
   if (view.groups.length === 0) {
-    if (props.hasRemoteResults || sessionListHasPinnedRows(view)) return null;
+    if (sessionListHasPinnedRows(view)) return null;
     return (
       <p className="px-3 py-8 text-center text-small-body text-muted-foreground">
         {emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.
@@ -162,7 +147,12 @@ function LocalSessionListGroups(
   return (
     <div className="flex flex-col gap-1">
       {view.groups.map((group, index) => (
-        <SessionListGroupSection key={group.key} {...props} group={group} path={[index]} />
+        <SessionListGroupSection
+          key={group.key}
+          {...props}
+          group={group}
+          path={[...rankPrefix, index]}
+        />
       ))}
     </div>
   );

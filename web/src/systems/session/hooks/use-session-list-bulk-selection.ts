@@ -17,6 +17,7 @@ import {
 } from "./use-session-list-bulk-folders";
 import { copySessionText } from "../lib/session-copy";
 import { sessionAdoptRefusal } from "../lib/session-reparent";
+import { sessionComputerOf, sessionRowKeyFor } from "../lib/session-row-ref";
 import { sessionSelectionCounts, useSessionSelection } from "./use-session-selection";
 
 interface SessionListBulkSelectionInput {
@@ -46,15 +47,31 @@ function selectionMoveUnder(
   selected: readonly SessionPayload[],
   selectedIds: ReadonlySet<string>
 ): SessionSelectionMoveUnder | undefined {
-  if (!handler || selected.length === 0) return undefined;
-  const parents = sessions.filter(
-    parent =>
-      !selectedIds.has(parent.id) &&
-      selected.some(session => sessionAdoptRefusal(session, parent) === null)
-  );
+  if (
+    !handler ||
+    selected.length === 0 ||
+    selected.some(session => sessionComputerOf(session) !== "local")
+  )
+    return undefined;
+  const parents = sessions.filter(parent => {
+    const parentKey = sessionRowKeyFor(parent);
+    const parentComputer = sessionComputerOf(parent);
+    return (
+      !selectedIds.has(parentKey) &&
+      selected.some(
+        session =>
+          sessionComputerOf(session) === parentComputer &&
+          sessionAdoptRefusal(session, parent) === null
+      )
+    );
+  });
   if (parents.length === 0) return undefined;
   const movable = selected.filter(session =>
-    parents.some(parent => sessionAdoptRefusal(session, parent) === null)
+    parents.some(
+      parent =>
+        sessionComputerOf(session) === sessionComputerOf(parent) &&
+        sessionAdoptRefusal(session, parent) === null
+    )
   ).length;
   return { parents, movable, onMoveUnder: parent => handler(selected, parent) };
 }
@@ -88,7 +105,7 @@ export function useSessionListBulkSelection({
   useLayoutEffect(() => {
     visibleOrderRef.current = visibleOrder;
   }, [visibleOrder]);
-  const sessionsById = new Map(sessions.map(session => [session.id, session]));
+  const sessionsById = new Map(sessions.map(session => [sessionRowKeyFor(session), session]));
   const selectedSessions = selection.selectedIds.flatMap(id => {
     const session = sessionsById.get(id);
     return session ? [session] : [];

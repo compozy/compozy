@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionListShelf } from "../../lib/session-list-shelf";
+import { parseSessionRowKey, withSessionComputer, sessionRowKey } from "../../lib/session-row-ref";
 import { sessionSelectionCounts, useSessionSelection } from "../use-session-selection";
 
 // Invariant: selection belongs to one list identity and ranges use only rendered order.
@@ -120,5 +121,30 @@ describe("useSessionSelection", () => {
       backFromLaterable: 1,
       hiddenByFilter: 3,
     });
+  });
+
+  it("Should key selection by (computerId, sessionId) so identical session ids on two computers never collide (T-F2)", () => {
+    const localSession = { ...primarySessionFixture, id: "sess-shared" };
+    const remoteSession = withSessionComputer(
+      { ...primarySessionFixture, id: "sess-shared" },
+      "cmp_devbox"
+    );
+    const localKey = sessionRowKey({ computerId: "local", sessionId: "sess-shared" });
+    const remoteKey = sessionRowKey({ computerId: "cmp_devbox", sessionId: "sess-shared" });
+    expect(localKey).not.toBe(remoteKey);
+    expect(parseSessionRowKey(localKey)).toEqual({ computerId: "local", sessionId: "sess-shared" });
+    expect(parseSessionRowKey(remoteKey)).toEqual({
+      computerId: "cmp_devbox",
+      sessionId: "sess-shared",
+    });
+
+    const { result, rerender } = renderHook(
+      ({ catalog }) => useSessionSelection("workspace", "active", catalog),
+      { initialProps: { catalog: [localSession, remoteSession] } }
+    );
+    act(() => result.current.toggle(remoteKey));
+    expect(result.current.selectedIds).toEqual([remoteKey]);
+    rerender({ catalog: [localSession] });
+    expect(result.current.selectedIds).toEqual([]);
   });
 });

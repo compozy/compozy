@@ -1,16 +1,22 @@
+import { use } from "react";
+import { isRemoteComputerId } from "@/lib/computer-scope";
+import { SessionWritableComputersContext } from "../../lib/session-list-computer";
 import { ChevronRight } from "@compozy/ui/icons";
 
 import { Icon, StatusDot, cn } from "@compozy/ui";
 
+import { ComputerMark } from "@/systems/computers";
 import { openContextMenuFromKeyboard } from "@/systems/os";
 
 import { useSessionsBoardColumns, type SessionsBoardLane } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
+import { sessionRowKeyFor } from "../../lib/session-row-ref";
 import {
   sessionListGroupTarget,
   sessionListGroupEmptyMessage,
   sessionListGroupSignalLabel,
 } from "../../lib/session-list-groups";
+import { SessionListDisclosureMark } from "../session-list/session-list-disclosure-mark";
 import {
   SessionListGroupIdentity,
   SessionListGroupSignal,
@@ -51,17 +57,29 @@ export function SessionsBoardSwimlane({
 }) {
   const empty = lane.group.total === 0;
   const open = !lane.collapsed && !empty;
-  const columns = useSessionsBoardColumns(lane.filters, open);
+  const computerId = lane.group.computerId;
+  const writable = use(SessionWritableComputersContext);
+  const columns = useSessionsBoardColumns(
+    lane.filters,
+    open && lane.group.offline !== true,
+    computerId,
+    open && lane.group.offline === true
+  );
   const name = laneName(lane);
   const testId = `sessions-board-lane-${lane.group.key}`;
   const alwaysOnScope =
     lane.group.kind === "project" ? sessionListGroupTarget(lane.group).workspaceId : null;
   // The lane's select-all covers the cards its columns show; a folded column shows none.
-  const shownIds = open
-    ? columns.flatMap(column =>
-        props.collapsedColumns[column.id] === true ? [] : column.sessions.map(session => session.id)
-      )
-    : [];
+  const eligible =
+    !computerId || !isRemoteComputerId(computerId) || writable?.has(computerId) !== false;
+  const shownIds =
+    open && eligible
+      ? columns.flatMap(column =>
+          props.collapsedColumns[column.id] === true
+            ? []
+            : column.sessions.map(session => sessionRowKeyFor(session))
+        )
+      : [];
   return (
     <section
       aria-label={name}
@@ -77,6 +95,7 @@ export function SessionsBoardSwimlane({
         {alwaysOnScope ? (
           <AlwaysOnProjectRow
             className="flex-1 pl-2"
+            computerId={computerId}
             currentSessionId={props.currentSessionId}
             limit={BOARD_ROW_LIMIT}
             name={name}
@@ -118,6 +137,10 @@ function SessionsBoardLaneToggle({
   const waiting = lane.group.instancesNeedingAttention;
   const projectLane = lane.group.kind === "project" && lane.group.scope.kind === "project";
   const signal = lane.collapsed ? sessionListGroupSignalLabel(lane.group) : null;
+  const mark =
+    lane.group.computerName && lane.group.computerPlatform && lane.group.computerIconKind ? (
+      <ComputerMark iconKind={lane.group.computerIconKind} platform={lane.group.computerPlatform} />
+    ) : undefined;
   return (
     <SessionListGroupProjectMenu group={lane.group}>
       <header className="min-w-0">
@@ -125,7 +148,7 @@ function SessionsBoardLaneToggle({
           aria-expanded={!lane.collapsed}
           className={cn(
             SESSIONS_BOARD_LANE_HEADER,
-            "rounded-sm transition-colors outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring"
+            "group/disclosure rounded-sm transition-colors outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring"
           )}
           data-testid={`${testId}-header`}
           onClick={lane.onToggle}
@@ -137,14 +160,26 @@ function SessionsBoardLaneToggle({
               }
             : {})}
         >
-          <Icon
-            as={ChevronRight}
-            className={cn(
-              "shrink-0 text-faint transition-transform",
-              !lane.collapsed && "rotate-90"
-            )}
-            size="sm"
-          />
+          {mark ? (
+            <SessionListDisclosureMark
+              mark={mark}
+              open={!lane.collapsed}
+              signal={{
+                needsYou: lane.group.needsYou,
+                working: lane.group.working,
+                slot: "session-group",
+              }}
+            />
+          ) : (
+            <Icon
+              as={ChevronRight}
+              className={cn(
+                "shrink-0 text-faint transition-transform",
+                !lane.collapsed && "rotate-90"
+              )}
+              size="sm"
+            />
+          )}
           <SessionListGroupIdentity group={lane.group} />
           {lane.collapsed ? <SessionListGroupSignal group={lane.group} /> : null}
           <span className={SESSIONS_BOARD_LANE_COUNT} data-testid={`${testId}-count`}>

@@ -21,6 +21,8 @@ export interface SessionListCreateMenuProps {
   onAddAlwaysOn?: () => void;
   /** Rendered over the `+`: the picker that item opens. */
   overlay?: ReactNode;
+  /** The folder item's name where it makes a specific kind of folder. */
+  folderLabel?: string;
   /** Accessible name of the single-action button and of the menu trigger. */
   label?: { session: string; menu: string };
   variant?: "secondary" | "quiet";
@@ -44,6 +46,7 @@ export function SessionListCreateMenu({
   newFolderUnavailable,
   onAddAlwaysOn,
   overlay,
+  folderLabel = "New folder",
   label = DEFAULT_LABEL,
   variant = "secondary",
   size = "icon-sm",
@@ -95,10 +98,10 @@ export function SessionListCreateMenu({
             >
               <Icon as={FolderPlus} size="sm" />
               {onNewFolder ? (
-                "New folder"
+                folderLabel
               ) : (
                 <span className="flex min-w-0 flex-col">
-                  New folder
+                  {folderLabel}
                   <span
                     className="text-micro text-subtle"
                     data-testid={`${testId}-new-folder-unavailable`}

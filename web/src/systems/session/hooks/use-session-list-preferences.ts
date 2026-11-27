@@ -4,6 +4,7 @@ import { useSettingsShell } from "@/systems/settings";
 import { observeLegacySessionsScope } from "@/systems/workspace";
 
 import {
+  toSessionListComputerLayout,
   toSessionListGroupBy,
   toSessionListSort,
   type SessionListPreferences,
@@ -47,6 +48,7 @@ export function useSessionListPreferences(): SessionListPreferencesModel {
   return {
     sort: toSessionListSort(sessions?.sort),
     groupBy: toSessionListGroupBy(sessions?.group_by),
+    computers: toSessionListComputerLayout(sessions?.computers),
     loading: query.isLoading,
   };
 }

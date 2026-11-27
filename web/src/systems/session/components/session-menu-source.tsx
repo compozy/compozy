@@ -17,6 +17,7 @@ import { useSessionFolders } from "../hooks/use-session-folders";
 import { useSessionLinkedWork } from "../hooks/use-session-linked-work";
 import { sessionFolderId, sessionHasOwnPlacement } from "../lib/session-folders";
 import { sessionTreeParentId } from "../lib/session-hierarchy";
+import { sessionComputerOf } from "../lib/session-row-ref";
 import type { SessionPayload } from "../types";
 
 type Render<T> = (value: T) => ReactNode;
@@ -51,9 +52,11 @@ function LinkedWorkSource({
   children: Render<SessionMenuSourceData["linkedWork"]>;
 }) {
   const lead = !!session.linked_work?.lead;
+  const computerId = sessionComputerOf(session);
   const model = useSessionLinkedWork({
     session,
     workspaceId: scopeSelector(session),
+    computerId,
     // A menu reads the list once; only a visible list keeps rereading it.
     enabled: false,
     read: lead,
@@ -83,6 +86,7 @@ function FolderSource({
   const { layout } = useSessionFolders({
     workspaceId: scopeSelector(session),
     profile: session.profile_name,
+    computerId: sessionComputerOf(session),
     enabled: placed,
   });
   if (!placed || !layout) return children(undefined);

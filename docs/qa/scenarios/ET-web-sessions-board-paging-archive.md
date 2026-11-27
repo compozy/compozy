@@ -4,7 +4,7 @@ area: ET
 title: Board columns page by 50 and archived sessions live in the Archive bar
 persona: Bruno
 journey:
-expected: Each board column loads 50 cards and ends with "Load more N of M" while the column holds more; M is the `facets.board` count and stays the full column total. Loading more appends the next page without reordering the loaded cards. Every column starts expanded and folds into a narrow rail (glyph, vertical name, count) that expands it again (ET-web-sessions-board-fold-waiting). Archived sessions never appear in the columns; an "Archive N" bar at the bottom, collapsed by default and absent when N = 0, lists them as cards when expanded, and clicking one opens it. Archiving a session from its menu removes its card from its column. A failed column read shows "Couldn't load … sessions." with Retry while the other columns keep working.
+expected: Each board column loads 50 cards and ends with "Load more N of M" while the column holds more; M is the `facets.board` count and stays the full column total. Loading more appends the next page without reordering the loaded cards. Every column starts expanded and folds into a narrow rail (glyph, vertical name, count) that expands it again (ET-web-sessions-board-fold-waiting). Archived sessions never appear in the columns; an "Archive N" bar at the bottom, collapsed by default and absent when N = 0, lists them as cards when expanded, and clicking one opens it. Archiving a session from its menu removes its card from its column. A failed column read shows "Couldn't load … sessions." with Retry while the other columns keep working. The Archive and Later bars sum counts from responding computers and label remote cards with their computer name.
 entry_points: SessionsBoardColumn (sessions-board-load-more-<column>, sessions-board-column-toggle-<column>); SessionsBoardArchiveBar (sessions-board-archive-toggle); GET /api/sessions?board_column=done&limit=50&cursor=…; GET /api/sessions?archive=only
 qa_status: untested
 bug_ids:
@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: ET-web-sessions-board-toggle
+overlaps: ET-web-sessions-board-toggle; ET-web-sessions-by-computer-kanban
 ---
 
 Introduced by the Sessions Kanban spec (US-012.EC-4, US-016, E2E-006, visual contract VC-21..VC-26).
@@ -55,3 +55,11 @@ frames still reconcile immediately. Generate catalog events in another profile o
 All-projects Project filter and verify those mounted pages/facets do not refetch. Then reconnect:
 all mounted catalog scopes must reconcile, including workspace pages and the aggregate. Preserve
 column membership, exact counts and the settled foreign by-id read behavior.
+
+## Sessions by computer
+
+1. Archive and park different sessions on each of two computers.
+2. Compare both bar counts with the sum of the per-computer counts.
+3. Open both bars. Confirm remote cards display their computer name.
+4. Open a remote card and confirm the drawer uses the remote computer.
+5. Select one computer. Confirm both bars show only its cards and counts.

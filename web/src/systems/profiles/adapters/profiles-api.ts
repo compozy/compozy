@@ -1,9 +1,11 @@
 import {
   apiClient,
+  apiClientFor,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
 } from "@/lib/api-client";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 
 import type {
   ArchiveProfilePlan,
@@ -57,8 +59,12 @@ function profileError(fallback: string, response: Response, error: unknown): Pro
   );
 }
 
-export async function fetchProfiles(signal?: AbortSignal): Promise<ProfilePayload[]> {
-  const { data, error, response } = await apiClient.GET("/api/profiles", { signal });
+export async function fetchProfiles(
+  signal?: AbortSignal,
+  computerId?: ComputerId
+): Promise<ProfilePayload[]> {
+  const client = isRemoteComputerId(computerId) ? apiClientFor(computerId) : apiClient;
+  const { data, error, response } = await client.GET("/api/profiles", { signal });
   if (apiRequestFailed(response, error)) {
     throw profileError("Failed to load profiles", response, error);
   }

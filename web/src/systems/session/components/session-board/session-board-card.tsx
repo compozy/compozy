@@ -1,5 +1,7 @@
+import { useContext } from "react";
 import { Checkbox } from "@compozy/ui";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { cn } from "@/lib/utils";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
@@ -11,6 +13,12 @@ import { useSessionBoardCardSelection } from "../../hooks/use-sessions-board-vie
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { linkedSessionFacts, summaryMoreLabel } from "../../lib/session-linked-work";
+import {
+  lookupSessionComputer,
+  SessionListComputerContext,
+  SessionWritableComputersContext,
+} from "../../lib/session-list-computer";
+import { sessionComputerOf, sessionRowKey } from "../../lib/session-row-ref";
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu } from "../session-row-context-menu";
 import { AlwaysOnCreatorBadge } from "../always-on/always-on-signals";
@@ -21,6 +29,8 @@ import { SESSION_BOARD_CARD_CHECKBOX } from "./sessions-board-frame";
 
 export interface SessionBoardCardProps {
   session: SessionBoardPayload;
+  /** The computer owning this card; omitted defaults to the session's recorded provenance or local. */
+  computerId?: ComputerId;
   /** All projects: the workspace name, shown in the meta row when the card has no PR. */
   workspaceName?: string | null;
   current?: boolean;
@@ -54,13 +64,27 @@ type CardSelection = NonNullable<ReturnType<typeof useSessionBoardCardSelection>
  * several opens the selection's "N sessions" menu instead of its own.
  */
 export function SessionBoardCard({ actions, ...props }: SessionBoardCardProps) {
-  const { session } = props;
-  const selection = useSessionBoardCardSelection(session.id);
+  const { session, computerId } = props;
+  const effectiveComputerId = computerId ?? sessionComputerOf(session);
+  const rowKey = sessionRowKey({ computerId: effectiveComputerId, sessionId: session.id });
+  const computer = lookupSessionComputer(
+    useContext(SessionListComputerContext),
+    session.id,
+    effectiveComputerId
+  );
+  const writable = useContext(SessionWritableComputersContext);
+  const readOnly =
+    computer?.offline === true ||
+    (isRemoteComputerId(effectiveComputerId) &&
+      writable !== undefined &&
+      !writable.has(effectiveComputerId));
+  const cardSelection = useSessionBoardCardSelection(rowKey);
+  const selection = readOnly ? null : cardSelection;
   const button = <SessionBoardCardButton {...props} selection={selection} />;
   const checkbox = selection ? (
     <SessionBoardCardCheckbox selection={selection} session={session} />
   ) : null;
-  if (!actions) {
+  if (!actions || readOnly) {
     // Without verbs there is no menu, but a selectable card still shows its checkbox.
     return checkbox ? (
       <div className={SESSION_BOARD_CARD_FRAME_GROUP}>
@@ -112,7 +136,10 @@ function SessionBoardCardButton({
   const preloadHandlers = useSessionEntryPreload(props.session, !props.current && !selection?.mode);
   const runtime = useSessionRowRuntimeLabel(props.session);
   const creator = useSessionCreator(props.session);
-  const draft = useSessionHasDraft(props.session.id);
+  const draft = useSessionHasDraft(
+    props.session.id,
+    props.computerId ?? sessionComputerOf(props.session)
+  );
   const links = props.session.linked_work;
   const more = links ? summaryMoreLabel(links) : null;
   return (

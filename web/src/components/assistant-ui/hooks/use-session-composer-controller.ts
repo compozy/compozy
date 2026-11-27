@@ -1,3 +1,5 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { sessionRowKeyFor } from "@/systems/session/lib/session-row-ref";
 import { useAuiState } from "@assistant-ui/react";
 import { use, useEffect, useRef, useState } from "react";
 
@@ -105,6 +107,7 @@ export function useSessionComposerController({
     dismissMentionTrigger,
     recordMentionPick,
   } = useSessionMentionTrigger();
+  const sessionKey = sessionRowKeyFor({ id: sessionId, computerId: useCurrentComputerId() });
   const stagedQuote = useSessionTerminalQuote(sessionId);
   const transportDisconnected = isSessionTransportDisconnected(useSessionTransportState());
   const trimmedComposerText = composerText.trim();
@@ -168,13 +171,13 @@ export function useSessionComposerController({
     draft: { attachments: promptAttachments, message: promptText },
     onDraftConsumed: () => {
       discardSessionTerminalQuote(sessionId);
-      sessionStore.trigger.composerPromptRefusalDismissed({ sessionId });
+      sessionStore.trigger.composerPromptRefusalDismissed({ sessionId: sessionKey });
     },
   });
   const { dismissFeedback, feedback } = busyActions;
   useEffect(() => {
-    if (feedback) sessionStore.trigger.composerPromptRefusalDismissed({ sessionId });
-  }, [feedback, sessionId]);
+    if (feedback) sessionStore.trigger.composerPromptRefusalDismissed({ sessionId: sessionKey });
+  }, [feedback, sessionKey]);
   const visibleFeedback = visibleComposerFeedback(feedback, composerText);
 
   useEffect(() => {

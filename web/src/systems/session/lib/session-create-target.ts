@@ -1,3 +1,4 @@
+import type { ComputerId } from "@/lib/computer-scope";
 import {
   DESTINATION_COPY,
   USER_SCOPE_SELECTOR,
@@ -18,6 +19,10 @@ export interface SessionCreateOpenOptions {
   /** A workspace id, or `@user` for User. */
   workspaceId?: string;
   profile?: string;
+  /** Target computer (`F10`); preselects Run on when set. */
+  computerId?: ComputerId;
+  /** When true, Run on starts fixed to `computerId` (not Auto) (`R14`, `R15`). */
+  fixedComputer?: boolean;
 }
 
 /** One row of a destination picker. */

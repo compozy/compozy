@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@compozy/ui";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import {
   moveSessionToLater,
   resumeSessionFromLater,
@@ -14,6 +16,7 @@ import {
   runSessionBatch,
   sessionBatchFailureMessage,
 } from "../lib/session-batch";
+import { sessionComputerOf, sessionRowKeyFor } from "../lib/session-row-ref";
 import type { SessionBatchAdmission } from "./use-session-batch-admission";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import type { SessionPayload } from "../types";
@@ -70,12 +73,27 @@ export function useMoveSessionToLater() {
       workspace_id,
       profile_name,
       body,
+      computerId,
     }: SessionActionTarget & { body: MoveSessionToLaterRequest }) =>
       request(signal =>
-        moveSessionToLater(ownerWorkspace(workspace_id), id, profile_name, body, signal)
+        isRemoteComputerId(computerId)
+          ? moveSessionToLater(
+              ownerWorkspace(workspace_id),
+              id,
+              profile_name,
+              body,
+              signal,
+              computerId
+            )
+          : moveSessionToLater(ownerWorkspace(workspace_id), id, profile_name, body, signal)
       ),
-    onSettled: (_data, _error, { id, workspace_id }) => {
-      void invalidateSessionMutationQueries(queryClient, ownerWorkspace(workspace_id), id);
+    onSettled: (_data, _error, { id, workspace_id, computerId }) => {
+      void invalidateSessionMutationQueries(
+        queryClient,
+        ownerWorkspace(workspace_id),
+        id,
+        computerId
+      );
     },
   });
 }
@@ -85,12 +103,26 @@ export function useResumeSessionFromLater() {
   const queryClient = useQueryClient();
   const request = useAbortableMutationRequest();
   return useMutation({
-    mutationFn: ({ id, workspace_id, profile_name }: SessionActionTarget) =>
+    mutationFn: ({ id, workspace_id, profile_name, computerId }: SessionActionTarget) =>
       request(signal =>
-        resumeSessionFromLater(ownerWorkspace(workspace_id), id, profile_name, {}, signal)
+        isRemoteComputerId(computerId)
+          ? resumeSessionFromLater(
+              ownerWorkspace(workspace_id),
+              id,
+              profile_name,
+              {},
+              signal,
+              computerId
+            )
+          : resumeSessionFromLater(ownerWorkspace(workspace_id), id, profile_name, {}, signal)
       ),
-    onSettled: (_data, _error, { id, workspace_id }) => {
-      void invalidateSessionMutationQueries(queryClient, ownerWorkspace(workspace_id), id);
+    onSettled: (_data, _error, { id, workspace_id, computerId }) => {
+      void invalidateSessionMutationQueries(
+        queryClient,
+        ownerWorkspace(workspace_id),
+        id,
+        computerId
+      );
     },
   });
 }
@@ -108,14 +140,24 @@ export function useSessionLaterActions({
   busy,
   batchRunning,
   onMovedToLater,
+  computerOf,
+  computerNameOf,
 }: {
   busy: boolean;
   batchRunning: SessionBatchAdmission;
   /** Each session this host moved to Later, single or batched, once the daemon confirmed it. */
   onMovedToLater?: (session: SessionPayload) => void;
+  computerOf?: (session: SessionPayload) => ComputerId | undefined;
+  computerNameOf?: (computerId: ComputerId) => string | undefined;
 }) {
   const move = useMoveSessionToLater();
   const back = useResumeSessionFromLater();
+  const withComputer = (session: SessionPayload) => {
+    const targetComputer = computerOf?.(session) ?? sessionComputerOf(session);
+    return isRemoteComputerId(targetComputer)
+      ? { ...session, computerId: targetComputer }
+      : session;
+  };
   const [target, setTarget] = useState<{
     sessions: readonly SessionPayload[];
     skipped: ReadonlyMap<string, number>;
@@ -144,17 +186,17 @@ export function useSessionLaterActions({
     if (batchRunning.held()) return Promise.resolve(null);
     batchRunning.hold();
     setBatch({ action, runningIds: [] });
-    const byId = new Map(sessions.map(session => [session.id, session]));
+    const byId = new Map(sessions.map(session => [sessionRowKeyFor(session), session]));
     return runSessionBatch({
       action,
-      ids: sessions.map(session => session.id),
+      ids: sessions.map(session => sessionRowKeyFor(session)),
       previous: [],
       sessions,
-      execute: id => execute(byId.get(id)!),
+      execute: rowKey => execute(byId.get(rowKey)!),
       onProgress: results => setBatch({ action, runningIds: runningSessionIds(results) }),
     })
       .then(results => {
-        reportBatch(action, results, sessions, skipped);
+        reportBatch(action, results, sessions, skipped, computerNameOf);
         return results;
       })
       .finally(() => {
@@ -169,7 +211,7 @@ export function useSessionLaterActions({
     if (sessions.length === 1 && skipped.size === 0) {
       const session = sessions[0]!;
       move.mutate(
-        { ...session, body },
+        { ...withComputer(session), body },
         {
           onError: error => reportError("later", error),
           onSuccess: () => {
@@ -181,14 +223,15 @@ export function useSessionLaterActions({
       return;
     }
     void runBatch("later", sessions, skipped, async session => {
-      await move.mutateAsync({ ...session, body });
+      await move.mutateAsync({ ...withComputer(session), body });
       onMovedToLater?.(session);
     }).then(results => {
       // A partial failure keeps the dialog open on the sessions still to move,
       // with the same reason and date, so a retry does not retype the form.
-      const failed = sessions.filter(session =>
-        results?.some(result => result.id === session.id && result.status === "failed")
+      const failedKeys = new Set(
+        (results ?? []).flatMap(result => (result.status === "failed" ? [result.id] : []))
       );
+      const failed = sessions.filter(session => failedKeys.has(sessionRowKeyFor(session)));
       setTarget(failed.length > 0 ? { sessions: failed, skipped: new Map() } : null);
     });
   };
@@ -207,13 +250,17 @@ export function useSessionLaterActions({
       },
       onBackFromLater: (session: SessionPayload) => {
         if (!locked())
-          back.mutate(session, { onError: error => reportError("back-from-later", error) });
+          back.mutate(withComputer(session), {
+            onError: error => reportError("back-from-later", error),
+          });
       },
       onBackFromLaterMany: (sessions: readonly SessionPayload[]) => {
         if (locked()) return;
         const { eligible, skipped } = eligibleFor("back-from-later", sessions);
         if (eligible.length > 0) {
-          void runBatch("back-from-later", eligible, skipped, session => back.mutateAsync(session));
+          void runBatch("back-from-later", eligible, skipped, session =>
+            back.mutateAsync(withComputer(session))
+          );
         }
       },
     },

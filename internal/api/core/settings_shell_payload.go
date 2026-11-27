@@ -32,12 +32,16 @@ func settingsShellPayload(cfg compozyconfig.ShellConfig) contract.SettingsShellP
 	monoFont := cfg.Appearance.MonoFont
 	textSize := contract.SettingsShellTextSize(cfg.Appearance.TextSize.Normalized())
 	letterSpacing := contract.SettingsShellLetterSpacing(cfg.Appearance.LetterSpacing.Normalized())
+	sessions := contract.SettingsShellSessionsPayload{
+		GroupBy: contract.SettingsShellSessionGroupBy(cfg.Sessions.GroupBy),
+		Sort:    contract.SettingsShellSessionSort(cfg.Sessions.Sort),
+		Scope:   contract.SettingsShellSessionScope(cfg.Sessions.Scope),
+	}
+	if cfg.Sessions.ComputersExplicit {
+		sessions.Computers = new(contract.SettingsShellSessionComputers(cfg.Sessions.Computers))
+	}
 	return contract.SettingsShellPayload{
-		Sessions: contract.SettingsShellSessionsPayload{
-			GroupBy: contract.SettingsShellSessionGroupBy(cfg.Sessions.GroupBy),
-			Sort:    contract.SettingsShellSessionSort(cfg.Sessions.Sort),
-			Scope:   contract.SettingsShellSessionScope(cfg.Sessions.Scope),
-		},
+		Sessions: sessions,
 		Appearance: &contract.SettingsShellAppearancePayload{
 			UIFont:        &uiFont,
 			MonoFont:      &monoFont,
@@ -55,6 +59,10 @@ func shellConfigFromPayload(payload contract.SettingsShellPayload) (compozyconfi
 		Sort:            compozyconfig.ShellSessionSort(payload.Sessions.Sort),
 		Scope:           compozyconfig.ShellSessionScope(payload.Sessions.Scope),
 	}}
+	if payload.Sessions.Computers != nil {
+		value.Sessions.Computers = compozyconfig.ShellSessionComputers(*payload.Sessions.Computers)
+		value.Sessions.ComputersExplicit = true
+	}
 	if appearance := payload.Appearance; appearance != nil {
 		if appearance.UIFont != nil {
 			value.Appearance.UIFont = *appearance.UIFont

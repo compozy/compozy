@@ -4287,8 +4287,7 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// required/type/removal change.
 	addQueuedInputMentions(t, baseline)
 
-	// #984: optional additive shell font preferences; no required/type/removal change.
-	addShellAppearanceSchema(t, baseline)
+	addShellSettingsSchemaFields(t, baseline)
 
 	// #993: optional additive delegated-child liveness on subagent rows; no
 	// required/type/removal change.
@@ -5472,7 +5471,7 @@ func addSubagentUsage(node any) int {
 	}
 }
 
-func addShellAppearanceSchema(t *testing.T, baseline map[string]any) {
+func addShellSettingsSchemaFields(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	var appearance map[string]any
 	if err := json.Unmarshal([]byte(`{"oneOf":[
@@ -5500,6 +5499,14 @@ func addShellAppearanceSchema(t *testing.T, baseline map[string]any) {
 			t.Fatal("approved shell appearance addition: appearance already exists in the historical baseline")
 		}
 		configProperties["appearance"] = appearance
+		sessions := configProperties["sessions"].(map[string]any)
+		sessionProperties := sessions["properties"].(map[string]any)
+		if _, exists := sessionProperties["computers"]; exists {
+			t.Fatal("approved computer layout addition: computers already exists in the historical baseline")
+		}
+		sessionProperties["computers"] = map[string]any{
+			"type": "string", "nullable": true, "enum": []any{"together", "separate"},
+		}
 	}
 }
 

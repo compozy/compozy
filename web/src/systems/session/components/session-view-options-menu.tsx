@@ -7,7 +7,9 @@ import {
   FolderGit2,
   FolderOpen,
   GripVertical,
+  Layers,
   ListTree,
+  Monitor,
   Rows3,
   SlidersHorizontal,
   UserRound,
@@ -34,7 +36,9 @@ import {
 
 import {
   DEFAULT_SESSION_LIST_PREFERENCES,
+  SESSION_LIST_COMPUTER_LAYOUTS,
   SESSION_LIST_SORTS,
+  type SessionListComputerLayout,
   type SessionListGroupBy,
   type SessionListSort,
 } from "../lib/session-list-preferences";
@@ -52,6 +56,14 @@ const GROUP_BY_ITEMS: Record<SessionListGroupBy, { label: string; icon: LucideIc
   none: { label: "None", icon: Rows3 },
   project: { label: "Project", icon: FolderGit2 },
   profile: { label: "Profile", icon: UserRound },
+};
+
+const COMPUTER_LAYOUT_ITEMS: Record<
+  SessionListComputerLayout,
+  { label: string; icon: LucideIcon }
+> = {
+  together: { label: "Together", icon: Layers },
+  separate: { label: "Separate", icon: Monitor },
 };
 
 /** Sections read as blocks: the rule is the line token, not the softer one between rows. */
@@ -107,6 +119,14 @@ export interface SessionViewOptionsMenuProps {
   onGroupByChange: (groupBy: SessionListGroupBy) => void;
   /** Groupings available now; with only `none` the section has nothing to offer. */
   groupByOptions: readonly SessionListGroupBy[];
+  /**
+   * How remote computers share the list: merged, or one section per computer with the grouping
+   * inside each. Absent when the window shows one computer.
+   */
+  computerLayout?: {
+    value: SessionListComputerLayout;
+    onValueChange: (value: SessionListComputerLayout) => void;
+  };
   /** Project grouping's "Show empty projects" (#1085), shared by the window's List and Kanban. */
   showEmptyProjects: boolean;
   onShowEmptyProjectsChange: (show: boolean) => void;
@@ -138,6 +158,7 @@ export function SessionViewOptionsMenu({
   groupBy,
   onGroupByChange,
   groupByOptions,
+  computerLayout,
   showEmptyProjects,
   onShowEmptyProjectsChange,
   hideChildren = true,
@@ -156,7 +177,11 @@ export function SessionViewOptionsMenu({
   const defaultGroupBy = groupByOptions.includes(DEFAULT_SESSION_LIST_PREFERENCES.groupBy)
     ? DEFAULT_SESSION_LIST_PREFERENCES.groupBy
     : "none";
-  const marked = groupBy !== defaultGroupBy || showsChildren || showsAutomation;
+  const nonDefaultComputers =
+    computerLayout !== undefined &&
+    computerLayout.value !== DEFAULT_SESSION_LIST_PREFERENCES.computers;
+  const marked =
+    groupBy !== defaultGroupBy || showsChildren || showsAutomation || nonDefaultComputers;
   return (
     <DropdownMenu>
       {/* No tooltip: focus returns here when the menu closes, and an open tooltip would take
@@ -212,6 +237,19 @@ export function SessionViewOptionsMenu({
                 </DropdownMenuCheckboxItem>
               ) : null}
             </ChoiceSection>
+          </>
+        ) : null}
+        {computerLayout ? (
+          <>
+            <DropdownMenuSeparator className={SECTION_DIVIDER} />
+            <ChoiceSection
+              items={COMPUTER_LAYOUT_ITEMS}
+              label="Computers"
+              onValueChange={computerLayout.onValueChange}
+              options={SESSION_LIST_COMPUTER_LAYOUTS}
+              testId={`${testId}-computers`}
+              value={computerLayout.value}
+            />
           </>
         ) : null}
         <FilterSection

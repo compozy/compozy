@@ -64,6 +64,8 @@ interface SessionCreateStoreContext {
   pendingPrompt: string | null;
   /** The destination the opening surface named; the inline pickers start from it. */
   target: SessionCreateTargetSeed;
+  /** True when opened from a computer or project `+`, fixing Run on to that computer (`R14`, `R15`). */
+  fixedComputer: boolean;
 }
 
 /** A destination named by the surface that opened creation (a list group's `+`). */
@@ -88,6 +90,8 @@ type SessionCreateStoreEvents = {
     agentName: string;
     workspaceId: string;
     computerId?: ComputerId;
+    /** Fix Run on to `computerId` instead of resolving Auto (`R14`, `R15`). */
+    fixedComputer?: boolean;
     /** Optional composer prompt supplied by the surface that opened creation. */
     pendingPrompt?: string;
     /** Preselects where the session will run; omitted opens at the workspace root. */
@@ -137,6 +141,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
     pendingSubmit: null,
     pendingPrompt: null,
     target: NO_TARGET_SEED,
+    fixedComputer: false,
   },
   on: {
     dialogOpened: (context, event) => {
@@ -148,6 +153,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
         restoreFocusOnClose: true,
         pendingSubmit: null,
         pendingPrompt: event.pendingPrompt ?? null,
+        fixedComputer: event.fixedComputer === true,
         target: {
           project: event.target?.project?.trim() || null,
           profile: event.target?.profile?.trim() || null,
@@ -225,6 +231,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
       return {
         ...context,
         draft: nextDraft,
+        fixedComputer: false,
         pendingSubmit: null,
         submitError: null,
       };

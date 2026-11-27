@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { toast } from "@compozy/ui";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { runSessionBatch, type SessionBatchResult } from "@/systems/session/lib/session-batch";
 import {
   batchSkipNote,
@@ -8,6 +9,7 @@ import {
 } from "@/systems/session/lib/session-batch-feedback";
 import { sessionBatchAction } from "@/systems/session/lib/session-menu-actions";
 import { sessionAdoptRefusal } from "@/systems/session/lib/session-reparent";
+import { sessionComputerOf, sessionRowKeyFor } from "@/systems/session/lib/session-row-ref";
 import type { SessionPayload } from "@/systems/session/types";
 import { useMarkSessionSeen } from "@/systems/session/hooks/use-mark-session-seen";
 import { useSessionReparent } from "@/systems/session/hooks/use-session-reparent";
@@ -32,11 +34,20 @@ export function useSessionBatchMenuActions(
   busy: boolean,
   running: SessionBatchAdmission,
   setPendingAction: (action: MenuBatchAction | null) => void,
-  onProgress: (results: readonly SessionBatchResult[]) => void
+  onProgress: (results: readonly SessionBatchResult[]) => void,
+  computerOf?: (session: SessionPayload) => ComputerId | undefined,
+  computerNameOf?: (computerId: ComputerId) => string | undefined
 ) {
+  const resolveComputer = (session: SessionPayload): ComputerId | undefined => {
+    const resolved = computerOf?.(session) ?? sessionComputerOf(session);
+    return isRemoteComputerId(resolved) ? resolved : undefined;
+  };
   const markSeen = useMarkSessionSeen();
   const detaching = useRef(false);
-  const reparent = useSessionReparent({ blocked: () => detaching.current });
+  const reparent = useSessionReparent({
+    blocked: () => detaching.current,
+    computerOf: resolveComputer,
+  });
   const run = async (
     action: MenuBatchAction,
     sessions: readonly SessionPayload[],
@@ -44,9 +55,12 @@ export function useSessionBatchMenuActions(
   ) => {
     const lineage = action !== "mark-seen";
     if (busy || running.held() || (lineage && reparent.pending)) return;
+    const parentComputer = parent ? sessionComputerOf(parent) : undefined;
     const eligible = sessions.filter(session =>
       action === "move-under"
-        ? parent !== undefined && sessionAdoptRefusal(session, parent) === null
+        ? parent !== undefined &&
+          sessionComputerOf(session) === parentComputer &&
+          sessionAdoptRefusal(session, parent) === null
         : sessionBatchAction(action).eligible(session)
     );
     const skipped = new Map<string, number>();
@@ -60,22 +74,27 @@ export function useSessionBatchMenuActions(
     detaching.current = lineage;
     setPendingAction(action);
     try {
-      const byId = new Map(eligible.map(session => [session.id, session]));
+      const byId = new Map(eligible.map(session => [sessionRowKeyFor(session), session]));
       const results = await runSessionBatch({
         action,
-        ids: eligible.map(session => session.id),
+        ids: eligible.map(session => sessionRowKeyFor(session)),
         sessions: eligible,
         previous: [],
         onProgress,
-        execute: id => {
-          const session = byId.get(id)!;
-          if (action === "mark-seen") return markSeen.mutateAsync(session);
+        execute: rowKey => {
+          const session = byId.get(rowKey)!;
+          const targetComputer = resolveComputer(session);
+          if (action === "mark-seen") {
+            return markSeen.mutateAsync(
+              targetComputer ? { ...session, computerId: targetComputer } : session
+            );
+          }
           return action === "move-under" && parent
-            ? reparent.adoptAsync(session, parent)
-            : reparent.detachAsync(session);
+            ? reparent.adoptAsync(session, parent, targetComputer)
+            : reparent.detachAsync(session, targetComputer);
         },
       });
-      reportBatch(action, results, sessions, skipped);
+      reportBatch(action, results, sessions, skipped, computerNameOf);
     } finally {
       running.release();
       detaching.current = false;

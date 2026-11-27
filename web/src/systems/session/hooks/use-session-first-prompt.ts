@@ -1,3 +1,5 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { SessionPromptRuntimeContext } from "../contexts/session-prompt-runtime-context-value";
 import { use, useEffect, useRef, useState } from "react";
 import { useAui, useAuiEvent, useAuiState } from "@assistant-ui/react";
@@ -21,7 +23,11 @@ interface UseSessionFirstPromptParams {
  * external system — which is why it belongs in an effect; exactly-once is
  * enforced by {@link sendFirstPrompt}, not by this hook.
  */
-export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstPromptParams): void {
+export function useSessionFirstPrompt({
+  sessionId: daemonSessionId,
+  canPrompt,
+}: UseSessionFirstPromptParams): void {
+  const sessionId = sessionRowKeyFor({ id: daemonSessionId, computerId: useCurrentComputerId() });
   const aui = useAui();
   const runtimeStore = use(SessionPromptRuntimeContext);
   const lifetime = useRef<AbortController | null>(null);

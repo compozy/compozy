@@ -1,6 +1,13 @@
+import type { ComputerId } from "@/lib/computer-scope";
 import { createStoreLogic } from "@xstate/store";
 
 import type { SubagentView } from "../components/subagents/types";
+
+interface SubagentDrawerSelection {
+  subagent: SubagentView;
+  workspaceId: string;
+  computerId?: ComputerId;
+}
 
 /**
  * What the side chat panel shows. `new` is an empty side chat that exists only once its first
@@ -37,7 +44,7 @@ export interface SessionSidePanelState {
  */
 export const sessionWindowDrawerLogic = createStoreLogic({
   context: {
-    selected: null as { subagent: SubagentView; workspaceId: string } | null,
+    selected: null as SubagentDrawerSelection | null,
     side: { open: false, view: null, lastViewedId: null, draft: "" } as SessionSidePanelState,
     width: 480,
     returnFocus: null as HTMLElement | null,
@@ -45,12 +52,17 @@ export const sessionWindowDrawerLogic = createStoreLogic({
   on: {
     opened: (
       context,
-      event: { subagent: SubagentView; workspaceId: string; trigger: HTMLElement | null }
+      {
+        subagent,
+        workspaceId,
+        computerId,
+        trigger,
+      }: SubagentDrawerSelection & { trigger: HTMLElement | null }
     ) => ({
       ...context,
-      selected: { subagent: event.subagent, workspaceId: event.workspaceId },
+      selected: computerId ? { subagent, workspaceId, computerId } : { subagent, workspaceId },
       side: { ...context.side, open: false },
-      returnFocus: context.selected ? context.returnFocus : event.trigger,
+      returnFocus: context.selected ? context.returnFocus : trigger,
     }),
     closed: context => ({ ...context, selected: null }),
     resized: (context, event: { width: number }) => ({

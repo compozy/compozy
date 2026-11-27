@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// TaskDashboardPayload is a daemon API value.
+type TaskDashboardPayload struct {
+	Totals          TaskDashboardTotalsPayload            `json:"totals"`
+	Cards           TaskDashboardCardsPayload             `json:"cards"`
+	StatusBreakdown []TaskDashboardStatusBreakdownPayload `json:"status_breakdown,omitempty"`
+	Queue           TaskDashboardQueuePayload             `json:"queue"`
+	Health          TaskDashboardHealthPayload            `json:"health"`
+	ActiveRuns      TaskDashboardActiveRunsPayload        `json:"active_runs"`
+	Freshness       TaskDashboardFreshnessPayload         `json:"freshness"`
+}
+
+// TaskDashboardQueueDepthPayload is a daemon API value.
+type TaskDashboardQueueDepthPayload struct {
+	Count               int       `json:"count"`
+	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
+	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
+}
+
 // TaskDashboardQueuePayload is a daemon API value.
 type TaskDashboardQueuePayload struct {
 	Total                 int                              `json:"total"`

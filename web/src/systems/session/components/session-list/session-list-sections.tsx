@@ -42,6 +42,7 @@ import type {
 import { SessionGroupRowsSkeleton } from "./session-list-skeleton";
 import { GroupLoadFailure } from "./session-list-group-note";
 import { SessionListThread, type SessionThreadRootLayout } from "./session-list-thread";
+import { sessionComputerOf, sessionRowKeyFor } from "../../lib/session-row-ref";
 import type { SessionFoldSet, SessionSubagentFolds } from "../../lib/session-sidebar-scope";
 
 export interface SessionListSectionsProps {
@@ -105,7 +106,7 @@ export function SessionListSections({
   const folderIds = sections.folders.map(section => section.folder.id);
   const roots = new Map(
     [...sections.folders.flatMap(section => section.threads), ...sections.root].map(thread => [
-      thread.session.id,
+      sessionRowKeyFor(thread.session),
       thread.session,
     ])
   );
@@ -284,20 +285,23 @@ function SectionThreads({
       sessionHasOwnPlacement(thread.session) ? [thread.session.id] : []
     ),
   };
-  const rootIds = new Set(threads.map(thread => thread.session.id));
+  const rootIds = new Set(threads.map(thread => sessionRowKeyFor(thread.session)));
   // Only a thread's root row carries folder moves, order verbs, and its own drag source.
   const layoutFor = (session: SessionPayload): SessionThreadRootLayout => {
     const id = session.id;
-    if (!rootIds.has(id)) {
+    const rowComputerId = sessionComputerOf(session);
+    const rowKey = sessionRowKeyFor(session, rowComputerId);
+    if (!rootIds.has(rowKey)) {
       return {
         drag: dnd?.sessionRow(
           id,
           container,
           undefined,
           sessionRowNestTarget(roots, session, sessionActions.onAdopt),
-          true
+          true,
+          rowComputerId
         ),
-        dropEdge: rowDropEdge(dnd?.indicator ?? null, id),
+        dropEdge: rowDropEdge(dnd?.indicator ?? null, rowKey),
       };
     }
     const ownPlacement = sessionHasOwnPlacement(session);
@@ -319,28 +323,32 @@ function SectionThreads({
         container,
         selectionDrag,
         sessionRowNestTarget(roots, session, sessionActions.onAdopt),
-        !ownPlacement
+        !ownPlacement,
+        rowComputerId
       ),
-      dropEdge: rowDropEdge(dnd?.indicator ?? null, id),
-      dragging: rowDragged(dnd?.dragging ?? null, id),
+      dropEdge: rowDropEdge(dnd?.indicator ?? null, rowKey),
+      dragging: rowDragged(dnd?.dragging ?? null, rowKey),
     };
   };
-  return threads.map(thread => (
-    <SessionListThread
-      key={thread.session.id}
-      session={thread.session}
-      owner={ownerOf?.(thread.session)}
-      ownerOf={ownerOf}
-      childSessions={thread.childSessions}
-      currentSessionId={currentSessionId}
-      collapsed={collapsedThreads.has(thread.session.id)}
-      subagentThreads={subagentThreads}
-      onThreadBranchChange={onThreadBranchChange}
-      onSelectSession={onSelectSession}
-      selection={selection}
-      sessionActions={sessionActions}
-      testIdPrefix={testIdPrefix}
-      layoutFor={layoutFor}
-    />
-  ));
+  return threads.map(thread => {
+    const rowKey = sessionRowKeyFor(thread.session);
+    return (
+      <SessionListThread
+        key={rowKey}
+        session={thread.session}
+        owner={ownerOf?.(thread.session)}
+        ownerOf={ownerOf}
+        childSessions={thread.childSessions}
+        currentSessionId={currentSessionId}
+        collapsed={collapsedThreads.has(rowKey)}
+        subagentThreads={subagentThreads}
+        onThreadBranchChange={onThreadBranchChange}
+        onSelectSession={onSelectSession}
+        selection={selection}
+        sessionActions={sessionActions}
+        testIdPrefix={testIdPrefix}
+        layoutFor={layoutFor}
+      />
+    );
+  });
 }

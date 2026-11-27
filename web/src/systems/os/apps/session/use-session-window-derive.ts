@@ -7,6 +7,7 @@ import {
 } from "@/systems/session";
 
 import { useSubagentOrigin } from "@/systems/session/hooks/use-subagent-origin";
+import { isRemoteComputerId } from "@/lib/computer-scope";
 
 import { useAttentionJump } from "../../hooks/use-attention-jump";
 
@@ -37,7 +38,12 @@ export function useSessionWindowDerive({
       workspaceId: child.workspace_id?.trim() || workspaceId,
       placement: "split",
     });
-  const onOpenOriginSource = (sessionId: string) => jump({ sessionId, workspaceId });
+  const onOpenOriginSource = (sessionId: string) =>
+    jump({
+      sessionId,
+      workspaceId,
+      ...(isRemoteComputerId(session.computerId) ? { computerId: session.computerId } : {}),
+    });
   const originContext: SessionOriginContextValue | null = origin
     ? {
         origin,

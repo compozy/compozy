@@ -330,13 +330,20 @@ A session message is a prompt one agent session sends to another; a reply wake b
 
 ### Session List Organization Terms
 
-Project folders group projects in All projects (grouped by project) for one profile; session folders stay inside one project and profile. Nouns are `folder`, `project`, and `session`.
+Project folders group projects on one computer for one profile under All projects. Session folders
+belong to one computer, project, and profile. Use the nouns `folder`, `project`, and `session`.
 
 - Project folder: header menu "Rename folder…" · "Move folder up" · "Move folder down" · "Delete folder…" (no New session). An empty folder reads "Drag a project here."; dragging a foldered project with no loose projects shows "Drop here to take it out of the folder." Delete confirm: "Projects in this folder move back to the list. No projects or sessions are deleted."
 - Project header menu, before the project's own actions: "Move to folder" (submenu of folder names) · "Move out of folder" · "Move project up" · "Move project down".
 - New folder unavailable under All profiles: "Project folders belong to one profile. Choose a profile to add one."
 - Group by → Project adds the checkable "Show empty projects" (off by default, remembered per window). Off, a project with no sessions in the current view — and a project folder holding only such projects — stays out of the list; on, every registered project shows with its count. An empty group names itself, never the profile: "No sessions in {project} yet." (on the Later or Archive views, "No sessions in Later in {project} yet." / "No archived sessions in {project} yet.").
 - Totals footer (aria "Session totals"): "{n} needs you · {n} working · {n} idle", each beside its state glyph; only non-zero states show, and nothing renders when all are zero. It never filters.
+- "Not counted: {names}" lists computers that could not supply a count.
+- When the toolbar has several possible folder owners, show "Folders live on one computer. Use the + of a computer or project."
+- For a cross-computer drop, show "Sessions stay on the computer that runs them."
+- For a folder move with a cross-computer selection, show "Sessions on different computers can't share a folder."
+- For an empty connected computer, show "No sessions on {computer} yet."
+- For Manual sort, show "Manual order applies inside one project and profile on one computer."
 
 ### Session Children in Archive and Delete
 
@@ -1012,6 +1019,10 @@ glyph read the current state: "Groups expanded", "All expanded", "All collapsed"
 before any choice. The Kanban head keeps a single action that reads "Collapse all", or "Expand all" once
 everything is collapsed; it shows only while the board has swimlanes. An empty swimlane reads "No sessions
 in {project} yet."
+
+**Computers** offers **Together** and **Separate** when the window shows **All computers** and a
+remote computer is enabled. **Separate** is the default. The picker beside **List | Kanban** lists
+**All computers**, **This computer**, and the names of enabled remote computers.
 
 ### Batch session actions
 

@@ -2,6 +2,8 @@ import { useState } from "react";
 
 import { StatusDot, cn } from "@compozy/ui";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
+import { ComputerMark, ComputerTag } from "@/systems/computers";
 import { openContextMenuFromKeyboard } from "@/systems/os";
 import { ProfileOwnerTag } from "@/systems/profiles";
 import { WorkspaceBadge, type ProjectMenuMove } from "@/systems/workspace";
@@ -37,7 +39,7 @@ export function SessionListGroupSignal({
   const scope = group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
   return (
     <>
-      {scope ? <AlwaysOnCollapsedSignal workspaceId={scope} /> : null}
+      {scope ? <AlwaysOnCollapsedSignal computerId={group.computerId} workspaceId={scope} /> : null}
       {states ? <SessionGroupSignal group={group} /> : null}
     </>
   );
@@ -52,18 +54,38 @@ function SessionGroupSignal({ group }: { group: SessionListGroupSpec }) {
   return <StatusDot tone="success" size="sm" label={label} data-slot="session-group-working" />;
 }
 
-/** A group's identity: the project badge, or the profile owner tag. */
+/** A group's identity: the project badge (with optional Together computer name), or the profile owner tag. */
 export function SessionListGroupIdentity({ group }: { group: SessionListGroupSpec }) {
   if (group.badge) {
-    return (
+    const badge = (
       <WorkspaceBadge
         identity={group.badge}
         variant="chrome"
         className={cn("font-medium", group.badge.kind !== "unknown" && "text-fg")}
       />
     );
+    if (group.computerName) {
+      return (
+        <span className="flex min-w-0 items-center gap-1.5">
+          {badge}
+          <ComputerTag bare name={group.computerName} />
+        </span>
+      );
+    }
+    return badge;
   }
-  if (group.owner) return <ProfileOwnerTag owner={group.owner} />;
+  if (group.owner) {
+    const tag = <ProfileOwnerTag owner={group.owner} />;
+    if (group.computerName) {
+      return (
+        <span className="flex min-w-0 items-center gap-1.5">
+          {tag}
+          <ComputerTag bare name={group.computerName} />
+        </span>
+      );
+    }
+    return tag;
+  }
   return null;
 }
 
@@ -75,6 +97,8 @@ export interface SessionListGroupHeaderProps {
   testIdPrefix: string;
   /** Drag source and reorder target among project folders (issue #1044). */
   arrange?: SessionListGroupArrange;
+  /** Suppresses create/folder controls (offline or lacking `sessions:operate`). */
+  readOnly?: boolean;
 }
 
 /** How a project header takes part in project folders: drag, drop edge, and its Move ▸ verbs. */
@@ -86,10 +110,16 @@ export interface SessionListGroupArrange {
   move?: ProjectMenuMove;
 }
 
-function groupSessionOptions(target: ReturnType<typeof sessionListGroupTarget>) {
+function groupSessionOptions(
+  target: ReturnType<typeof sessionListGroupTarget>,
+  group: Pick<SessionListGroupSpec, "computerId" | "computerName">
+): SessionCreateOpenOptions {
+  const hasComputer = isRemoteComputerId(target.computerId) || group.computerName !== undefined;
   return {
     ...(target.workspaceId ? { workspaceId: target.workspaceId } : {}),
     ...(target.profile ? { profile: target.profile } : {}),
+    ...(target.computerId ? { computerId: target.computerId } : {}),
+    ...(hasComputer ? { fixedComputer: true } : {}),
   };
 }
 
@@ -98,6 +128,7 @@ function groupAlwaysOn(
   workspaceId: string | null | undefined,
   name: string
 ) {
+  if (isRemoteComputerId(group.computerId)) return undefined;
   return group.kind === "project" && workspaceId ? { place: workspaceId, name } : undefined;
 }
 
@@ -113,6 +144,45 @@ function GroupDropEdge({ edge }: { edge: SessionDropPosition }) {
   );
 }
 
+function GroupHeaderToggle({
+  group,
+  collapsed,
+  onToggle,
+  testId,
+}: Pick<SessionListGroupHeaderProps, "group" | "collapsed" | "onToggle"> & {
+  testId: string;
+}) {
+  const mark =
+    group.computerName && group.computerPlatform && group.computerIconKind ? (
+      <ComputerMark iconKind={group.computerIconKind} platform={group.computerPlatform} />
+    ) : undefined;
+  return (
+    <SessionListGroupToggle
+      collapsed={collapsed}
+      count={group.total}
+      identity={<SessionListGroupIdentity group={group} />}
+      mark={mark}
+      onToggle={onToggle}
+      signal={<SessionListGroupSignal group={group} states={false} />}
+      leading={{ needsYou: group.needsYou, working: group.working, slot: "session-group" }}
+      testId={testId}
+    />
+  );
+}
+
+function groupHeaderDragProps(arrange: SessionListGroupArrange | undefined, offline?: boolean) {
+  return {
+    ...arrange?.drag,
+    className: cn(
+      "relative flex min-h-7 min-w-0 items-center gap-1 rounded-sm",
+      arrange?.dragging && "opacity-50",
+      offline && "opacity-70"
+    ),
+    "data-drop": arrange?.dropEdge ?? undefined,
+    "data-dragging": arrange?.dragging || undefined,
+  };
+}
+
 /**
  * One group's header row: the collapse toggle (identity, collapsed signal,
  * count) and, after it, the group's own `+` — New session or New folder in
@@ -126,19 +196,22 @@ export function SessionListGroupHeader({
   onNewSession,
   testIdPrefix,
   arrange,
+  readOnly = false,
 }: SessionListGroupHeaderProps) {
   const target = sessionListGroupTarget(group);
   const folder = useSessionListGroupFolderCreate(target);
   const testId = `${testIdPrefix}-group-${group.key}`;
   const name = sessionListGroupName(group);
-  const alwaysOn = groupAlwaysOn(group, target.workspaceId, name);
+  const where = group.computerName ? `${name} on ${group.computerName}` : name;
+  const muted = readOnly || group.offline === true;
+  const alwaysOn = muted ? undefined : groupAlwaysOn(group, target.workspaceId, name);
   const [addingAlwaysOn, setAddingAlwaysOn] = useState(false);
-  const newSession = () => onNewSession(groupSessionOptions(target));
+  const newSession = () => onNewSession(groupSessionOptions(target, group));
   const createMenu = {
     variant: "quiet",
     size: "icon-xs",
     className: "text-subtle",
-    label: { session: `New session in ${name}`, menu: `New session or folder in ${name}` },
+    label: { session: `New session in ${where}`, menu: `New session or folder in ${where}` },
     onNewSession: newSession,
     onNewFolder: folder.openDialog,
     testId,
@@ -148,36 +221,31 @@ export function SessionListGroupHeader({
       <SessionListGroupProjectMenu
         group={group}
         // The `+`'s verbs, so right-click starts what the `+` starts (the picker opens over it).
-        verbs={{
-          newSession,
-          newFolder: folder.openDialog,
-          addAlwaysOn: alwaysOn ? () => setAddingAlwaysOn(true) : undefined,
-          move: arrange?.move,
-        }}
+        verbs={
+          muted
+            ? undefined
+            : {
+                newSession,
+                newFolder: folder.openDialog,
+                addAlwaysOn: alwaysOn ? () => setAddingAlwaysOn(true) : undefined,
+                move: arrange?.move,
+              }
+        }
         testId={`${testId}-menu`}
       >
         <div
-          {...arrange?.drag}
-          className={cn(
-            "relative flex min-h-7 min-w-0 items-center gap-1 rounded-sm",
-            arrange?.dragging && "opacity-50"
-          )}
+          {...groupHeaderDragProps(arrange, group.offline)}
           data-testid={`${testId}-header`}
-          data-drop={arrange?.dropEdge ?? undefined}
-          data-dragging={arrange?.dragging || undefined}
           onKeyDown={openContextMenuFromKeyboard}
         >
           {arrange?.dropEdge ? <GroupDropEdge edge={arrange.dropEdge} /> : null}
-          <SessionListGroupToggle
+          <GroupHeaderToggle
+            group={group}
             collapsed={collapsed}
-            count={group.total}
-            identity={<SessionListGroupIdentity group={group} />}
             onToggle={onToggle}
-            signal={<SessionListGroupSignal group={group} states={false} />}
-            leading={{ needsYou: group.needsYou, working: group.working, slot: "session-group" }}
             testId={testId}
           />
-          {alwaysOn ? (
+          {muted ? null : alwaysOn ? (
             <AlwaysOnCreateMenu
               {...createMenu}
               alwaysOn={alwaysOn}
@@ -189,7 +257,9 @@ export function SessionListGroupHeader({
           )}
         </div>
       </SessionListGroupProjectMenu>
-      <SessionListGroupFolderDialog folder={folder} name={name} testId={`${testId}-folder`} />
+      {muted ? null : (
+        <SessionListGroupFolderDialog folder={folder} name={where} testId={`${testId}-folder`} />
+      )}
     </>
   );
 }

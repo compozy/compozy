@@ -1,4 +1,5 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import { apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
 
 import type { SessionPresenceRequest } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
@@ -20,26 +21,32 @@ async function postPresence(
   workspaceId: string,
   sessionId: string,
   body: SessionPresenceRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ) {
-  return apiClient.POST("/api/workspaces/{workspace_id}/sessions/{session_id}/presence", {
-    params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId } },
-    body,
-    signal,
-  });
+  return apiClientFor(computerId).POST(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/presence",
+    {
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId } },
+      body,
+      signal,
+    }
+  );
 }
 
 /** Acquire returns the lease id every later call must present. */
 export async function acquireSessionPresence(
   workspaceId: string,
   sessionId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<string> {
   const { data, error, response } = await postPresence(
     workspaceId,
     sessionId,
     { visible: true },
-    signal
+    signal,
+    computerId
   );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, "Failed to report session presence");
@@ -52,14 +59,16 @@ export async function renewSessionPresence(
   workspaceId: string,
   sessionId: string,
   leaseId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPresenceRenewalResult> {
   try {
     const { error, response } = await postPresence(
       workspaceId,
       sessionId,
       { visible: true, lease_id: leaseId },
-      signal
+      signal,
+      computerId
     );
     if (!apiRequestFailed(response, error)) return "renewed";
     if (response.status === 404 || response.status === 409) return "lease-invalid";
@@ -73,7 +82,14 @@ export async function renewSessionPresence(
 export async function releaseSessionPresence(
   workspaceId: string,
   sessionId: string,
-  leaseId: string
+  leaseId: string,
+  computerId?: ComputerId
 ): Promise<void> {
-  await postPresence(workspaceId, sessionId, { visible: false, lease_id: leaseId });
+  await postPresence(
+    workspaceId,
+    sessionId,
+    { visible: false, lease_id: leaseId },
+    undefined,
+    computerId
+  );
 }

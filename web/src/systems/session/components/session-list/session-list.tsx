@@ -1,49 +1,48 @@
-import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
+import { useSelector } from "@xstate/store-react";
+import type { ReactNode } from "react";
 
 import { SearchInput } from "@compozy/ui";
 
-import { useRemoteSessionsFanout } from "../../hooks/use-remote-sessions-fanout";
-import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
-import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
-import {
-  mergeLocalAndRemoteThreads,
-  SessionListComputerContext,
-} from "../../lib/session-list-computer";
-import { SessionListRemoteFooter } from "./session-list-remote-body";
-import { SessionMenuOpenContext } from "../../contexts/session-menu-open-context-value";
-import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
-import type { SessionListViewModel } from "../../hooks/use-session-list-view";
-import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
-import type { SessionListTarget, SessionPayload } from "../../types";
-import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
-import { emptyForScope } from "@/systems/profiles";
-import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
-import { sessionListShelfNoun } from "../../lib/session-list-shelf";
-import { sessionListHasPinnedRows } from "../../lib/session-list-pinned";
-import { useSessionListLocalState } from "../../hooks/use-session-list-local-state";
-import { useSessionListContent } from "../../hooks/use-session-list-reveal-current";
-import { SessionListCatalogNavigation, SessionListControls } from "./session-list-controls";
-import { SessionListPinned } from "./session-list-pinned";
+import { useWorktreeScopeId } from "@/hooks/use-window-scope";
+import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+import { useComputers } from "@/systems/computers";
 
-import type { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
-import { useSessionListSelection } from "../../hooks/use-session-list-selection";
+import { SessionMenuOpenContext } from "../../contexts/session-menu-open-context-value";
+import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
+import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
+import { useSessionListComputers } from "../../hooks/use-session-list-computers";
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
+import { useSessionListSearch } from "../../hooks/use-session-list-local-state";
+import { useSessionListContent } from "../../hooks/use-session-list-reveal-current";
+import { useSessionListSelection } from "../../hooks/use-session-list-selection";
+import {
+  resolveSessionWindowOrder,
+  sessionSidebarStore,
+} from "../../hooks/use-session-sidebar-state";
+import type {
+  SessionListTotals as Totals,
+  SessionListViewModel,
+} from "../../hooks/use-session-list-view";
+import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
+import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
+import { SESSION_LIST_NEW_FOLDER_MULTI_COMPUTER_NOTE } from "../../lib/session-list-view-helpers";
+import { sessionThreadFolds } from "../../lib/session-sidebar-scope";
+import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
+import type { SessionListTarget, SessionPayload } from "../../types";
 import { AlwaysOnListTop } from "../always-on/always-on-list-top";
 import { ArchivedCleanup } from "./archived-cleanup";
-import { SessionFolderDialogs } from "./session-folder-dialogs";
-import { SessionListTotals } from "./session-list-totals";
-import { SessionListGroups } from "./session-list-groups";
-import { SessionListStatus } from "./session-list-status";
-import { SessionListSections } from "./session-list-sections";
-import { SessionListSelectionFolders } from "./session-list-selection-folders";
-import { SessionListSkeleton } from "./session-list-skeleton";
-import { SessionListThreadList } from "./session-list-thread-list";
-import { SessionListSubagentActionsHost } from "./session-list-subagent-actions";
+import { SessionListLocalDialogs } from "./session-list-local-dialogs";
+import { SessionListMultiComputerBody, SessionListSingleBody } from "./session-list-body";
+import { SessionListControls } from "./session-list-controls";
+import { SessionListPinned } from "./session-list-pinned";
 import {
-  sessionThreadFolds,
-  type SessionFoldSet,
-  type SessionSubagentFolds,
-} from "../../lib/session-sidebar-scope";
+  SessionListOfflineNotice,
+  SessionListScopeRemovedNotice,
+} from "./session-list-scope-notice";
+import { SessionListSelectionFolders } from "./session-list-selection-folders";
+import { SessionListStatus } from "./session-list-status";
+import { SessionListSubagentActionsHost } from "./session-list-subagent-actions";
+import { SessionListTotals } from "./session-list-totals";
 
 export interface SessionListProps {
   sessions: readonly SessionPayload[];
@@ -62,31 +61,141 @@ export interface SessionListProps {
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
   /** Rendered above the controls (the modal's eyebrow + close chrome). */
-  header?: (visibleCount: number | null) => React.ReactNode;
+  header?: (visibleCount: number | null) => ReactNode;
+  /** Optional notice rendered between the search bar and rows (`F8` offline/removed scope). */
+  scopeNotice?: ReactNode;
+  /** Opens computer details in Settings when an incompatible computer shows Details (`S6`). */
+  onOpenComputerDetails?: (computerId: string) => void;
 }
 
-/**
- * Say what is empty AND for whom: an operator in Marketing needs to know the
- * list is empty in Marketing, not on the machine (US-009.EC-3).
- */
-function emptySessionListMessage(filtering: boolean, view: SessionListViewModel): string | null {
-  // Every session the list holds sits in Pinned above: the list is not empty.
-  if (sessionListHasPinnedRows(view)) return null;
-  if (filtering) return `${emptyForScope("matching sessions", view.scopeLabel)}.`;
-  return `${emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.`;
+type MultiComputerListState = ReturnType<typeof useSessionListComputers>;
+
+function aggregateSourcesTotals(
+  sources: readonly ComputerSessionsSource[],
+  shelf: SessionListViewModel["shelf"]
+): Totals | undefined {
+  if (shelf !== "active") return undefined;
+  let answered = false;
+  let needsYou = 0;
+  let working = 0;
+  let idle = 0;
+  for (const source of sources) {
+    if (source.read !== "ok" && source.read !== "offline") continue;
+    const facets = source.facets?.facets;
+    if (!facets) continue;
+    answered = true;
+    needsYou += facets.needs_you;
+    working += facets.working;
+    idle += facets.idle;
+  }
+  return answered ? { needsYou, working, idle } : undefined;
+}
+
+function aggregateLaterCount(sources: readonly ComputerSessionsSource[]): number | undefined {
+  let answered = false;
+  let total = 0;
+  for (const source of sources) {
+    if (source.read !== "ok" && source.read !== "offline") continue;
+    if (source.facets === undefined) continue;
+    answered = true;
+    total += source.laterCount;
+  }
+  return answered ? total : undefined;
+}
+
+function resolveToolbarNewFolder(input: {
+  multiComputerVisible: boolean;
+  scopedRemoteSource: ComputerSessionsSource | null;
+  view: SessionListViewModel;
+  hasSessionLayout: boolean;
+  hasProjectLayout: boolean;
+  openSessionFolder: () => void;
+  openProjectFolder: () => void;
+}): { onNewFolder?: () => void; newFolderUnavailable: string | null } {
+  const {
+    multiComputerVisible,
+    scopedRemoteSource,
+    view,
+    hasSessionLayout,
+    hasProjectLayout,
+    openSessionFolder,
+    openProjectFolder,
+  } = input;
+  if (multiComputerVisible) {
+    return {
+      onNewFolder: undefined,
+      newFolderUnavailable: SESSION_LIST_NEW_FOLDER_MULTI_COMPUTER_NOTE,
+    };
+  }
+  if (scopedRemoteSource) {
+    const operable = scopedRemoteSource.canOperate && scopedRemoteSource.read === "ok";
+    if (operable && view.groupBy === "project" && view.allProjects) {
+      return { onNewFolder: openProjectFolder, newFolderUnavailable: null };
+    }
+    return {
+      onNewFolder: undefined,
+      newFolderUnavailable: operable
+        ? "Group by Project to add folders."
+        : "Folders aren't available on this computer right now.",
+    };
+  }
+  const onNewFolder = hasSessionLayout
+    ? openSessionFolder
+    : hasProjectLayout
+      ? openProjectFolder
+      : undefined;
+  return { onNewFolder, newFolderUnavailable: onNewFolder ? null : view.newFolderUnavailable };
+}
+
+function resolveScopeNotice(multi: MultiComputerListState | null, testIdPrefix: string): ReactNode {
+  if (!multi) return null;
+  if (multi.computerScopeState.removedName) {
+    return (
+      <SessionListScopeRemovedNotice
+        name={multi.computerScopeState.removedName}
+        onDismiss={multi.computerScopeState.dismissRemovedNotice}
+        testIdPrefix={testIdPrefix}
+      />
+    );
+  }
+  if (multi.scopedOfflineComputer) {
+    const offlineComputer = multi.scopedOfflineComputer;
+    return (
+      <SessionListOfflineNotice
+        computer={offlineComputer}
+        onReconnect={() => multi.reconnectScopedComputer(offlineComputer.id)}
+        reconnecting={multi.reconnectingScoped}
+        testIdPrefix={testIdPrefix}
+      />
+    );
+  }
+  return null;
 }
 
 /**
  * Shared sessions catalog body for the topbar breadth: one flat list of
- * provenance threads by default — under All projects every row names its
- * project — or Group-by groups that page independently (ADR-004). Ordering is
- * served by the daemon for the operator's chosen sort — this component renders
- * the order it receives rather than re-deciding it.
- *
- * Loaded parents retain their descendants as threads. A parent outside the
- * current page leaves its child visible as a root rather than hiding it.
+ * provenance threads, Group-by groups, or multi-computer sections (`F6`–`F9`).
+ * When no remote computers are enabled, avoids mounting multi-computer hooks so
+ * local-only windows issue zero extra workspace/profile/computer reads (`N6`).
  */
-export function SessionList({
+export function SessionList(props: SessionListProps) {
+  const { canRead, enabledComputers } = useComputers({ passive: true });
+  const scopeId = useWorktreeScopeId();
+  const windowComputerScope = useSelector(
+    sessionSidebarStore,
+    snapshot => resolveSessionWindowOrder(snapshot.context.byScope, scopeId).computerScope
+  );
+  const needsComputers = (canRead && enabledComputers.length > 0) || windowComputerScope !== "all";
+  if (!needsComputers) return <SessionListCore {...props} multi={null} />;
+  return <SessionListWithComputers {...props} />;
+}
+
+function SessionListWithComputers(props: SessionListProps) {
+  const multi = useSessionListComputers(props.view);
+  return <SessionListCore {...props} multi={multi} />;
+}
+
+function SessionListCore({
   sessions,
   disconnected,
   collapsedThreadIds,
@@ -100,26 +209,26 @@ export function SessionList({
   sessionActions: hostActions,
   testIdPrefix,
   header,
-}: SessionListProps) {
-  // The list owns its Pinned section, so it owns Pin to top and Unpin: a board card has neither.
+  scopeNotice,
+  onOpenComputerDetails,
+  multi,
+}: SessionListProps & { multi: MultiComputerListState | null }) {
   const { contentRef, sessionActions, announcement } = useSessionListContent(
     hostActions,
     testIdPrefix,
     currentSessionId
   );
-  const { filter, setFilter, projectFolderDialog, setProjectFolderDialog } =
-    useSessionListLocalState(view.selectionKey);
+  const {
+    activeSearch,
+    listed,
+    normalizedFilter,
+    projectFolderDialog,
+    setFilter,
+    setProjectFolderDialog,
+    threads,
+  } = useSessionListSearch(view, sessions, revealedSession);
   const projectLayout = view.projectFolders?.layout;
-  const remoteSearch = view.search !== undefined;
-  const normalizedFilter = (view.search ?? filter).trim().toLocaleLowerCase();
-  const listed = useSubagentContextSessions(
-    sessions,
-    revealedSession,
-    remoteSearch && normalizedFilter !== ""
-  );
-  const threads = buildSessionListThreads(listed, remoteSearch ? "" : normalizedFilter);
   const grouped = view.groupBy !== "none";
-  // Grouped lists read each group separately; the flat list is empty, so the groups own the count.
   const visibleCount = sessionListVisibleCount(view, threads, normalizedFilter);
   const filtering = normalizedFilter !== "";
   const { collapsedThreads, subagentThreads } = sessionThreadFolds({
@@ -129,9 +238,21 @@ export function SessionList({
     foldAll: view.foldAll,
     filtering,
   });
+
+  const {
+    multiComputerVisible,
+    scopedRemoteSource,
+    computersLayout,
+    isRemoteOrMulti,
+    toolbarComputer,
+    showAlwaysOnTop,
+    computerLayoutOption,
+  } = listComputerControls(multi, view);
+
   const pinnedSection = (
     <SessionListPinned
       view={view}
+      pinnedOverride={multi?.multiComputerPinned}
       filtering={filtering}
       collapsedThreads={collapsedThreads}
       subagentThreads={subagentThreads}
@@ -143,12 +264,11 @@ export function SessionList({
     />
   );
   const folders = useSessionListFolderLayout(view, threads, filtering);
-  const { layout, sections } = folders;
-  // A grouped list's groups each read their own page and publish their rows to it.
+  const { layout } = folders;
   const { bulk, groupSelection } = useSessionListSelection({
     selectionKey: view.selectionKey,
     shelf: view.shelf,
-    grouped,
+    grouped: grouped || isRemoteOrMulti,
     sessions: listed,
     visibleThreads: folders.visibleThreads,
     collapsedThreads,
@@ -156,8 +276,25 @@ export function SessionList({
     sessionActions,
   });
 
+  const toolbarNewSession = () => openToolbarSession(onNewSession, toolbarComputer);
+
+  const toolbarNewFolder = resolveToolbarNewFolder({
+    multiComputerVisible,
+    scopedRemoteSource,
+    view,
+    hasSessionLayout: layout !== undefined,
+    hasProjectLayout: projectLayout !== undefined,
+    openSessionFolder: () => folders.setDialog({ kind: "create" }),
+    openProjectFolder: () => setProjectFolderDialog({ kind: "create" }),
+  });
+
+  const { effectiveTotals, effectiveLaterCount } = listComputerCounts(
+    view,
+    multi,
+    scopedRemoteSource
+  );
+
   return (
-    // A row's menu opens a rolled-up item's child session the way the row itself opens.
     <SessionMenuOpenContext value={onSelectSession}>
       <SessionListSubagentActionsHost>
         <div
@@ -171,109 +308,97 @@ export function SessionList({
           </span>
           {header?.(visibleCount)}
           <SessionListControls
+            archiveStoppedDisabled={multiComputerVisible}
+            archiveStoppedSource={scopedRemoteSource}
             bulk={bulk}
+            computerLayout={computerLayoutOption}
+            disableAlwaysOnCreate={isRemoteOrMulti}
+            laterCount={effectiveLaterCount}
             view={view}
-            onNewSession={() => onNewSession()}
-            {...listNewFolder(view, {
-              session: layout ? () => folders.setDialog({ kind: "create" }) : undefined,
-              project: projectLayout ? () => setProjectFolderDialog({ kind: "create" }) : undefined,
-            })}
+            onNewSession={toolbarNewSession}
+            {...toolbarNewFolder}
             testIdPrefix={testIdPrefix}
           />
           <div className="px-3 pb-1.5">
             <SearchInput
-              value={view.search ?? filter}
+              value={activeSearch}
               onChange={view.setSearch ?? setFilter}
               placeholder="Filter sessions…"
               aria-label="Filter sessions"
               containerClassName="min-w-0"
             />
           </div>
-          <AlwaysOnListTop
-            currentSessionId={currentSessionId}
-            groupBy={view.groupBy}
-            onOpenSession={onSelectSession}
-            workspaceId={view.focusedWorkspaceId}
-          />
-          <SessionListStatus disconnected={disconnected} view={view} />
-          {grouped ? (
-            <div
-              className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
-              data-session-list-scroll
-              data-group-by={view.groupBy}
-            >
-              {pinnedSection}
-              <SessionListGroupSelectionContext value={groupSelection}>
-                <SessionListGroups
-                  view={view}
-                  filtering={filtering}
-                  collapsedThreads={collapsedThreads}
-                  subagentThreads={subagentThreads}
-                  currentSessionId={currentSessionId}
-                  onThreadBranchChange={onThreadBranchChange}
-                  onSelectSession={onSelectSession}
-                  onNewSession={onNewSession}
-                  sessionActions={sessionActions}
-                  testIdPrefix={testIdPrefix}
-                  onProjectFolderDialog={setProjectFolderDialog}
-                />
-              </SessionListGroupSelectionContext>
-            </div>
-          ) : sections && layout ? (
-            <SessionListFolderBody
-              pinnedSection={pinnedSection}
-              sections={sections}
-              layout={layout}
-              folders={folders}
-              view={view}
-              bulk={bulk}
-              filtering={filtering}
-              collapsedThreads={collapsedThreads}
-              subagentThreads={subagentThreads}
+          {scopeNotice ?? resolveScopeNotice(multi, testIdPrefix)}
+          {showAlwaysOnTop ? (
+            <AlwaysOnListTop
               currentSessionId={currentSessionId}
-              onThreadBranchChange={onThreadBranchChange}
-              onSelectSession={onSelectSession}
+              groupBy={view.groupBy}
+              onOpenSession={onSelectSession}
+              workspaceId={view.focusedWorkspaceId}
+            />
+          ) : null}
+          <SessionListStatus disconnected={disconnected} view={view} />
+          {isRemoteOrMulti && multi ? (
+            <SessionListMultiComputerBody
+              bulk={bulk}
+              collapsedThreads={collapsedThreads}
+              computersLayout={computersLayout}
+              currentSessionId={currentSessionId}
+              filtering={filtering}
+              groupSelection={groupSelection}
+              localLens={multi.localLens}
               onNewSession={onNewSession}
+              onOpenComputerDetails={onOpenComputerDetails}
+              onProjectFolderDialog={setProjectFolderDialog}
+              onSelectSession={onSelectSession}
+              onThreadBranchChange={onThreadBranchChange}
+              pinnedSection={pinnedSection}
+              projectFolderDialog={scopedRemoteSource ? projectFolderDialog : undefined}
+              scope={multi.dataScope}
+              scopedSource={scopedRemoteSource}
+              search={activeSearch}
               sessionActions={sessionActions}
+              sources={multi.computerSources.sources}
+              subagentThreads={subagentThreads}
               testIdPrefix={testIdPrefix}
+              view={view}
             />
           ) : (
-            <SessionListBody
-              pinnedSection={pinnedSection}
-              view={view}
-              threads={threads}
+            <SessionListSingleBody
+              bulk={bulk}
               collapsedThreads={collapsedThreads}
-              subagentThreads={subagentThreads}
               currentSessionId={currentSessionId}
+              filtering={filtering}
+              folders={folders}
+              groupSelection={groupSelection}
               normalizedFilter={normalizedFilter}
-              onThreadBranchChange={onThreadBranchChange}
+              onNewSession={onNewSession}
+              onProjectFolderDialog={setProjectFolderDialog}
               onSelectSession={onSelectSession}
-              selection={bulk.rowSelection}
+              onThreadBranchChange={onThreadBranchChange}
+              pinnedSection={pinnedSection}
               sessionActions={sessionActions}
+              subagentThreads={subagentThreads}
               testIdPrefix={testIdPrefix}
+              threads={threads}
+              view={view}
             />
           )}
-          {layout ? (
-            <SessionFolderDialogs
-              state={folders.dialog}
-              onClose={() => folders.setDialog(null)}
-              onCreate={layout.createFolder}
-              onRename={layout.renameFolder}
-              onDelete={layout.deleteFolder}
-            />
-          ) : null}
-          {projectLayout ? (
-            <SessionFolderDialogs
-              holds="projects"
-              state={projectFolderDialog}
-              onClose={() => setProjectFolderDialog(null)}
-              onCreate={projectLayout.createFolder}
-              onRename={projectLayout.renameFolder}
-              onDelete={projectLayout.deleteFolder}
-            />
-          ) : null}
-          <SessionListTotals totals={view.totals} testIdPrefix={testIdPrefix} />
-          <ArchivedCleanup view={view} testIdPrefix={testIdPrefix} />
+          <SessionListLocalDialogs
+            folders={folders}
+            projectFolderDialog={projectFolderDialog}
+            projectLayout={projectLayout}
+            scopedRemoteSource={scopedRemoteSource}
+            setProjectFolderDialog={setProjectFolderDialog}
+          />
+          <SessionListTotals
+            totals={effectiveTotals}
+            uncountedNames={
+              multiComputerVisible ? multi!.computerSources.uncountedNames : undefined
+            }
+            testIdPrefix={testIdPrefix}
+          />
+          {!isRemoteOrMulti ? <ArchivedCleanup view={view} testIdPrefix={testIdPrefix} /> : null}
           {bulk.folderMove ? (
             <SessionListSelectionFolders folders={bulk.folderMove} active={bulk.active} />
           ) : null}
@@ -283,176 +408,50 @@ export function SessionList({
   );
 }
 
-/**
- * The toolbar's New folder: one pair's session folder, else the profile's project
- * folder under All projects by project, else disabled with the view's reason.
- */
-function listNewFolder(
+function listComputerControls(multi: MultiComputerListState | null, view: SessionListViewModel) {
+  const multiComputerVisible = multi?.multiComputerVisible === true;
+  const scopedRemoteSource = multi?.scopedRemoteSource ?? null;
+  const computersLayout = multi?.computersLayout ?? "separate";
+  return {
+    multiComputerVisible,
+    scopedRemoteSource,
+    computersLayout,
+    isRemoteOrMulti: multiComputerVisible || scopedRemoteSource !== null,
+    toolbarComputer:
+      scopedRemoteSource?.key ?? (multi?.isScopedToLocal ? LOCAL_COMPUTER_ID : undefined),
+    showAlwaysOnTop:
+      !scopedRemoteSource && (!multiComputerVisible || computersLayout === "together"),
+    computerLayoutOption:
+      multiComputerVisible && view.setComputers
+        ? { value: computersLayout, onValueChange: view.setComputers }
+        : undefined,
+  };
+}
+
+function openToolbarSession(
+  open: SessionListProps["onNewSession"],
+  computerId: ComputerSessionsSource["key"] | undefined
+) {
+  if (computerId) open({ computerId });
+  else open();
+}
+
+function listComputerCounts(
   view: SessionListViewModel,
-  create: { session?: () => void; project?: () => void }
-): { onNewFolder?: () => void; newFolderUnavailable: string | null } {
-  const onNewFolder = create.session ?? create.project;
-  return { onNewFolder, newFolderUnavailable: onNewFolder ? null : view.newFolderUnavailable };
-}
-
-type SessionListFolderLayoutModel = ReturnType<typeof useSessionListFolderLayout>;
-
-/** The workspace list grouped into folders, with drag and folder verbs wired in. */
-function SessionListFolderBody({
-  sections,
-  layout,
-  folders,
-  view,
-  bulk,
-  filtering,
-  collapsedThreads,
-  subagentThreads,
-  currentSessionId,
-  onThreadBranchChange,
-  onSelectSession,
-  onNewSession,
-  sessionActions,
-  testIdPrefix,
-  pinnedSection,
-}: {
-  pinnedSection: React.ReactNode;
-  sections: NonNullable<SessionListFolderLayoutModel["sections"]>;
-  layout: NonNullable<SessionListFolderLayoutModel["layout"]>;
-  folders: SessionListFolderLayoutModel;
-  view: SessionListViewModel;
-  bulk: ReturnType<typeof useSessionListBulkSelection>;
-  filtering: boolean;
-  collapsedThreads: SessionFoldSet;
-  subagentThreads: SessionSubagentFolds;
-  currentSessionId: SessionListProps["currentSessionId"];
-  onThreadBranchChange: SessionListProps["onThreadBranchChange"];
-  onSelectSession: SessionListProps["onSelectSession"];
-  onNewSession: SessionListProps["onNewSession"];
-  sessionActions: SessionListProps["sessionActions"];
-  testIdPrefix: string;
-}) {
-  const { dnd } = folders;
-  // Nothing has answered yet: placeholder rows, never the empty state.
-  if (view.catalog?.loading && !view.partitions) return <SessionListSkeleton />;
-  return (
-    <div
-      className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
-      data-session-list-scroll
-      aria-busy={view.catalog?.paging || undefined}
-    >
-      {pinnedSection}
-      <SessionListSections
-        sections={sections}
-        partitions={view.partitions}
-        layout={layout}
-        dnd={dnd}
-        selectionDrag={bulk.drag}
-        orderable={folders.orderable}
-        filtering={filtering}
-        collapsedThreads={collapsedThreads}
-        subagentThreads={subagentThreads}
-        collapsedFolders={folders.collapsedFolders}
-        currentSessionId={currentSessionId}
-        onThreadBranchChange={onThreadBranchChange}
-        onToggleFolder={folders.toggleFolder}
-        onSelectSession={session => {
-          if (view.partitions || !view.catalog?.paging) onSelectSession(session);
-        }}
-        onNewSessionInFolder={folderId => onNewSession({ folderId })}
-        onFolderDialog={folders.setDialog}
-        selection={bulk.rowSelection}
-        sessionActions={sessionActions}
-        testIdPrefix={testIdPrefix}
-        emptyMessage={emptySessionListMessage(filtering, view)}
-      />
-      {view.catalog && !view.partitions ? (
-        <SessionListCatalogNavigation catalog={view.catalog} />
-      ) : null}
-    </div>
-  );
-}
-
-function SessionListBody({
-  view,
-  threads,
-  collapsedThreads,
-  subagentThreads,
-  currentSessionId,
-  normalizedFilter,
-  onThreadBranchChange,
-  onSelectSession,
-  selection,
-  sessionActions,
-  testIdPrefix,
-  pinnedSection,
-}: Pick<
-  SessionListProps,
-  | "view"
-  | "currentSessionId"
-  | "onThreadBranchChange"
-  | "onSelectSession"
-  | "sessionActions"
-  | "testIdPrefix"
-> & {
-  threads: ReturnType<typeof buildSessionListThreads>;
-  collapsedThreads: SessionFoldSet;
-  subagentThreads: SessionSubagentFolds;
-  normalizedFilter: string;
-  selection: ReturnType<typeof useSessionListBulkSelection>["rowSelection"];
-  pinnedSection: React.ReactNode;
-}) {
-  const ownerOf = view.aggregate ? view.ownerOf : undefined;
-  const remote = useRemoteSessionsFanout({
-    enabled: view.shelf === "active",
-    filters: normalizedFilter !== "" ? { q: normalizedFilter } : undefined,
-  });
-  const effectiveThreads = mergeLocalAndRemoteThreads(threads, remote.remoteSessions);
-  // Nothing has answered yet: placeholder rows, never the empty state.
-  if (view.catalog?.loading && remote.remoteSessions.length === 0) return <SessionListSkeleton />;
-  return (
-    <div
-      className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
-      data-session-list-scroll
-      aria-busy={view.catalog?.paging || undefined}
-    >
-      {pinnedSection}
-      <SessionListComputerContext value={remote.computerBySessionId}>
-        <SessionListBadgeContext value={view.badgeOf}>
-          <SessionListThreadList
-            threads={effectiveThreads}
-            collapsedThreads={collapsedThreads}
-            subagentThreads={subagentThreads}
-            currentSessionId={currentSessionId}
-            ownerOf={ownerOf}
-            onThreadBranchChange={onThreadBranchChange}
-            onSelectSession={session => {
-              if (!view.catalog?.paging) {
-                const computer = remote.computerBySessionId.get(session.id);
-                onSelectSession(computer ? { ...session, computerId: computer.id } : session);
-              }
-            }}
-            selection={selection}
-            sessionActions={sessionActions}
-            testIdPrefix={testIdPrefix}
-            emptyMessage={
-              remote.loadingComputers.length > 0 || remote.failedComputers.length > 0
-                ? null
-                : emptySessionListMessage(normalizedFilter !== "", view)
-            }
-          />
-        </SessionListBadgeContext>
-      </SessionListComputerContext>
-      <SessionListRemoteFooter
-        failedComputers={remote.failedComputers}
-        hasMore={remote.hasMore}
-        loadingComputers={remote.loadingComputers}
-        loadingMore={remote.loadingMore}
-        onLoadMore={() => void remote.loadMore()}
-        testIdPrefix={testIdPrefix}
-      />
-      {view.catalog ? <SessionListCatalogNavigation catalog={view.catalog} /> : null}
-    </div>
-  );
+  multi: MultiComputerListState | null,
+  scoped: ComputerSessionsSource | null
+) {
+  if (multi?.multiComputerVisible) {
+    const { sources } = multi.computerSources;
+    return {
+      effectiveTotals: aggregateSourcesTotals(sources, view.shelf) ?? view.totals,
+      effectiveLaterCount: aggregateLaterCount(sources) ?? view.laterCount,
+    };
+  }
+  return {
+    effectiveTotals: scoped ? aggregateSourcesTotals([scoped], view.shelf) : view.totals,
+    effectiveLaterCount: scoped?.laterCount ?? view.laterCount,
+  };
 }
 
 function sessionListVisibleCount(
@@ -460,7 +459,6 @@ function sessionListVisibleCount(
   threads: ReturnType<typeof buildSessionListThreads>,
   filter: string
 ): number | null {
-  // The list's own reads leave pinned sessions to the Pinned section, which counts them back.
   const pinned = view.pinned?.sessions.length ?? 0;
   if (view.groupBy === "none") return countThreadSessions(threads) + pinned;
   if (filter) return null;

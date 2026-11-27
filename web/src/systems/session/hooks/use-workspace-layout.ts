@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import type { ProfileScopeParams } from "@/systems/profiles";
 
 import {
@@ -67,15 +68,24 @@ interface LayoutWrite {
 export function useWorkspaceLayout(options: {
   profile: string;
   enabled: boolean;
+  computerId?: ComputerId;
 }): WorkspaceLayoutState {
   const queryClient = useQueryClient();
+  const computerId = normalizeComputerId(options.computerId);
+  const remote = isRemoteComputerId(computerId);
+  const targetComputer = remote ? computerId : undefined;
   const profile = options.profile.trim();
-  const query = useQuery({ ...workspaceLayoutOptions(profile), enabled: options.enabled });
-  const key = sessionKeys.workspaceLayout(profile);
+  const query = useQuery({
+    ...workspaceLayoutOptions(profile, computerId),
+    enabled: options.enabled,
+  });
+  const key = sessionKeys.forComputer(computerId).workspaceLayout(profile);
   const requestProfile = profile || undefined;
 
   const mutation = useMutation({
-    scope: { id: `workspace-layout:${profile}` },
+    scope: {
+      id: remote ? `workspace-layout:${computerId}:${profile}` : `workspace-layout:${profile}`,
+    },
     mutationFn: (run: LayoutWrite) => run.request(),
     onMutate: async (run: LayoutWrite) => {
       await queryClient.cancelQueries({ queryKey: key });
@@ -99,7 +109,10 @@ export function useWorkspaceLayout(options: {
   const { folders, placements } = query.data;
   const folderOrderWrite = (folderIds: readonly string[]): LayoutWrite => ({
     failure: "Couldn't reorder the folders.",
-    request: () => reorderWorkspaceFolders(requestProfile, folderIds),
+    request: () =>
+      targetComputer
+        ? reorderWorkspaceFolders(requestProfile, folderIds, undefined, targetComputer)
+        : reorderWorkspaceFolders(requestProfile, folderIds),
     optimistic: current => applyWorkspaceFolderOrder(current, folderIds),
   });
 
@@ -108,17 +121,28 @@ export function useWorkspaceLayout(options: {
       folders,
       placements,
       createFolder: async name => {
-        const folder = await createWorkspaceFolder(requestProfile, name);
-        queryClient.setQueryData<WorkspaceLayoutResponse>(key, current =>
-          current ? { ...current, folders: [folder, ...current.folders] } : current
-        );
-        await queryClient.invalidateQueries({ queryKey: key });
-        return folder;
+        try {
+          const folder = targetComputer
+            ? await createWorkspaceFolder(requestProfile, name, undefined, targetComputer)
+            : await createWorkspaceFolder(requestProfile, name);
+          queryClient.setQueryData<WorkspaceLayoutResponse>(key, current =>
+            current ? { ...current, folders: [folder, ...current.folders] } : current
+          );
+          await queryClient.invalidateQueries({ queryKey: key });
+          return folder;
+        } catch (error) {
+          // Re-read this computer's workspace layout after a conflict or limit error (`F12`).
+          void queryClient.invalidateQueries({ queryKey: key });
+          throw error;
+        }
       },
       renameFolder: (folderId, name) =>
         write({
           failure: "Couldn't rename the folder.",
-          request: () => renameWorkspaceFolder(requestProfile, folderId, name),
+          request: () =>
+            targetComputer
+              ? renameWorkspaceFolder(requestProfile, folderId, name, undefined, targetComputer)
+              : renameWorkspaceFolder(requestProfile, folderId, name),
           optimistic: current => ({
             ...current,
             folders: current.folders.map(folder =>
@@ -129,7 +153,10 @@ export function useWorkspaceLayout(options: {
       deleteFolder: folderId =>
         write({
           failure: "Couldn't delete the folder.",
-          request: () => deleteWorkspaceFolder(requestProfile, folderId),
+          request: () =>
+            targetComputer
+              ? deleteWorkspaceFolder(requestProfile, folderId, undefined, targetComputer)
+              : deleteWorkspaceFolder(requestProfile, folderId),
           optimistic: current => applyWorkspaceFolderRemoval(current, folderId),
         }),
       moveFolder: (folderId, delta) => {
@@ -145,13 +172,19 @@ export function useWorkspaceLayout(options: {
       moveWorkspace: (workspaceId, folderId) =>
         fireAndForget({
           failure: "Couldn't move the project.",
-          request: () => moveWorkspace(requestProfile, workspaceId, folderId),
+          request: () =>
+            targetComputer
+              ? moveWorkspace(requestProfile, workspaceId, folderId, undefined, targetComputer)
+              : moveWorkspace(requestProfile, workspaceId, folderId),
           optimistic: current => applyWorkspaceMove(current, workspaceId, folderId),
         }),
       reorderWorkspaces: (folderId, workspaceIds) =>
         fireAndForget({
           failure: "Couldn't reorder the projects.",
-          request: () => reorderWorkspaces(requestProfile, folderId, workspaceIds),
+          request: () =>
+            targetComputer
+              ? reorderWorkspaces(requestProfile, folderId, workspaceIds, undefined, targetComputer)
+              : reorderWorkspaces(requestProfile, folderId, workspaceIds),
           optimistic: current => applyWorkspaceOrder(current, folderId, workspaceIds),
         }),
     },
@@ -173,6 +206,7 @@ export function useProjectFolderGroups(options: {
   workspaces: ReadonlyArray<{ id: string; name: string }>;
   showEmptyProjects: boolean;
   enabled: boolean;
+  computerId?: ComputerId;
 }): {
   groups: SessionListGroupSpec[];
   projectFolders?: { layout: WorkspaceLayout; tree: ProjectGroupTree };
@@ -181,16 +215,19 @@ export function useProjectFolderGroups(options: {
   const { groupBy, breadth, lens, showEmptyProjects: showEmpty } = options;
   const projectGrouping = groupBy === "project" && breadth.allProjects;
   // Project folders belong to one profile and arrange the project groups of All projects.
-  const applies = projectGrouping && "profile" in lens;
+  // The remote default profile owns project folder layout under its aggregate lens.
+  const applies = projectGrouping && ("profile" in lens || isRemoteComputerId(options.computerId));
   const { layout, loadError } = useWorkspaceLayout({
-    profile: "profile" in lens ? lens.profile : "",
+    profile: "profile" in lens ? lens.profile : "default",
     enabled: options.enabled && applies,
+    computerId: options.computerId,
   });
   const visible = (placements?: WorkspaceLayout["placements"]) =>
     projectGrouping
       ? projectGroupsForView(options.groups, {
           showEmpty,
           workspaces: options.workspaces,
+          computerId: options.computerId,
           lens,
           placements,
         })

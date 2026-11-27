@@ -1,6 +1,8 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
+import type { ComputerId } from "@/lib/computer-scope";
+import type { SubagentListResponse } from "../adapters/subagent-api";
 import type { SubagentView } from "../components/subagents/types";
 import { subagentViewFromPayload } from "../lib/subagent-payload";
 import { isActiveSubagent, sortSubagentsByUrgency } from "../lib/subagent-roster";
@@ -29,6 +31,35 @@ export interface SessionSubagentBranchModel {
   retry: () => void;
 }
 
+function pagedSubagentRows(pages: readonly SubagentListResponse[] | undefined): SubagentView[] {
+  const rows = new Map<string, SubagentView>();
+  for (const page of pages ?? []) {
+    for (const payload of page.subagents) {
+      const row = subagentViewFromPayload(payload);
+      rows.set(row.id, row);
+    }
+  }
+  return [...rows.values()];
+}
+
+function visibleSubagentRows(
+  loaded: readonly SubagentView[],
+  limit: number,
+  total: number,
+  complete: boolean
+) {
+  const active = loaded.filter(isActiveSubagent).length;
+  const shown = Math.max(limit, active);
+  const rows = loaded.slice(0, shown);
+  const known = complete ? loaded.length : Math.max(total, loaded.length);
+  return {
+    rows,
+    shown,
+    remaining: Math.max(0, known - rows.length),
+    allLoadedActive: loaded.length > 0 && active === loaded.length,
+  };
+}
+
 /**
  * A session row's open subagent branch. While the parent's session stream
  * holds a live roster it feeds the rows and no request runs; otherwise the
@@ -43,37 +74,33 @@ export function useSessionSubagentBranch(
   workspaceId: string,
   sessionId: string,
   /** The row's `subagent_summary.total`, the count before any page loads. */
-  total: number
+  total: number,
+  computerId?: ComputerId,
+  enabled = true
 ): SessionSubagentBranchModel {
   const [limit, setLimit] = useState(SUBAGENT_BRANCH_PAGE_SIZE);
-  const scoped = workspaceId !== "" && sessionId !== "";
-  const live = useLiveSubagentRoster(workspaceId, sessionId, scoped);
+  const scoped = enabled && workspaceId !== "" && sessionId !== "";
+  const live = useLiveSubagentRoster(workspaceId, sessionId, scoped, computerId);
+  const usesLiveRoster = live !== null;
+  const readPages = scoped && !usesLiveRoster;
   const query = useInfiniteQuery({
-    ...sessionSubagentBranchOptions(workspaceId, sessionId),
-    enabled: scoped && live === null,
+    ...sessionSubagentBranchOptions(workspaceId, sessionId, computerId),
+    enabled: readPages,
   });
   const { hasNextPage, isFetching, isFetchingNextPage, fetchNextPage, isError } = query;
   const loaded = sortSubagentsByUrgency(
-    live?.rows ??
-      Array.from(
-        new Map(
-          query.data?.pages.flatMap(page =>
-            page.subagents.map(payload => {
-              const row = subagentViewFromPayload(payload);
-              return [row.id, row] as const;
-            })
-          )
-        ).values()
-      )
+    live?.rows ?? pagedSubagentRows(scoped ? query.data?.pages : undefined)
   );
-  const active = loaded.filter(isActiveSubagent).length;
-  const complete = live !== null || (query.isSuccess && !hasNextPage);
-  const shown = Math.max(limit, active);
-  const rows = loaded.slice(0, shown);
-  const known = complete ? loaded.length : Math.max(total, loaded.length);
-  const failed = live === null && isError;
+  const complete = usesLiveRoster || (query.isSuccess && !hasNextPage);
+  const { rows, shown, remaining, allLoadedActive } = visibleSubagentRows(
+    loaded,
+    limit,
+    total,
+    complete
+  );
+  const failed = readPages && isError;
   // Every loaded row is active, so the next page may hold more active work.
-  const activeTail = live === null && loaded.length > 0 && active === loaded.length;
+  const activeTail = !usesLiveRoster && allLoadedActive;
   // Wait for any read in flight: fetchNextPage would cancel a first-page refetch.
   useEffect(() => {
     if (activeTail && hasNextPage && !isFetching && !isError)
@@ -82,16 +109,18 @@ export function useSessionSubagentBranch(
 
   return {
     rows,
-    remaining: Math.max(0, known - rows.length),
-    loading: live === null && query.isLoading && !failed,
+    remaining: scoped ? remaining : 0,
+    loading: !usesLiveRoster && query.isLoading && !failed,
     loadingMore: isFetchingNextPage,
     failed,
     showMore: () => {
       const next = shown + SUBAGENT_BRANCH_PAGE_SIZE;
       setLimit(next);
-      if (live === null && loaded.length < next && hasNextPage && !isFetchingNextPage)
+      if (readPages && loaded.length < next && hasNextPage && !isFetchingNextPage)
         void fetchNextPage().catch(() => undefined);
     },
-    retry: () => void query.refetch(),
+    retry: () => {
+      if (scoped) void query.refetch();
+    },
   };
 }

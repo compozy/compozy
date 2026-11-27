@@ -15,14 +15,15 @@ import {
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleAction, SessionProcessChoice } from "./session-lifecycle-types";
 import { sessionsRunningProcesses } from "../lib/session-processes";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 
 /**
  * Archive always uses the daemon's stop-first operation: a live session stops
  * first, and a stopped parent whose subagent session is still live (until the
  * reaper stops it) archives too. A fully stopped family archives as before.
  */
-export function archiveTarget(
-  session: SessionPayload,
+export function archiveTarget<T extends SessionPayload>(
+  session: T,
   processes?: SessionProcessPolicy,
   trees?: SessionTrees
 ) {
@@ -36,7 +37,7 @@ export function archiveTarget(
 
 /** Trees mean the operator included children, even if this target's read found none. */
 export function descendantsOf(session: SessionPayload, trees?: SessionTrees) {
-  return trees ? { descendants: trees.get(session.id) ?? [] } : {};
+  return trees ? { descendants: trees.get(sessionRowKeyFor(session)) ?? [] } : {};
 }
 
 /** Its root target's tree may have taken a covered target, even if that root then failed. */
@@ -59,7 +60,10 @@ export async function notifyArchivedSessions(
   trees: SessionTrees | undefined,
   onSuccess?: (session: SessionPayload) => void | Promise<void>
 ): Promise<void> {
-  const children = await readArchivedDescendants(queryClient, trees?.get(session.id) ?? []);
+  const children = await readArchivedDescendants(
+    queryClient,
+    trees?.get(sessionRowKeyFor(session)) ?? []
+  );
   const results = await Promise.allSettled(
     [session, ...children].map(target => onSuccess?.(target))
   );

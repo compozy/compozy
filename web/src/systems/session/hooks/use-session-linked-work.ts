@@ -1,4 +1,5 @@
 import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -33,9 +34,15 @@ import type { SessionPayload } from "../types";
  * unlink says how it went from here, not from the caller: `mutate` keeps only the latest call's
  * callbacks, and a burst must not lose an earlier row's toast and Undo.
  */
-export function useSessionLinkMutations(workspaceId: string, sessionId: string, profile: string) {
+export function useSessionLinkMutations(
+  workspaceId: string,
+  sessionId: string,
+  profile: string,
+  computerIdOverride?: ComputerId
+) {
   const queryClient = useQueryClient();
-  const computerId = useCurrentComputerId();
+  const currentComputerId = useCurrentComputerId();
+  const computerId = normalizeComputerId(computerIdOverride ?? currentComputerId);
   const queryKey = sessionKeys.forComputer(computerId).linkedWork(workspaceId, sessionId);
   const reread = () =>
     invalidateSessionMutationQueries(queryClient, workspaceId, sessionId, computerId);
@@ -136,6 +143,7 @@ export interface SessionLinkedWorkModel {
 interface UseSessionLinkedWorkInput {
   session: SessionPayload;
   workspaceId: string;
+  computerId?: ComputerId;
   enabled: boolean;
   /** `false` skips the full read, leaving the catalog summary: a menu whose session links nothing. */
   read?: boolean;
@@ -145,12 +153,17 @@ interface UseSessionLinkedWorkInput {
 export function useSessionLinkedWork({
   session,
   workspaceId,
+  computerId: computerIdOverride,
   enabled,
   read = true,
 }: UseSessionLinkedWorkInput): SessionLinkedWorkModel {
   const [clipped, setClipped] = useState(false);
+  const currentComputerId = useCurrentComputerId();
+  const computerId = normalizeComputerId(
+    computerIdOverride ?? session.computerId ?? currentComputerId
+  );
   const list = useQuery({
-    ...sessionLinkedWorkOptions(workspaceId, session.id, useCurrentComputerId()),
+    ...sessionLinkedWorkOptions(workspaceId, session.id, computerId),
     // A window that isn't live still shows the whole list; it just stops rereading it.
     enabled: read && !!session.id,
     refetchInterval: enabled ? PULL_REQUEST_REREAD_INTERVAL_MS : false,
@@ -158,7 +171,8 @@ export function useSessionLinkedWork({
   const { remove, refresh } = useSessionLinkMutations(
     workspaceId,
     session.id,
-    session.profile_name
+    session.profile_name,
+    computerId
   );
   const summary = session.linked_work;
   const items = list.data?.items ?? (summary?.lead ? [summary.lead] : []);

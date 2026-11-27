@@ -1,3 +1,5 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { sessionRowKeyFor } from "@/systems/session/lib/session-row-ref";
 import { useAui } from "@assistant-ui/react";
 import { createStoreLogic } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
@@ -39,6 +41,7 @@ const editLogic = createStoreLogic({
 export function useSessionMessageEdit(composer: SessionComposerState): SessionMessageEdit {
   const aui = useAui();
   const runtime = useSessionRuntimeRenderContext();
+  const computerId = useCurrentComputerId();
   const rewind = useSessionRewind(runtime?.workspaceId ?? "");
   const store = useStore(editLogic);
   const state = useSelector(store, snapshot => snapshot.context);
@@ -123,9 +126,10 @@ export function useSessionMessageEdit(composer: SessionComposerState): SessionMe
         for (const attachment of submitted.attachments) {
           if (attachment.file) releaseComposerDraftFile(attachment.file);
         }
-        const draft = sessionStore.getSnapshot().context.drafts[runtime.sessionId];
+        const key = sessionRowKeyFor({ id: runtime.sessionId, computerId });
+        const draft = sessionStore.getSnapshot().context.drafts[key];
         if (draft === submitted.text)
-          sessionStore.trigger.composerDraftDiscarded({ sessionId: runtime.sessionId });
+          sessionStore.trigger.composerDraftDiscarded({ sessionId: key });
         return;
       }
       runtime.resetRuntime();

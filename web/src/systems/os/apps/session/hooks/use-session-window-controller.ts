@@ -1,5 +1,11 @@
 import { toast } from "@compozy/ui";
 import { useEffect, useState } from "react";
+import { isRemoteComputerId } from "@/lib/computer-scope";
+import {
+  computerCanOperateSessions,
+  useComputers,
+  type ComputerPayload,
+} from "@/systems/computers";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import {
@@ -11,6 +17,7 @@ import {
 import { useWindowDataWorkspace } from "@/systems/workspace";
 
 import { useOsShell } from "../../../hooks/use-os-shell";
+import { sessionWindowInstanceKey } from "../../../lib/session-window-identity";
 import { useSessionWindowResolution } from "./use-session-window-resolution";
 import { useSessionWindowRuntime } from "./use-session-window-runtime";
 
@@ -22,38 +29,46 @@ export function useSessionWindowController(windowId: string) {
   const focusedScope = focusedWindowScope(useWindowDataWorkspace());
   const { computerId, focused, liveTailEnabled, presenceEnabled, sessionId, agentName } =
     useSessionWindowRuntime(windowId);
-  const deletionPending = useSessionDeletionPending(sessionId);
+  const deletionPending = useSessionDeletionPending(sessionId, computerId);
   const archivePending = useSessionArchivePending(windowId);
-  const deletedByOperator = useSessionDeletedByOperator(sessionId);
+  const deletedByOperator = useSessionDeletedByOperator(sessionId, computerId);
+  const mayReadSession = !deletedByOperator && !deletionPending;
   const resolution = useSessionWindowResolution({
     computerId,
     sessionId,
     focusedScope,
-    enabled: sessionId !== null && !deletedByOperator && !deletionPending,
-    liveTailEnabled: liveTailEnabled && !deletedByOperator && !deletionPending,
+    enabled: sessionId !== null && mayReadSession,
+    liveTailEnabled: liveTailEnabled && mayReadSession,
   });
-  const remotelyGone = sessionRemotelyGone(sessionId, resolution, aggregate);
-  const archivedWhileOpen = useSessionArchivedWhileOpen(sessionId, resolution, archivePending);
+  const remote = isRemoteComputerId(computerId);
+  const instanceKey = sessionId === null ? null : sessionWindowInstanceKey(sessionId, computerId);
+  const remotelyGone = sessionRemotelyGone(sessionId, resolution, aggregate || remote);
+  const archivedWhileOpen = useSessionArchivedWhileOpen(
+    sessionId,
+    instanceKey,
+    resolution,
+    archivePending
+  );
   const deletedLocally = deletedByOperator || remotelyGone;
   const effectiveLiveTailEnabled =
     liveTailEnabled && !deletionPending && !deletedLocally && !resolution.crossesWorkspace;
+  const { computers } = useComputers({ enabled: remote, passive: true });
   useSessionPresence(
     resolution.workspaceId,
     sessionId,
-    presenceEnabled && !deletionPending && sessionPresenceAllowed(resolution, deletedLocally)
+    sessionPresenceAllowed(resolution, { deletedLocally, deletionPending, presenceEnabled }) &&
+      computerCanReportPresence(computers, computerId, remote),
+    ...(remote ? ([computerId] as const) : [])
   );
   // A document's project lens cannot remove a valid shared window. Only a confirmed
   // missing session, one this client deleted, or one archived while open retires it;
   // scope mismatches render a local notice.
-  useRetireSessionWindow(
-    windowId,
-    sessionId,
-    sessionId !== null && !deletionPending && (deletedLocally || archivedWhileOpen),
-    // The list's delete already retired this window; if that retarget was refused, retire it
-    // again here without announcing an operator-deleted session as missing. An archived
-    // session is not missing either.
-    !deletedByOperator && !archivedWhileOpen
-  );
+  useRetireSessionWindow(windowId, instanceKey, {
+    deletionPending,
+    deletedLocally,
+    archivedWhileOpen,
+    deletedByOperator,
+  });
 
   return {
     ...resolution,
@@ -82,9 +97,23 @@ function sessionRemotelyGone(
   return aggregate || resolution.foreign.status === "missing";
 }
 
-function sessionPresenceAllowed(resolution: SessionWindowResolution, deletedLocally: boolean) {
-  if (resolution.session === undefined || resolution.scopedMiss || deletedLocally) return false;
+function sessionPresenceAllowed(
+  resolution: SessionWindowResolution,
+  state: { deletedLocally: boolean; deletionPending: boolean; presenceEnabled: boolean }
+) {
+  if (!state.presenceEnabled || state.deletionPending || state.deletedLocally) return false;
+  if (resolution.session === undefined || resolution.scopedMiss) return false;
   return !resolution.crossesWorkspace && resolution.foreign.status !== "loading";
+}
+
+function computerCanReportPresence(
+  computers: readonly ComputerPayload[],
+  computerId: string,
+  remote: boolean
+): boolean {
+  if (!remote) return true;
+  const computer = computers.find(row => row.id === computerId);
+  return computer?.status === "connected" && computerCanOperateSessions(computer.scopes, false);
 }
 
 /**
@@ -95,13 +124,14 @@ function sessionPresenceAllowed(resolution: SessionWindowResolution, deletedLoca
  */
 function useSessionArchivedWhileOpen(
   sessionId: string | null,
+  instanceKey: string | null,
   { shownSession, isFetching }: Pick<SessionWindowResolution, "shownSession" | "isFetching">,
   archivePending: boolean
 ): boolean {
   const [seenUnarchivedId, setSeenUnarchivedId] = useState<string | null>(null);
   const shown = shownSession?.id === sessionId ? shownSession : undefined;
   const seenUnarchived = shown?.archived_at === null && !isFetching;
-  const next = seenUnarchived || seenUnarchivedId === sessionId ? sessionId : null;
+  const next = seenUnarchived || seenUnarchivedId === instanceKey ? instanceKey : null;
   if (next !== seenUnarchivedId) setSeenUnarchivedId(next);
   return !archivePending && next !== null && shown !== undefined && shown.archived_at !== null;
 }
@@ -109,10 +139,21 @@ function useSessionArchivedWhileOpen(
 function useRetireSessionWindow(
   windowId: string,
   sessionId: string | null,
-  retire: boolean,
-  announce: boolean
+  state: {
+    deletionPending: boolean;
+    deletedLocally: boolean;
+    archivedWhileOpen: boolean;
+    deletedByOperator: boolean;
+  }
 ) {
   const { coordinator } = useOsShell();
+  const retire =
+    sessionId !== null &&
+    !state.deletionPending &&
+    (state.deletedLocally || state.archivedWhileOpen);
+  // A refused retarget can leave the window open after a delete. Retire it
+  // without a missing-session alert, as with a session archived while open.
+  const announce = !state.deletedByOperator && !state.archivedWhileOpen;
   useEffect(() => {
     if (!retire || sessionId === null) return;
     if (announce) toast.error("Session not found");

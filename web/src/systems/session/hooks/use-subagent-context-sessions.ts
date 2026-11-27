@@ -2,6 +2,7 @@ import { useQueries, useQueryClient } from "@tanstack/react-query";
 
 import { SessionNotFoundError } from "../adapters/session-api-errors";
 import { sessionDetailOptions } from "../lib/query-options";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import {
   subagentContextRequests,
   withSubagentContext,
@@ -32,14 +33,19 @@ export function useSubagentContextSessions(
     let resolved = false;
     for (const request of pending) {
       reads.push(request);
-      const { queryKey } = sessionDetailOptions(request.workspaceId, request.sessionId);
+      const { queryKey } = sessionDetailOptions(
+        request.workspaceId,
+        request.sessionId,
+        request.computerId
+      );
+      const key = sessionRowKeyFor({ id: request.sessionId, computerId: request.computerId });
       const cached = queryClient.getQueryData<SessionPayload>(queryKey);
       if (cached) {
-        loaded.set(request.sessionId, cached);
+        loaded.set(key, cached);
         resolved = true;
       } else if (queryClient.getQueryState(queryKey)?.error instanceof SessionNotFoundError) {
         // The ancestor is gone; its descendants still show, labelled (COPY.md).
-        deleted.add(request.sessionId);
+        deleted.add(key);
         resolved = true;
       }
     }
@@ -47,7 +53,9 @@ export function useSubagentContextSessions(
   }
   // Subscribing re-renders when a pending hop lands, which resolves the next one.
   useQueries({
-    queries: reads.map(request => sessionDetailOptions(request.workspaceId, request.sessionId)),
+    queries: reads.map(request =>
+      sessionDetailOptions(request.workspaceId, request.sessionId, request.computerId)
+    ),
   });
   return withSubagentContext({ sessions, loaded, deleted, revealed, searching });
 }

@@ -1,3 +1,10 @@
+import {
+  isRemoteComputerId,
+  LOCAL_COMPUTER_ID,
+  normalizeComputerId,
+  type ComputerId,
+} from "@/lib/computer-scope";
+
 import { sessionCatalogOptions } from "./session-catalog-options";
 import { sessionFolderId } from "./session-folders";
 import type { SessionFolderPayload, SessionListFilters, SessionPayload } from "../types";
@@ -7,14 +14,18 @@ export const SESSION_LIST_ROOT_FOLDER = "@root";
 export function sessionListPartitionOptions(
   filters: SessionListFilters,
   folder: string,
-  countOnly: boolean
+  countOnly: boolean,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
 ) {
-  return sessionCatalogOptions({
-    ...filters,
-    folder,
-    skip_total: false,
-    ...(countOnly ? { limit: 1, include_health: false } : {}),
-  });
+  return sessionCatalogOptions(
+    {
+      ...filters,
+      folder,
+      skip_total: false,
+      ...(countOnly ? { limit: 1, include_health: false } : {}),
+    },
+    computerId
+  );
 }
 
 export function partitionSessionRows<T extends { sessions: readonly SessionPayload[] }>(
@@ -38,13 +49,23 @@ export interface PendingSessionLayoutEdit {
   removedFolder?: SessionFolderPayload;
 }
 
-export function sessionLayoutMutationKey(workspaceId: string, profile: string) {
-  return ["session-layout", workspaceId, profile.trim()] as const;
+export function sessionLayoutMutationKey(
+  workspaceId: string,
+  profile: string,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  return isRemoteComputerId(computerId)
+    ? (["session-layout", normalizeComputerId(computerId), workspaceId, profile.trim()] as const)
+    : (["session-layout", workspaceId, profile.trim()] as const);
 }
 
-export function pendingSessionLayoutFilter(workspaceId: string, profile: string) {
+export function pendingSessionLayoutFilter(
+  workspaceId: string,
+  profile: string,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
   return {
-    mutationKey: sessionLayoutMutationKey(workspaceId, profile),
+    mutationKey: sessionLayoutMutationKey(workspaceId, profile, computerId),
     exact: true,
     status: "pending" as const,
   };

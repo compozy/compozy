@@ -46,10 +46,11 @@ export function projectGroupsForView(
     showEmpty: boolean;
     workspaces: ReadonlyArray<{ id: string; name: string }>;
     lens: SessionListGroupSpec["lens"];
+    computerId?: SessionListGroupSpec["computerId"];
     placements?: readonly WorkspacePlacementPayload[];
   }
 ): SessionListGroupSpec[] {
-  if (!input.showEmpty) return groups.filter(group => group.total > 0);
+  if (!input.showEmpty) return groups.filter(group => group.total > 0 || group.hasResident);
   const shown = new Set(groups.flatMap(group => projectGroupWorkspaceId(group) ?? []));
   const added = input.workspaces.flatMap(workspace =>
     shown.has(workspace.id) ? [] : [projectSessionGroup(workspace.id, EMPTY_GROUP_FACETS, input)]

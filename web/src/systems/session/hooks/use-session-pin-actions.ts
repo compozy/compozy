@@ -2,9 +2,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "@compozy/ui";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import { setSessionPinned } from "../adapters/session-pin-api";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
+import { sessionComputerOf, sessionRowKeyFor } from "../lib/session-row-ref";
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./session-lifecycle-types";
 import { requireWorkspace } from "./session-action-workspace";
@@ -25,28 +28,46 @@ export interface SessionPinActions {
  * (`focusSession`) and announces the change; other windows follow on the stream.
  */
 export function useSessionPinActions(
-  focusSession: (sessionId: string, pinned: boolean) => void
+  focusSession: (sessionId: string, pinned: boolean) => void,
+  computerOf?: (session: SessionPayload) => ComputerId | undefined
 ): SessionPinActions {
   const queryClient = useQueryClient();
   const request = useAbortableMutationRequest();
   const [announcement, setAnnouncement] = useState("");
   const mutation = useMutation({
-    mutationFn: ({ session, pinned }: { session: SessionPayload; pinned: boolean }) =>
+    mutationFn: ({
+      session,
+      pinned,
+      computerId,
+    }: {
+      session: SessionPayload;
+      pinned: boolean;
+      computerId?: ComputerId;
+    }) =>
       request(signal =>
-        setSessionPinned(
-          requireWorkspace(session.workspace_id ?? ""),
-          session.id,
-          session.profile_name,
-          pinned,
-          signal
-        )
+        isRemoteComputerId(computerId)
+          ? setSessionPinned(
+              requireWorkspace(session.workspace_id ?? ""),
+              session.id,
+              session.profile_name,
+              pinned,
+              signal,
+              computerId
+            )
+          : setSessionPinned(
+              requireWorkspace(session.workspace_id ?? ""),
+              session.id,
+              session.profile_name,
+              pinned,
+              signal
+            )
       ),
-    onSuccess: async (_data, { session, pinned }) => {
+    onSuccess: async (_data, { session, pinned, computerId }) => {
       const workspace = requireWorkspace(session.workspace_id ?? "");
-      await invalidateSessionMutationQueries(queryClient, workspace, session.id);
+      await invalidateSessionMutationQueries(queryClient, workspace, session.id, computerId);
       const title = getSessionDisplayTitle(session);
       setAnnouncement(pinned ? `Pinned ${title}.` : `Unpinned ${title}.`);
-      focusSession(session.id, pinned);
+      focusSession(sessionRowKeyFor(session, computerId), pinned);
     },
     onError: (_error, { session, pinned }) => {
       const title = getSessionDisplayTitle(session);
@@ -59,12 +80,22 @@ export function useSessionPinActions(
     mutation.isPending && mutation.variables
       ? {
           action: mutation.variables.pinned ? ("pin" as const) : ("unpin" as const),
-          sessionId: mutation.variables.session.id,
+          sessionId: sessionRowKeyFor(mutation.variables.session, mutation.variables.computerId),
         }
       : null;
   return {
-    onPin: session => mutation.mutate({ session, pinned: true }),
-    onUnpin: session => mutation.mutate({ session, pinned: false }),
+    onPin: session =>
+      mutation.mutate({
+        session,
+        pinned: true,
+        computerId: computerOf?.(session) ?? sessionComputerOf(session),
+      }),
+    onUnpin: session =>
+      mutation.mutate({
+        session,
+        pinned: false,
+        computerId: computerOf?.(session) ?? sessionComputerOf(session),
+      }),
     pending,
     announcement,
   };
@@ -82,20 +113,27 @@ export function useSessionListPin(
   testIdPrefix: string
 ) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const pin = useSessionPinActions((sessionId, pinned) => {
-    requestAnimationFrame(() => {
-      const list = contentRef.current;
-      if (!list) return;
-      const row = list.querySelector<HTMLElement>(
-        `[data-testid="${testIdPrefix}-session-${sessionId}"]`
-      );
-      const header = pinned
-        ? list.querySelector<HTMLElement>(`[data-testid="${testIdPrefix}-pinned-toggle"]`)
-        : null;
-      const filter = list.querySelector<HTMLElement>('input[aria-label="Filter sessions"]');
-      (row ?? header ?? filter)?.focus();
-    });
-  });
+  const pin = useSessionPinActions(
+    (sessionId, pinned) => {
+      requestAnimationFrame(() => {
+        const list = contentRef.current;
+        if (!list) return;
+        const row = Array.from(
+          list.querySelectorAll<HTMLElement>('[data-slot="session-row-target"]')
+        ).find(target => {
+          const id = target.dataset.sessionId;
+          const computerId = target.closest<HTMLElement>("[data-computer-id]")?.dataset.computerId;
+          return id !== undefined && sessionRowKeyFor({ id, computerId }) === sessionId;
+        });
+        const header = pinned
+          ? list.querySelector<HTMLElement>(`[data-testid="${testIdPrefix}-pinned-toggle"]`)
+          : null;
+        const filter = list.querySelector<HTMLElement>('input[aria-label="Filter sessions"]');
+        (row ?? header ?? filter)?.focus();
+      });
+    },
+    session => sessionComputerOf(session)
+  );
   const pending = pin.pending;
   return {
     contentRef,

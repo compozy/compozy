@@ -1,3 +1,4 @@
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
@@ -60,15 +61,20 @@ export function useSession(id: string) {
  * A session's id and lineage, sharing `useSession`'s cache entry without polling it or
  * re-rendering on the rest of its live detail.
  */
-export function useSessionLineage(id: string, enabled = true) {
+export function useSessionLineage(id: string, enabled = true, computerId?: ComputerId) {
   const { params } = useProfileReadScope();
-  const pending = useSessionDeletionPending(id);
-  const deleted = useSessionDeletedByOperator(id);
+  const pending = useSessionDeletionPending(id, computerId);
+  const deleted = useSessionDeletedByOperator(id, computerId);
   return useQuery({
-    ...sessionScopedDetailOptions(id, params, {
-      enabled: enabled && !pending && !deleted,
-      liveTail: false,
-    }),
+    ...sessionScopedDetailOptions(
+      id,
+      isRemoteComputerId(computerId) ? { all_profiles: true } : params,
+      {
+        computerId,
+        enabled: enabled && !pending && !deleted,
+        liveTail: false,
+      }
+    ),
     select: session => ({
       id: session.id,
       lineage: session.lineage && {

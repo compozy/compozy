@@ -9,6 +9,7 @@ import { SessionCreateContext } from "../contexts/session-create-context-value";
 import { clearPendingTerminalQuote, holdPendingTerminalQuote } from "../lib/session-terminal-quote";
 import type { SessionCreateOpenOptions } from "../lib/session-create-target";
 import type { SessionCreateStore } from "../stores/session-create-store";
+import { isRemoteComputerId } from "@/lib/computer-scope";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { useActiveWorkspace, useScopedWorktreeFilter } from "@/systems/workspace";
 
@@ -47,19 +48,22 @@ export function useSessionCreateActions() {
     clearPendingTerminalQuote();
     // A named project other than the acting one starts from its own draft and default agent:
     // the acting scope's worktree belongs to a different repository.
+    const remoteTarget = isRemoteComputerId(options.computerId);
     const otherProject =
-      options.workspaceId && options.workspaceId !== runtimeWorkspaceId
+      !remoteTarget && options.workspaceId && options.workspaceId !== runtimeWorkspaceId
         ? registeredWorkspaces.find(workspace => workspace.id === options.workspaceId)
         : undefined;
     const defaultAgent = (otherProject ?? runtimeWorkspace)?.default_agent?.trim() || "";
     store.trigger.dialogOpened({
       agentName: agentName.trim() || defaultAgent,
-      workspaceId: otherProject?.id ?? runtimeWorkspaceId ?? "",
+      workspaceId: remoteTarget ? "" : (otherProject?.id ?? runtimeWorkspaceId ?? ""),
+      ...(options.computerId ? { computerId: options.computerId } : {}),
+      ...(options.fixedComputer ? { fixedComputer: true } : {}),
       ...(options.folderId ? { folderId: options.folderId } : {}),
       ...(options.workspaceId || options.profile
         ? { target: { project: options.workspaceId, profile: options.profile } }
         : {}),
-      ...(scopedWorktree.worktreeId && !otherProject
+      ...(scopedWorktree.worktreeId && !otherProject && !remoteTarget
         ? { environment: { kind: "worktree", worktreeId: scopedWorktree.worktreeId } }
         : {}),
     });

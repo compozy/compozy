@@ -8,6 +8,8 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import {
   createSessionFolder,
   deleteSessionFolder,
@@ -58,6 +60,8 @@ export interface SessionListLayout {
 /** The folder layout once loaded, or the failed first read and its retry. */
 export interface SessionFoldersState {
   layout?: SessionListLayout;
+  /** Folders still in memory when an offline/read-only computer cannot mutate (`F10`, `F11`). */
+  cachedFolders?: readonly SessionFolderPayload[];
   loading?: boolean;
   pendingEdits?: readonly PendingSessionLayoutEdit[];
   /** Set when the folder list could not be read; the list stays flat until a retry loads it. */
@@ -76,14 +80,21 @@ export function useSessionFolders(options: {
   workspaceId: string | null;
   profile: string;
   enabled: boolean;
+  computerId?: ComputerId;
+  /** Offline or lacking `sessions:operate`: reads in-memory cache only, no requests or verbs (`F10`, `F11`). */
+  readOnly?: boolean;
 }): SessionFoldersState {
   const queryClient = useQueryClient();
+  const computerId = normalizeComputerId(options.computerId);
+  const remote = isRemoteComputerId(computerId);
+  const keys = sessionKeys.forComputer(computerId);
   const workspaceId = options.workspaceId ?? "";
   const scope: SessionLayoutScope = { workspaceId, profile: options.profile || undefined };
-  const enabled = options.enabled && workspaceId !== "";
-  const foldersQuery = useQuery({ ...sessionFoldersOptions(scope), enabled });
-  const foldersKey = sessionKeys.folders(workspaceId, options.profile);
-  const catalogPrefix = [...sessionKeys.workspaceLists(workspaceId), "page"] as const;
+  const readOnly = options.readOnly === true;
+  const enabled = options.enabled && !readOnly && workspaceId !== "";
+  const foldersQuery = useQuery({ ...sessionFoldersOptions(scope, computerId), enabled });
+  const foldersKey = keys.folders(workspaceId, options.profile);
+  const catalogPrefix = [...keys.workspaceLists(workspaceId), "page"] as const;
 
   const snapshot = (): Snapshot => [
     ...queryClient
@@ -116,20 +127,24 @@ export function useSessionFolders(options: {
     );
   };
 
-  const mutationKey = sessionLayoutMutationKey(workspaceId, options.profile);
+  const mutationKey = sessionLayoutMutationKey(workspaceId, options.profile, computerId);
   const pendingEdits = useMutationState({
-    filters: pendingSessionLayoutFilter(workspaceId, options.profile),
+    filters: pendingSessionLayoutFilter(workspaceId, options.profile, computerId),
     select: entry => pendingSessionLayoutEdit(entry.state.variables),
   }).flat();
 
   const mutation = useMutation({
     mutationKey,
-    // One scope per workspace and profile runs layout writes one at a time, so
+    // One scope per computer, workspace and profile runs layout writes one at a time, so
     // rapid reorders reach the daemon in the order the operator made them.
-    scope: { id: `session-layout:${workspaceId}:${options.profile.trim()}` },
+    scope: {
+      id: remote
+        ? `session-layout:${computerId}:${workspaceId}:${options.profile.trim()}`
+        : `session-layout:${workspaceId}:${options.profile.trim()}`,
+    },
     mutationFn: (run: LayoutWrite) => run.request(),
     onMutate: async (run: LayoutWrite) => {
-      await queryClient.cancelQueries({ queryKey: sessionKeys.workspaceLists(workspaceId) });
+      await queryClient.cancelQueries({ queryKey: keys.workspaceLists(workspaceId) });
       const previous = snapshot();
       run.optimistic?.();
       return { previous };
@@ -138,12 +153,16 @@ export function useSessionFolders(options: {
       for (const entry of context?.previous ?? []) queryClient.setQueryData(entry.key, entry.data);
       toast.error(run.failure, { description: error instanceof Error ? error.message : undefined });
     },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists(workspaceId) }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: keys.workspaceLists(workspaceId) }),
   });
   const write = (run: LayoutWrite) => mutation.mutateAsync(run).then(() => undefined);
   const fireAndForget = (run: LayoutWrite) => void write(run).catch(() => undefined);
+  const targetComputer = remote ? computerId : undefined;
 
+  // Offline or lacking `sessions:operate`: keep cached folders visible without mutations (`F10`, `F11`).
+  if (readOnly) {
+    return foldersQuery.data ? { cachedFolders: foldersQuery.data } : {};
+  }
   // Without the folder list, foldered rows would render as root members and a
   // root reorder would unfile them, so the list stays flat until it loads.
   if (!enabled) return {};
@@ -156,7 +175,10 @@ export function useSessionFolders(options: {
 
   const folderOrderWrite = (folderIds: readonly string[]): LayoutWrite => ({
     failure: "Couldn't reorder the folders.",
-    request: () => reorderSessionFolders(scope, folderIds),
+    request: () =>
+      targetComputer
+        ? reorderSessionFolders(scope, folderIds, targetComputer)
+        : reorderSessionFolders(scope, folderIds),
     optimistic: () =>
       patchFolders(current => {
         const byId = new Map(current.map(folder => [folder.id, folder]));
@@ -170,15 +192,26 @@ export function useSessionFolders(options: {
   const layout: SessionListLayout = {
     folders,
     createFolder: async name => {
-      const folder = await createSessionFolder(scope, name);
-      patchFolders(current => [folder, ...current]);
-      await queryClient.invalidateQueries({ queryKey: foldersKey });
-      return folder;
+      try {
+        const folder = targetComputer
+          ? await createSessionFolder(scope, name, targetComputer)
+          : await createSessionFolder(scope, name);
+        patchFolders(current => [folder, ...current]);
+        await queryClient.invalidateQueries({ queryKey: foldersKey });
+        return folder;
+      } catch (error) {
+        // Re-read this computer's layout after a conflict or limit error (`F12`).
+        void queryClient.invalidateQueries({ queryKey: foldersKey });
+        throw error;
+      }
     },
     renameFolder: (folderId, name) =>
       write({
         failure: "Couldn't rename the folder.",
-        request: () => renameSessionFolder(scope, folderId, name),
+        request: () =>
+          targetComputer
+            ? renameSessionFolder(scope, folderId, name, targetComputer)
+            : renameSessionFolder(scope, folderId, name),
         optimistic: () =>
           patchFolders(current =>
             current.map(folder => (folder.id === folderId ? { ...folder, name } : folder))
@@ -189,7 +222,10 @@ export function useSessionFolders(options: {
         applyFolderRemoval(sessions, folderId);
       return write({
         failure: "Couldn't delete the folder.",
-        request: () => deleteSessionFolder(scope, folderId),
+        request: () =>
+          targetComputer
+            ? deleteSessionFolder(scope, folderId, targetComputer)
+            : deleteSessionFolder(scope, folderId),
         optimistic: () => {
           patchFolders(current => current.filter(folder => folder.id !== folderId));
           patchSessions(update);
@@ -211,7 +247,10 @@ export function useSessionFolders(options: {
         applySessionMove(sessions, sessionId, folderId);
       fireAndForget({
         failure: "Couldn't move the session.",
-        request: () => moveSessionToFolder(scope, sessionId, folderId),
+        request: () =>
+          targetComputer
+            ? moveSessionToFolder(scope, sessionId, folderId, targetComputer)
+            : moveSessionToFolder(scope, sessionId, folderId),
         optimistic: () => patchSessions(update),
         partitionEdit: { update },
       });
@@ -223,7 +262,10 @@ export function useSessionFolders(options: {
           : applySessionOrder(sessions, folderId, sessionIds);
       return write({
         failure: "Couldn't move the sessions.",
-        request: () => reorderSessions(scope, folderId, sessionIds),
+        request: () =>
+          targetComputer
+            ? reorderSessions(scope, folderId, sessionIds, targetComputer)
+            : reorderSessions(scope, folderId, sessionIds),
         optimistic: () => patchSessions(update),
         partitionEdit: { update },
       });
@@ -233,7 +275,10 @@ export function useSessionFolders(options: {
         applySessionOrder(sessions, folderId, sessionIds);
       fireAndForget({
         failure: "Couldn't reorder the sessions.",
-        request: () => reorderSessions(scope, folderId, sessionIds),
+        request: () =>
+          targetComputer
+            ? reorderSessions(scope, folderId, sessionIds, targetComputer)
+            : reorderSessions(scope, folderId, sessionIds),
         optimistic: () => patchSessions(update),
         partitionEdit: { update },
       });

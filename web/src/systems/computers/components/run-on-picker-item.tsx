@@ -1,5 +1,5 @@
 import { RefreshCw, Sparkles, TriangleAlert } from "@compozy/ui/icons";
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 import { Button, cn, CommandItem, Pill, Spinner, StatusDot } from "@compozy/ui";
 
@@ -75,6 +75,8 @@ export interface RunOnComputerItemProps {
   onSelect: (computerId: string) => void;
   onReconnect?: (computerId: string) => void;
   onUpgrade?: (computerId: string) => void;
+  /** Replaces the load meter on a reachable computer, e.g. a session count in a filter. */
+  trailing?: ReactNode;
 }
 
 function ComputerItemAction({
@@ -83,12 +85,13 @@ function ComputerItemAction({
   reconnecting,
   onReconnect,
   onUpgrade,
+  trailing,
 }: Pick<
   RunOnComputerItemProps,
-  "computer" | "highlightReconnect" | "reconnecting" | "onReconnect" | "onUpgrade"
+  "computer" | "highlightReconnect" | "reconnecting" | "onReconnect" | "onUpgrade" | "trailing"
 >) {
   if (computer.status === "connected" || computer.status === "needs_attention") {
-    return <ComputerLoadMeter computerName={computer.name} load={computer.load} />;
+    return trailing ?? <ComputerLoadMeter computerName={computer.name} load={computer.load} />;
   }
   if (computer.status === "offline" && onReconnect) {
     return (
@@ -146,6 +149,7 @@ export function RunOnComputerItem({
   onSelect,
   onReconnect,
   onUpgrade,
+  trailing,
 }: RunOnComputerItemProps) {
   const isBlocked = computer.status === "needs_pro" || computer.status === "incompatible";
   const dimmed = isBlocked || computer.status === "offline";
@@ -180,6 +184,7 @@ export function RunOnComputerItem({
           onReconnect={onReconnect}
           onUpgrade={onUpgrade}
           reconnecting={reconnecting}
+          trailing={trailing}
         />
       </span>
     </CommandItem>

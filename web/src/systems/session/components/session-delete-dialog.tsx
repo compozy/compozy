@@ -16,6 +16,7 @@ import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import { sessionProcessChoiceCopy } from "../lib/session-process-choice";
 import { SIDE_CHAT_COPY } from "../lib/session-side";
 import { sessionRunningProcesses } from "../lib/session-processes";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import type { SessionChildrenChoice } from "../lib/session-tree";
 import type { SessionPayload } from "../types";
 
@@ -101,7 +102,8 @@ function SingleSessionDeleteDialog({
   onConfirm,
 }: SingleSessionDeleteDialogProps) {
   const childrenPending = childSessions?.pending === true;
-  const failure = results?.find(result => result.id === session.id && result.status === "failed");
+  const rowKey = sessionRowKeyFor(session);
+  const failure = results?.find(result => result.id === rowKey && result.status === "failed");
   const retrying = failure !== undefined && !isDeleting;
   const targetProcessCount = processCount ?? sessionRunningProcesses(session);
   const runningProcessCount = targetProcessCount + (childSessions?.includedProcessCount ?? 0);

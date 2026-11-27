@@ -12,6 +12,7 @@ import {
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { sessionStore } from "../stores/session-store";
 import type {
   SessionPromptAttachment,
@@ -136,7 +137,7 @@ export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
             : null;
       if (goal) {
         sessionStore.trigger.goalCommandReported({
-          sessionId: params.id,
+          sessionId: sessionRowKeyFor({ id: params.id, computerId }),
           command: params.message,
           result: goal,
         });

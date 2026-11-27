@@ -15,6 +15,7 @@ import {
   cn,
 } from "@compozy/ui";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
   useMarkAgentInstanceSeen,
@@ -55,11 +56,13 @@ function spoken(instance: AgentInstancePayload) {
 function SeatMenu({
   instance,
   actions,
+  computerId,
 }: {
   instance: AgentInstancePayload;
   actions: AlwaysOnRowActions;
+  computerId?: ComputerId;
 }) {
-  const markSeen = useMarkAgentInstanceSeen();
+  const markSeen = useMarkAgentInstanceSeen(computerId);
   const paused = instance.state === "paused";
   const reason = agentPauseCopy(instance);
   return (
@@ -74,19 +77,21 @@ function SeatMenu({
         ) : null}
       </ContextMenuGroup>
       <ContextMenuSeparator />
-      {instance.attention_dismissible ? (
+      {actions.canManage && instance.attention_dismissible ? (
         <ContextMenuItem disabled={markSeen.isPending} onClick={() => markSeen.mutate(instance)}>
           Mark as seen
         </ContextMenuItem>
       ) : null}
-      <ContextMenuItem
-        disabled={paused && agentInstanceResumeBlocked(instance)}
-        onClick={() => actions.togglePause(instance)}
-      >
-        {paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
-        {paused ? "Resume" : "Pause"}
-      </ContextMenuItem>
-      {agentInstanceDefinitionGone(instance) ? null : (
+      {actions.canManage ? (
+        <ContextMenuItem
+          disabled={paused && agentInstanceResumeBlocked(instance)}
+          onClick={() => actions.togglePause(instance)}
+        >
+          {paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
+          {paused ? "Resume" : "Pause"}
+        </ContextMenuItem>
+      ) : null}
+      {actions.canNavigateToAgent && !agentInstanceDefinitionGone(instance) ? (
         <>
           <ContextMenuItem onClick={() => void actions.openAgent(instance)}>
             <Bot aria-hidden="true" />
@@ -97,12 +102,13 @@ function SeatMenu({
             Heartbeat
           </ContextMenuItem>
         </>
-      )}
-      <ContextMenuSeparator />
-      <ContextMenuItem onClick={() => actions.archive(instance)}>
-        <Archive aria-hidden="true" />
-        Archive
-      </ContextMenuItem>
+      ) : null}
+      {actions.canManage ? (
+        <ContextMenuItem onClick={() => actions.archive(instance)}>
+          <Archive aria-hidden="true" />
+          Archive
+        </ContextMenuItem>
+      ) : null}
     </ContextMenuContent>
   );
 }
@@ -112,11 +118,13 @@ function Seat({
   surface,
   current,
   actions,
+  computerId,
 }: {
   instance: AgentInstancePayload;
   surface: string;
   current: boolean;
   actions: AlwaysOnRowActions;
+  computerId?: ComputerId;
 }) {
   return (
     <ContextMenu>
@@ -150,11 +158,14 @@ function Seat({
         </ContextMenuTrigger>
         <AlwaysOnHoverCardContent
           instance={instance}
+          computerId={computerId}
+          canManage={actions.canManage}
+          canOpen={actions.canOpen}
           onOpen={() => void actions.open(instance)}
           onTogglePause={() => actions.togglePause(instance)}
         />
       </HoverCard>
-      <SeatMenu actions={actions} instance={instance} />
+      <SeatMenu actions={actions} computerId={computerId} instance={instance} />
     </ContextMenu>
   );
 }
@@ -163,6 +174,7 @@ export interface AlwaysOnRowProps {
   instances: readonly AgentInstancePayload[];
   onOpenSession: (session: SessionListTarget) => void;
   currentSessionId?: string | null;
+  computerId?: ComputerId;
   /** Agents seated before the rest move into `+N`. */
   limit?: number;
   label?: ReactNode;
@@ -186,15 +198,16 @@ function AlwaysOnSeats({
   instances,
   onOpenSession,
   currentSessionId,
+  computerId,
   limit = 6,
   label,
   surface = "ring-sunken",
   scopeName = "this project",
   className,
 }: AlwaysOnRowProps) {
-  const actions = useAlwaysOnRowActions(onOpenSession);
+  const actions = useAlwaysOnRowActions(onOpenSession, computerId);
   // The agent whose session is open, through its main session or a side chat or child under it.
-  const currentId = useAlwaysOnCurrentId(instances, currentSessionId);
+  const currentId = useAlwaysOnCurrentId(instances, currentSessionId, computerId);
   const ordered = agentInstancesByUrgency(instances);
   const shown = ordered.slice(0, limit);
   const hidden = ordered.length - shown.length;
@@ -210,6 +223,7 @@ function AlwaysOnSeats({
       {shown.map(instance => (
         <Seat
           actions={actions}
+          computerId={computerId}
           current={instance.id === currentId}
           instance={instance}
           key={instance.id}
@@ -221,6 +235,8 @@ function AlwaysOnSeats({
           currentId={currentId}
           currentInside={currentId !== undefined && !shown.some(({ id }) => id === currentId)}
           hidden={hidden}
+          computerId={computerId}
+          canManage={actions.canManage}
           instances={instances}
           onOpen={instance => void actions.open(instance)}
           scopeName={scopeName}

@@ -4,7 +4,7 @@ area: RT
 title: Archive and recover a stopped session without deleting history
 persona: Théo
 journey: J-archive-session-without-deleting
-expected: Archiving is a durable workspace-scoped marker allowed only for stopped sessions; default lists exclude archived rows, archived-only and inclusive filters return exact pages, direct reads preserve history, prompt/resume/attach reject archived sessions, and unarchive restores the same session across HTTP, UDS, CLI, native tools, extension Host API, SSE, and fresh daemon reads.
+expected: Archiving is a durable workspace-scoped marker allowed only for stopped sessions; default lists exclude archived rows, archived-only and inclusive filters return exact pages, direct reads preserve history, prompt/resume/attach reject archived sessions, and unarchive restores the same session across HTTP, UDS, CLI, native tools, extension Host API, SSE, and fresh daemon reads. The Archive shelf uses the current computer layout and counts archived sessions on responding computers in scope.
 entry_points: Web session catalog; CLI session archive/unarchive/list; HTTP+UDS archive routes; native tools; extension Host API
 qa_status: untested
 bug_ids: BUG-20260805-session-archive-sdk-missing;BUG-20260805-archived-detail-unarchive-missing;BUG-20261122-archive-stopped-denial-code-docs
@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: e40dc76;12e4be26d
 evidence: /home/jilles/dev/qa-labs/compozy-archive-stopped-1940-20261122-185609-503208-lab/qa-artifacts/evidence/02-archive-alpha.json;/home/jilles/dev/qa-labs/compozy-archive-stopped-1940-20261122-185609-503208-lab/qa-artifacts/evidence/04-archive-alpha-subagent.json;/home/jilles/dev/qa-labs/compozy-archive-stopped-1940-20261122-185609-503208-lab/qa-artifacts/evidence/06-usage-errors.txt;/home/jilles/dev/qa-labs/compozy-archive-stopped-1940-20261122-185609-503208-lab/qa-artifacts/evidence/07-profile-flag.txt;/home/jilles/dev/qa-labs/compozy-archive-stopped-1940-20261122-185609-503208-lab/qa-artifacts/evidence/09-tool-all-denied.json
 last_report: docs/qa/reports/2026-11-22-archive-stopped-1940.md
-overlaps: RT-011; RT-042; RT-session-delete-owned-history
+overlaps: RT-011; RT-042; RT-session-delete-owned-history; ET-web-sessions-by-computer-list
 ---
 
 Archive must never delete or rewrite session-owned metadata, events, transcript, ledger, permissions,
@@ -172,3 +172,11 @@ cancels its permission; a restart left no orphaned interaction); the store suite
 the documented denial code wrong (BUG-20261122-archive-stopped-denial-code-docs, fixed in `12e4be26d`).
 The other sections of this scenario were not re-walked, so `qa_status` stays `untested`. Report:
 [2026-11-22-archive-stopped-1940](../reports/2026-11-22-archive-stopped-1940.md).
+
+## Sessions by computer
+
+1. Archive one stopped session on each of two computers.
+2. Open **Archive** under **Separate** and compare each section with its computer's archived catalog.
+3. Choose **Together**. Confirm both archived sessions remain in scope.
+4. Unarchive the remote session. Confirm it returns to that computer's active list.
+5. Confirm a one-computer scope shows only that computer's archive.

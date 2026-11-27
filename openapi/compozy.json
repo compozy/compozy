@@ -37664,6 +37664,14 @@
       "SettingsShellSessionsPayload": {
         "additionalProperties": false,
         "properties": {
+          "computers": {
+            "enum": [
+              "together",
+              "separate"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
           "group_by": {
             "enum": [
               "none",

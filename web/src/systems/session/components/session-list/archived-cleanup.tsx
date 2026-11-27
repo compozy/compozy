@@ -1,3 +1,4 @@
+import { isRemoteComputerId } from "@/lib/computer-scope";
 import { USER_SCOPE_SELECTOR, useActiveWorkspace } from "@/systems/workspace";
 
 import { ALL_PROJECTS, useArchivedCleanup } from "../../hooks/use-archived-cleanup";
@@ -20,6 +21,7 @@ export function ArchivedCleanup({
 }: {
   view: Pick<
     SessionListViewModel,
+    | "computerId"
     | "shelf"
     | "archivedCount"
     | "allProjects"
@@ -29,6 +31,7 @@ export function ArchivedCleanup({
   >;
   testIdPrefix: string;
 }) {
+  if (isRemoteComputerId(view.computerId)) return null;
   const profile = view.scopeLabel;
   const scope: CleanupScope | null = view.allProjects
     ? { allWorkspaces: true }

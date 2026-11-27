@@ -4,6 +4,10 @@
  * topbar. Grouped so the public barrel reads as one contract.
  */
 export { SessionViewToggle } from "./components/session-board/session-view-toggle";
+export {
+  SessionWindowViewControls,
+  type SessionWindowViewControlsProps,
+} from "./components/session-board/session-window-view-controls";
 export { SessionsBoard } from "./components/session-board/sessions-board";
 export { SessionsBoardSelection } from "./components/session-board/sessions-board-selection";
 // The board's loading shape also lives on its own light entry, `@/systems/session/skeleton`.
@@ -24,3 +28,5 @@ export { sessionCatalogOptions, sessionFacetsOptions } from "./lib/session-catal
 export { fetchSessionFacets } from "./adapters/session-catalog-api";
 export { requestSessionParentPicker } from "./hooks/use-session-parent-picker";
 export { SessionParentPickerHost } from "./components/session-parent-picker-host";
+export { lookupSessionComputer } from "./lib/session-list-computer";
+export { sessionComputerOf } from "./lib/session-row-ref";

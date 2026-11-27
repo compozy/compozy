@@ -3,6 +3,8 @@ import { use, useId, useRef } from "react";
 
 import { Alert, AlertActions, AlertDescription, Button, Spinner } from "@compozy/ui";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
+import { SessionWritableComputersContext } from "../../lib/session-list-computer";
 import { cn } from "@/lib/utils";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
@@ -10,6 +12,7 @@ import type { SessionsBoardColumnView, SessionsBoardFailure } from "../../hooks/
 import { SessionsBoardRowsStoreContext } from "../../contexts/sessions-board-selection-context-value";
 import { usePublishSessionListGroupRows } from "../../hooks/use-session-list-group-rows";
 import type { SessionBoardColumnId, SessionBoardPayload } from "../../lib/session-board-contract";
+import { sessionComputerOf, sessionRowKeyFor } from "../../lib/session-row-ref";
 import { SessionBoardCardSlot, slottedCard } from "./session-board-card-slot";
 import { SessionsBoardColumnGlyph } from "./sessions-board-column-glyph";
 import { SessionsBoardSelectAll } from "./sessions-board-select-all";
@@ -104,14 +107,19 @@ export function SessionsBoardColumn({
   const count = column.count;
   const label = regionPrefix ? `${regionPrefix}, ${column.label}` : column.label;
   // A folded column keeps its selected cards, counted as hidden: they leave only the order.
-  const shownIds = collapsed ? [] : column.sessions.map(session => session.id);
+  const writable = use(SessionWritableComputersContext);
+  const eligible = column.sessions.filter(session => {
+    const computerId = sessionComputerOf(session);
+    return !isRemoteComputerId(computerId) || writable === undefined || writable.has(computerId);
+  });
+  const shownIds = collapsed ? [] : eligible.map(session => sessionRowKeyFor(session));
   const rows = use(SessionsBoardRowsStoreContext);
   usePublishSessionListGroupRows(
     selectionRows && rows ? rows : undefined,
     selectionRows?.key ?? column.id,
     {
       rank: selectionRows?.rank ?? "",
-      sessions: column.sessions,
+      sessions: eligible,
       visibleOrder: shownIds,
       // Folder moves resolve each selected session's own pair (`useSessionsBoardSelection`).
       pair: null,
@@ -296,16 +304,20 @@ function SessionsBoardColumnBody({
           {EMPTY_COPY[column.id]}
         </div>
       ) : (
-        column.sessions.map(session => (
-          <BoardCard
-            actions={actions}
-            current={session.id === currentSessionId}
-            key={session.id}
-            onOpen={onOpen}
-            session={session}
-            workspaceName={workspaceNameOf(session)}
-          />
-        ))
+        column.sessions.map(session => {
+          const computerId = sessionComputerOf(session);
+          return (
+            <BoardCard
+              actions={actions}
+              computerId={computerId}
+              current={sessionRowKeyFor(session) === currentSessionId}
+              key={sessionRowKeyFor(session, computerId)}
+              onOpen={onOpen}
+              session={session}
+              workspaceName={workspaceNameOf(session)}
+            />
+          );
+        })
       )}
       {readError("more")}
       {column.hasMore && column.failure !== "more" ? (

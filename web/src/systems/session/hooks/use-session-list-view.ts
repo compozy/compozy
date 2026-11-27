@@ -1,30 +1,30 @@
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 
-import { useProfileReadScope, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
-import {
-  useActiveWorkspace,
-  workspaceBadgeIdentity,
-  workspaceSelectorOrAll,
-  type DataScope,
-  type WorkspaceBadgeIdentity,
-} from "@/systems/workspace";
+import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
+import { useActiveWorkspace, workspaceSelectorOrAll, type DataScope } from "@/systems/workspace";
 
-import type { SessionListGroupSpec } from "../lib/session-list-groups";
-import { sessionListPair, type SessionListPair } from "../lib/session-list-groups";
-import { sessionListShelfFilters, type SessionListShelf } from "../lib/session-list-shelf";
-import { sessionListPinnedExclusion, sessionListPinnedFilters } from "../lib/session-list-pinned";
-import type { ProjectGroupTree } from "../lib/workspace-folders";
+import type { SessionListPair } from "../lib/session-list-groups";
+import { sessionListPair } from "../lib/session-list-groups";
 import {
   availableSessionListGroupBys,
   effectiveSessionListGroupBy,
-  sessionListSubagentsParam,
   type SessionListGroupBy,
-  type SessionListSort,
 } from "../lib/session-list-preferences";
-import type { SessionListFilters, SessionPayload } from "../types";
+import {
+  awaitingReads,
+  focusedScopeName,
+  hiddenProjectGroupKeys,
+  manualSortNote,
+  newFolderUnavailableReason,
+  SESSION_LIST_MANUAL_SORT_NOTE,
+  sessionBadgeResolver,
+  sessionListGroupFiltersFor,
+  settledSearchCatalog,
+} from "../lib/session-list-view-helpers";
+import type { SessionListFilters } from "../types";
+import type { SessionListViewModel, UseSessionListViewOptions } from "./session-list-view-types";
 
-import { useSessionCatalog } from "./use-session-catalog";
-import type { SessionListPartitions } from "./use-session-list-partitions";
 import { useSessionListContainerCatalog } from "./use-session-list-group-catalog";
 import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import {
@@ -36,175 +36,266 @@ import {
 } from "./use-session-list-groups";
 import { useSessionGroupFolds } from "./use-session-group-folds";
 import {
-  useSessionSidebarState,
-  type SessionFoldAll,
-  type SessionFoldSet,
-} from "./use-session-sidebar-state";
-import { useSessionPinnedOrder } from "./use-session-pinned-order";
+  useSessionListPinnedRead,
+  type SessionListPinnedRead,
+} from "./use-session-list-pinned-read";
+import { useSessionSidebarState } from "./use-session-sidebar-state";
 import { useSessionWindowOrder } from "./use-session-window-order";
-import { useProjectFolderGroups, type WorkspaceLayout } from "./use-workspace-layout";
+import { useProjectFolderGroups } from "./use-workspace-layout";
 
-/** Shown in the toolbar while the stored `manual` sort cannot apply to what is listed. */
-export const SESSION_LIST_MANUAL_SORT_NOTE =
-  "Manual order applies inside one project and profile. Group the list to use it.";
-
-const SESSION_LIST_PAGE_SIZE = 100;
-
+export { SESSION_LIST_MANUAL_SORT_NOTE };
 export type { SessionListTotals } from "./use-session-list-groups";
+export type { SessionListPinnedRead } from "./use-session-list-pinned-read";
+export type { SessionListViewModel, UseSessionListViewOptions } from "./session-list-view-types";
 
-export interface SessionListViewModel {
-  /** The flat catalog; absent while the list is grouped (each group owns its page). */
-  catalog?: ReturnType<typeof useSessionCatalog>;
-  partitions?: SessionListPartitions;
-  folderOf?: ReadonlyMap<string, string | null>;
-  search?: string;
-  setSearch?: (search: string) => void;
-  /** The stored sort, kept even where `manual` cannot apply. */
-  sort: SessionListSort;
-  /** The stored grouping; `groupBy` below is what renders. */
-  storedGroupBy: SessionListGroupBy;
-  /** The grouping that renders: an inapplicable stored value renders as `none`. */
-  groupBy: SessionListGroupBy;
-  /** Group-by options available in the current breadth and profile lens. */
-  groupByOptions: readonly SessionListGroupBy[];
-  /** Muted toolbar note while `manual` falls back to `last_activity`. */
-  sortNote: string | null;
-  /**
-   * Why the list's New folder is unavailable: a flat aggregate spans pairs, and
-   * a grouped list adds folders from each group's own `+`. `null` where it applies:
-   * one pair's session folders, or the project folders of All projects by project.
-   */
-  newFolderUnavailable: string | null;
-  /** What the list shows: the active catalog, the archive, or the sessions in Later. */
-  shelf: SessionListShelf;
-  /** Sessions parked in Later across the list's scope; `undefined` until counted. */
-  laterCount?: number;
-  /** Archived sessions across the list's scope, counted on the archive shelf only. */
-  archivedCount?: number;
-  setSort: (sort: SessionListSort) => void;
-  setGroupBy: (groupBy: SessionListGroupBy) => void;
-  /** Project grouping also lists projects with no sessions in view (#1085); per window. */
-  showEmptyProjects: boolean;
-  setShowEmptyProjects: (show: boolean) => void;
-  /** "Show automation runs" (#1355): automation job and trigger sessions join the list. */
-  showAutomation: boolean;
-  setShowAutomation: (show: boolean) => void;
-  setShelf: (shelf: SessionListShelf) => void;
-  /** Group-by groups from server facets; empty while flat. */
-  groups: SessionListGroupSpec[];
-  groupsLoading: boolean;
-  groupsError?: { retry: () => void };
-  collapsedGroupKeys: SessionFoldSet;
-  toggleGroup: (key: string) => void;
-  /** The last Collapse all or Expand all; shared with this window's Kanban. */
-  foldAll: SessionFoldAll;
-  setFoldAll: (foldAll: Exclude<SessionFoldAll, null>) => void;
-  /** Threads opened one by one, which stay open under Collapse all. */
-  openThreadIds: readonly string[];
-  /** Filters every group query shares; each group adds its scope, lens, and order. */
-  groupFilters: SessionListFilters;
-  /** The aggregate is on — rows name their owner (US-011.AC-1). */
-  aggregate: boolean;
-  /**
-   * The profile the list is bounded by, or `null` under the aggregate. Named by
-   * the empty state; the create target is deliberately not used there.
-   */
-  scopeLabel: string | null;
-  /** The list's one concrete scope: a workspace id or `@user`; `null` under All projects. */
-  focusedWorkspaceId: string | null;
-  /** The list spans every project (and User scope). */
-  allProjects?: boolean;
-  focusedScopeName: string;
-  /** Resolves a row's owner tag. Only called while `aggregate` is true. */
-  ownerOf: (session: ProfileOwnerLabel) => ProfileOwner;
-  /** Resolves a row's project badge; present only under All projects (BR-10). */
-  badgeOf?: (session: SessionPayload) => WorkspaceBadgeIdentity;
-  /** Folders and manual order of the one (workspace, profile) pair the flat list reads. */
-  layout?: SessionListLayout;
-  /**
-   * Project folders of the one profile an All projects list grouped by project
-   * reads (issue #1044): the layout verbs and the groups arranged into folders.
-   */
-  projectFolders?: { layout: WorkspaceLayout; tree: ProjectGroupTree };
-  /** The worktree the catalog is narrowed to; other worktrees' sessions are hidden. */
-  worktreeId?: string;
-  /** The folder list failed to load; rows stay flat and unorderable until a retry loads it. */
-  layoutError?: { retry: () => void };
-  /** Identity of the list's bulk selection, shared by every group of a grouped list. */
-  selectionKey: string;
-  /** Exact live-state totals of the list's whole scope, from facets; absent in the archive. */
-  totals?: SessionListTotals;
-  /** The Pinned section's read, above every group and folder; absent off the active shelf. */
-  pinned?: SessionListPinnedRead;
+function resolveViewLayoutFields(input: {
+  flatLayout: boolean;
+  readOnly: boolean;
+  foldersLayout: SessionListLayout | undefined;
+  foldersError: { retry: () => void } | undefined;
+  arrangedError: { retry: () => void } | undefined;
+}): Pick<SessionListViewModel, "layout" | "layoutError"> {
+  if (input.flatLayout) {
+    return {
+      layout: input.readOnly ? undefined : input.foldersLayout,
+      layoutError: input.foldersError,
+    };
+  }
+  return { layout: undefined, layoutError: input.arrangedError };
 }
 
-/** The pins of the list's scope and filters with the subtrees they carry, in Pinned order. */
-export interface SessionListPinnedRead {
-  sessions: readonly SessionPayload[];
-  loading: boolean;
-  failed: boolean;
-  /** More pins than one page of the read holds. */
-  more: boolean;
-  retry: () => void;
-  /** The read's own paging (by pin), independent of the list's pages. */
-  catalog?: ReturnType<typeof useSessionCatalog>;
-  partitions?: SessionListPartitions;
-  folderOf?: ReadonlyMap<string, string | null>;
-  /**
-   * Gives the listed pins their order among the Pinned slots they hold; present where the list
-   * reads one (workspace, profile) pair, the scope a reorder is authorized in.
-   */
-  reorder?: (sessionIds: readonly string[]) => void;
+function buildSessionListViewModel(input: {
+  options: UseSessionListViewOptions;
+  preferences: ReturnType<typeof useSessionWindowOrder>;
+  profile: ReturnType<typeof useProfileReadScope>;
+  sidebar: ReturnType<typeof useSessionSidebarState>;
+  computerId: ComputerId;
+  remote: boolean;
+  readOnly: boolean;
+  workspaces: ReadonlyArray<{ id: string; name: string }>;
+  scope: DataScope | null;
+  aggregate: boolean;
+  breadth: { allProjects: boolean; allProfiles: boolean };
+  groupBy: SessionListGroupBy;
+  flat: boolean;
+  pair: SessionListPair | null;
+  search: string;
+  remoteSearch: string;
+  setSearch: ((search: string) => void) | undefined;
+  groupFilters: SessionListFilters;
+  grouping: ReturnType<typeof useSessionListGroups>;
+  pinned: SessionListPinnedRead | undefined;
+  arranged: ReturnType<typeof useProjectFolderGroups>;
+  folders: ReturnType<typeof useSessionFolders>;
+  awaiting: ReturnType<typeof awaitingReads<NonNullable<SessionListViewModel["catalog"]>>>;
+  partitions: ReturnType<typeof useSessionListContainerCatalog>["partitions"];
+  totals: SessionListTotals | undefined;
+  laterCount: number | undefined;
+  archivedCount: number | undefined;
+  groupFolds: ReturnType<typeof useSessionGroupFolds>;
+}): SessionListViewModel {
+  const {
+    options,
+    preferences,
+    profile,
+    sidebar,
+    computerId,
+    remote,
+    readOnly,
+    workspaces,
+    scope,
+    aggregate,
+    breadth,
+    groupBy,
+    flat,
+    pair,
+    search,
+    remoteSearch,
+    setSearch,
+    groupFilters,
+    grouping,
+    pinned,
+    arranged,
+    folders,
+    awaiting,
+    partitions,
+    totals,
+    laterCount,
+    archivedCount,
+    groupFolds,
+  } = input;
+  const searching = remoteSearch.trim() !== "";
+  const hiddenGroupKeys = new Set(
+    hiddenProjectGroupKeys(arranged.projectFolders?.tree, sidebar.folderFolds)
+  );
+  const manualBlocked = flat && pair === null;
+  const flatLayout = flat && pair !== null;
+  const selectionKey = JSON.stringify([
+    preferences.computerScope,
+    preferences.computers,
+    scope,
+    profile.key,
+    groupBy,
+  ]);
+
+  return {
+    ...(remote ? { computerId } : {}),
+    ...(readOnly ? { readOnly: true } : {}),
+    workspaces,
+    matchedWorkspaceIds: options.matchedWorkspaceIds,
+    computers: preferences.computers,
+    setComputers: preferences.setComputers,
+    computerScope: preferences.computerScope,
+    setComputerScope: preferences.setComputerScope,
+    ...resolveViewLayoutFields({
+      flatLayout,
+      readOnly,
+      foldersLayout: folders.layout,
+      foldersError: folders.loadError,
+      arrangedError: arranged.loadError,
+    }),
+    pair,
+    projectFolders: readOnly ? undefined : arranged.projectFolders,
+    worktreeId: options.worktreeId,
+    catalog: awaiting.catalog,
+    partitions: partitions?.pages,
+    folderOf: partitions?.folderOf,
+    search,
+    setSearch,
+    sort: preferences.sort,
+    storedGroupBy: preferences.groupBy,
+    groupBy,
+    groupByOptions: availableSessionListGroupBys(breadth),
+    sortNote: manualSortNote(preferences.sort, manualBlocked, options.multiComputer),
+    newFolderUnavailable: newFolderUnavailableReason(
+      flat,
+      pair !== null,
+      breadth,
+      groupBy,
+      options.multiComputer
+    ),
+    shelf: sidebar.shelf,
+    laterCount,
+    archivedCount,
+    setSort: preferences.setSort,
+    setGroupBy: preferences.setGroupBy,
+    showEmptyProjects: sidebar.showEmptyProjects,
+    setShowEmptyProjects: sidebar.setShowEmptyProjects,
+    showAutomation: sidebar.showAutomation,
+    setShowAutomation: sidebar.setShowAutomation,
+    setShelf: sidebar.setShelf,
+    groups: arranged.groups,
+    groupsLoading: awaiting.groupsLoading,
+    groupsError: grouping.error,
+    collapsedGroupKeys: {
+      has: key => !searching && (groupFolds.isCollapsed(key) || hiddenGroupKeys.has(key)),
+    },
+    toggleGroup: key => {
+      if (!searching) groupFolds.toggle(key);
+    },
+    foldAll: sidebar.foldAll,
+    setFoldAll: sidebar.setFoldAll,
+    openThreadIds: sidebar.openThreadIds,
+    groupFilters,
+    aggregate,
+    scopeLabel: remote ? null : profile.scopeLabel,
+    focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
+    allProjects: breadth.allProjects,
+    focusedScopeName: focusedScopeName(scope, workspaces),
+    ownerOf: profile.ownerOf,
+    badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces, remote) : undefined,
+    selectionKey,
+    totals,
+    pinned,
+  };
+}
+
+function listSearch(
+  controlled: string | undefined,
+  draft: string,
+  committed: string,
+  setDraft: (value: string) => void
+) {
+  return {
+    search: controlled ?? draft,
+    remoteSearch: controlled ?? committed,
+    setSearch: controlled === undefined ? setDraft : undefined,
+  };
+}
+
+function listReadAxes(
+  options: UseSessionListViewOptions,
+  localWorkspaces: ReturnType<typeof useActiveWorkspace>["registeredWorkspaces"],
+  dataScope: DataScope | null,
+  profile: ReturnType<typeof useProfileReadScope>,
+  preferences: ReturnType<typeof useSessionWindowOrder>
+) {
+  const computerId = options.computerId ?? LOCAL_COMPUTER_ID;
+  const remote = isRemoteComputerId(computerId);
+  const workspaces = options.workspaces ?? localWorkspaces;
+  const readOnly = options.readOnly === true;
+  const enabled = options.enabled ?? true;
+  const scope = options.scope === undefined ? dataScope : options.scope;
+
+  // Remote computers always read all of their own profiles (Q4).
+  const lens: ProfileScopeParams = remote ? { all_profiles: true } : profile.params;
+  const aggregate = remote ? true : profile.aggregate;
+  const breadth = { allProjects: scope?.kind === "all", allProfiles: aggregate };
+  const groupBy = effectiveSessionListGroupBy(preferences.groupBy, breadth);
+  const flat = groupBy === "none";
+  const pair = sessionListPair(scope, lens, remote ? computerId : undefined);
+
+  return {
+    computerId,
+    remote,
+    workspaces,
+    readOnly,
+    enabled,
+    scope,
+    lens,
+    aggregate,
+    breadth,
+    groupBy,
+    flat,
+    pair,
+  };
 }
 
 /**
  * View model behind every session list: the topbar breadth and profile lens,
  * the window's order and grouping (shared with its Kanban), and either one flat catalog or
  * facets-driven groups (ADR-004).
- *
- * Folders and manual order apply only where a query is exactly one
- * (workspace, profile) pair (BR-11): the flat list of a focused project or User
- * under one profile, or a group whose own query is one pair.
- *
- * Group collapse is rail state, like thread and folder collapse: it lives in
- * the window's persisted sessions-rail entry (a new window starts from the
- * last-used one), keyed per list lens (scope, profile, grouping). Selecting a
- * session remounts the window's content, so state held here would reset; held
- * in the rail, a selection, a focus change, or a reload never reopens a group
- * the operator closed. Only the operator's toggle opens or closes one.
- * The shelf (active, archive, or Later) is per window for the same reason and
- * survives a selection too (#1706), but stays deliberately transient — a way of
- * looking at the list right now, not a preference worth keeping across a reload.
  */
-export function useSessionListView(
-  options: {
-    /** The list's data scope; omitted follows the menubar destination. */
-    scope?: DataScope | null;
-    worktreeId?: string;
-    enabled?: boolean;
-    /**
-     * The list is open but still waiting on what it reads under (the destination or its
-     * worktree filter): it reads as loading, not as an empty list, until they settle.
-     */
-    pending?: boolean;
-  } = {}
-): SessionListViewModel {
+export function useSessionListView(options: UseSessionListViewOptions = {}): SessionListViewModel {
   const preferences = useSessionWindowOrder();
-  const { registeredWorkspaces: workspaces, dataScope } = useActiveWorkspace();
+  const { registeredWorkspaces: localWorkspaces, dataScope } = useActiveWorkspace();
   const profile = useProfileReadScope();
   const sidebar = useSessionSidebarState();
   const {
-    draftValue: search,
-    committedValue: remoteSearch,
-    setDraftValue: setSearch,
+    draftValue: localSearch,
+    committedValue: localRemoteSearch,
+    setDraftValue: setLocalSearch,
   } = useDebouncedInput({ externalValue: "", onCommit: () => undefined });
-  const enabled = options.enabled ?? true;
-  const searchSettled = search === remoteSearch;
-  const scope = options.scope === undefined ? dataScope : options.scope;
-  const breadth = { allProjects: scope?.kind === "all", allProfiles: profile.aggregate };
-  const groupBy = effectiveSessionListGroupBy(preferences.groupBy, breadth);
-  const flat = groupBy === "none";
-  const pair = sessionListPair(scope, profile.params);
+  const { search, remoteSearch, setSearch } = listSearch(
+    options.search,
+    localSearch,
+    localRemoteSearch,
+    setLocalSearch
+  );
+  const {
+    computerId,
+    remote,
+    workspaces,
+    readOnly,
+    enabled,
+    scope,
+    lens,
+    aggregate,
+    breadth,
+    groupBy,
+    flat,
+    pair,
+  } = listReadAxes(options, localWorkspaces, dataScope, profile, preferences);
 
   const showAutomation = sidebar.showAutomation;
   const shelf = sidebar.shelf;
@@ -217,7 +308,7 @@ export function useSessionListView(
   const grouping = useSessionListGroups({
     groupBy,
     scope,
-    lens: profile.params,
+    lens,
     workspaces,
     shelf,
     showAutomation,
@@ -225,26 +316,46 @@ export function useSessionListView(
     worktreeId: options.worktreeId,
     pinned: groupFilters.pinned,
     enabled,
+    computerId,
+    matchedWorkspaceIds: options.matchedWorkspaceIds,
   });
   const pending = options.pending === true;
-  const pinned = useSessionListPinnedRead({ scope, pair, groupFilters, enabled, shelf, pending });
+  const pinned = useSessionListPinnedRead({
+    scope,
+    pair,
+    groupFilters,
+    enabled: enabled && options.includePinned !== false,
+    shelf,
+    pending,
+    computerId,
+    lens,
+    matchedWorkspaceIds: options.matchedWorkspaceIds,
+    allowReorder: !options.multiComputer && !readOnly,
+  });
   const arranged = useProjectFolderGroups({
     groups: grouping.groups,
     groupBy,
     breadth,
-    lens: profile.params,
+    lens,
     workspaces,
     showEmptyProjects: sidebar.showEmptyProjects,
-    enabled,
+    enabled: enabled && !readOnly,
+    computerId,
   });
-  const groups = arranged.groups;
   const folders = useSessionFolders({
     workspaceId: pair?.workspaceId ?? null,
-    profile: pair?.profile ?? profile.destination,
-    enabled: enabled && flat && pair !== null,
+    profile: pair?.profile ?? (remote ? "" : profile.destination),
+    enabled: enabled && flat && pair !== null && !readOnly,
+    computerId,
   });
   const { catalog, partitions } = useSessionListContainerCatalog(
-    { scope, pair, lens: profile.params },
+    {
+      scope,
+      pair,
+      lens,
+      computerId: remote ? computerId : undefined,
+      matchedWorkspaceIds: options.matchedWorkspaceIds,
+    },
     { groupFilters, sort: preferences.sort, shelf },
     folders,
     enabled && flat,
@@ -252,221 +363,65 @@ export function useSessionListView(
   );
   const totals = useSessionListTotals({
     scope,
-    lens: profile.params,
+    lens,
     search: remoteSearch,
     worktreeId: options.worktreeId,
     shelf,
     showAutomation,
     enabled,
+    computerId,
+    matchedWorkspaceIds: options.matchedWorkspaceIds,
   });
   const laterCount = useSessionListLaterCount({
     scope,
-    lens: profile.params,
+    lens,
     worktreeId: options.worktreeId,
     enabled,
+    computerId,
+    matchedWorkspaceIds: options.matchedWorkspaceIds,
   });
-  // The cleanup covers the whole scope, so its count ignores the worktree filter.
   const archivedCount = useSessionListArchivedCount({
     scope,
-    lens: profile.params,
+    lens,
     enabled: enabled && shelf === "archive",
+    computerId,
+    matchedWorkspaceIds: options.matchedWorkspaceIds,
   });
-  const awaiting = awaitingReads(
-    flat ? settledSearchCatalog(catalog, searchSettled) : undefined,
+  const awaiting = awaitingReads<NonNullable<SessionListViewModel["catalog"]>>(
+    flat ? settledSearchCatalog(catalog, search === remoteSearch) : undefined,
     grouping.loading,
     pending
   );
-  const selectionKey = JSON.stringify([scope, profile.key, groupBy]);
-  const groupFolds = useSessionGroupFolds(scope, groupBy);
-  const searching = remoteSearch.trim() !== "";
-  const hiddenGroupKeys = new Set(
-    hiddenProjectGroupKeys(arranged.projectFolders?.tree, sidebar.folderFolds)
-  );
-  // A group with no pair of its own splits along the other axis into pairs,
-  // so only a flat aggregate leaves manual order and folders with no owner.
-  const manualBlocked = flat && pair === null;
-  const flatLayout = flat && pair !== null;
+  const groupFolds = useSessionGroupFolds(scope, groupBy, remote ? computerId : undefined);
 
-  return {
-    ...(flatLayout
-      ? { layout: folders.layout, layoutError: folders.loadError }
-      : { layout: undefined, layoutError: arranged.loadError }),
-    projectFolders: arranged.projectFolders,
-    worktreeId: options.worktreeId,
-    catalog: awaiting.catalog,
-    partitions: partitions?.pages,
-    folderOf: partitions?.folderOf,
-    search,
-    setSearch,
-    sort: preferences.sort,
-    storedGroupBy: preferences.groupBy,
+  return buildSessionListViewModel({
+    options,
+    preferences,
+    profile,
+    sidebar,
+    computerId,
+    remote,
+    readOnly,
+    workspaces,
+    scope,
+    aggregate,
+    breadth,
     groupBy,
-    groupByOptions: availableSessionListGroupBys(breadth),
-    sortNote: manualSortNote(preferences.sort, manualBlocked),
-    newFolderUnavailable: newFolderUnavailableReason(flat, pair !== null, breadth, groupBy),
-    shelf,
+    flat,
+    pair,
+    search,
+    remoteSearch,
+    setSearch,
+    groupFilters,
+    grouping,
+    pinned,
+    arranged,
+    folders,
+    awaiting,
+    partitions,
+    totals,
     laterCount,
     archivedCount,
-    setSort: preferences.setSort,
-    setGroupBy: preferences.setGroupBy,
-    showEmptyProjects: sidebar.showEmptyProjects,
-    setShowEmptyProjects: sidebar.setShowEmptyProjects,
-    showAutomation,
-    setShowAutomation: sidebar.setShowAutomation,
-    setShelf: sidebar.setShelf,
-    groups,
-    groupsLoading: awaiting.groupsLoading,
-    groupsError: grouping.error,
-    // A collapsed project folder hides its projects: navigation skips them too.
-    collapsedGroupKeys: {
-      // A search shows what it matches: no fold hides a result, like session folders.
-      has: key => !searching && (groupFolds.isCollapsed(key) || hiddenGroupKeys.has(key)),
-    },
-    // The group stays open for the search, so a fold there would land unseen when it clears.
-    toggleGroup: key => {
-      if (!searching) groupFolds.toggle(key);
-    },
-    foldAll: sidebar.foldAll,
-    setFoldAll: sidebar.setFoldAll,
-    openThreadIds: sidebar.openThreadIds,
-    groupFilters,
-    aggregate: profile.aggregate,
-    scopeLabel: profile.scopeLabel,
-    focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
-    allProjects: breadth.allProjects,
-    focusedScopeName: focusedScopeName(scope, workspaces),
-    ownerOf: profile.ownerOf,
-    badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
-    selectionKey,
-    totals,
-    pinned,
-  };
-}
-
-/**
- * The Pinned section's read: the list's own filters over pins and what they carry, in Pinned
- * order. Absent where the list has no Pinned section (the archive and Later shelves).
- */
-function useSessionListPinnedRead({
-  scope,
-  pair,
-  groupFilters,
-  enabled,
-  shelf,
-  pending,
-}: {
-  scope: DataScope | null;
-  pair: SessionListPair | null;
-  groupFilters: SessionListFilters;
-  enabled: boolean;
-  shelf: SessionListShelf;
-  pending: boolean;
-}): SessionListPinnedRead | undefined {
-  // Only the active shelf has a Pinned section.
-  const shown = enabled && shelf === "active";
-  const read = useSessionCatalog(scope, sessionListPinnedFilters(groupFilters), shown);
-  const reorder = useSessionPinnedOrder(pair);
-  if (!shown) return undefined;
-  // While what the list reads under is unresolved, its pins read as loading, never as rows.
-  return {
-    sessions: pending ? [] : read.sessions,
-    loading: read.loading || pending,
-    failed: read.failed,
-    more: read.next || read.previous,
-    retry: read.retry,
-    catalog: read,
-    reorder,
-  };
-}
-
-function focusedScopeName(
-  scope: DataScope | null,
-  workspaces: readonly { id: string; name: string }[]
-) {
-  if (scope?.kind !== "project") return "Global";
-  return workspaces.find(workspace => workspace.id === scope.workspaceId)?.name ?? "this project";
-}
-
-function hiddenProjectGroupKeys(
-  tree: ProjectGroupTree | undefined,
-  folderFolds: SessionFoldSet
-): string[] {
-  if (!tree) return [];
-  return tree.folders.flatMap(node =>
-    folderFolds.has(node.folder.id) ? node.groups.map(group => group.key) : []
-  );
-}
-
-function sessionListGroupFiltersFor(
-  search: string,
-  worktreeId: string | undefined,
-  shelf: SessionListShelf,
-  showAutomation: boolean
-): SessionListFilters {
-  return {
-    include_health: true,
-    limit: SESSION_LIST_PAGE_SIZE,
-    q: search,
-    search_fields: "title_agent",
-    subagents: sessionListSubagentsParam(search),
-    worktree: worktreeId,
-    ...sessionListShelfFilters(shelf, showAutomation),
-    ...sessionListPinnedExclusion(shelf),
-  };
-}
-
-/**
- * An open list still waiting on what it reads under (`pending`) reads as loading, never as empty:
- * the flat catalog, or the group facets of a grouped list, stand in for an answer not yet asked for.
- */
-function awaitingReads<C extends { loading: boolean }>(
-  catalog: C | undefined,
-  groupsLoading: boolean,
-  pending: boolean
-): { catalog: C | undefined; groupsLoading: boolean } {
-  return {
-    catalog: catalog ? { ...catalog, loading: catalog.loading || pending } : undefined,
-    groupsLoading: groupsLoading || (pending && catalog === undefined),
-  };
-}
-
-/** While a search is still debouncing, the page is pending and paging waits for it. */
-function settledSearchCatalog<C extends { paging: boolean; next: boolean; previous: boolean }>(
-  catalog: C,
-  searchSettled: boolean
-): C {
-  return {
-    ...catalog,
-    paging: catalog.paging || !searchSettled,
-    next: searchSettled && catalog.next,
-    previous: searchSettled && catalog.previous,
-  };
-}
-
-function manualSortNote(sort: string, manualBlocked: boolean): string | null {
-  return sort === "manual" && manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null;
-}
-
-function newFolderUnavailableReason(
-  flat: boolean,
-  paired: boolean,
-  breadth: { allProjects: boolean; allProfiles: boolean },
-  groupBy: SessionListGroupBy
-): string | null {
-  if (groupBy === "project" && breadth.allProjects) {
-    return breadth.allProfiles
-      ? "Project folders belong to one profile. Choose a profile to add one."
-      : null;
-  }
-  if (!flat) return "Add a folder from a group's +.";
-  if (paired) return null;
-  const axes = availableSessionListGroupBys(breadth).filter(option => option !== "none");
-  return axes.length === 0
-    ? "Folders live inside one project and profile."
-    : `Folders live inside one project and profile. Group by ${axes.join(" or ")} to add one.`;
-}
-
-function sessionBadgeResolver(workspaces: readonly { id: string; name: string }[]) {
-  const names = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
-  return (session: SessionPayload) => workspaceBadgeIdentity(session.workspace_id, names);
+    groupFolds,
+  });
 }

@@ -74,11 +74,13 @@ export function useSessionCreateComputerTarget({
   hasLocalProject,
   open,
   requested,
+  fixedComputer = false,
   store,
 }: {
   hasLocalProject: boolean;
   open: boolean;
   requested: ComputerId;
+  fixedComputer?: boolean;
   store: SessionCreateStore;
 }) {
   const [lastConcreteComputerId, setLastConcreteComputerId] =
@@ -89,7 +91,7 @@ export function useSessionCreateComputerTarget({
     local: computers.localView,
     computers: computers.computerViews,
     loadBalancingEnabled: computers.loadBalancingEnabled,
-    allowAuto: true,
+    allowAuto: !fixedComputer,
   });
   const projectSourceComputerId = sessionProjectComputer({
     computerId,

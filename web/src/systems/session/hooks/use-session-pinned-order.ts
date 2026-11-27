@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
 
+import { isRemoteComputerId, normalizeComputerId } from "@/lib/computer-scope";
+
 import { reorderPinnedSessions } from "../adapters/session-folders-api";
 import { sessionKeys } from "../lib/query-keys";
 import { applySessionSlotOrder } from "../lib/session-folders";
@@ -10,25 +12,39 @@ import type { SessionCatalogPageResponse } from "../types";
 type CatalogEnvelope = InfiniteData<SessionCatalogPageResponse>;
 
 /**
- * Manual order of the Pinned section for one (workspace, profile) pair, the scope its writes are
- * authorized in. A reorder patches every served Pinned page at once, restores the ones still
- * showing the patch when the daemon refuses, and rereads the workspace's lists either way. Absent
- * (`undefined`) without a pair: an aggregate list shows pins of several pairs and offers no reorder.
+ * Manual order of the Pinned section for one (computer, workspace, profile) pair, the scope its
+ * writes are authorized in. A reorder patches every served Pinned page at once, restores the ones
+ * still showing the patch when the daemon refuses, and rereads the workspace's lists either way.
+ * Absent (`undefined`) without a pair: an aggregate list shows pins of several pairs and offers no
+ * reorder.
  */
 export function useSessionPinnedOrder(
   pair: SessionListPair | null
 ): ((sessionIds: readonly string[]) => void) | undefined {
   const queryClient = useQueryClient();
+  const computerId = normalizeComputerId(pair?.computerId);
+  const remote = isRemoteComputerId(computerId);
+  const keys = sessionKeys.forComputer(computerId);
   const workspaceId = pair?.workspaceId ?? "";
   const profile = pair?.profile ?? "";
-  const catalogPrefix = [...sessionKeys.workspaceLists(workspaceId), "page"] as const;
+  const catalogPrefix = [...keys.workspaceLists(workspaceId), "page"] as const;
   const mutation = useMutation({
     // Shares the layout writes' scope so rapid reorders reach the daemon in the order made.
-    scope: { id: `session-layout:${workspaceId}:${profile.trim()}` },
+    scope: {
+      id: remote
+        ? `session-layout:${computerId}:${workspaceId}:${profile.trim()}`
+        : `session-layout:${workspaceId}:${profile.trim()}`,
+    },
     mutationFn: (sessionIds: readonly string[]) =>
-      reorderPinnedSessions({ workspaceId, profile: profile || undefined }, sessionIds),
+      remote
+        ? reorderPinnedSessions(
+            { workspaceId, profile: profile || undefined },
+            sessionIds,
+            computerId
+          )
+        : reorderPinnedSessions({ workspaceId, profile: profile || undefined }, sessionIds),
     onMutate: async (sessionIds: readonly string[]) => {
-      await queryClient.cancelQueries({ queryKey: sessionKeys.workspaceLists(workspaceId) });
+      await queryClient.cancelQueries({ queryKey: keys.workspaceLists(workspaceId) });
       const previous = queryClient.getQueriesData<CatalogEnvelope>({ queryKey: catalogPrefix });
       // Each patched page with what it held and what the patch wrote, so a failure restores only
       // pages still showing the patch and keeps any newer read.
@@ -62,8 +78,7 @@ export function useSessionPinnedOrder(
         description: error instanceof Error ? error.message : undefined,
       });
     },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists(workspaceId) }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: keys.workspaceLists(workspaceId) }),
   });
   if (pair === null) return undefined;
   return sessionIds => mutation.mutate(sessionIds);

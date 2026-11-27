@@ -43,6 +43,8 @@ export interface SessionListFolderProps {
   dropZone?: SessionDragHandlers;
   dropEdge?: SessionDropPosition | "into" | null;
   dragging?: boolean;
+  /** Offline or lacking `sessions:operate`: renders cached tree with no verbs or drag (`F10`, `F11`). */
+  readOnly?: boolean;
   testIdPrefix: string;
   children: React.ReactNode;
 }
@@ -68,13 +70,14 @@ export function SessionListFolder({
   dropZone,
   dropEdge = null,
   dragging = false,
+  readOnly = false,
   testIdPrefix,
   children,
 }: SessionListFolderProps) {
   const testId = `${testIdPrefix}-folder-${folder.id}`;
   const header = (
     <div
-      {...drag}
+      {...(readOnly ? {} : drag)}
       data-testid={`${testId}-header`}
       data-drop={dropEdge ?? undefined}
       data-dragging={dragging || undefined}
@@ -118,25 +121,34 @@ export function SessionListFolder({
     </div>
   );
   return (
-    <div {...dropZone} data-testid={testId} role="group" aria-label={folder.name}>
-      <ContextMenu>
-        <ContextMenuTrigger
-          data-testid={`${testId}-menu`}
-          render={header}
-          onKeyDown={openContextMenuFromKeyboard}
-        />
-        <SessionListFolderMenu
+    <div {...(readOnly ? {} : dropZone)} data-testid={testId} role="group" aria-label={folder.name}>
+      {readOnly ? (
+        header
+      ) : (
+        <ContextMenu>
+          <ContextMenuTrigger
+            data-testid={`${testId}-menu`}
+            render={header}
+            onKeyDown={openContextMenuFromKeyboard}
+          />
+          <SessionListFolderMenu
+            testId={testId}
+            holds={holds}
+            onNewSession={onNewSession}
+            onRename={onRename}
+            onDelete={onDelete}
+            onMoveUp={onMoveUp}
+            onMoveDown={onMoveDown}
+          />
+        </ContextMenu>
+      )}
+      {expanded ? (
+        <SessionListFolderBody
           testId={testId}
           holds={holds}
-          onNewSession={onNewSession}
-          onRename={onRename}
-          onDelete={onDelete}
-          onMoveUp={onMoveUp}
-          onMoveDown={onMoveDown}
-        />
-      </ContextMenu>
-      {expanded ? (
-        <SessionListFolderBody testId={testId} holds={holds} onNewSession={onNewSession}>
+          onNewSession={readOnly ? undefined : onNewSession}
+          readOnly={readOnly}
+        >
           {children}
         </SessionListFolderBody>
       ) : null}
@@ -216,24 +228,30 @@ function SessionListFolderBody({
   testId,
   holds,
   onNewSession,
+  readOnly = false,
   children,
-}: Pick<FolderVerbs, "testId" | "holds" | "onNewSession"> & { children: React.ReactNode }) {
+}: Pick<FolderVerbs, "testId" | "holds" | "onNewSession"> & {
+  readOnly?: boolean;
+  children: React.ReactNode;
+}) {
   if (holds === "projects") {
     return <TreeBranch className="flex flex-col gap-0.5 pt-0.5">{children}</TreeBranch>;
   }
   return (
     <div className="flex flex-col gap-0.5 pt-0.5 pl-2.5">
       {children}
-      <button
-        type="button"
-        data-testid={`${testId}-new-session`}
-        disabled={!onNewSession}
-        onClick={onNewSession}
-        className="flex items-center gap-2 rounded-md px-2 py-1 text-left text-small-body text-subtle transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
-      >
-        <Icon as={Plus} size="sm" />
-        New session
-      </button>
+      {readOnly ? null : (
+        <button
+          type="button"
+          data-testid={`${testId}-new-session`}
+          disabled={!onNewSession}
+          onClick={onNewSession}
+          className="flex items-center gap-2 rounded-md px-2 py-1 text-left text-small-body text-subtle transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
+        >
+          <Icon as={Plus} size="sm" />
+          New session
+        </button>
+      )}
     </div>
   );
 }

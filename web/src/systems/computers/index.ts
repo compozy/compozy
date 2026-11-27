@@ -72,6 +72,18 @@ export {
 } from "./components/computer-details-panel";
 export { ComputerLoadMeter, type ComputerLoadMeterProps } from "./components/computer-load-meter";
 export {
+  ComputerMark,
+  ComputerTag,
+  type ComputerMarkProps,
+  type ComputerTagProps,
+} from "./components/computer-mark";
+export {
+  ComputerScopePicker,
+  type ComputerScope,
+  type ComputerScopeCount,
+  type ComputerScopePickerProps,
+} from "./components/computer-scope-picker";
+export {
   ComputerPlatformIcon,
   type ComputerPlatformIconProps,
 } from "./components/computer-platform-icon";
@@ -164,6 +176,16 @@ export {
   type AutoPlacementCandidateView,
 } from "./lib/placement-view";
 export {
+  computerCanOperateSessions,
+  computerReadDetail,
+  isComputerCounted,
+  isComputerUncounted,
+  mapComputerRead,
+  uncountedComputerNames,
+  type ComputerRead,
+  type ComputerReadInput,
+} from "./lib/computer-read";
+export {
   extractLocalPendingApprovals,
   iconKindForPlatform,
   isComputersCloudUnreachableError,
@@ -185,15 +207,11 @@ export {
 } from "./lib/merge-automation-jobs";
 export {
   COMPUTER_SESSION_PAGE_LIMIT,
-  groupSessionsByProjectAndComputer,
   mergeSessionPages,
-  selectNextComputerToLoadMore,
   type ComputerSessionPageInput,
   type MergeableSession,
   type MergedSessionRow,
   type MergeSessionComputer,
-  type NextComputerPageSelection,
-  type ProjectComputerGroup,
 } from "./lib/merge-sessions";
 export { computerRegistryKeys } from "./lib/query-keys";
 export {

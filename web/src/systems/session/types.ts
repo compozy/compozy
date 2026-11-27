@@ -23,7 +23,10 @@ export type SessionsQuery = OperationQuery<"listSessions"> & {
   exclude_instance_main?: boolean;
 };
 export type SessionListFilters = Omit<SessionsQuery, "cursor">;
-export type SessionPayload = SessionsResponse["sessions"][number];
+export type SessionPayload = SessionsResponse["sessions"][number] & {
+  /** Stamped on remote catalog/detail reads so ownership survives TanStack structural sharing. */
+  computerId?: ComputerId;
+};
 /** What opening a session from the list needs: a catalog row, or a subagent's child session. */
 export type SessionListTarget = Pick<SessionPayload, "id" | "agent_name" | "workspace_id"> & {
   subagentId?: string;

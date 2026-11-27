@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 
+import type { ComputerId } from "@/lib/computer-scope";
+
 import {
   profileDetailOptions,
   profileOperationsOptions,
   profilesListOptions,
 } from "../lib/query-options";
 
-export function useProfiles(enabled = true) {
-  return useQuery(profilesListOptions(enabled));
+export function useProfiles(enabled = true, computerId?: ComputerId) {
+  return useQuery(profilesListOptions(enabled, computerId));
 }
 
 export function useProfile(name: string, enabled = true) {

@@ -12,10 +12,12 @@ import {
 import { use, useRef } from "react";
 
 import { ThreadContentRail } from "@/components/assistant-ui/session-thread-content-rail";
+import type { ComputerId } from "@/lib/computer-scope";
 import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/session-thread-content-rail-constants";
 import { SessionThread } from "./session-thread-lazy";
 import { SessionWindowRightRegion } from "./session-window-right-panel";
 import { SessionPullRequestExitSurface } from "./session-pull-request-exit-surface";
+import { sessionRowKeyFor } from "@/systems/session/lib/session-row-ref";
 import { SessionWindowRailLayout, SessionWindowSidebarRail } from "./session-window-rail";
 import { SessionWindowClearDialog, SessionWindowRowDialogs } from "./session-window-row-dialogs";
 import { useForkDeadSession } from "./use-fork-dead-session";
@@ -52,10 +54,11 @@ type SessionWindowControls = ReturnType<typeof useSessionWindowController>["cont
 /** Drill-in from a subagent row (S1 rule): this window, or a new one with ⌘/Ctrl. */
 function subagentOpener(
   openSession: ReturnType<typeof useSessionWindowController>["sidebar"]["openSession"],
-  workspaceId: string
+  workspaceId: string,
+  computerId: ComputerId
 ): NonNullable<SessionInspectorProps["onOpenSubagent"]> {
   return (subagent, options) => {
-    const target = subagentNavigationTarget(subagent, workspaceId);
+    const target = subagentNavigationTarget(subagent, workspaceId, computerId);
     if (target) openSession(target, options);
   };
 }
@@ -139,7 +142,8 @@ type SessionWindowDerive = ReturnType<typeof useSessionWindowDerive>;
 function subagentOriginProps(
   origin: SessionWindowDerive["subagentOrigin"],
   sidebar: SessionWindowPage["sidebar"],
-  workspaceId: string
+  workspaceId: string,
+  computerId: ComputerId
 ) {
   if (!origin) return origin;
   const parent = origin.parent ?? null;
@@ -148,7 +152,7 @@ function subagentOriginProps(
     onOpenParent: parent
       ? () =>
           sidebar.openSession(
-            { sessionId: parent.id, agentName: parent.agentName, workspaceId },
+            { sessionId: parent.id, agentName: parent.agentName, workspaceId, computerId },
             { newWindow: false }
           )
       : undefined,
@@ -264,7 +268,7 @@ export function SessionWindowContent({
     "prompt_embedded_context",
     promptRuntimeSnapshot
   );
-  const openSubagent = subagentOpener(sidebar.openSession, workspaceId);
+  const openSubagent = subagentOpener(sidebar.openSession, workspaceId, computerId);
   const sessionTitle = session.name ?? sessionId;
   const workspaceName = session.workspace_path ?? workspaceId;
 
@@ -308,7 +312,7 @@ export function SessionWindowContent({
                       <SessionWindowSidebarRail
                         windowId={windowId}
                         sidebar={sidebar}
-                        currentSessionId={sessionId}
+                        currentSessionId={sessionRowKeyFor({ id: sessionId, computerId })}
                         revealedSession={session}
                       />
                     }
@@ -403,7 +407,8 @@ export function SessionWindowContent({
                           subagentOrigin={subagentOriginProps(
                             derive.subagentOrigin,
                             sidebar,
-                            workspaceId
+                            workspaceId,
+                            computerId
                           )}
                         />
                       </SessionReportSendContext>

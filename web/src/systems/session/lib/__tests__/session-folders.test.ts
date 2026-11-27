@@ -25,12 +25,15 @@ import {
   buildSessionListSections,
   placeId,
   sectionsVisibleOrder,
+  SESSION_BULK_MOVE_DIFFERENT_COMPUTERS,
   sessionBulkMove,
   sessionBulkMoveBlockedReason,
   sessionBulkMoveIds,
   shiftId,
   visibleSessionOrder,
 } from "../session-folders";
+import { sessionListPairKey } from "../session-list-group-rows";
+import { withSessionComputer, sessionDragComputerStore, sessionRowKey } from "../session-row-ref";
 import { buildSessionListThreads } from "../session-list-threads";
 import {
   sessionListVisibleOrder,
@@ -654,5 +657,39 @@ describe("project folders", () => {
     const removed = applyWorkspaceFolderRemoval(layout, "f1");
     expect(removed.folders.map(row => row.id)).toEqual(["f2"]);
     expect(removed.placements.map(row => row.workspace_id)).toEqual(["@user", "ws-b"]);
+  });
+});
+
+describe("cross-computer folder move and drag refusal (T-F2)", () => {
+  it("Should distinguish pairs by computer and refuse bulk folder moves across computers", () => {
+    expect(
+      sessionListPairKey({ computerId: "local", workspaceId: "ws", profile: "default" })
+    ).not.toBe(
+      sessionListPairKey({ computerId: "cmp_devbox", workspaceId: "ws", profile: "default" })
+    );
+
+    const localRow = session("s-local");
+    const remoteRow = withSessionComputer(session("s-remote"), "cmp_devbox");
+    const localKey = sessionRowKey({ computerId: "local", sessionId: "s-local" });
+    const remoteKey = sessionRowKey({ computerId: "cmp_devbox", sessionId: "s-remote" });
+
+    const move = sessionBulkMove([localRow, remoteRow], new Set([localKey, remoteKey]), [
+      localKey,
+      remoteKey,
+    ]);
+    expect(move.computerIds).toEqual(["local", "cmp_devbox"]);
+    expect(sessionBulkMoveBlockedReason(move)).toBe(SESSION_BULK_MOVE_DIFFERENT_COMPUTERS);
+  });
+
+  it("Should flag another computer as refused while dragging across computers", () => {
+    sessionDragComputerStore.trigger.started({ computerId: "cmp_devbox" });
+    sessionDragComputerStore.trigger.hoveredComputer({ computerId: "cmp_studio" });
+    expect(sessionDragComputerStore.getSnapshot().context.refusedComputerId).toBe("cmp_studio");
+
+    sessionDragComputerStore.trigger.hoveredComputer({ computerId: "cmp_devbox" });
+    expect(sessionDragComputerStore.getSnapshot().context.refusedComputerId).toBeNull();
+
+    sessionDragComputerStore.trigger.ended();
+    expect(sessionDragComputerStore.getSnapshot().context.sourceComputerId).toBeNull();
   });
 });

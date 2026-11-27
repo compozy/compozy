@@ -1,5 +1,11 @@
+import type { ComputerId } from "@/lib/computer-scope";
 import { useSessionLifecycleActions } from "@/systems/session";
+import { sessionComputerOf } from "@/systems/session/lib/session-row-ref";
 
+import {
+  sessionWindowInstanceKey,
+  sessionWindowRouteComputer,
+} from "../lib/session-window-identity";
 import { useOsShell } from "./use-os-shell";
 
 /** How a list action took a session off the list. */
@@ -13,18 +19,25 @@ export type SessionListRemoval = "archive" | "later" | "delete";
 export function useSessionListLifecycleActions(
   options: {
     windowId?: string;
-    onRemoved?: (session: { id: string }, action: SessionListRemoval) => void;
+    onRemoved?: (
+      session: { id: string; computerId?: ComputerId },
+      action: SessionListRemoval
+    ) => void;
   } = {}
 ) {
   const { coordinator, manager } = useOsShell();
   const { onRemoved } = options;
-  const retireArchivedWindows = async (session: { id: string }) => {
+  const retireArchivedWindows = async (session: { id: string; computerId?: ComputerId }) => {
     onRemoved?.(session, "archive");
+    const targetComputer = sessionComputerOf(session);
     const windows = Object.values(manager.getState().windows);
+    const instanceKey = sessionWindowInstanceKey(session.id, targetComputer);
     // The runtime serializes commands against fresh layout revisions; await every outcome.
     await Promise.all(
       windows.flatMap(window =>
-        window.app === "session" && window.instanceKey === session.id
+        window.app === "session" &&
+        (window.instanceKey === instanceKey || window.instanceKey === session.id) &&
+        sessionWindowRouteComputer(window.route) === targetComputer
           ? [coordinator.userRetireSession(window.id)]
           : []
       )

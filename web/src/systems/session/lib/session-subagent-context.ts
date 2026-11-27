@@ -1,5 +1,7 @@
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import type { SessionPayload } from "../types";
 import { isSubagentSession } from "./session-hierarchy";
+import { sessionComputerOf, sessionRowKey, sessionRowKeyFor } from "./session-row-ref";
 
 /**
  * Subagent sessions are excluded from the sidebar page (ADR-005), so a
@@ -40,7 +42,7 @@ type AncestorWalk =
    * thread and reads `Subagent of a deleted session`, instead of vanishing.
    */
   | { kind: "orphaned"; chain: SessionPayload[] }
-  | { kind: "missing"; id: string }
+  | { kind: "missing"; id: string; key: string }
   | { kind: "none" };
 
 function parentIdOf(session: SessionPayload): string {
@@ -53,16 +55,18 @@ function walkAncestors(
   { loaded, deleted, searching }: SubagentContextInput
 ): AncestorWalk {
   const chain: SessionPayload[] = [];
-  const visited = new Set([start.id]);
+  const computerId = sessionComputerOf(start);
+  const visited = new Set([sessionRowKeyFor(start)]);
   let current = start;
   for (;;) {
     const parentId = parentIdOf(current);
-    if (parentId === "" || visited.has(parentId)) return { kind: "none" };
-    if (onPage.has(parentId)) return { kind: "anchored", anchorId: parentId, chain };
-    if (deleted?.has(parentId)) return { kind: "orphaned", chain };
-    const parent = loaded.get(parentId);
-    if (!parent) return { kind: "missing", id: parentId };
-    visited.add(parentId);
+    const key = sessionRowKey({ computerId, sessionId: parentId });
+    if (parentId === "" || visited.has(key)) return { kind: "none" };
+    if (onPage.has(key)) return { kind: "anchored", anchorId: key, chain };
+    if (deleted?.has(key)) return { kind: "orphaned", chain };
+    const parent = loaded.get(key);
+    if (!parent) return { kind: "missing", id: parentId, key };
+    visited.add(key);
     chain.push(parent);
     if (!isSubagentSession(parent)) {
       return searching ? { kind: "context-root", chain } : { kind: "none" };
@@ -72,10 +76,12 @@ function walkAncestors(
 }
 
 function subagentTargets({ sessions, revealed, searching }: SubagentContextInput) {
-  const onPage = new Set(sessions.map(session => session.id));
+  const onPage = new Set(sessions.map(session => sessionRowKeyFor(session)));
   const matches = searching ? sessions.filter(isSubagentSession) : [];
   const viewed =
-    revealed && isSubagentSession(revealed) && !onPage.has(revealed.id) ? [revealed] : [];
+    revealed && isSubagentSession(revealed) && !onPage.has(sessionRowKeyFor(revealed))
+      ? [revealed]
+      : [];
   return { onPage, targets: [...matches, ...viewed] };
 }
 
@@ -83,6 +89,7 @@ export interface SubagentContextRequest {
   sessionId: string;
   /** Lineage stays inside one workspace: the ancestor is read where its descendant lives. */
   workspaceId: string;
+  computerId?: ComputerId;
 }
 
 /** Ancestors still to read (one per unresolved target) before every target can nest. */
@@ -91,8 +98,13 @@ export function subagentContextRequests(input: SubagentContextInput): SubagentCo
   const requests = new Map<string, SubagentContextRequest>();
   for (const target of targets) {
     const walk = walkAncestors(target, onPage, input);
-    if (walk.kind === "missing" && !requests.has(walk.id)) {
-      requests.set(walk.id, { sessionId: walk.id, workspaceId: target.workspace_id ?? "" });
+    if (walk.kind === "missing" && !requests.has(walk.key)) {
+      const computerId = sessionComputerOf(target);
+      requests.set(walk.key, {
+        sessionId: walk.id,
+        workspaceId: target.workspace_id ?? "",
+        ...(isRemoteComputerId(computerId) ? { computerId } : {}),
+      });
     }
   }
   return [...requests.values()];
@@ -114,36 +126,39 @@ export function withSubagentContext(input: SubagentContextInput): readonly Sessi
   // A viewed subagent whose ancestry is gone has no anchor: it leads the list.
   const orphans: SessionPayload[] = [];
   for (const target of targets) {
+    const targetKey = sessionRowKeyFor(target);
     const walk = walkAncestors(target, onPage, input);
-    const fresh = (rows: SessionPayload[]) => rows.filter(row => !placed.has(row.id));
+    const fresh = (rows: SessionPayload[]) =>
+      rows.filter(row => !placed.has(sessionRowKeyFor(row)));
     if (walk.kind === "anchored" || walk.kind === "context-root") {
       const rows = fresh([...walk.chain].reverse());
-      for (const row of rows) placed.add(row.id);
-      const group = onPage.has(target.id) ? rows : [...rows, target];
+      for (const row of rows) placed.add(sessionRowKeyFor(row));
+      const group = onPage.has(targetKey) ? rows : [...rows, target];
       if (walk.kind === "anchored") {
         after.set(walk.anchorId, [...(after.get(walk.anchorId) ?? []), ...group]);
-      } else if (onPage.has(target.id)) {
-        replace.set(target.id, [...group, target]);
+      } else if (onPage.has(targetKey)) {
+        replace.set(targetKey, [...group, target]);
       } else {
         // A viewed subagent never leads a thread off the page.
-        dropped.add(target.id);
+        dropped.add(targetKey);
       }
     } else if (walk.kind === "orphaned") {
       const rows = fresh([...walk.chain].reverse());
-      for (const row of rows) placed.add(row.id);
-      if (onPage.has(target.id)) replace.set(target.id, [...rows, target]);
+      for (const row of rows) placed.add(sessionRowKeyFor(row));
+      if (onPage.has(targetKey)) replace.set(targetKey, [...rows, target]);
       else orphans.push(...rows, target);
-    } else if (onPage.has(target.id) && parentIdOf(target) !== "") {
+    } else if (onPage.has(targetKey) && parentIdOf(target) !== "") {
       // Its chain is still loading, or it has nowhere to nest: hold it back.
-      dropped.add(target.id);
+      dropped.add(targetKey);
     }
   }
   return [
     ...orphans,
     ...input.sessions.flatMap(session => {
-      if (dropped.has(session.id)) return [];
-      const head = replace.get(session.id) ?? [session];
-      return [...head, ...(after.get(session.id) ?? [])];
+      const key = sessionRowKeyFor(session);
+      if (dropped.has(key)) return [];
+      const head = replace.get(key) ?? [session];
+      return [...head, ...(after.get(key) ?? [])];
     }),
   ];
 }

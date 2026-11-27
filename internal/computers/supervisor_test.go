@@ -277,6 +277,59 @@ func TestComputerDiagnosis(t *testing.T) {
 	})
 }
 
+func TestUpdateComputer(t *testing.T) {
+	t.Parallel()
+	t.Run("Should restart an enabled offline computer and keep the connected supervisor", func(t *testing.T) {
+		t.Parallel()
+		clock := clockwork.NewFakeClock()
+		pin, pair := tunnelCertificates(t, clock.Now())
+		descriptor := remoteproto.Descriptor{
+			ComputerID: probeComputer, TLSRootSHA256: pin, Protocol: remoteproto.CurrentProtocol,
+		}
+		host := serveProbeTunnel(t, descriptor, pair, clock, false, func() bool { return true })
+		rows := []store.Computer{{
+			ID: probeComputer, AccountID: probeAccount, Enabled: true, TLSRootSHA: pin,
+			Routes: []store.ComputerRoute{
+				{ID: "direct", Kind: remoteproto.RouteDirect, Address: probeURL(t, host.URL).Host},
+			},
+		}}
+		registry := New(t.Context(), &routingStore{computers: rows}, newRoutingAccount(t), &routingCloud{},
+			WithClock(clock))
+		t.Cleanup(registry.Close)
+		waitUnitRoute(t, registry, remoteproto.RouteDirect)
+
+		scope, err := registry.current()
+		if err != nil {
+			t.Fatal(err)
+		}
+		scope.mu.Lock()
+		entry := scope.entries[probeComputer]
+		original := entry.run
+		entry.view.Status = Offline
+		scope.mu.Unlock()
+
+		if _, err := registry.Update(t.Context(), probeComputer, store.ComputerPatch{Enabled: new(true)}); err != nil {
+			t.Fatal(err)
+		}
+		waitUnitRoute(t, registry, remoteproto.RouteDirect)
+		scope.mu.Lock()
+		restarted := entry.run
+		scope.mu.Unlock()
+		if restarted == nil || restarted == original || !errors.Is(original.ctx.Err(), context.Canceled) {
+			t.Fatal("enabling the offline computer did not replace its supervisor")
+		}
+		if _, err := registry.Update(t.Context(), probeComputer, store.ComputerPatch{Enabled: new(true)}); err != nil {
+			t.Fatal(err)
+		}
+		scope.mu.Lock()
+		current := entry.run
+		scope.mu.Unlock()
+		if current != restarted {
+			t.Fatal("enabling the connected computer replaced its supervisor")
+		}
+	})
+}
+
 func TestRemoveSSHComputer(t *testing.T) {
 	t.Parallel()
 	t.Run("Should remove the computer when SSH uninstall fails (UT-050)", func(t *testing.T) {
@@ -334,6 +387,10 @@ type routingStore struct {
 func (s *routingStore) ControllerComputers(context.Context, string) ([]store.Computer, error) {
 	return s.computers, nil
 }
+func (*routingStore) UpdateComputer(context.Context, string, remoteproto.ComputerID, store.ComputerPatch) error {
+	return nil
+}
+
 func (*routingStore) RecordComputerConnection(context.Context, string, remoteproto.Descriptor, time.Time) error {
 	return nil
 }

@@ -413,6 +413,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		for _, mutation := range [][2]string{
 			{"shell.sessions.sort", "attention"},
 			{"shell.sessions.scope", "all-workspaces"},
+			{"shell.sessions.computers", "together"},
 		} {
 			if _, _, err := executeRootCommand(t, deps, "config", "set", mutation[0], mutation[1]); err != nil {
 				t.Fatalf("config set %s error = %v", mutation[0], err)
@@ -425,6 +426,18 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if configured.Shell.Sessions.Sort != compozyconfig.ShellSessionSortAttention ||
 			configured.Shell.Sessions.Scope != compozyconfig.ShellSessionScopeAllWorkspaces {
 			t.Fatalf("Shell = %#v, want attention/all-workspaces", configured.Shell)
+		}
+		const computersPath = "shell.sessions.computers"
+		getOut, _, err = executeRootCommand(t, deps, "config", "get", computersPath, "-o", "json")
+		if err != nil {
+			t.Fatalf("config get %s error = %v", computersPath, err)
+		}
+		var layout configValueRecord
+		if err := json.Unmarshal([]byte(getOut), &layout); err != nil {
+			t.Fatalf("decode config get %s: %v", computersPath, err)
+		}
+		if layout.Value != "together" || layout.Redacted {
+			t.Fatalf("config get %s = %#v, want unredacted together", computersPath, layout)
 		}
 
 		if _, _, err := executeRootCommand(
@@ -1387,6 +1400,7 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 		}
 		if captured.Config.Sessions.Sort != "" || captured.Config.Sessions.GroupBy != "" ||
 			captured.Config.Sessions.Scope != contract.SettingsShellSessionScopeAllWorkspaces ||
+			captured.Config.Sessions.Computers != nil ||
 			captured.Config.Appearance != nil {
 			t.Fatalf("daemon shell payload = %#v, want only scope=all-workspaces", captured.Config)
 		}
@@ -1406,6 +1420,23 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 		if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied ||
 			record.RestartRequired {
 			t.Fatalf("config set shell record = %#v, want live/applied=true", record)
+		}
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"shell.sessions.computers",
+			"together",
+		); err != nil {
+			t.Fatalf("config set shell.sessions.computers error = %v", err)
+		}
+		want := contract.SettingsShellPayload{Sessions: contract.SettingsShellSessionsPayload{
+			Computers: new(contract.SettingsShellSessionComputersTogether),
+		}}
+		if !reflect.DeepEqual(captured.Config, want) {
+			t.Fatalf("daemon shell payload = %#v, want only computers=together", captured.Config)
 		}
 	})
 

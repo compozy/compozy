@@ -1,4 +1,9 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import {
+  apiClientFor,
+  apiRequestFailed,
+  requireResponseData,
+  type ComputerId,
+} from "@/lib/api-client";
 
 import type { SessionPayload } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
@@ -15,7 +20,8 @@ export async function setSessionPinned(
   id: string,
   profile: string,
   pinned: boolean,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
   const options = {
     params: {
@@ -25,9 +31,10 @@ export async function setSessionPinned(
     signal,
   };
   const path = "/api/workspaces/{workspace_id}/sessions/{session_id}/pin";
+  const client = apiClientFor(computerId);
   const { data, error, response } = pinned
-    ? await apiClient.POST(path, options)
-    : await apiClient.DELETE(path, options);
+    ? await client.POST(path, options)
+    : await client.DELETE(path, options);
   const failure = pinned ? `Failed to pin session "${id}"` : `Failed to unpin session "${id}"`;
   if (apiRequestFailed(response, error)) throwSessionRequestError(response, error, failure, id);
   return requireResponseData(data, response, failure).session;

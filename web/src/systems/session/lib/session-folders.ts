@@ -5,6 +5,7 @@ import {
   threadVisibleOrder,
   type SessionThreadModel,
 } from "./session-list-threads";
+import { sessionComputerOf, sessionRowKeyFor } from "./session-row-ref";
 import type { SessionFoldSet } from "./session-sidebar-scope";
 
 /** One folder with the provenance threads it holds on the current page. */
@@ -148,7 +149,7 @@ export function visibleSessionOrder(
           filtering
         )
       : threads;
-    const byId = new Map(served.map(session => [session.id, session]));
+    const byId = new Map(served.map(session => [sessionRowKeyFor(session), session]));
     return threadVisibleOrder(visibleThreads, options.collapsedThreadIds).flatMap(id => {
       const session = byId.get(id);
       return session ? [session] : [];
@@ -300,6 +301,10 @@ function withFolder(session: SessionPayload, folderId: string | null): SessionPa
   return rest as SessionPayload;
 }
 
+/** Prototype-approved reason when a selection spans two computers (`list-bulk-two-computers`). */
+export const SESSION_BULK_MOVE_DIFFERENT_COMPUTERS =
+  "Sessions on different computers can't share a folder.";
+
 /** What a selection can move into a folder. */
 export interface SessionBulkMove {
   /**
@@ -308,6 +313,8 @@ export interface SessionBulkMove {
    * move on their own, and neither does a subagent whose parent is gone.
    */
   sessions: SessionPayload[];
+  /** Distinct owning computers; a folder lives on one computer. */
+  computerIds: string[];
   /** Distinct owning profiles; a folder belongs to one profile's layout. */
   profileIds: string[];
 }
@@ -319,17 +326,33 @@ export function sessionBulkMove(
   visibleOrder: readonly string[]
 ): SessionBulkMove {
   const rank = new Map(visibleOrder.map((id, index) => [id, index]));
-  const roots = new Set(buildSessionListThreads(catalog, "").map(thread => thread.session.id));
+  // Thread roots are computed per computer so colliding session ids never cross-link.
+  const byComputer = new Map<string, SessionPayload[]>();
+  for (const session of catalog) {
+    const computer = sessionComputerOf(session);
+    const bucket = byComputer.get(computer) ?? [];
+    bucket.push(session);
+    byComputer.set(computer, bucket);
+  }
+  const roots = new Set<string>();
+  for (const [computer, items] of byComputer) {
+    for (const thread of buildSessionListThreads(items, "")) {
+      roots.add(sessionRowKeyFor(thread.session, computer));
+    }
+  }
   const sessions = catalog
-    .flatMap((session, index) =>
-      selectedIds.has(session.id) && roots.has(session.id) && sessionHasOwnPlacement(session)
-        ? [{ session, rank: rank.get(session.id) ?? visibleOrder.length + index }]
-        : []
-    )
+    .flatMap((session, index) => {
+      const rowKey = sessionRowKeyFor(session);
+      if (!selectedIds.has(rowKey) || !roots.has(rowKey) || !sessionHasOwnPlacement(session)) {
+        return [];
+      }
+      return [{ session, rank: rank.get(rowKey) ?? visibleOrder.length + index }];
+    })
     .sort((left, right) => left.rank - right.rank)
     .map(entry => entry.session);
+  const computerIds = [...new Set(sessions.map(session => sessionComputerOf(session)))];
   const profileIds = [...new Set(sessions.map(session => session.profile_id ?? ""))];
-  return { sessions, profileIds };
+  return { sessions, computerIds, profileIds };
 }
 
 /** The sessions a move into `folderId` (null: the root) would change; already-filed ones need no write. */
@@ -343,6 +366,7 @@ export function sessionBulkMoveIds(
 /** Why the selection cannot move into a folder, or null when it can. */
 export function sessionBulkMoveBlockedReason(move: SessionBulkMove): string | null {
   if (move.sessions.length === 0) return "Child sessions move with their parent.";
+  if (move.computerIds.length > 1) return SESSION_BULK_MOVE_DIFFERENT_COMPUTERS;
   if (move.profileIds.length > 1) return "Select sessions from one profile to move them.";
   return null;
 }

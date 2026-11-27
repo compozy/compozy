@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
 import { use, useCallback } from "react";
 
+import { isRemoteComputerId, normalizeComputerId } from "@/lib/computer-scope";
 import { toast } from "@compozy/ui";
 
 import { cancelSubagent, deleteSubagent } from "../adapters/subagent-api";
@@ -60,27 +61,31 @@ export function useSessionSubagentActions(): SessionSubagentActionsModel {
 
   const deletion = useMutation({
     mutationFn: ({ subagent, scope }: PendingSubagentDelete) =>
-      deleteSubagent(scope.workspaceId, subagent.id, scope.profile),
+      isRemoteComputerId(scope.computerId)
+        ? deleteSubagent(scope.workspaceId, subagent.id, scope.profile, undefined, scope.computerId)
+        : deleteSubagent(scope.workspaceId, subagent.id, scope.profile),
     onSuccess: (_data, { subagent, scope }) => {
-      const { workspaceId, sessionId } = scope;
+      const { workspaceId, sessionId, computerId } = scope;
+      const keys = sessionKeys.forComputer(computerId);
       queryClient.setQueryData<SubagentRoster>(
-        sessionKeys.subagentRoster(workspaceId, sessionId),
+        keys.subagentRoster(workspaceId, sessionId),
         existing => (existing ? applySubagentRemoved(existing, subagent.id) : existing)
       );
       void queryClient.invalidateQueries({
-        queryKey: sessionKeys.subagentBranch(workspaceId, sessionId),
+        queryKey: keys.subagentBranch(workspaceId, sessionId),
       });
       void queryClient.invalidateQueries({
-        queryKey: sessionKeys.subagents(workspaceId, sessionId),
+        queryKey: keys.subagents(workspaceId, sessionId),
       });
-      void invalidateWorkspaceSessionCatalog(queryClient, workspaceId);
-      void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });
-      if (drawer) {
-        const selected = drawer.store.getSnapshot().context.selected;
-        if (selected?.workspaceId === workspaceId && selected.subagent.id === subagent.id) {
-          drawer.store.trigger.closed();
-        }
-      }
+      void invalidateWorkspaceSessionCatalog(queryClient, workspaceId, computerId);
+      void queryClient.invalidateQueries({ queryKey: keys.attentionSummary() });
+      const selected = drawer?.store.getSnapshot().context.selected;
+      if (
+        selected?.workspaceId === workspaceId &&
+        selected.subagent.id === subagent.id &&
+        normalizeComputerId(selected.computerId) === normalizeComputerId(computerId)
+      )
+        drawer?.store.trigger.closed();
       store.trigger.deleteClosed();
     },
     onError: error => {
@@ -117,15 +122,19 @@ export function useSessionSubagentActions(): SessionSubagentActionsModel {
   const stop = useCallback(
     (subagent: SubagentView, scope: SubagentActionScope) => {
       if (!hasSubagentScope(scope)) return;
-      const { workspaceId, sessionId, profile } = scope;
-      void cancelSubagent(workspaceId, subagent.id, profile)
+      const { workspaceId, sessionId, profile, computerId } = scope;
+      const keys = sessionKeys.forComputer(computerId);
+      const request = isRemoteComputerId(computerId)
+        ? cancelSubagent(workspaceId, subagent.id, profile, "", computerId)
+        : cancelSubagent(workspaceId, subagent.id, profile);
+      void request
         .then(() =>
           Promise.all([
             queryClient.invalidateQueries({
-              queryKey: sessionKeys.subagentBranch(workspaceId, sessionId),
+              queryKey: keys.subagentBranch(workspaceId, sessionId),
             }),
             queryClient.invalidateQueries({
-              queryKey: sessionKeys.subagents(workspaceId, sessionId),
+              queryKey: keys.subagents(workspaceId, sessionId),
             }),
           ])
         )

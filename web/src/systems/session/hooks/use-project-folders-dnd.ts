@@ -1,6 +1,9 @@
 import { useState, type DragEvent } from "react";
 
+import { LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
+
 import { placeId } from "../lib/session-folders";
+import { sessionDragComputerStore } from "../lib/session-row-ref";
 import { projectGroupContainerIds, type ProjectGroupTree } from "../lib/workspace-folders";
 import type { SessionDragHandlers, SessionDropPosition } from "./use-session-list-dnd";
 import type { WorkspaceLayout } from "./use-workspace-layout";
@@ -40,7 +43,8 @@ const DRAG_MIME = "application/x-compozy-project-layout";
  */
 export function useProjectFoldersDnd(
   layout: WorkspaceLayout | undefined,
-  tree: ProjectGroupTree | undefined
+  tree: ProjectGroupTree | undefined,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
 ): ProjectFoldersDnd {
   const [dragging, setDragging] = useState<ProjectDragItem | null>(null);
   const [indicator, setIndicator] = useState<ProjectDropIndicator | null>(null);
@@ -51,9 +55,11 @@ export function useProjectFoldersDnd(
     event.dataTransfer?.setData(DRAG_MIME, id);
     event.dataTransfer?.setData("text/plain", id);
     if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    sessionDragComputerStore.trigger.started({ computerId });
     setDragging(item);
   };
   const end = () => {
+    sessionDragComputerStore.trigger.ended();
     setDragging(null);
     setIndicator(null);
   };

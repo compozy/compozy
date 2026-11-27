@@ -6,6 +6,7 @@ import {
   withoutDesktopDefaultViewIntent,
 } from "./routing-default-view-intent";
 import { decideRouteReconciliation } from "./routing-route-decision";
+import { sessionWindowInstanceKey, sessionWindowRouteComputer } from "./session-window-identity";
 import { sameOsWindowRoute } from "./window-manager-route";
 
 /** What the reconciler reads from and reports back to its `RoutingCoordinator`. */
@@ -106,7 +107,11 @@ export class RouteReconciler {
       return;
     }
     const intent = this.createdSessionIntent;
-    const matches = intent?.instanceKey === resolved.instanceKey;
+    const instanceKey =
+      resolved.app.id === "session" && resolved.instanceKey
+        ? sessionWindowInstanceKey(resolved.instanceKey, sessionWindowRouteComputer(route))
+        : resolved.instanceKey;
+    const matches = intent?.instanceKey === instanceKey;
     if (matches || (intent && pending.token > intent.afterToken)) this.createdSessionIntent = null;
     const createdSession = pending.createdSession === true || matches;
     const tracked = createdSession ? { ...pending, createdSession } : pending;

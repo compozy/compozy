@@ -1,4 +1,5 @@
-import { apiBaseUrl, clientID, daemonFetch } from "@/lib/api-client";
+import { apiBaseUrl, clientID, computerApiPath, daemonFetch } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
 
 import type {
   AgentActivityPayload,
@@ -40,6 +41,7 @@ interface RequestOptions {
   body?: unknown;
   signal?: AbortSignal;
   fallback: string;
+  computerId?: ComputerId;
 }
 
 /** No route answers yet. A page says so plainly; it never shows made-up data in its place. */
@@ -65,8 +67,8 @@ async function failure(response: Response, fallback: string) {
  * `../types`. Same headers and base as `apiClient`.
  */
 async function request<T>(path: string, options: RequestOptions): Promise<T> {
-  const { method = "GET", body, signal, fallback } = options;
-  const response = await daemonFetch(new URL(path, apiBaseUrl), {
+  const { method = "GET", body, signal, fallback, computerId } = options;
+  const response = await daemonFetch(new URL(computerApiPath(computerId, path), apiBaseUrl), {
     method,
     signal,
     headers: {
@@ -98,7 +100,11 @@ function owned(instance: AgentInstanceWirePayload, profile_name: string) {
   return { ...instance, profile_name };
 }
 
-async function fetchProfileInstances(profile: string, signal?: AbortSignal) {
+async function fetchProfileInstances(
+  profile: string,
+  signal?: AbortSignal,
+  computerId?: ComputerId
+) {
   const instances: AgentInstancePayload[] = [];
   let cursor = "";
   let page: AgentInstancesResponse;
@@ -112,6 +118,7 @@ async function fetchProfileInstances(profile: string, signal?: AbortSignal) {
     page = await request<AgentInstancesResponse>(`/api/agent-instances?${query}`, {
       signal,
       fallback: "Failed to fetch always-on agents",
+      computerId,
     });
     instances.push(...page.instances.map(instance => owned(instance, profile)));
     cursor = page.next_cursor;
@@ -129,10 +136,11 @@ async function fetchProfileInstances(profile: string, signal?: AbortSignal) {
  */
 export async function fetchAgentInstances(
   profiles: readonly string[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<AgentInstancesRead> {
   const settled = await Promise.allSettled(
-    profiles.map(profile => fetchProfileInstances(profile, signal))
+    profiles.map(profile => fetchProfileInstances(profile, signal, computerId))
   );
   const reads = settled.flatMap(result => (result.status === "fulfilled" ? [result.value] : []));
   if (reads.length === 0 && settled[0]?.status === "rejected") throw settled[0].reason;
@@ -155,12 +163,14 @@ async function instanceAction(
   path: string,
   profile: string,
   fallback: string,
-  body?: unknown
+  body?: unknown,
+  computerId?: ComputerId
 ): Promise<AgentInstancePayload> {
   const { instance } = await request<{ instance: AgentInstanceWirePayload }>(path, {
     method: "POST",
     body,
     fallback,
+    computerId,
   });
   return owned(instance, profile);
 }
@@ -175,34 +185,44 @@ export function createAgentInstance(params: CreateAgentInstanceParams, profile: 
   );
 }
 
-export function pauseAgentInstance(ref: AgentInstanceRef) {
+export function pauseAgentInstance(ref: AgentInstanceRef, computerId?: ComputerId) {
   return instanceAction(
     instancePath(ref, "/pause"),
     ref.profile_name,
-    "Failed to pause this agent"
+    "Failed to pause this agent",
+    undefined,
+    computerId
   );
 }
 
-export function resumeAgentInstance(ref: AgentInstanceRef) {
+export function resumeAgentInstance(ref: AgentInstanceRef, computerId?: ComputerId) {
   return instanceAction(
     instancePath(ref, "/resume"),
     ref.profile_name,
-    "Failed to resume this agent"
+    "Failed to resume this agent",
+    undefined,
+    computerId
   );
 }
 
-export function ensureAgentInstanceMain(ref: AgentInstanceRef) {
+export function ensureAgentInstanceMain(ref: AgentInstanceRef, computerId?: ComputerId) {
   return instanceAction(
     instancePath(ref, "/ensure-main"),
     ref.profile_name,
-    "Failed to open this agent"
+    "Failed to open this agent",
+    undefined,
+    computerId
   );
 }
 
-export async function archiveAgentInstance(ref: AgentInstanceRef): Promise<void> {
+export async function archiveAgentInstance(
+  ref: AgentInstanceRef,
+  computerId?: ComputerId
+): Promise<void> {
   await request<void>(instancePath(ref), {
     method: "DELETE",
     fallback: "Failed to archive this agent",
+    computerId,
   });
 }
 
@@ -309,7 +329,8 @@ export async function fetchAgentInstanceOccurrenceCheckIn(
 export async function fetchAgentInstanceCheckIns(
   ref: AgentInstanceRef,
   limit: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<AgentInstanceCheckInsResponse> {
   const check_ins: AgentInstanceCheckInsResponse["check_ins"] = [];
   let cursor = "";
@@ -320,7 +341,7 @@ export async function fetchAgentInstanceCheckIns(
     if (cursor) query.cursor = cursor;
     const page = await request<AgentInstanceCheckInsResponse>(
       instancePath(ref, "/check-ins", query),
-      { signal, fallback: "Failed to fetch heartbeats" }
+      { signal, fallback: "Failed to fetch heartbeats", computerId }
     );
     check_ins.push(...page.check_ins);
     cursor = page.next_cursor;
@@ -364,10 +385,14 @@ export async function fetchAgentInstanceAway(
   }
 }
 
-export async function markAgentInstanceSeen(ref: AgentInstanceRef): Promise<void> {
+export async function markAgentInstanceSeen(
+  ref: AgentInstanceRef,
+  computerId?: ComputerId
+): Promise<void> {
   await request<void>(instancePath(ref, "/away"), {
     method: "POST",
     fallback: "Couldn't mark the agent as seen.",
+    computerId,
   });
 }
 

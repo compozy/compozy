@@ -1,8 +1,10 @@
 import { Button } from "@compozy/ui";
 
+import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
 import { useListArchiveStopped } from "../../hooks/use-list-archive-stopped";
 import type { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
+import type { SessionViewOptionsMenuProps } from "../session-view-options-menu";
 import { AlwaysOnCreateMenu } from "../always-on/always-on-create-menu";
 import { SessionListSelectionBar } from "./session-list-selection-bar";
 import { SessionListToolbar } from "./session-list-toolbar";
@@ -14,6 +16,11 @@ export function SessionListControls({
   onNewSession,
   onNewFolder,
   newFolderUnavailable,
+  computerLayout,
+  laterCount,
+  archiveStoppedDisabled = false,
+  archiveStoppedSource,
+  disableAlwaysOnCreate = false,
   testIdPrefix,
 }: {
   bulk: ReturnType<typeof useSessionListBulkSelection>;
@@ -21,16 +28,24 @@ export function SessionListControls({
   onNewSession: () => void;
   onNewFolder?: () => void;
   newFolderUnavailable: string | null;
+  computerLayout?: SessionViewOptionsMenuProps["computerLayout"];
+  laterCount?: number;
+  archiveStoppedDisabled?: boolean;
+  archiveStoppedSource?: ComputerSessionsSource | null;
+  disableAlwaysOnCreate?: boolean;
   testIdPrefix: string;
 }) {
-  const archiveStopped = useListArchiveStopped(view);
+  const archiveStopped = useListArchiveStopped(view, {
+    disabled: archiveStoppedDisabled,
+    source: archiveStoppedSource,
+  });
   return bulk.active ? (
     <SessionListSelectionBar {...bulk.bar} testIdPrefix={testIdPrefix} />
   ) : (
     <>
       <SessionListToolbar
         shelf={view.shelf}
-        laterCount={view.laterCount}
+        laterCount={laterCount ?? view.laterCount}
         sort={view.sort}
         groupBy={view.groupBy}
         groupByOptions={view.groupByOptions}
@@ -46,13 +61,14 @@ export function SessionListControls({
         onNewSession={onNewSession}
         onNewFolder={onNewFolder}
         newFolderUnavailable={newFolderUnavailable}
+        computerLayout={computerLayout}
         createMenu={
           <AlwaysOnCreateMenu
             newFolderUnavailable={newFolderUnavailable}
             onNewFolder={onNewFolder}
             onNewSession={onNewSession}
             alwaysOn={
-              view.focusedWorkspaceId
+              !disableAlwaysOnCreate && view.focusedWorkspaceId
                 ? { place: view.focusedWorkspaceId, name: view.focusedScopeName }
                 : null
             }

@@ -23,7 +23,7 @@ import { useSessionListPreferences } from "../use-session-list-preferences";
 type LegacyScope = { value: "workspace" | "all-workspaces"; explicit: boolean; revision: number };
 
 const daemon: {
-  sessions: { sort?: string; group_by?: string };
+  sessions: { sort?: string; group_by?: string; computers?: string };
   legacy?: LegacyScope;
 } = { sessions: {} };
 
@@ -97,11 +97,23 @@ describe("useSessionListPreferences", () => {
     fetcher.mockRestore();
   });
 
-  it("Should default an unset sort to Created and grouping to project", async () => {
+  it("Should default an unset sort to Created, grouping to project, and computers to separate (T-F3b)", async () => {
     const { result } = renderPreferences();
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.sort).toBe("created");
     expect(result.current.groupBy).toBe("project");
+    expect(result.current.computers).toBe("separate");
+  });
+
+  it.each([
+    ["separate", "separate"],
+    ["together", "together"],
+    ["unknown", "separate"],
+  ] as const)("Should read stored computers layer %s as %s (T-F3b)", async (stored, computers) => {
+    daemon.sessions = { computers: stored };
+    const { result } = renderPreferences();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.computers).toBe(computers);
   });
 
   it.each(["created", "name", "last_activity", "attention", "manual"] as const)(

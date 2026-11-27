@@ -17,10 +17,14 @@ func buildShellSection(cfg *compozyconfig.Config) ShellSection {
 }
 
 func diffShellSettings(current compozyconfig.ShellConfig, desired compozyconfig.ShellConfig) []string {
-	changed := make([]string, 0, 7)
+	changed := make([]string, 0, 8)
 	if current.Sessions.GroupBy != desired.Sessions.GroupBy ||
 		current.Sessions.GroupByExplicit != desired.Sessions.GroupByExplicit {
 		changed = append(changed, "shell.sessions.group_by")
+	}
+	if current.Sessions.Computers != desired.Sessions.Computers ||
+		current.Sessions.ComputersExplicit != desired.Sessions.ComputersExplicit {
+		changed = append(changed, "shell.sessions.computers")
 	}
 	if current.Sessions.Sort != desired.Sessions.Sort {
 		changed = append(changed, "shell.sessions.sort")
@@ -67,6 +71,14 @@ func applyShellSettings(editor *compozyconfig.OverlayEditor, settings compozycon
 		if err := editor.SetValue(
 			[]string{shellConfigRoot, shellSessionsKey, "group_by"},
 			string(settings.Sessions.GroupBy),
+		); err != nil {
+			return err
+		}
+	}
+	if settings.Sessions.ComputersExplicit {
+		if err := editor.SetValue(
+			[]string{shellConfigRoot, shellSessionsKey, "computers"},
+			string(settings.Sessions.Computers),
 		); err != nil {
 			return err
 		}

@@ -65,10 +65,13 @@ function sessionCatalogScopes(workspaceId: string, computerId?: ComputerId): Que
 
 export function invalidateWorkspaceSessionCatalog(
   queryClient: QueryClient,
-  workspaceId: string
+  workspaceId: string,
+  computerId?: ComputerId
 ): Promise<void> {
   return Promise.all(
-    sessionCatalogScopes(workspaceId).map(queryKey => queryClient.invalidateQueries({ queryKey }))
+    sessionCatalogScopes(workspaceId, computerId).map(queryKey =>
+      queryClient.invalidateQueries({ queryKey })
+    )
   ).then(() => undefined);
 }
 

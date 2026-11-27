@@ -17,6 +17,8 @@ import {
   retainedComposerDraftUpload,
 } from "../lib/session-composer-attachment-drafts";
 import { consumeSubmittedComposerAttachment } from "../lib/session-composer-attachment-ownership";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import type { SessionAttachment } from "../types";
 import { sessionStore } from "../stores/session-store";
 
@@ -24,6 +26,7 @@ export const SESSION_ATTACHMENT_ADAPTER_ACCEPT = "*";
 
 interface SessionAttachmentAdapterOptions {
   sessionId?: string;
+  computerId?: ComputerId;
   workspaceId: string;
 }
 
@@ -65,10 +68,12 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
   private readonly removedWhileUploading = new Set<string>();
   private readonly workspaceId: string;
   private readonly sessionId: string | undefined;
+  private readonly computerId: ComputerId | undefined;
 
-  constructor({ workspaceId, sessionId }: SessionAttachmentAdapterOptions) {
+  constructor({ workspaceId, sessionId, computerId }: SessionAttachmentAdapterOptions) {
     this.workspaceId = workspaceId;
     this.sessionId = sessionId;
+    this.computerId = computerId;
   }
 
   public async *add({ file }: { file: File }): AsyncGenerator<PendingAttachment, void> {
@@ -88,10 +93,19 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
 
     try {
       // A draft restored after a runtime rebuild reuses its upload instead of sending the bytes again.
-      let upload = retainedComposerDraftUpload(this.workspaceId, this.sessionId, file);
+      const sessionKey = sessionRowKeyFor({ id: this.sessionId, computerId: this.computerId });
+      let upload = retainedComposerDraftUpload(this.workspaceId, sessionKey, file);
       if (!upload) {
-        upload = uploadSessionAttachment(this.workspaceId, this.sessionId, file);
-        retainComposerDraftUpload(this.workspaceId, this.sessionId, file, upload);
+        upload = isRemoteComputerId(this.computerId)
+          ? uploadSessionAttachment(
+              this.workspaceId,
+              this.sessionId,
+              file,
+              undefined,
+              this.computerId
+            )
+          : uploadSessionAttachment(this.workspaceId, this.sessionId, file);
+        retainComposerDraftUpload(this.workspaceId, sessionKey, file, upload);
       }
       this.inFlightUploads.set(id, upload);
       // Register ownership before exposing the running tile to a consumer.
@@ -135,9 +149,10 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
     if (!this.sessionId) return;
     if (attachment.file) releaseComposerDraftFile(attachment.file);
     // Removal transfers the first-message handoff to the edited draft before upload cleanup awaits.
-    sessionStore.trigger.firstPromptSent({ sessionId: this.sessionId });
+    const sessionKey = sessionRowKeyFor({ id: this.sessionId, computerId: this.computerId });
+    sessionStore.trigger.firstPromptSent({ sessionId: sessionKey });
     consumeSubmittedComposerAttachment(attachment);
-    sessionStore.trigger.composerPromptRefusalDismissed({ sessionId: this.sessionId });
+    sessionStore.trigger.composerPromptRefusalDismissed({ sessionId: sessionKey });
     this.uploads.delete(attachment.id);
     this.uploadedFiles.delete(attachment.id);
     if (this.inFlightUploads.has(attachment.id)) {
@@ -213,8 +228,11 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
 
 export function useSessionAttachmentAdapter(
   workspaceId: string,
-  sessionId: string
+  sessionId: string,
+  computerId?: ComputerId
 ): SessionAttachmentAdapter {
-  const [adapter] = useState(() => new SessionAttachmentAdapter({ workspaceId, sessionId }));
+  const [adapter] = useState(
+    () => new SessionAttachmentAdapter({ workspaceId, sessionId, computerId })
+  );
   return adapter;
 }

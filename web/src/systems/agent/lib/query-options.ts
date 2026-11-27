@@ -33,7 +33,7 @@ import {
 } from "../adapters/agent-skill-review-api";
 import { fetchAgentMemory, fetchAgentMemoryHistory } from "../adapters/agent-memory-api";
 import { fetchAgentSoul, fetchAgentSoulHistory } from "../adapters/agent-soul-api";
-import { agentKeys } from "./query-keys";
+import { agentKeys, agentKeysFor } from "./query-keys";
 import {
   agentCatalogRequest,
   keepCatalogAcrossSearch,
@@ -50,10 +50,20 @@ const OCCURRENCE_POLL_MS = 1_500;
 const GROUPED_CATALOG_PAGE = 100;
 
 /** Every instance a view sees, across scopes; `agent_instance.updated` keeps it live between reads. */
-export function agentInstancesOptions(view: string, profiles: readonly string[]) {
+export function agentInstancesOptions(
+  view: string,
+  profiles: readonly string[],
+  computerId?: ComputerId
+) {
+  const remote = isRemoteComputerId(computerId);
   return queryOptions({
-    queryKey: agentKeys.instanceList(view, profiles),
-    queryFn: ({ signal }) => fetchAgentInstances(profiles, signal),
+    queryKey: remote
+      ? agentKeysFor(computerId).instanceList(view, profiles)
+      : agentKeys.instanceList(view, profiles),
+    queryFn: ({ signal }) =>
+      remote
+        ? fetchAgentInstances(profiles, signal, computerId)
+        : fetchAgentInstances(profiles, signal),
     staleTime: 30_000,
     retry: false,
     enabled: profiles.length > 0,
@@ -71,10 +81,13 @@ export function agentInstanceAwayOptions(ref: AgentInstanceRef) {
   });
 }
 
-export function agentInstanceCheckInsOptions(ref: AgentInstanceRef) {
+export function agentInstanceCheckInsOptions(ref: AgentInstanceRef, computerId?: ComputerId) {
   return queryOptions({
-    queryKey: agentKeys.instanceCheckIns(ref.id),
-    queryFn: ({ signal }) => fetchAgentInstanceCheckIns(ref, CHECK_INS_SHOWN, signal),
+    queryKey: agentKeysFor(computerId).instanceCheckIns(ref.id),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchAgentInstanceCheckIns(ref, CHECK_INS_SHOWN, signal, computerId)
+        : fetchAgentInstanceCheckIns(ref, CHECK_INS_SHOWN, signal),
     staleTime: 30_000,
     retry: false,
   });

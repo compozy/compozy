@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import { useAgentInstances } from "@/systems/agent";
 import { useProfiles, type ProfileOwner, type ProfileScopeParams } from "@/systems/profiles";
 import { breadthQuery, sessionCatalogBreadthParams, type DataScope } from "@/systems/workspace";
@@ -45,6 +46,10 @@ export interface SessionListGroupsInput {
   pinned?: SessionListFilters["pinned"];
   /** A surface with no stream of its own for a group re-reads the counts on this interval. */
   refetchInterval?: number;
+  /** Target daemon when reading a remote computer's groups (`F5`). */
+  computerId?: ComputerId;
+  /** Matched workspace ids on a remote computer when the topbar focuses one project (`Q5`). */
+  matchedWorkspaceIds?: readonly string[] | null;
 }
 
 export interface SessionListGroupsModel {
@@ -73,33 +78,46 @@ export function useSessionListGroups({
   population,
   pinned,
   refetchInterval,
+  computerId = LOCAL_COMPUTER_ID,
+  matchedWorkspaceIds,
 }: SessionListGroupsInput): SessionListGroupsModel {
-  const grouped = enabled && groupBy !== "none" && scope !== null;
+  const remote = isRemoteComputerId(computerId);
+  const grouped = shouldReadSessionListGroups(
+    { enabled, groupBy, scope, matchedWorkspaceIds },
+    remote
+  );
   const facets = useQuery({
-    ...sessionFacetsOptions({
-      ...sessionListFacetFilters({
-        scope,
-        lens,
-        shelf,
-        showAutomation,
-        search,
-        worktreeId,
-        population,
-      }),
-      ...(pinned ? { pinned } : {}),
-    }),
+    ...sessionFacetsOptions(
+      {
+        ...sessionListFacetFilters({
+          scope,
+          lens,
+          shelf,
+          showAutomation,
+          search,
+          worktreeId,
+          population,
+          computerId,
+          matchedWorkspaceIds,
+        }),
+        ...(pinned ? { pinned } : {}),
+      },
+      computerId
+    ),
     enabled: grouped,
     ...(refetchInterval ? { refetchInterval } : {}),
   });
   const byProfile = grouped && groupBy === "profile";
-  const profiles = useProfiles(byProfile);
-  const instances = useAgentInstances();
+  const profiles = useProfiles(byProfile, remote ? computerId : undefined);
+  const instances = useAgentInstances(remote ? computerId : undefined);
   const groups = resolveGroups(grouped, {
     groupBy,
     scope,
     lens,
     workspaces,
-    facets: facets.data,
+    computerId,
+    facets: grouped ? facets.data : undefined,
+    matchedWorkspaceIds,
     // A project whose only resident is an agent still gets its group.
     residents: shelf === "active" && !search ? instances.map(i => i.workspace_id) : [],
     profiles: profiles.data,
@@ -111,26 +129,44 @@ export function useSessionListGroups({
   };
 }
 
+function shouldReadSessionListGroups(
+  {
+    enabled,
+    groupBy,
+    scope,
+    matchedWorkspaceIds,
+  }: Pick<SessionListGroupsInput, "enabled" | "groupBy" | "scope" | "matchedWorkspaceIds">,
+  remote: boolean
+): boolean {
+  if (!enabled || groupBy === "none" || scope === null) return false;
+  return !(remote && scope.kind === "project" && matchedWorkspaceIds?.length === 0);
+}
+
 function resolveGroups(
   grouped: boolean,
-  input: Pick<SessionListGroupsInput, "groupBy" | "scope" | "lens" | "workspaces"> & {
+  input: Pick<
+    SessionListGroupsInput,
+    "groupBy" | "scope" | "lens" | "workspaces" | "computerId" | "matchedWorkspaceIds"
+  > & {
     facets: Parameters<typeof projectSessionGroups>[0] & Parameters<typeof profileSessionGroups>[0];
     residents: readonly string[];
     profiles: ReturnType<typeof useProfiles>["data"];
   }
 ): SessionListGroupSpec[] {
-  const { groupBy, scope, lens, workspaces, facets, residents, profiles } = input;
+  const { groupBy, scope, lens, workspaces, computerId, facets, residents, profiles } = input;
   if (!grouped || scope === null) return [];
   if (groupBy === "project") {
     return withInstanceProjectGroups(
-      projectSessionGroups(facets, { workspaces, lens }),
+      projectSessionGroups(facets, { workspaces, lens, computerId }),
       residents,
-      { workspaces, lens, ready: facets !== undefined }
+      { workspaces, lens, computerId, ready: facets !== undefined }
     );
   }
   return profileSessionGroups(profiles ? facets : undefined, {
     profiles: profileOwners(profiles),
     scope,
+    matchedWorkspaceIds: input.matchedWorkspaceIds,
+    computerId,
   });
 }
 
@@ -146,17 +182,34 @@ export function sessionListFacetFilters({
   search,
   worktreeId,
   population,
+  computerId,
+  matchedWorkspaceIds,
 }: Pick<
   SessionListGroupsInput,
-  "scope" | "lens" | "shelf" | "showAutomation" | "search" | "worktreeId" | "population"
+  | "scope"
+  | "lens"
+  | "shelf"
+  | "showAutomation"
+  | "search"
+  | "worktreeId"
+  | "population"
+  | "computerId"
+  | "matchedWorkspaceIds"
 >): SessionListFilters {
   // A search reaches automation runs, so their groups must survive the counts.
   const { exclude_automation: hideAutomation, ...shelfFilters } = sessionListShelfFilters(
     shelf,
     showAutomation
   );
+  const breadth =
+    isRemoteComputerId(computerId) &&
+    scope?.kind === "project" &&
+    matchedWorkspaceIds &&
+    matchedWorkspaceIds.length > 0
+      ? { all_workspaces: true, workspace_ids: [...matchedWorkspaceIds] }
+      : sessionCatalogBreadthParams(breadthQuery(scope ?? { kind: "all" }));
   return {
-    ...sessionCatalogBreadthParams(breadthQuery(scope ?? { kind: "all" })),
+    ...breadth,
     ...(population ?? { subagents: sessionListSubagentsParam(search) }),
     ...(worktreeId ? { worktree: worktreeId } : {}),
     ...shelfFilters,
@@ -210,6 +263,8 @@ export function useSessionListTotals({
   shelf,
   showAutomation,
   enabled: listEnabled,
+  computerId = LOCAL_COMPUTER_ID,
+  matchedWorkspaceIds,
 }: {
   scope: DataScope | null;
   lens: ProfileScopeParams;
@@ -220,14 +275,34 @@ export function useSessionListTotals({
   /** The window's "Show automation runs" (#1355): the totals count what the list shows. */
   showAutomation?: boolean;
   enabled: boolean;
+  computerId?: ComputerId;
+  matchedWorkspaceIds?: readonly string[] | null;
 }): SessionListTotals | undefined {
-  const enabled = listEnabled && shelf === "active";
+  const emptyRemoteMatch =
+    isRemoteComputerId(computerId) &&
+    scope?.kind === "project" &&
+    matchedWorkspaceIds != null &&
+    matchedWorkspaceIds.length === 0;
+  const enabled = listEnabled && scope !== null && shelf === "active" && !emptyRemoteMatch;
   const facets = useQuery({
     ...sessionFacetsOptions(
-      sessionListFacetFilters({ scope, lens, shelf: "active", showAutomation, search, worktreeId })
+      sessionListFacetFilters({
+        scope,
+        lens,
+        shelf: "active",
+        showAutomation,
+        search,
+        worktreeId,
+        computerId,
+        matchedWorkspaceIds,
+      }),
+      computerId
     ),
     enabled: enabled && scope !== null,
   }).data?.facets;
+  if (emptyRemoteMatch && listEnabled && shelf === "active") {
+    return { needsYou: 0, working: 0, idle: 0 };
+  }
   if (!enabled || !facets) return undefined;
   return { needsYou: facets.needs_you, working: facets.working, idle: facets.idle };
 }
@@ -243,18 +318,38 @@ export function useSessionListLaterCount({
   lens,
   worktreeId,
   enabled,
+  computerId = LOCAL_COMPUTER_ID,
+  matchedWorkspaceIds,
 }: {
   scope: DataScope | null;
   lens: ProfileScopeParams;
   worktreeId?: string;
   enabled: boolean;
+  computerId?: ComputerId;
+  matchedWorkspaceIds?: readonly string[] | null;
 }): number | undefined {
+  const emptyRemoteMatch =
+    isRemoteComputerId(computerId) &&
+    scope?.kind === "project" &&
+    matchedWorkspaceIds != null &&
+    matchedWorkspaceIds.length === 0;
   const data = useQuery({
-    ...sessionFacetsOptions(sessionListFacetFilters({ scope, lens, shelf: "active", worktreeId })),
-    enabled: enabled && scope !== null,
+    ...sessionFacetsOptions(
+      sessionListFacetFilters({
+        scope,
+        lens,
+        shelf: "active",
+        worktreeId,
+        computerId,
+        matchedWorkspaceIds,
+      }),
+      computerId
+    ),
+    enabled: enabled && scope !== null && !emptyRemoteMatch,
   }).data;
+  if (emptyRemoteMatch && enabled) return 0;
   // The daemon omits the total when nothing is parked.
-  return data ? (data.later ?? 0) : undefined;
+  return enabled && scope !== null && data ? (data.later ?? 0) : undefined;
 }
 
 /**
@@ -265,13 +360,33 @@ export function useSessionListArchivedCount({
   scope,
   lens,
   enabled,
+  computerId = LOCAL_COMPUTER_ID,
+  matchedWorkspaceIds,
 }: {
   scope: DataScope | null;
   lens: ProfileScopeParams;
   enabled: boolean;
+  computerId?: ComputerId;
+  matchedWorkspaceIds?: readonly string[] | null;
 }): number | undefined {
-  return useQuery({
-    ...sessionFacetsOptions(sessionListFacetFilters({ scope, lens, shelf: "archive" })),
-    enabled: enabled && scope !== null,
+  const emptyRemoteMatch =
+    isRemoteComputerId(computerId) &&
+    scope?.kind === "project" &&
+    matchedWorkspaceIds != null &&
+    matchedWorkspaceIds.length === 0;
+  const count = useQuery({
+    ...sessionFacetsOptions(
+      sessionListFacetFilters({
+        scope,
+        lens,
+        shelf: "archive",
+        computerId,
+        matchedWorkspaceIds,
+      }),
+      computerId
+    ),
+    enabled: enabled && scope !== null && !emptyRemoteMatch,
   }).data?.facets.all;
+  if (!enabled || scope === null) return undefined;
+  return emptyRemoteMatch ? 0 : count;
 }

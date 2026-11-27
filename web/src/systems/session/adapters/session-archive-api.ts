@@ -1,5 +1,5 @@
 import type { ComputerId } from "@/lib/computer-scope";
-import { apiClient, apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import { apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
 import type { components } from "@compozy/client";
 
@@ -49,9 +49,10 @@ export async function archiveSessionTree(
   profile: string,
   signal?: AbortSignal,
   stop = false,
-  processes?: SessionProcessPolicy
+  processes?: SessionProcessPolicy,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
     {
       params: {
@@ -78,9 +79,10 @@ export async function deleteSessionTree(
   id: string,
   profile: string,
   signal?: AbortSignal,
-  processes?: SessionProcessPolicy
+  processes?: SessionProcessPolicy,
+  computerId?: ComputerId
 ): Promise<void> {
-  const { error, response } = await apiClient.DELETE(
+  const { error, response } = await apiClientFor(computerId).DELETE(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
       params: {
@@ -100,9 +102,10 @@ export async function listSessionDescendants(
   workspaceId: string,
   id: string,
   profile: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload[]> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/descendants",
     {
       params: {
@@ -123,9 +126,10 @@ export async function unarchiveSession(
   workspaceId: string,
   id: string,
   profile: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive",
     {
       params: {
@@ -153,16 +157,20 @@ export type ArchiveStoppedScope = { kind: "project"; workspaceId: string } | { k
 export async function archiveStoppedSessions(
   profile: string,
   scope: ArchiveStoppedScope,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionArchiveStoppedResponse> {
-  const { data, error, response } = await apiClient.POST("/api/sessions/archive-stopped", {
-    params: { query: { profile } },
-    body:
-      scope.kind === "all"
-        ? { all_workspaces: true, dry_run: false }
-        : { workspace_id: scope.workspaceId, dry_run: false },
-    signal,
-  });
+  const { data, error, response } = await apiClientFor(computerId).POST(
+    "/api/sessions/archive-stopped",
+    {
+      params: { query: { profile } },
+      body:
+        scope.kind === "all"
+          ? { all_workspaces: true, dry_run: false }
+          : { workspace_id: scope.workspaceId, dry_run: false },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, "Failed to archive stopped threads");
   }

@@ -1,4 +1,7 @@
 import { use, useMemo, type MouseEvent } from "react";
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import { computerCanOperateSessions, useComputers } from "@/systems/computers";
+import { sessionRowKeyFor } from "../../lib/session-row-ref";
 import { SubagentDrawerContext } from "../../contexts/subagent-drawer-context";
 import { SessionSubagentActionsContext } from "../../contexts/session-subagent-actions-context-value";
 import { Button, TreeBranchNode } from "@compozy/ui";
@@ -17,6 +20,7 @@ export interface SessionListSubagentBranchProps {
   workspace?: string;
   profile?: string;
   sessionId: string;
+  computerId?: ComputerId;
   /** The parent row's `subagent_summary.total`: sizes the placeholder before rows load. */
   total: number;
   currentSessionId?: string;
@@ -37,35 +41,53 @@ export function SessionListSubagentBranch({
   workspace,
   profile,
   sessionId,
+  computerId,
   total,
   currentSessionId,
   onSelectSession,
   testIdPrefix,
 }: SessionListSubagentBranchProps) {
   const drawer = use(SubagentDrawerContext);
+  const remote = isRemoteComputerId(computerId);
+  const { computers } = useComputers({ enabled: remote, passive: true });
+  const computer = computers.find(row => row.id === computerId);
+  const canOperate =
+    !remote ||
+    (computer?.status === "connected" && computerCanOperateSessions(computer.scopes, false));
   const actions = use(SessionSubagentActionsContext);
-  const branch = useSessionSubagentBranch(workspaceId, sessionId, total);
+  const branch = useSessionSubagentBranch(workspaceId, sessionId, total, computerId, canOperate);
   // The branch's rows carry this parent's scope; the actions owner lives above
   // the threads, so a confirmation outlives this branch.
   const verbs = useMemo(() => {
-    if (!actions) return {};
-    const scope = { workspaceId, sessionId, profile: profile ?? "" };
+    if (!actions || !canOperate) return {};
+    const scope = {
+      workspaceId,
+      sessionId,
+      profile: profile ?? "",
+      ...(remote ? { computerId } : {}),
+    };
     return {
       onDelete: (subagent: SubagentView) => actions.openDelete(subagent, scope),
       onStop: (subagent: SubagentView) => actions.stop(subagent, scope),
     };
-  }, [actions, workspaceId, sessionId, profile]);
+  }, [actions, canOperate, workspaceId, sessionId, profile, computerId, remote]);
   const open = (subagent: SubagentView, event: MouseEvent<HTMLButtonElement>) => {
     if (drawer) {
-      drawer.open(subagent, { newWindow: event.metaKey || event.ctrlKey }, workspaceId);
+      drawer.open(
+        subagent,
+        { newWindow: event.metaKey || event.ctrlKey },
+        workspaceId,
+        normalizeComputerId(computerId)
+      );
       return;
     }
-    const target = subagentNavigationTarget(subagent, workspaceId);
+    const target = subagentNavigationTarget(subagent, workspaceId, computerId);
     if (!target) return;
     onSelectSession({
       id: target.sessionId,
       agent_name: target.agentName,
       workspace_id: workspaceId,
+      ...(target.computerId ? { computerId: target.computerId } : {}),
       ...(target.subagentId ? { subagentId: target.subagentId } : {}),
     });
   };
@@ -80,13 +102,16 @@ export function SessionListSubagentBranch({
           <SessionListSubagentRow
             key={subagent.id}
             subagent={subagent}
+            computerId={normalizeComputerId(computerId)}
+            workspaceId={workspaceId}
             workspace={workspace}
             profile={profile}
             menuTestId={`${testIdPrefix}-subagent-menu-${subagent.id}`}
             onDelete={verbs.onDelete}
             onStop={verbs.onStop}
             current={
-              subagent.child_session_id !== null && subagent.child_session_id === currentSessionId
+              subagent.child_session_id !== null &&
+              sessionRowKeyFor({ id: subagent.child_session_id, computerId }) === currentSessionId
             }
             onOpen={
               drawer || subagentNavigationTarget(subagent, workspaceId)

@@ -1,8 +1,13 @@
+import { QueryClientContext } from "@tanstack/react-query";
+import { scopedCatalogFilters } from "../../hooks/use-session-catalog";
+import { readCachedOfflineRowsForComputer } from "../../lib/session-offline-catalog";
+import { sessionListGroupFilters } from "../../lib/session-list-groups";
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import { use } from "react";
 
 import { Button } from "@compozy/ui";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
@@ -66,6 +71,7 @@ export function SessionListGroupBody(
     renderSubgroup: SessionListSubgroupRenderer;
   }
 ) {
+  if (props.group.offline) return <SessionListOfflineGroupBody {...props} />;
   // An empty group spanning pairs reads nothing: Show empty projects can list every
   // registered project, and each open one would otherwise read its own facets (#1085).
   if (props.group.total === 0 && !props.group.pair) {
@@ -82,6 +88,36 @@ export function SessionListGroupBody(
   );
 }
 
+function SessionListOfflineGroupBody({
+  group,
+  view,
+  ...props
+}: GroupRowProps & { group: SessionListGroupSpec }) {
+  const queryClient = use(QueryClientContext);
+  const computerId = group.computerId ?? view.computerId;
+  if (!computerId) return null;
+  const { scoped, emptyRemoteMatch } = scopedCatalogFilters(
+    group.scope,
+    sessionListGroupFilters(view, group),
+    group.lens,
+    computerId,
+    group.matchedWorkspaceIds
+  );
+  const rows = emptyRemoteMatch
+    ? []
+    : readCachedOfflineRowsForComputer(queryClient, computerId, scoped);
+  if (rows.length === 0) return null;
+  return (
+    <SessionListThreadList
+      {...props}
+      emptyMessage={null}
+      ownerOf={view.aggregate ? view.ownerOf : undefined}
+      readOnly
+      threads={buildSessionListThreads(rows, "")}
+    />
+  );
+}
+
 function SessionListGroupSplit({
   group,
   path,
@@ -93,7 +129,11 @@ function SessionListGroupSplit({
   renderSubgroup: SessionListSubgroupRenderer;
 }) {
   const { view } = props;
-  const { registeredWorkspaces: workspaces } = useActiveWorkspace();
+  const { registeredWorkspaces: localWorkspaces } = useActiveWorkspace();
+  const computerId = group.computerId ?? group.pair?.computerId ?? view.computerId;
+  const workspaces = isRemoteComputerId(computerId)
+    ? (view.workspaces ?? localWorkspaces)
+    : localWorkspaces;
   const split = useSessionListGroups({
     groupBy: group.kind === "project" ? "profile" : "project",
     scope: group.scope,
@@ -105,6 +145,8 @@ function SessionListGroupSplit({
     worktreeId: view.worktreeId,
     pinned: view.groupFilters.pinned,
     enabled: true,
+    computerId,
+    matchedWorkspaceIds: group.matchedWorkspaceIds ?? view.matchedWorkspaceIds,
   });
   if (split.error) {
     return (
@@ -144,6 +186,13 @@ function SessionListGroupSplit({
   );
 }
 
+function pairGroupReadTarget(group: SessionListGroupSpec, view: SessionListViewModel) {
+  return {
+    computerId: group.pair?.computerId ?? group.computerId ?? view.computerId,
+    readOnly: view.readOnly === true || group.offline === true,
+  };
+}
+
 function SessionListPairGroupBody({
   group,
   path,
@@ -152,10 +201,12 @@ function SessionListPairGroupBody({
 }: GroupRowProps & { group: SessionListGroupSpec; path: readonly number[]; nested?: boolean }) {
   const { view } = props;
   const groupSelection = use(SessionListGroupSelectionContext);
+  const { computerId, readOnly } = pairGroupReadTarget(group, view);
   const folders = useSessionFolders({
     workspaceId: group.pair?.workspaceId ?? null,
     profile: group.pair?.profile ?? "",
-    enabled: group.pair !== null,
+    enabled: group.pair !== null && !readOnly,
+    computerId,
   });
   const { catalog, partitions } = useSessionListGroupCatalog(
     group,
@@ -166,7 +217,8 @@ function SessionListPairGroupBody({
   const threads = buildSessionListThreads(catalog.sessions, "");
   const layout = useSessionListFolderLayout(
     {
-      layout: group.pair ? folders.layout : undefined,
+      layout: group.pair && !readOnly ? folders.layout : undefined,
+      computerId,
       sort: view.sort,
       shelf: view.shelf,
       worktreeId: view.worktreeId,
@@ -177,12 +229,17 @@ function SessionListPairGroupBody({
     threads,
     props.filtering
   );
-  usePublishSessionListGroupRows(groupSelection?.rows, group.key, {
-    rank: sessionListGroupRank(path),
-    sessions: catalog.sessions,
-    visibleOrder: threadVisibleOrder(layout.visibleThreads, props.collapsedThreads),
-    pair: group.pair,
-  });
+  usePublishSessionListGroupRows(
+    readOnly ? undefined : groupSelection?.rows,
+    `computer:${computerId ?? "local"}:${group.key}`,
+    {
+      rank: sessionListGroupRank(path),
+      computerId,
+      sessions: catalog.sessions,
+      visibleOrder: threadVisibleOrder(layout.visibleThreads, props.collapsedThreads),
+      pair: group.pair,
+    }
+  );
   if (!partitions && catalog.failed && catalog.sessions.length === 0) {
     // One unreachable group never blanks the list: it states what happened in
     // its own place and offers the one useful action.
@@ -225,13 +282,23 @@ function SessionListPairGroupContent({
 }) {
   const { view } = props;
   const groupSelection = use(SessionListGroupSelectionContext);
+  const { computerId, readOnly } = pairGroupReadTarget(group, view);
   const select = (session: SessionListTarget) => {
-    if (partitions || !catalog.paging) props.onSelectSession(session);
+    if (partitions || !catalog.paging) {
+      props.onSelectSession(isRemoteComputerId(computerId) ? { ...session, computerId } : session);
+    }
   };
   const pair = group.pair;
   const newSessionInFolder = (folderId: string) =>
     props.onNewSession(
-      pair ? { folderId, workspaceId: pair.workspaceId, profile: pair.profile } : { folderId }
+      pair
+        ? {
+            folderId,
+            workspaceId: pair.workspaceId,
+            profile: pair.profile,
+            ...(isRemoteComputerId(computerId) ? { computerId } : {}),
+          }
+        : { folderId }
     );
   const drag = groupSelection?.drag;
   // A dragged selection moves inside one pair's layout; other groups never take its drop.
@@ -285,14 +352,33 @@ function SessionListPairGroupContent({
           emptyMessage={empty}
           ownerOf={ownerOf}
           onSelectSession={select}
+          readOnly={readOnly}
         />
       )}
-      {!hasSections && partitions && !catalog.loading && !catalog.failed ? (
-        <GroupNote>{empty}</GroupNote>
-      ) : null}
-      {!partitions ? <GroupPager catalog={catalog} /> : null}
+      <PairGroupFooter
+        catalog={catalog}
+        emptyMessage={empty}
+        hasSections={hasSections}
+        partitions={partitions}
+      />
     </div>
   );
+}
+
+function PairGroupFooter({
+  catalog,
+  emptyMessage,
+  hasSections,
+  partitions,
+}: {
+  catalog: GroupCatalog;
+  emptyMessage: string;
+  hasSections: boolean;
+  partitions?: SessionListPartitions;
+}) {
+  if (!partitions) return <GroupPager catalog={catalog} />;
+  if (hasSections || catalog.loading || catalog.failed) return null;
+  return <GroupNote>{emptyMessage}</GroupNote>;
 }
 
 function groupHasSessionSections(
@@ -308,12 +394,14 @@ function GroupThreads({
   emptyMessage,
   ownerOf,
   onSelectSession,
+  readOnly,
   ...props
 }: Omit<GroupRowProps, "onSelectSession"> & {
   threads: ReturnType<typeof buildSessionListThreads>;
   emptyMessage: string;
   ownerOf: SessionListViewModel["ownerOf"] | undefined;
   onSelectSession: (session: SessionListTarget) => void;
+  readOnly?: boolean;
 }) {
   const selection = use(SessionListGroupSelectionContext)?.selection;
   if (threads.length === 0) return <GroupNote>{emptyMessage}</GroupNote>;
@@ -323,7 +411,8 @@ function GroupThreads({
       threads={threads}
       ownerOf={ownerOf}
       onSelectSession={onSelectSession}
-      selection={selection}
+      selection={readOnly ? undefined : selection}
+      readOnly={readOnly}
       emptyMessage={emptyMessage}
     />
   );

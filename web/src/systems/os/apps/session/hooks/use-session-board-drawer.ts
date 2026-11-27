@@ -1,5 +1,7 @@
 import { useEffect, useEffectEvent, useRef, type PointerEvent } from "react";
 
+import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import { sessionRowKeyFor } from "@/systems/session/lib/session-row-ref";
 import { notifyUser } from "@/lib/user-feedback";
 import {
   SESSION_BOARD_DRAWER_OPEN,
@@ -9,6 +11,10 @@ import {
   withoutSessionComposerFocus,
 } from "@/systems/session";
 
+import {
+  sessionWindowInstanceKey,
+  sessionWindowRouteComputer,
+} from "../../../lib/session-window-identity";
 import { useOsShell } from "../../../hooks/use-os-shell";
 import type { SessionListRemoval } from "../../../hooks/use-session-list-lifecycle-actions";
 import { adjacentShortcutItem } from "../../../lib/adjacent-shortcut-item";
@@ -43,12 +49,14 @@ const CLICK_SLOP_PX = 4;
 function boardCards(board: HTMLElement | null, { visible = true } = {}): BoardCard[] {
   if (!board) return [];
   return Array.from(board.querySelectorAll<HTMLElement>(CARD_SELECTOR)).flatMap(element => {
-    const id = element.dataset.sessionId ?? "";
-    if (!id || (visible && element.closest(FOLDED_COLUMN_SELECTOR))) return [];
+    const sessionId = element.dataset.sessionId ?? "";
+    const computerId = element.dataset.computerId;
+    if (!sessionId || (visible && element.closest(FOLDED_COLUMN_SELECTOR))) return [];
     return [
       {
-        id,
-        sessionId: id,
+        id: sessionRowKeyFor({ id: sessionId, computerId }),
+        sessionId,
+        ...(computerId ? { computerId } : {}),
         agentName: element.dataset.agentName ?? "",
         workspaceId: element.dataset.workspaceId ?? "",
         element,
@@ -151,6 +159,11 @@ export function useSessionBoardDrawer({
   openSession: (target: SessionWindowSidebarTarget) => void;
 }) {
   const { coordinator, manager } = useOsShell();
+  const routeComputer = manager.getState().windows[windowId]?.route?.search?.computer;
+  const computerId = normalizeComputerId(
+    typeof routeComputer === "string" ? routeComputer : undefined
+  );
+  const sessionKey = sessionId === null ? null : sessionRowKeyFor({ id: sessionId, computerId });
   const boardRef = useRef<HTMLDivElement | null>(null);
   /** The card to land on after a lifecycle close; `null` lands on the drawer's own card. */
   const landingRef = useRef<string | null>(null);
@@ -175,7 +188,7 @@ export function useSessionBoardDrawer({
     );
     void coordinator.userRetarget(windowId, {
       app: "session",
-      instanceKey: win.instanceKey,
+      instanceKey: sessionWindowInstanceKey(win.instanceKey, sessionWindowRouteComputer(win.route)),
       route: {
         pathname: win.route.pathname,
         search: next
@@ -188,7 +201,7 @@ export function useSessionBoardDrawer({
   const close = () => setOpen(false);
 
   const step = (direction: SessionBoardDrawerCycleDirection) => {
-    const target = steppedCard(boardRef.current, sessionId, direction);
+    const target = steppedCard(boardRef.current, sessionKey, direction);
     if (!target) {
       notifyUser({ message: "No other visible session.", tone: "info" });
       return;
@@ -216,26 +229,30 @@ export function useSessionBoardDrawer({
   const landFocusOnClose = useEffectEvent(landFocus);
   useEffect(() => {
     openRef.current = open;
-    if (open) shownRef.current = sessionId;
+    if (open) shownRef.current = sessionKey;
     else landFocusOnClose();
-  }, [open, sessionId]);
+  }, [open, sessionKey]);
 
   return {
     boardRef,
     close,
     step,
     /** Focus on close: the card a lifecycle close chose, else the card of the drawer's session. */
-    returnFocus: () => cardElement(landingRef.current ?? sessionId),
+    returnFocus: () => cardElement(landingRef.current ?? sessionKey),
     /** Archive, Later or delete of the drawer's session, from the drawer or a card: close and land below. */
-    onSessionRemoved: (session: { id: string }, action: SessionListRemoval) => {
-      if (session.id !== shownRef.current) return;
+    onSessionRemoved: (
+      session: { id: string; computerId?: ComputerId },
+      action: SessionListRemoval
+    ) => {
+      const removedKey = sessionRowKeyFor(session);
+      if (removedKey !== shownRef.current) return;
       const requested = requestedLandingRef.current;
       requestedLandingRef.current = null;
       landingRef.current = firstOnBoard(
         boardRef.current,
-        requested?.sessionId === session.id
+        requested?.sessionId === removedKey
           ? requested.candidates
-          : successorCandidates(boardRef.current, session.id)
+          : successorCandidates(boardRef.current, removedKey)
       );
       // Later closes the drawer here; an archive or delete retires this window's session, which
       // closes the drawer with it — possibly already, in which case focus moves now.
@@ -245,19 +262,23 @@ export function useSessionBoardDrawer({
     /** The card verbs, remembering where focus lands should they remove the drawer's session. */
     withLanding: (actions: SessionLifecycleActionHandlers): SessionLifecycleActionHandlers => {
       /** A single or bulk archive/delete holding the drawer's session lands past all of them. */
-      const remember = (sessions: readonly { id: string }[]) => {
-        if (sessionId === null || !sessions.some(session => session.id === sessionId)) return;
+      const remember = (sessions: readonly { id: string; computerId?: ComputerId }[]) => {
+        if (
+          sessionKey === null ||
+          !sessions.some(session => sessionRowKeyFor(session) === sessionKey)
+        )
+          return;
         requestedLandingRef.current = {
-          sessionId,
+          sessionId: sessionKey,
           candidates: successorCandidates(
             boardRef.current,
-            sessionId,
-            new Set(sessions.map(session => session.id))
+            sessionKey,
+            new Set(sessions.map(session => sessionRowKeyFor(session)))
           ),
         };
       };
       // A host busy with another lifecycle action declines a batch: remember nothing for it.
-      const rememberBatch = (sessions: readonly { id: string }[]) => {
+      const rememberBatch = (sessions: readonly { id: string; computerId?: ComputerId }[]) => {
         if (actions.pendingAction === null) remember(sessions);
       };
       const { onArchiveMany, onDeleteMany, onMoveToLater, onMoveToLaterMany } = actions;
@@ -315,7 +336,7 @@ export function useSessionBoardDrawer({
         pressRef.current = null;
         if (!press || press.target !== event.target || sessionId === null) return;
         if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > CLICK_SLOP_PX) return;
-        if (sessionHasUnsentInput(sessionId)) return;
+        if (sessionHasUnsentInput(sessionId, computerId)) return;
         close();
       },
     },

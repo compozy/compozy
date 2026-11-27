@@ -1,3 +1,4 @@
+import { sessionRowKeyFor } from "../../lib/session-row-ref";
 import { useState, type ReactNode } from "react";
 
 import { TreeBranch } from "@compozy/ui";
@@ -44,7 +45,7 @@ export function SessionListChildBranch({
   const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set());
   const pinned = (child: SessionPayload, index: number) =>
     index < CHILD_BRANCH_LIMIT ||
-    child.id === currentSessionId ||
+    sessionRowKeyFor(child) === currentSessionId ||
     selectedIds?.has(child.id) === true ||
     isActiveChildSession(child);
   // Remember each child the pins brought past the cap (state adjusted during render).

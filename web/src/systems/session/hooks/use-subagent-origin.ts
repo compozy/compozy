@@ -4,6 +4,7 @@ import type { SubagentOriginParent } from "../components/subagents/subagent-orig
 import { sessionDetailOptions } from "../lib/query-options";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { subagentParentSessionId } from "../lib/session-origin";
+import { sessionComputerOf } from "../lib/session-row-ref";
 import type { SessionPayload } from "../types";
 
 export interface SubagentOriginView {
@@ -22,7 +23,7 @@ export function useSubagentOrigin(
 ): SubagentOriginView | null {
   const parentId = subagentParentSessionId(session) ?? "";
   const parentQuery = useQuery({
-    ...sessionDetailOptions(workspaceId, parentId),
+    ...sessionDetailOptions(workspaceId, parentId, sessionComputerOf(session)),
     enabled: workspaceId !== "" && parentId !== "",
     refetchInterval: false,
     retry: false,

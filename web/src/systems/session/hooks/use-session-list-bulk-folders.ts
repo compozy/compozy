@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { toast } from "@compozy/ui";
 
+import { normalizeComputerId } from "@/lib/computer-scope";
+
 import {
+  SESSION_BULK_MOVE_DIFFERENT_COMPUTERS,
   sessionBulkMove,
   sessionBulkMoveBlockedReason,
   sessionBulkMoveIds,
@@ -11,6 +14,7 @@ import {
 import type { SessionListPair } from "../lib/session-list-groups";
 import type { SessionBulkFolderMenu } from "../lib/session-selection-verbs";
 import { sessionListPairKey } from "../lib/session-list-group-rows";
+import { sessionComputerOf, sessionRowKeyFor } from "../lib/session-row-ref";
 import type { SessionPayload } from "../types";
 import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import type { SessionSelectionDrag } from "./use-session-list-dnd";
@@ -57,31 +61,24 @@ export function useSessionListBulkFolders(options: {
   onMoved: () => void;
 }) {
   const { source } = options;
-  const move = sessionBulkMove(options.sessions, options.selectedIds, options.visibleOrder);
+  const { move, selectionPair, pairBlockedReason } = bulkFolderSelection(options);
   const [pending, setPending] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [preview, setPreview] = useState<HTMLElement | null>(null);
-  const pairs = selectionPairs(move.sessions, source.pairOf);
-  const selectionPair = pairs.length === 1 ? (pairs[0] ?? null) : null;
   const owned = useSessionFolders({
     workspaceId: selectionPair?.workspaceId ?? null,
     profile: selectionPair?.profile ?? "",
+    computerId: selectionPair?.computerId,
     enabled: source.layout === undefined && selectionPair !== null,
   });
   const layout = source.layout ?? owned.layout;
-  const mixed = source.pairOf !== undefined && pairs.length > 1;
-  const blockedReason = mixed ? SESSION_BULK_MOVE_MIXED_PAIRS : sessionBulkMoveBlockedReason(move);
   if (!layout) {
-    // A grouped list still says why a selection across groups cannot move.
-    return mixed
-      ? blockedFolderMove(
-          SESSION_BULK_MOVE_MIXED_PAIRS,
-          options.selectedIds,
-          move.sessions.length,
-          setPreview
-        )
+    // A grouped list still says why a selection across groups or computers cannot move.
+    return pairBlockedReason
+      ? blockedFolderMove(pairBlockedReason, options.selectedIds, move.sessions.length, setPreview)
       : null;
   }
+  const blockedReason = pairBlockedReason ?? sessionBulkMoveBlockedReason(move);
   const folderIds = move.sessions.map(sessionFolderId);
   /** Writes the move of every selected root not already in `folderId`; resolves once settled. */
   const run = (target: SessionListLayout, folderId: string | null, name?: string) => {
@@ -150,6 +147,34 @@ export function useSessionListBulkFolders(options: {
   };
 }
 
+function bulkFolderSelection({
+  source,
+  sessions,
+  selectedIds,
+  visibleOrder,
+}: {
+  source: SessionBulkFolderSource;
+  sessions: readonly SessionPayload[];
+  selectedIds: ReadonlySet<string>;
+  visibleOrder: readonly string[];
+}) {
+  const move = sessionBulkMove(sessions, selectedIds, visibleOrder);
+  const pairs = selectionPairs(move.sessions, source.pairOf);
+  const distinctComputers = new Set(
+    move.sessions.map(session => {
+      const pair = source.pairOf?.(sessionRowKeyFor(session));
+      return normalizeComputerId(pair?.computerId ?? sessionComputerOf(session));
+    })
+  );
+  const pairBlockedReason =
+    distinctComputers.size > 1
+      ? SESSION_BULK_MOVE_DIFFERENT_COMPUTERS
+      : pairs.length > 1
+        ? SESSION_BULK_MOVE_MIXED_PAIRS
+        : null;
+  return { move, selectionPair: pairs.length === 1 ? (pairs[0] ?? null) : null, pairBlockedReason };
+}
+
 /** The distinct pairs of the movable selection; an unowned row counts as its own pair. */
 function selectionPairs(
   sessions: readonly SessionPayload[],
@@ -158,8 +183,9 @@ function selectionPairs(
   if (!pairOf) return [];
   const byKey = new Map<string | null, SessionListPair | null>();
   for (const session of sessions) {
-    const pair = pairOf(session.id);
-    byKey.set(sessionListPairKey(pair) ?? `unowned:${session.id}`, pair);
+    const rowKey = sessionRowKeyFor(session);
+    const pair = pairOf(rowKey);
+    byKey.set(sessionListPairKey(pair) ?? `unowned:${rowKey}`, pair);
   }
   return [...byKey.values()];
 }

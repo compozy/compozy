@@ -1,3 +1,4 @@
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useSessionBatchMenuActions } from "@/systems/session/hooks/use-session-batch-menu-actions";
 import { batchSkipNote, batchVerbPast, reportBatch } from "../lib/session-batch-feedback";
@@ -12,8 +13,8 @@ import {
   runSessionBatch,
   type SessionBatchResult,
 } from "../lib/session-batch";
+import { sessionComputerOf, sessionRowKeyFor } from "../lib/session-row-ref";
 
-import { sessionProcessPorts, sessionsRunningProcesses } from "../lib/session-processes";
 import {
   sessionBatchCoverage,
   sessionTreeBatchOrder,
@@ -33,9 +34,7 @@ import { useSessionDeleteTarget } from "./use-session-delete-target";
 import {
   archiveTarget,
   notifyArchivedSessions,
-  loadSessionProcessChoice,
   descendantsOf,
-  sessionArchiveChoiceState,
   reportActionError,
   reportDeletedSessions,
   settleTreeTarget,
@@ -43,9 +42,9 @@ import {
 import { useSessionLaterActions } from "./use-session-later-actions";
 import { useSessionBatchAdmission } from "./use-session-batch-admission";
 import { useMarkSessionSeenAction } from "./use-mark-session-seen";
+import { useSessionProcessChoice } from "./use-session-process-choice";
 import type {
   SessionLifecycleAction,
-  SessionProcessChoice,
   UseSessionLifecycleActionsResult,
 } from "./session-lifecycle-types";
 
@@ -70,17 +69,36 @@ export function useSessionLifecycleActions(
     onArchiveSuccess?: (session: SessionPayload) => void | Promise<void>;
     /** Each session this host moved to Later, single or batched, once the daemon confirmed it. */
     onLaterSuccess?: (session: SessionPayload) => void;
+    /** Resolves which computer owns a session row; defaults to row provenance or local. */
+    computerOf?: (session: SessionPayload) => ComputerId | undefined;
+    /** Display name for a remote computer id when reporting multi-computer batch failures. */
+    computerNameOf?: (computerId: ComputerId) => string | undefined;
   } = {}
 ): UseSessionLifecycleActionsResult {
   const queryClient = useQueryClient();
-  const computerId = useCurrentComputerId();
-  const { archiveRequestOwnerId, onArchiveSuccess, onLaterSuccess, ...deleteOptions } = options;
+  const windowComputerId = useCurrentComputerId();
+  const {
+    archiveRequestOwnerId,
+    onArchiveSuccess,
+    onLaterSuccess,
+    computerOf,
+    computerNameOf,
+    ...deleteOptions
+  } = options;
+  const rowComputerId = (session: SessionPayload): ComputerId | undefined => {
+    const resolved = computerOf?.(session) ?? sessionComputerOf(session);
+    return isRemoteComputerId(resolved) ? resolved : undefined;
+  };
+  const withComputer = <T extends SessionPayload>(session: T): T & { computerId?: ComputerId } => {
+    const targetComputer = rowComputerId(session);
+    return targetComputer ? { ...session, computerId: targetComputer } : session;
+  };
   const stop = useStopSession();
   const archive = useArchiveSession({ requestOwnerId: archiveRequestOwnerId });
   const unarchive = useUnarchiveSession();
   const remove = useDeleteSession(deleteOptions);
   const rename = useRenameSession();
-  const deleteConfirmationState = useSessionDeleteTarget(queryClient, computerId);
+  const deleteConfirmationState = useSessionDeleteTarget(queryClient, windowComputerId);
   const {
     target: deleteTarget,
     setTarget: setDeleteTarget,
@@ -100,9 +118,6 @@ export function useSessionLifecycleActions(
   const deleteConfirmRequest = useRef<number | null>(null);
   const deleteSession = deleteTarget?.sessions[0] ?? null;
   const [renameTarget, setRenameTarget] = useState<SessionPayload | null>(null);
-  const [processChoice, setProcessChoice] = useState<SessionProcessChoice | null>(null);
-  const processRead = useRef(0);
-  const [archiveChildren, setArchiveChildren] = useState(true);
   // The answer a delete got, so a retry of its failures repeats it.
   const deletePolicy = useRef<SessionProcessPolicy | undefined>(undefined);
 
@@ -120,20 +135,26 @@ export function useSessionLifecycleActions(
     busy: ownPending !== null,
     batchRunning,
     onMovedToLater: onLaterSuccess,
+    computerOf: rowComputerId,
+    computerNameOf,
   });
-  const markSeen = useMarkSessionSeenAction();
+  const markSeen = useMarkSessionSeenAction(rowComputerId);
   const menuBatch = useSessionBatchMenuActions(
     ownPending !== null || later.pendingAction !== null,
     batchRunning,
     setBatchAction,
-    setBatchResults
+    setBatchResults,
+    rowComputerId,
+    computerNameOf
   );
   const pendingAction = ownPending ?? later.pendingAction;
   const pendingSessionIds = lifecyclePendingSessionIds({
     batching: batchAction !== null,
     batchResults,
     ownPending: ownPending !== null,
-    mutationSessionId: pendingMutation?.[1].variables?.id,
+    mutationSessionId: pendingMutation?.[1].variables
+      ? sessionRowKeyFor(pendingMutation[1].variables)
+      : undefined,
     laterSessionIds: later.pendingSessionIds,
   });
 
@@ -155,33 +176,37 @@ export function useSessionLifecycleActions(
     batchRunning.hold();
     setBatchAction(action);
     const coveredBy = sessionBatchCoverage(action, sessions, trees);
+    const byKey = new Map(sessions.map(session => [sessionRowKeyFor(session), session]));
     return runSessionBatch({
       action,
-      ids: sessionTreeBatchOrder(sessions, coveredBy).map(session => session.id),
+      ids: sessionTreeBatchOrder(sessions, coveredBy).map(session => sessionRowKeyFor(session)),
       previous,
       sessions,
       coveredBy,
       onProgress: setBatchResults,
-      execute: async id => {
-        const session = sessions.find(candidate => candidate.id === id)!;
+      execute: async rowKey => {
+        const session = byKey.get(rowKey)!;
         if (action === "delete" || action === "archive") {
-          await settleTreeTarget(action, coveredBy.has(id), async () => {
-            if (readErrors.has(id)) throw readErrors.get(id);
+          await settleTreeTarget(action, coveredBy.has(rowKey), async () => {
+            if (readErrors.has(rowKey)) throw readErrors.get(rowKey);
             if (action === "delete")
-              await remove.mutateAsync({ ...session, ...policy, ...descendantsOf(session, trees) });
+              await remove.mutateAsync({
+                ...withComputer(session),
+                ...policy,
+                ...descendantsOf(session, trees),
+              });
             else {
-              await archive.mutateAsync(archiveTarget(session, processes, trees));
+              await archive.mutateAsync(archiveTarget(withComputer(session), processes, trees));
               await notifyArchived(session, trees);
             }
           });
           return;
         }
-        if (readErrors.has(id)) throw readErrors.get(id);
-        if (action === "unarchive")
-          await unarchive.mutateAsync(sessions.find(session => session.id === id)!);
+        if (readErrors.has(rowKey)) throw readErrors.get(rowKey);
+        if (action === "unarchive") await unarchive.mutateAsync(withComputer(session));
         else {
           const outcome = await stop.mutateAsync({
-            ...sessions.find(session => session.id === id)!,
+            ...withComputer(session),
             wait: true,
             ...policy,
           });
@@ -218,51 +243,19 @@ export function useSessionLifecycleActions(
       trees?: SessionTrees
     ) => {
       void runBatch(action, eligible, [], processes, readErrors, trees).then(results => {
-        if (results) reportBatch(action, results, eligible, skipped);
+        if (results) reportBatch(action, results, eligible, skipped, computerNameOf);
       });
     };
     if (action === "unarchive") run();
     else askAboutProcesses(action, eligible, run);
   };
 
-  /**
-   * Stop and archive ask first while their targets have processes running;
-   * at zero they run as they always did, with the daemon default (keep).
-   * Archive also asks while its targets have child sessions to include.
-   */
-  const checkingProcesses = useRef(false);
-  const askAboutProcesses = (
-    action: "stop" | "archive",
-    sessions: readonly SessionPayload[],
-    run: (
-      processes?: SessionProcessPolicy,
-      readErrors?: ReadonlyMap<string, unknown>,
-      trees?: SessionTrees
-    ) => void
-  ) => {
-    if (
-      sessions.length === 0 ||
-      checkingProcesses.current ||
-      processChoice !== null ||
-      pendingAction !== null ||
-      batchRunning.held()
-    )
-      return;
-    cancelDeletePrepare();
-    checkingProcesses.current = true;
-    const generation = ++processRead.current;
-    setArchiveChildren(true);
-    void loadSessionProcessChoice(
-      queryClient,
-      action,
-      sessions,
-      run,
-      setProcessChoice,
-      () => processRead.current === generation
-    ).finally(() => {
-      if (processRead.current === generation) checkingProcesses.current = false;
-    });
-  };
+  const { askAboutProcesses, processDialog } = useSessionProcessChoice({
+    queryClient,
+    pendingAction,
+    batchRunning,
+    cancelDeletePrepare,
+  });
 
   /** Retry failed IDs while preserving successful results across the dialog lifetime. */
   const confirmDeleteMany = async (
@@ -276,7 +269,7 @@ export function useSessionLifecycleActions(
     );
     const targets =
       failedIds.size > 0
-        ? deleteTarget.sessions.filter(session => failedIds.has(session.id))
+        ? deleteTarget.sessions.filter(session => failedIds.has(sessionRowKeyFor(session)))
         : deleteTarget.sessions;
     const results = await runBatch(
       "delete",
@@ -288,17 +281,19 @@ export function useSessionLifecycleActions(
     );
     if (!results) return;
     const failures = results.filter(result => result.status === "failed");
+    const doneKeys = new Set(
+      results.flatMap(result => (result.status === "done" ? [result.id] : []))
+    );
     deleteTarget.onSelectionChange?.(failures.map(result => result.id));
     if (failures.length === 0) {
       setDeleteTarget(target => (target ? { ...target, open: false } : null));
       reportDeletedSessions(results);
     } else
       narrowDeleteTarget(
-        deleteTarget.sessions.flatMap(session =>
-          results.some(result => result.id === session.id && result.status === "done")
-            ? []
-            : [refreshedSessions?.get(session.id) ?? session]
-        )
+        deleteTarget.sessions.flatMap(session => {
+          const key = sessionRowKeyFor(session);
+          return doneKeys.has(key) ? [] : [refreshedSessions?.get(key) ?? session];
+        })
       );
   };
 
@@ -315,15 +310,17 @@ export function useSessionLifecycleActions(
       void confirmDeleteMany(readErrors, trees, refreshedSessions);
       return;
     }
-    const { id } = deleteSession;
+    const deleteKey = sessionRowKeyFor(deleteSession);
     const policy = deletePolicy.current ? { processes: deletePolicy.current } : {};
     remove.mutate(
-      { ...deleteSession, ...policy, ...descendantsOf(deleteSession, trees) },
+      { ...withComputer(deleteSession), ...policy, ...descendantsOf(deleteSession, trees) },
       {
         onError: error => reportActionError("delete", error),
         onSuccess: () => {
           setDeleteTarget(current =>
-            current?.sessions[0]?.id === id ? { ...current, open: false } : current
+            current?.sessions[0] && sessionRowKeyFor(current.sessions[0]) === deleteKey
+              ? { ...current, open: false }
+              : current
           );
         },
       }
@@ -380,23 +377,19 @@ export function useSessionLifecycleActions(
   /** Dismiss only the rename target whose mutation succeeded. */
   const confirmRename = (name: string) => {
     if (!renameTarget || rename.isPending) return;
-    const { id } = renameTarget;
+    const renameKey = sessionRowKeyFor(renameTarget);
     rename.mutate(
-      { ...renameTarget, name },
+      { ...withComputer(renameTarget), name },
       {
         onError: error => reportActionError("rename", error),
         onSuccess: () => {
-          setRenameTarget(current => (current?.id === id ? null : current));
+          setRenameTarget(current =>
+            current && sessionRowKeyFor(current) === renameKey ? null : current
+          );
         },
       }
     );
   };
-
-  const { archiveChoice, processTargets } = sessionArchiveChoiceState(
-    processChoice,
-    archiveChildren,
-    setArchiveChildren
-  );
 
   return {
     batchResults,
@@ -412,20 +405,22 @@ export function useSessionLifecycleActions(
       onStop: session =>
         void askAboutProcesses("stop", [session], processes =>
           stop.mutate(
-            { ...session, ...(processes ? { processes } : {}) },
+            { ...withComputer(session), ...(processes ? { processes } : {}) },
             { onError: error => reportActionError("stop", error) }
           )
         ),
       onArchive: session =>
         void askAboutProcesses("archive", [session], (processes, _readErrors, trees) =>
-          archive.mutate(archiveTarget(session, processes, trees), {
+          archive.mutate(archiveTarget(withComputer(session), processes, trees), {
             onError: error => reportActionError("archive", error),
             onSuccess: () => void notifyArchived(session, trees),
           })
         ),
       onUnarchive: session => {
         cancelDeletePrepare();
-        unarchive.mutate(session, { onError: error => reportActionError("unarchive", error) });
+        unarchive.mutate(withComputer(session), {
+          onError: error => reportActionError("unarchive", error),
+        });
       },
       onDelete: session => prepareDelete([session], false),
       onStopMany: sessions => actOnMany("stop", sessions),
@@ -462,27 +457,7 @@ export function useSessionLifecycleActions(
       onConfirm: confirmDelete,
       onRetry: () => confirmDelete(),
     },
-    processDialog: {
-      open: processChoice !== null,
-      action: processChoice?.action ?? "stop",
-      sessionCount: processChoice?.sessions.length ?? 0,
-      processCount: sessionsRunningProcesses(processTargets),
-      ports: processTargets.flatMap(session => sessionProcessPorts(session)),
-      childSessions: archiveChoice,
-      onOpenChange: open => {
-        if (!open) {
-          processRead.current++;
-          checkingProcesses.current = false;
-          setProcessChoice(null);
-        }
-      },
-      onChoose: processes => {
-        const choice = processChoice;
-        if (choice?.read?.pending) return;
-        setProcessChoice(null);
-        choice?.run(processes, archiveChoice?.included ?? false);
-      },
-    },
+    processDialog,
     laterDialog: later.laterDialog,
     renameDialog: {
       open: renameTarget !== null,

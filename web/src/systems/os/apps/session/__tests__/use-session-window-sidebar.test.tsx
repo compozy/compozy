@@ -75,6 +75,7 @@ vi.mock("../../../hooks/use-os-shell", () => ({
 }));
 vi.mock("@/systems/session", async () => ({
   ...(await import("@/systems/session/lib/session-deeplink-search")),
+  sessionComputerOf: (await import("@/systems/session/lib/session-row-ref")).sessionComputerOf,
   useSessionWindowPresentation: () => presentation.value,
   sessionHasUnsentInput: () => false,
   subagentRevealStore: (await import("@/systems/session/lib/subagent-navigation"))
@@ -435,6 +436,35 @@ describe("useSessionBoardWindow", () => {
       app: "session",
       instanceKey: target.id,
       route: { pathname: `/agents/claude/sessions/${target.id}`, search: { drawer: "open" } },
+    });
+  });
+
+  it("Should open a remote card when the drawer shows a local session with the same ID", () => {
+    const local = session("workspace-1");
+    const target = { ...local, computerId: "cmp_remote" };
+    getState.mockReturnValue({
+      windows: {
+        source: {
+          id: "source",
+          app: "session",
+          instanceKey: local.id,
+          route: { pathname: `/agents/claude/sessions/${local.id}`, search: { drawer: "open" } },
+        },
+      },
+      client: { focusOrder: ["source"] },
+    });
+
+    const { result } = renderBoardWindow(local.id, true);
+    act(() => result.current.onOpen(target));
+
+    expect(setSessionWindowView).not.toHaveBeenCalled();
+    expect(userRetarget).toHaveBeenCalledExactlyOnceWith("source", {
+      app: "session",
+      instanceKey: `cmp_remote:${target.id}`,
+      route: {
+        pathname: `/agents/claude/sessions/${target.id}`,
+        search: expect.objectContaining({ computer: "cmp_remote", drawer: "open" }),
+      },
     });
   });
 

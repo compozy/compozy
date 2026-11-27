@@ -3,6 +3,7 @@ import { createdSessionHostWindow, landCreatedSession } from "./created-session-
 import type { OsWindowRoute, WindowManagerOpenOutcome } from "./os-types";
 import type { RoutingManager } from "./routing-coordinator-contract";
 import type { RoutingEntryLedger } from "./routing-entry-ledger";
+import { sessionWindowInstanceKey, sessionWindowRouteComputer } from "./session-window-identity";
 import { mruWindowInstance } from "./window-instance-lookup";
 import { sameOsWindowRoute } from "./window-manager-route";
 
@@ -29,7 +30,12 @@ export function decideRouteReconciliation(
   { resolved, route, desktopDefaultView, mode, createdSession, isCurrent }: RouteDecisionInput
 ): WindowManagerOpenOutcome | null {
   const state = manager.getState();
-  const { app, instanceKey } = resolved;
+  const { app } = resolved;
+  const computerId = sessionWindowRouteComputer(route);
+  const instanceKey =
+    app.id === "session" && resolved.instanceKey
+      ? sessionWindowInstanceKey(resolved.instanceKey, computerId)
+      : resolved.instanceKey;
   // Deep links land on the most-recently-used instance of the resolved app
   // (PRD BR-11): with multi-instance apps there is no longer a single window
   // an ID can name.
@@ -37,6 +43,18 @@ export function decideRouteReconciliation(
     app: app.id,
     instanceKey,
   });
+  const legacyRemote =
+    app.id === "session" && resolved.instanceKey && instanceKey !== resolved.instanceKey
+      ? mruWindowInstance(
+          Object.fromEntries(
+            Object.entries(state.windows).filter(
+              ([, win]) => sessionWindowRouteComputer(win.route) === computerId
+            )
+          ),
+          state.client?.focusOrder ?? [],
+          { app: "session", instanceKey: resolved.instanceKey }
+        )
+      : null;
   const alreadyShown =
     existing !== null &&
     state.focusedId === existing.id &&
@@ -55,6 +73,9 @@ export function decideRouteReconciliation(
   const canPop = sameOsWindowRoute(existing?.navStack.at(-1) ?? null, route);
   if (mode === "pop" && existing && canPop) {
     return { windowId: existing.id, ...manager.popWindowRoute(existing.id, route) };
+  }
+  if (legacyRemote && !existing && instanceKey) {
+    return landCreatedSession(manager, legacyRemote, { instanceKey, route }, isCurrent);
   }
   if (createdSession && app.id === "session" && instanceKey) {
     const host = createdSessionHostWindow(state, { instanceKey, route });

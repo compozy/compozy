@@ -1,3 +1,5 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { isRemoteComputerId } from "@/lib/computer-scope";
 import { lazy, Suspense, ViewTransition } from "react";
 import { useAgentInstances } from "@/systems/agent";
 import { AlertCircle, History } from "@compozy/ui/icons";
@@ -47,11 +49,12 @@ export function SessionWindowView({
   onRetry?: () => void;
   retrying?: boolean;
 }) {
-  const instances = useAgentInstances();
+  const computerId = useCurrentComputerId();
+  const instances = useAgentInstances(isRemoteComputerId(computerId) ? computerId : undefined);
   const instance = instances.find(row => row.id === session?.instance_id);
   const currentSessionId = instance?.main_session_id;
   const superseded = Boolean(currentSessionId && currentSessionId !== session?.id);
-  useMarkSeenOnLeave(instance, Boolean(session) && currentSessionId === session?.id);
+  useMarkSeenOnLeave(instance, Boolean(session) && currentSessionId === session?.id, computerId);
   const sessionWorkspaceId = session?.workspace_id?.trim() ?? "";
 
   // A row pick keeps the live rail on screen while the picked session loads (#1923).
@@ -81,7 +84,11 @@ export function SessionWindowView({
             </span>
             <a
               className="text-small-body text-fg underline"
-              href={`/session/${encodeURIComponent(currentSessionId)}`}
+              href={
+                isRemoteComputerId(computerId)
+                  ? `/agents/${encodeURIComponent(resolvedAgentName)}/sessions/${encodeURIComponent(currentSessionId)}?computer=${encodeURIComponent(computerId)}`
+                  : `/session/${encodeURIComponent(currentSessionId)}`
+              }
             >
               Open the current one
             </a>

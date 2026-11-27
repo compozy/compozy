@@ -23,6 +23,7 @@ import {
 import { useOsTabDragStart } from "../hooks/use-os-tab-drag";
 import { useTabBarRoving, type TabRovingHandlers } from "../hooks/use-tab-bar-roving";
 import type { OsWindow } from "../lib/os-types";
+import { sessionWindowLookupKey } from "../lib/session-window-identity";
 import { osTabDragStore, type TabDragState } from "../stores/os-tab-drag-store";
 import { useOsWindowTitle } from "../hooks/use-os-window-title";
 import { OsDragGhost } from "./os-drag-ghost";
@@ -31,7 +32,7 @@ import { OsTabMenu } from "./os-tab-menu";
 
 function sessionLookup(sessionById: ReadonlyMap<string, SessionPayload>) {
   return (win: OsWindow) =>
-    win.app === "session" ? sessionById.get(win.instanceKey ?? "") : undefined;
+    win.app === "session" ? sessionById.get(sessionWindowLookupKey(win)) : undefined;
 }
 
 function OverflowEntry({

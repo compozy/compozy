@@ -146,6 +146,10 @@ func (s *service) updateShellSection(
 		desired.Sessions.GroupByExplicit = true
 	}
 	desired.Sessions.ResolveGroupBy()
+	if !desired.Sessions.ComputersExplicit {
+		desired.Sessions.Computers = cfg.Shell.Sessions.Computers
+		desired.Sessions.ComputersExplicit = cfg.Shell.Sessions.ComputersExplicit
+	}
 	if !desired.Appearance.UIFontExplicit {
 		desired.Appearance.UIFont = cfg.Shell.Appearance.UIFont
 	}

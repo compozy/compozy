@@ -1,6 +1,8 @@
+import { sessionWindowInstanceKey } from "@/systems/os/lib/session-window-identity";
 import { use, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector } from "@xstate/store-react";
+import { toast } from "@compozy/ui";
 import {
   AUTO_COMPUTER_ID,
   isAutoComputerId,
@@ -9,6 +11,7 @@ import {
   normalizeComputerId,
   type ComputerId,
 } from "@/lib/computer-scope";
+import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import type { AgentPayload } from "@/systems/agent";
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { TerminalQuote } from "@/systems/terminal/parts";
@@ -23,12 +26,15 @@ import {
   restorePendingTerminalQuoteAfterFailedCreate,
   stageChosenSessionTerminalQuote,
 } from "../lib/session-terminal-quote";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { sessionStore } from "../stores/session-store";
 import type { SessionCreateStore } from "../stores/session-create-store";
 import type { CreateSessionParams } from "../types";
 import { useCreateSession } from "./use-session-actions";
 import type { SessionEnvironmentModel } from "./use-session-environment";
 import type { SessionCreateTarget } from "./use-session-create-target";
+import { resolveSessionWindowOrder, sessionSidebarStore } from "./use-session-sidebar-state";
+import type { SessionWindowComputerScope } from "../lib/session-sidebar-scope";
 
 interface UseSessionCreateSubmitOptions {
   agents: readonly AgentPayload[];
@@ -54,6 +60,9 @@ interface SessionLanding {
   currentWorkspaceId: string | null;
   /** The All-projects picker value to remember; `null` outside All projects. */
   allProjectsTarget: string | null;
+  /** Active window computer scope; offers "Show in list" if created outside it (`R17`). */
+  windowComputerScope?: SessionWindowComputerScope;
+  onShowInList?: () => void;
 }
 
 type SessionCreateFlow = ReturnType<SessionCreateStore["getSnapshot"]>["context"];
@@ -82,6 +91,7 @@ export function useSessionCreateSubmit({
 }: UseSessionCreateSubmitOptions): () => void {
   const navigate = useNavigate();
   const shell = use(OsShellContext);
+  const fallbackScopeId = useWorktreeScopeId();
   const createSession = useCreateSession();
   const scopedComputerId = normalizeComputerId(computerId);
   const scopedProjectComputerId = normalizeComputerId(projectComputerId);
@@ -91,7 +101,8 @@ export function useSessionCreateSubmit({
   const pendingSubmit = flow.pendingSubmit;
   const worktreeId = environment.worktreeId;
   const createSessionAsync = createSession.mutateAsync;
-  const profile = target.profileAxis ? target.profile : undefined;
+  const profile =
+    target.profileAxis || (isRemote && target.profile.trim() !== "") ? target.profile : undefined;
   const allProjectsTarget = target.projectAxis ? target.projectValue : null;
 
   useEffect(() => {
@@ -103,6 +114,7 @@ export function useSessionCreateSubmit({
       return;
     }
     const { agentName, pendingPrompt, request, terminalQuote, workspaceId } = pendingSubmit;
+    const windowScope = landingWindowScope(shell, fallbackScopeId);
     store.trigger.submissionRequested({
       agentName,
       workspaceId,
@@ -115,7 +127,8 @@ export function useSessionCreateSubmit({
             ...(profile ? { profile } : {}),
           }),
           pendingPrompt,
-          terminalQuote
+          terminalQuote,
+          scopedComputerId
         ),
       navigate: session =>
         openCreatedSession(
@@ -125,6 +138,7 @@ export function useSessionCreateSubmit({
             scope,
             currentWorkspaceId: actingWorkspaceId,
             allProjectsTarget,
+            ...windowScope,
           },
           navigate,
           shell
@@ -134,6 +148,7 @@ export function useSessionCreateSubmit({
     allProjectsTarget,
     createSessionAsync,
     environment.status,
+    fallbackScopeId,
     isRemote,
     navigate,
     pendingSubmit,
@@ -176,6 +191,7 @@ export function useSessionCreateSubmit({
       }
     }
     const terminalQuote = claimPendingTerminalQuoteForCreate();
+    const windowScope = landingWindowScope(shell, fallbackScopeId);
     const requestPayload: CreateSessionParams = isAuto
       ? {
           ...stripLocalOnlyAutoFields(validated.request),
@@ -199,7 +215,8 @@ export function useSessionCreateSubmit({
             ...(profile ? { profile } : {}),
           }),
           validated.pendingPrompt,
-          terminalQuote
+          terminalQuote,
+          scopedComputerId
         ),
       navigate: session =>
         openCreatedSession(
@@ -209,11 +226,26 @@ export function useSessionCreateSubmit({
             scope,
             currentWorkspaceId: actingWorkspaceId,
             allProjectsTarget,
+            ...windowScope,
           },
           navigate,
           shell
         ),
     });
+  };
+}
+
+function landingWindowScope(
+  shell: OsShellHandle | null,
+  fallbackScopeId: string
+): Pick<SessionLanding, "windowComputerScope" | "onShowInList"> {
+  const scopeId = shell?.manager.getState().focusedId ?? fallbackScopeId;
+  const { byScope } = sessionSidebarStore.getSnapshot().context;
+  const { computerScope } = resolveSessionWindowOrder(byScope, scopeId);
+  return {
+    windowComputerScope: computerScope,
+    onShowInList: () =>
+      sessionSidebarStore.trigger.computerScopeChanged({ scopeId, computerScope: "all" }),
   };
 }
 
@@ -258,8 +290,19 @@ async function openCreatedSession(
 ): Promise<void> {
   // Named before the workspace switch: the route reconciliation that lands it — after the
   // target workspace hydrates — prefers the operator's existing Session window (#825).
-  shell?.coordinator.noteCreatedSession(session.id);
   const actualComputerId = normalizeComputerId(session.computer_id ?? landing.computerId);
+  shell?.coordinator.noteCreatedSession(sessionWindowInstanceKey(session.id, actualComputerId));
+  if (
+    landing.windowComputerScope &&
+    landing.windowComputerScope !== "all" &&
+    landing.windowComputerScope !== actualComputerId &&
+    landing.onShowInList
+  ) {
+    const showInList = landing.onShowInList;
+    toast.message("Session started outside this computer scope.", {
+      action: { label: "Show in list", onClick: showInList },
+    });
+  }
   if (isRemoteComputerId(actualComputerId)) {
     await navigate({
       to: "/agents/$name/sessions/$id",
@@ -295,13 +338,20 @@ async function openCreatedSession(
 async function executeCreatedSession(
   create: Promise<CreatedSessionPayload>,
   pendingPrompt: string | null,
-  quote: TerminalQuote | null
+  quote: TerminalQuote | null,
+  computerId: ComputerId
 ): Promise<CreatedSessionPayload> {
   try {
     const session = await create;
     if (quote) stageChosenSessionTerminalQuote(session.id, quote);
     if (pendingPrompt?.trim()) {
-      sessionStore.trigger.firstPromptQueued({ sessionId: session.id, text: pendingPrompt });
+      sessionStore.trigger.firstPromptQueued({
+        sessionId: sessionRowKeyFor({
+          id: session.id,
+          computerId: session.computer_id ?? computerId,
+        }),
+        text: pendingPrompt,
+      });
     }
     return session;
   } catch (error) {

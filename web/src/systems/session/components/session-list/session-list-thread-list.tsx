@@ -15,6 +15,7 @@ import {
   rowDragged,
 } from "../../hooks/use-session-list-dnd";
 import { sessionHasOwnPlacement } from "../../lib/session-folders";
+import { sessionComputerOf, sessionRowKeyFor } from "../../lib/session-row-ref";
 import { SessionListThread } from "./session-list-thread";
 import type { SessionFoldSet, SessionSubagentFolds } from "../../lib/session-sidebar-scope";
 
@@ -53,39 +54,47 @@ export function SessionListThreadList({
   emptyMessage,
 }: SessionListThreadListProps) {
   const dnd = useSessionListDnd(undefined, { manual: false, reorderable: false });
-  const roots = new Map(threads.map(thread => [thread.session.id, thread.session]));
-  const rowLayout = (session: SessionPayload) => ({
-    drag: dnd.sessionRow(
-      session.id,
-      { folderId: null, ids: [] },
-      undefined,
-      sessionRowNestTarget(roots, session, sessionActions.onAdopt),
-      !sessionHasOwnPlacement(session)
-    ),
-    dropEdge: rowDropEdge(dnd.indicator, session.id),
-    dragging: rowDragged(dnd.dragging, session.id),
-  });
+  const roots = new Map(threads.map(thread => [sessionRowKeyFor(thread.session), thread.session]));
+  const rowLayout = (session: SessionPayload) => {
+    const rowComputerId = sessionComputerOf(session);
+    const rowKey = sessionRowKeyFor(session, rowComputerId);
+    return {
+      drag: dnd.sessionRow(
+        session.id,
+        { folderId: null, ids: [] },
+        undefined,
+        sessionRowNestTarget(roots, session, sessionActions.onAdopt),
+        !sessionHasOwnPlacement(session),
+        rowComputerId
+      ),
+      dropEdge: rowDropEdge(dnd.indicator, rowKey),
+      dragging: rowDragged(dnd.dragging, rowKey),
+    };
+  };
   return (
     <>
-      {threads.map(thread => (
-        <SessionListThread
-          key={thread.session.id}
-          session={thread.session}
-          layoutFor={readOnly ? undefined : rowLayout}
-          showActions={!readOnly}
-          childSessions={thread.childSessions}
-          currentSessionId={currentSessionId}
-          owner={ownerOf?.(thread.session)}
-          ownerOf={ownerOf}
-          collapsed={collapsedThreads.has(thread.session.id)}
-          subagentThreads={subagentThreads}
-          onThreadBranchChange={onThreadBranchChange}
-          onSelectSession={onSelectSession}
-          selection={selection}
-          sessionActions={sessionActions}
-          testIdPrefix={testIdPrefix}
-        />
-      ))}
+      {threads.map(thread => {
+        const rowKey = sessionRowKeyFor(thread.session);
+        return (
+          <SessionListThread
+            key={rowKey}
+            session={thread.session}
+            layoutFor={readOnly ? undefined : rowLayout}
+            showActions={!readOnly}
+            childSessions={thread.childSessions}
+            currentSessionId={currentSessionId}
+            owner={ownerOf?.(thread.session)}
+            ownerOf={ownerOf}
+            collapsed={collapsedThreads.has(rowKey)}
+            subagentThreads={subagentThreads}
+            onThreadBranchChange={onThreadBranchChange}
+            onSelectSession={onSelectSession}
+            selection={selection}
+            sessionActions={sessionActions}
+            testIdPrefix={testIdPrefix}
+          />
+        );
+      })}
       {threads.length === 0 && emptyMessage !== null ? (
         <Empty
           className="px-3 py-8"

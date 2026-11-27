@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { sessionDetailOptions } from "../lib/query-options";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
+import { sessionComputerOf } from "../lib/session-row-ref";
 import {
   sessionOriginKind,
   sessionOriginView,
@@ -23,7 +24,7 @@ export function useSessionOrigin(
   const kind = sessionOriginKind(session);
   const parentId = session.lineage?.parent_session_id?.trim() ?? "";
   const parentQuery = useQuery({
-    ...sessionDetailOptions(workspaceId, parentId),
+    ...sessionDetailOptions(workspaceId, parentId, sessionComputerOf(session)),
     enabled: kind !== null && workspaceId !== "" && parentId !== "",
     refetchInterval: false,
     retry: false,

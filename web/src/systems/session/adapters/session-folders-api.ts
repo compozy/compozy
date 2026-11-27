@@ -1,4 +1,9 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import {
+  apiClientFor,
+  apiRequestFailed,
+  requireResponseData,
+  type ComputerId,
+} from "@/lib/api-client";
 
 import type { SessionFolderPayload, SessionFoldersResponse } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
@@ -18,9 +23,10 @@ function layoutParams(scope: SessionLayoutScope) {
 
 export async function fetchSessionFolders(
   scope: SessionLayoutScope,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionFolderPayload[]> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/session-folders",
     { params: layoutParams(scope), signal }
   );
@@ -32,9 +38,10 @@ export async function fetchSessionFolders(
 
 export async function createSessionFolder(
   scope: SessionLayoutScope,
-  name: string
+  name: string,
+  computerId?: ComputerId
 ): Promise<SessionFolderPayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/session-folders",
     { params: layoutParams(scope), body: { name } }
   );
@@ -47,9 +54,10 @@ export async function createSessionFolder(
 export async function renameSessionFolder(
   scope: SessionLayoutScope,
   folderId: string,
-  name: string
+  name: string,
+  computerId?: ComputerId
 ): Promise<SessionFolderPayload> {
-  const { data, error, response } = await apiClient.PATCH(
+  const { data, error, response } = await apiClientFor(computerId).PATCH(
     "/api/workspaces/{workspace_id}/session-folders/{folder_id}",
     {
       params: {
@@ -67,9 +75,10 @@ export async function renameSessionFolder(
 
 export async function deleteSessionFolder(
   scope: SessionLayoutScope,
-  folderId: string
+  folderId: string,
+  computerId?: ComputerId
 ): Promise<SessionFoldersResponse["folders"]> {
-  const { data, error, response } = await apiClient.DELETE(
+  const { data, error, response } = await apiClientFor(computerId).DELETE(
     "/api/workspaces/{workspace_id}/session-folders/{folder_id}",
     {
       params: {
@@ -86,9 +95,10 @@ export async function deleteSessionFolder(
 
 export async function reorderSessionFolders(
   scope: SessionLayoutScope,
-  folderIds: readonly string[]
+  folderIds: readonly string[],
+  computerId?: ComputerId
 ): Promise<SessionFoldersResponse["folders"]> {
-  const { data, error, response } = await apiClient.PUT(
+  const { data, error, response } = await apiClientFor(computerId).PUT(
     "/api/workspaces/{workspace_id}/session-order/folders",
     { params: layoutParams(scope), body: { folder_ids: [...folderIds] } }
   );
@@ -102,9 +112,10 @@ export async function reorderSessionFolders(
 export async function reorderSessions(
   scope: SessionLayoutScope,
   folderId: string | null,
-  sessionIds: readonly string[]
+  sessionIds: readonly string[],
+  computerId?: ComputerId
 ): Promise<SessionFoldersResponse["folders"]> {
-  const { data, error, response } = await apiClient.PUT(
+  const { data, error, response } = await apiClientFor(computerId).PUT(
     "/api/workspaces/{workspace_id}/session-order/sessions",
     {
       params: layoutParams(scope),
@@ -123,9 +134,10 @@ export async function reorderSessions(
  */
 export async function reorderPinnedSessions(
   scope: SessionLayoutScope,
-  sessionIds: readonly string[]
+  sessionIds: readonly string[],
+  computerId?: ComputerId
 ): Promise<SessionFoldersResponse["folders"]> {
-  const { data, error, response } = await apiClient.PUT(
+  const { data, error, response } = await apiClientFor(computerId).PUT(
     "/api/workspaces/{workspace_id}/session-order/sessions",
     { params: layoutParams(scope), body: { pinned: true, session_ids: [...sessionIds] } }
   );
@@ -139,9 +151,10 @@ export async function reorderPinnedSessions(
 export async function moveSessionToFolder(
   scope: SessionLayoutScope,
   sessionId: string,
-  folderId: string | null
+  folderId: string | null,
+  computerId?: ComputerId
 ): Promise<SessionFoldersResponse["folders"]> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/move",
     {
       params: {

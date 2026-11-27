@@ -1,13 +1,12 @@
 import { createContext } from "react";
 
-import { mergeSessionPages, type MergedSessionRow } from "@/systems/computers/lib/merge-sessions";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import type {
   ComputerIconKind,
   ComputerPlatform,
 } from "@/systems/computers/mocks/remote-computers-types";
 
-import { buildSessionListThreads, type SessionThreadModel } from "./session-list-threads";
-import type { SessionPayload } from "../types";
+import { sessionRowKey } from "./session-row-ref";
 
 export interface SessionRowComputerInfo {
   id: string;
@@ -15,48 +14,33 @@ export interface SessionRowComputerInfo {
   platform: ComputerPlatform;
   iconKind: ComputerIconKind;
   offline: boolean;
+  canOperate?: boolean;
 }
 
 /**
  * Provides remote-computer provenance (`name`, `platform`, `offline`) to session rows
  * and board cards without threading extra props through every intermediate folder/thread list.
- * Local rows are absent from the map so they render no computer label (`_uiux.md` U5).
+ * Keys use `sessionRowKey({ computerId, sessionId })`. Local rows are absent
+ * so they render no computer label (`_uiux.md` U5).
  */
+export const SessionWritableComputersContext = createContext<ReadonlySet<ComputerId> | undefined>(
+  undefined
+);
+
 export const SessionListComputerContext = createContext<
   ReadonlyMap<string, SessionRowComputerInfo> | undefined
 >(undefined);
 
-/** Merges local thread sessions with remote fan-out rows ordered by `updated_at` desc. */
-export function mergeLocalAndRemoteThreads(
-  localThreads: SessionThreadModel[],
-  remoteSessions: readonly MergedSessionRow<SessionPayload>[]
-): SessionThreadModel[] {
-  if (remoteSessions.length === 0) return localThreads;
-  const grouped = new Map<
-    string,
-    { computer: { id: string; name: string; status: string }; sessions: SessionPayload[] }
-  >();
-  for (const row of remoteSessions) {
-    const entry = grouped.get(row.computerId) ?? {
-      computer: {
-        id: row.computerId,
-        name: row.computerName,
-        status: row.offline ? "offline" : "connected",
-      },
-      sessions: [],
-    };
-    entry.sessions.push(row.session);
-    grouped.set(row.computerId, entry);
+/** Resolves a row's computer label without colliding identical session ids across computers. */
+export function lookupSessionComputer(
+  map: ReadonlyMap<string, SessionRowComputerInfo> | undefined,
+  sessionId: string,
+  computerId?: ComputerId
+): SessionRowComputerInfo | undefined {
+  if (!map) return undefined;
+  if (computerId !== undefined) {
+    if (!isRemoteComputerId(computerId)) return undefined;
+    return map.get(sessionRowKey({ computerId, sessionId }));
   }
-  const merged = mergeSessionPages([
-    {
-      computer: { id: "local", name: "This computer", status: "connected" },
-      sessions: localThreads.flatMap(thread => [thread.session, ...thread.childSessions]),
-    },
-    ...grouped.values(),
-  ]);
-  return buildSessionListThreads(
-    merged.map(row => row.session),
-    ""
-  );
+  return map.get(sessionId);
 }

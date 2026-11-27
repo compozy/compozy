@@ -18,26 +18,33 @@ export const SESSION_LIST_SORTS = [
   "manual",
 ] as const;
 export const SESSION_LIST_GROUP_BYS = ["none", "project", "profile"] as const;
+/** With remote computers in view: one merged list, or one section per computer. */
+export const SESSION_LIST_COMPUTER_LAYOUTS = ["together", "separate"] as const;
 
 export type SessionListSort = (typeof SESSION_LIST_SORTS)[number];
 export type SessionListGroupBy = (typeof SESSION_LIST_GROUP_BYS)[number];
+export type SessionListComputerLayout = (typeof SESSION_LIST_COMPUTER_LAYOUTS)[number];
 
 export interface SessionListPreferences {
   sort: SessionListSort;
   groupBy: SessionListGroupBy;
+  computers: SessionListComputerLayout;
 }
 
 /**
- * Calm defaults: newest created first, grouped by project. Project grouping
- * renders only under All projects, so one project's list stays flat.
+ * Calm defaults: newest created first, grouped by project, computers in separate
+ * sections. Project grouping renders only under All projects, so one project's
+ * list stays flat.
  */
 export const DEFAULT_SESSION_LIST_PREFERENCES: SessionListPreferences = {
   sort: "created",
   groupBy: "project",
+  computers: "separate",
 };
 
 const SORTS: ReadonlySet<string> = new Set(SESSION_LIST_SORTS);
 const GROUP_BYS: ReadonlySet<string> = new Set(SESSION_LIST_GROUP_BYS);
+const COMPUTER_LAYOUTS: ReadonlySet<string> = new Set(SESSION_LIST_COMPUTER_LAYOUTS);
 
 export function toSessionListSort(value: string | null | undefined): SessionListSort {
   return value !== null && value !== undefined && SORTS.has(value)
@@ -49,6 +56,14 @@ export function toSessionListGroupBy(value: string | null | undefined): SessionL
   return value !== null && value !== undefined && GROUP_BYS.has(value)
     ? (value as SessionListGroupBy)
     : DEFAULT_SESSION_LIST_PREFERENCES.groupBy;
+}
+
+export function toSessionListComputerLayout(
+  value: string | null | undefined
+): SessionListComputerLayout {
+  return value !== null && value !== undefined && COMPUTER_LAYOUTS.has(value)
+    ? (value as SessionListComputerLayout)
+    : DEFAULT_SESSION_LIST_PREFERENCES.computers;
 }
 
 /** Which aggregate axes the list is reading; each one unlocks its own grouping. */

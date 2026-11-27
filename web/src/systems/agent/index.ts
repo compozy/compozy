@@ -403,6 +403,7 @@ export { agentFromOrphanInstance } from "./lib/agent-instance-wire";
 export {
   agentInstanceAwayOptions,
   agentInstanceCheckInsOptions,
+  agentInstancesOptions,
   agentInstanceIndeterminateReportsOptions,
   agentInstanceProjectedReportsOptions,
   agentInstanceReportsOptions,

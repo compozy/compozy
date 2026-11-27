@@ -6,6 +6,7 @@ import type { SessionRowSelection } from "../../hooks/use-session-selection";
 
 import { childSessionSignalState, isSubagentSession } from "../../lib/session-hierarchy";
 import { hasRunningDescendant } from "../../lib/session-running";
+import { sessionRowKeyFor } from "../../lib/session-row-ref";
 import { sessionSubagentCounts } from "../../lib/session-subagent-summary";
 import {
   sessionThreadSegment,
@@ -98,7 +99,7 @@ function SessionListThreadView({
           // and a child row lifts for its own live subagents (the row view's default).
           descendantsRunning={hasRunningDescendant(session, childSessions)}
           owner={owner}
-          current={session.id === currentSessionId}
+          current={sessionRowKeyFor(session) === currentSessionId}
           onSelect={() => onSelectSession(session)}
           selection={selection}
           sessionActions={sessionActions}
@@ -110,7 +111,7 @@ function SessionListThreadView({
       childRow={child => {
         const childOwner = ownerOf?.(child);
         return (
-          <TreeBranchNode key={child.id}>
+          <TreeBranchNode key={sessionRowKeyFor(child)}>
             <SessionListBranchRow
               session={child}
               childSessions={[]}
@@ -127,7 +128,7 @@ function SessionListThreadView({
                   // A child in its root's profile repeats nothing; only a different owner is tagged.
                   owner={childOwner && childOwner.id !== owner?.id ? childOwner : undefined}
                   inheritsProject={(child.workspace_id ?? "") === (session.workspace_id ?? "")}
-                  current={child.id === currentSessionId}
+                  current={sessionRowKeyFor(child) === currentSessionId}
                   onSelect={() => onSelectSession(child)}
                   selection={selection}
                   sessionActions={sessionActions}
@@ -151,7 +152,7 @@ function SessionListThreadView({
       {revealed.length > 0 ? (
         <TreeBranch>
           {revealed.map(child => (
-            <TreeBranchNode key={child.id}>
+            <TreeBranchNode key={sessionRowKeyFor(child)}>
               <SessionListBranchRow
                 session={child}
                 childSessions={[]}
@@ -166,7 +167,7 @@ function SessionListThreadView({
                     {...layoutFor?.(child)}
                     session={child}
                     inheritsProject={(child.workspace_id ?? "") === (session.workspace_id ?? "")}
-                    current={child.id === currentSessionId}
+                    current={sessionRowKeyFor(child) === currentSessionId}
                     onSelect={() => onSelectSession(child)}
                     selection={selection}
                     sessionActions={sessionActions}
@@ -197,12 +198,14 @@ export const SessionListThread = memo(SessionListThreadView, (prev, next) => {
   }
   return (
     sameOwner(prev.owner, next.owner) &&
-    [next.session, ...next.childSessions].every(
-      row =>
-        prev.subagentThreads.has(row.id) === next.subagentThreads.has(row.id) &&
-        prev.subagentThreads.whenChildless?.has(row.id) ===
-          next.subagentThreads.whenChildless?.has(row.id)
-    )
+    [next.session, ...next.childSessions].every(row => {
+      const rowKey = sessionRowKeyFor(row);
+      return (
+        prev.subagentThreads.has(rowKey) === next.subagentThreads.has(rowKey) &&
+        prev.subagentThreads.whenChildless?.has(rowKey) ===
+          next.subagentThreads.whenChildless?.has(rowKey)
+      );
+    })
   );
 });
 
@@ -249,14 +252,15 @@ function SessionListBranchRow({
   row: (trailing: React.ReactNode) => React.ReactNode;
   childRow?: (child: SessionPayload) => React.ReactNode;
 }) {
+  const rowKey = sessionRowKeyFor(session);
   const subagentCounts = sessionSubagentCounts(session);
   const segment = sessionThreadSegment({
     hasChildren: childSessions.length > 0,
     hasSubagents: subagentCounts !== null,
     collapsed,
     subagentsOpen:
-      subagentThreads.has(session.id) ||
-      (childSessions.length === 0 && subagentThreads.whenChildless?.has(session.id) === true),
+      subagentThreads.has(rowKey) ||
+      (childSessions.length === 0 && subagentThreads.whenChildless?.has(rowKey) === true),
   });
   if (childSessions.length === 0 && subagentCounts === null) return row(undefined);
 
@@ -278,6 +282,7 @@ function SessionListBranchRow({
           workspace={session.workspace_id}
           profile={session.profile_name}
           sessionId={session.id}
+          computerId={session.computerId}
           total={subagentCounts?.total ?? 0}
           currentSessionId={currentSessionId}
           onSelectSession={onSelectSession}
@@ -299,7 +304,7 @@ function SessionListBranchRow({
           }
           subagentCounts={subagentCounts}
           segment={segment}
-          onChange={next => onThreadBranchChange(session.id, next)}
+          onChange={next => onThreadBranchChange(rowKey, next)}
           branchId={branchId}
           testIdPrefix={testIdPrefix}
         />

@@ -1,4 +1,4 @@
-import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import { normalizeComputerId, isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import {
   SESSION_BOARD_DRAWER_OPEN,
   SESSION_BOARD_DRAWER_SEARCH_KEY,
@@ -15,6 +15,7 @@ import {
 
 import { useAttentionJump } from "../../hooks/use-attention-jump";
 import { useOsShell } from "../../hooks/use-os-shell";
+import { sessionWindowInstanceKey } from "../../lib/session-window-identity";
 import { boundRoute } from "../../lib/open-target";
 
 /** A session to open by id; the agent name lets this window retarget in place. */
@@ -58,11 +59,22 @@ export function useSessionWindowOpenSession({
         workspaceId: target.workspaceId,
         sessionId: target.sessionId,
         subagentId: target.subagentId,
+        ...(target.computerId ? { computerId: target.computerId } : {}),
       });
     }
-    const drawerOpen = sessionBoardDrawerOpen(manager.getState().windows[windowId]?.route.search);
+    const search = manager.getState().windows[windowId]?.route?.search;
+    const currentComputer = normalizeComputerId(
+      typeof search?.computer === "string" ? search.computer : undefined
+    );
+    const drawerOpen = sessionBoardDrawerOpen(search);
     const drawer = options.drawer ?? drawerOpen;
-    if (sessionId !== undefined && target.sessionId === sessionId && drawer === drawerOpen) return;
+    if (
+      sessionId !== undefined &&
+      target.sessionId === sessionId &&
+      currentComputer === normalizeComputerId(target.computerId) &&
+      drawer === drawerOpen
+    )
+      return;
     if (isRemoteComputerId(target.computerId)) {
       const remoteRoute = {
         pathname: `/agents/${encodeURIComponent(target.agentName || "general")}/sessions/${encodeURIComponent(target.sessionId)}`,
@@ -74,11 +86,16 @@ export function useSessionWindowOpenSession({
             : {}),
         },
       };
-      void coordinator.userRetarget(windowId, {
-        app: "session",
-        instanceKey: target.sessionId,
+      const windowTarget = {
+        app: "session" as const,
+        instanceKey: sessionWindowInstanceKey(
+          target.sessionId,
+          normalizeComputerId(target.computerId)
+        ),
         route: remoteRoute,
-      });
+      };
+      if (options.newWindow) void coordinator.userOpen({ ...windowTarget, placement: "split" });
+      else void coordinator.userRetarget(windowId, windowTarget);
       return;
     }
     const targetScope = ownerDataScope(target.workspaceId);

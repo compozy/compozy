@@ -1,6 +1,8 @@
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import { fetchSessionSubagents, type SubagentPayload } from "../adapters/subagent-api";
+import { REMOTE_SESSION_REFETCH_MS } from "./session-catalog-options";
 import { sessionKeys } from "./query-keys";
 import { EMPTY_SUBAGENT_ROSTER } from "./subagent-roster";
 
@@ -11,20 +13,26 @@ export const SUBAGENT_LIST_PAGE_SIZE = 200;
  * Every page of one parent's direct subagents, newest first. Catalog upserts
  * for the parent invalidate it, so the roster and chip preview stay live.
  */
-export function sessionSubagentsOptions(workspaceId: string, sessionId: string) {
+export function sessionSubagentsOptions(
+  workspaceId: string,
+  sessionId: string,
+  computerId?: ComputerId
+) {
   return infiniteQueryOptions({
-    queryKey: sessionKeys.subagents(workspaceId, sessionId),
+    queryKey: sessionKeys.forComputer(computerId).subagents(workspaceId, sessionId),
     queryFn: ({ pageParam, signal }) =>
       fetchSessionSubagents(
         workspaceId,
         sessionId,
         { limit: SUBAGENT_LIST_PAGE_SIZE, ...(pageParam ? { cursor: pageParam } : {}) },
-        signal
+        signal,
+        ...(isRemoteComputerId(computerId) && computerId ? ([computerId] as const) : [])
       ),
     initialPageParam: "",
     getNextPageParam: page => page.next_cursor ?? undefined,
     enabled: workspaceId !== "" && sessionId !== "",
     staleTime: 5_000,
+    ...(isRemoteComputerId(computerId) ? { refetchInterval: REMOTE_SESSION_REFETCH_MS } : {}),
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -41,9 +49,13 @@ export const SUBAGENT_BRANCH_PAGE_SIZE = 8;
  * and pages on demand, so a long roster never loads (or mounts) more than the
  * operator asked to see.
  */
-export function sessionSubagentBranchOptions(workspaceId: string, sessionId: string) {
+export function sessionSubagentBranchOptions(
+  workspaceId: string,
+  sessionId: string,
+  computerId?: ComputerId
+) {
   return infiniteQueryOptions({
-    queryKey: sessionKeys.subagentBranch(workspaceId, sessionId),
+    queryKey: sessionKeys.forComputer(computerId).subagentBranch(workspaceId, sessionId),
     queryFn: ({ pageParam, signal }) =>
       fetchSessionSubagents(
         workspaceId,
@@ -53,12 +65,14 @@ export function sessionSubagentBranchOptions(workspaceId: string, sessionId: str
           order: "urgency",
           ...(pageParam ? { cursor: pageParam } : {}),
         },
-        signal
+        signal,
+        ...(computerId === undefined ? [] : ([computerId] as const))
       ),
     initialPageParam: "",
     getNextPageParam: page => page.next_cursor ?? undefined,
     enabled: workspaceId !== "" && sessionId !== "",
     staleTime: 5_000,
+    ...(isRemoteComputerId(computerId) ? { refetchInterval: REMOTE_SESSION_REFETCH_MS } : {}),
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -68,9 +82,13 @@ export function sessionSubagentBranchOptions(workspaceId: string, sessionId: str
  * The parent's subagent roster is stream-owned: the session stream's snapshot
  * and row updates write it, and nothing fetches it.
  */
-export function sessionSubagentRosterOptions(workspaceId: string, sessionId: string) {
+export function sessionSubagentRosterOptions(
+  workspaceId: string,
+  sessionId: string,
+  computerId?: ComputerId
+) {
   return queryOptions({
-    queryKey: sessionKeys.subagentRoster(workspaceId, sessionId),
+    queryKey: sessionKeys.forComputer(computerId).subagentRoster(workspaceId, sessionId),
     queryFn: () => EMPTY_SUBAGENT_ROSTER,
     enabled: false,
   });
@@ -81,9 +99,13 @@ export function sessionSubagentRosterOptions(workspaceId: string, sessionId: str
  * poll replaces the whole roster, so it follows the cursor: a row left out would
  * read as an unconfirmed, still-running card.
  */
-export function sessionSubagentRosterPollOptions(workspaceId: string, sessionId: string) {
+export function sessionSubagentRosterPollOptions(
+  workspaceId: string,
+  sessionId: string,
+  computerId?: ComputerId
+) {
   return queryOptions({
-    queryKey: sessionKeys.subagentRosterPoll(workspaceId, sessionId),
+    queryKey: sessionKeys.forComputer(computerId).subagentRosterPoll(workspaceId, sessionId),
     queryFn: async ({ signal }) => {
       const subagents: SubagentPayload[] = [];
       let cursor: string | undefined;
@@ -92,7 +114,8 @@ export function sessionSubagentRosterPollOptions(workspaceId: string, sessionId:
           workspaceId,
           sessionId,
           cursor ? { limit: 200, cursor } : { limit: 200 },
-          signal
+          signal,
+          ...(isRemoteComputerId(computerId) && computerId ? ([computerId] as const) : [])
         );
         subagents.push(...page.subagents);
         cursor = page.next_cursor ?? undefined;

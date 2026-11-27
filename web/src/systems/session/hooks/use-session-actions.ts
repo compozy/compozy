@@ -8,36 +8,42 @@ import {
 import {
   archiveSession,
   archiveSessionTree,
-  clearSessionConversation,
   createSession,
   type CreateSessionParams,
   deleteSession,
   deleteSessionTree,
-  repairSession,
   renameSession,
   stopSession,
   unarchiveSession,
 } from "../adapters/session-api";
 
+export {
+  useClearSessionConversation,
+  useRepairSession,
+  type RepairSessionParams,
+} from "./use-session-maintenance-actions";
+
 import { sessionStore } from "../stores/session-store";
 import { sessionKeys } from "../lib/query-keys";
 import { discardComposerDraftAttachments } from "../lib/session-composer-attachment-drafts";
+import { sessionRowKey, withSessionComputer } from "../lib/session-row-ref";
 import {
   invalidateSessionMutationQueries,
   invalidateWorkspaceSessionCatalog,
 } from "../lib/session-query-invalidation";
-import type { SessionPayload, SessionRepairQuery } from "../types";
+import type { SessionPayload } from "../types";
 import { useActiveWorkspace, workspaceBadgeIdentity } from "@/systems/workspace";
 import { useProfileReadScope } from "@/systems/profiles";
 import { sessionStartedToast } from "../lib/session-create-target";
-import { isAutoComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import {
+  isAutoComputerId,
+  isRemoteComputerId,
+  normalizeComputerId,
+  type ComputerId,
+} from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
 import { useAbortableMutationRequest } from "./use-abortable-mutation-request";
-import {
-  requireWorkspace,
-  resolveWorkspaceId,
-  type UseSessionWorkspaceOptions,
-} from "./session-action-workspace";
+import { requireWorkspace } from "./session-action-workspace";
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 
 /** A captured session without a project belongs to User, unlike an absent UI selection. */
@@ -45,7 +51,9 @@ function sessionOwnerWorkspace(workspaceId: string | null | undefined): string {
   return requireWorkspace(workspaceId ?? "");
 }
 
-export type SessionActionTarget = Pick<SessionPayload, "id" | "workspace_id" | "profile_name">;
+export type SessionActionTarget = Pick<SessionPayload, "id" | "workspace_id" | "profile_name"> & {
+  computerId?: ComputerId;
+};
 
 export interface RenameSessionParams extends SessionActionTarget {
   name: string;
@@ -57,19 +65,32 @@ export function useRenameSession() {
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: ({ id, workspace_id, profile_name, name }: RenameSessionParams) =>
+    mutationFn: ({ id, workspace_id, profile_name, name, computerId }: RenameSessionParams) =>
       request(signal =>
-        renameSession(sessionOwnerWorkspace(workspace_id), id, profile_name, { name }, signal)
+        isRemoteComputerId(computerId)
+          ? renameSession(
+              sessionOwnerWorkspace(workspace_id),
+              id,
+              profile_name,
+              { name },
+              signal,
+              computerId
+            )
+          : renameSession(sessionOwnerWorkspace(workspace_id), id, profile_name, { name }, signal)
       ),
-    onSuccess: session => {
+    onSuccess: (session, { computerId }) => {
       const successWorkspaceId = sessionOwnerWorkspace(session.workspace_id);
-      queryClient.setQueryData(sessionKeys.detail(successWorkspaceId, session.id), session);
+      queryClient.setQueryData(
+        sessionKeys.forComputer(computerId).detail(successWorkspaceId, session.id),
+        withSessionComputer(session, computerId)
+      );
     },
     onSettled: (_data, _error, variables) => {
       void invalidateSessionMutationQueries(
         queryClient,
         sessionOwnerWorkspace(variables.workspace_id),
-        variables.id
+        variables.id,
+        variables.computerId
       );
     },
   });
@@ -91,7 +112,12 @@ export function useCreateSession() {
   return useMutation({
     mutationFn: ({ profile, computerId, ...params }: CreateSessionVariables) =>
       computerId && !isAutoComputerId(computerId)
-        ? createSession(params, profile ?? destination, undefined, computerId)
+        ? createSession(
+            params,
+            isRemoteComputerId(computerId) ? profile : (profile ?? destination),
+            undefined,
+            computerId
+          )
         : createSession(params, profile ?? destination),
     onSuccess: (session, variables) => {
       const scopedComputerId = normalizeComputerId(
@@ -114,7 +140,10 @@ export function useCreateSession() {
       }
       // A User session reads and lists through `@user`.
       const workspaceId = requireWorkspace(session.workspace_id ?? "");
-      queryClient.setQueryData(keys.detail(workspaceId, session.id), session);
+      queryClient.setQueryData(
+        keys.detail(workspaceId, session.id),
+        withSessionComputer(session, scopedComputerId)
+      );
       void queryClient.invalidateQueries({ queryKey: keys.detail(workspaceId, session.id) });
       if (scopedComputerId === "local") {
         void invalidateWorkspaceSessionCatalog(queryClient, workspaceId);
@@ -126,10 +155,7 @@ export function useCreateSession() {
   });
 }
 
-export interface StopSessionParams extends Pick<
-  SessionPayload,
-  "id" | "workspace_id" | "profile_name"
-> {
+export interface StopSessionParams extends SessionActionTarget {
   /** Wait for the settled outcome instead of the 202 acceptance. */
   wait?: boolean;
   /** Stop or keep the processes the session left running; omitted keeps them. */
@@ -141,30 +167,49 @@ export function useStopSession() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, workspace_id, profile_name, wait, processes }: StopSessionParams) =>
-      stopSession(sessionOwnerWorkspace(workspace_id), id, profile_name, {
-        wait,
-        ...(processes ? { processes } : {}),
-      }),
-    onSettled: (_data, _error, { id, workspace_id }) => {
-      void invalidateSessionMutationQueries(queryClient, sessionOwnerWorkspace(workspace_id), id);
+    mutationFn: ({
+      id,
+      workspace_id,
+      profile_name,
+      wait,
+      processes,
+      computerId,
+    }: StopSessionParams) => {
+      const options = { wait, ...(processes ? { processes } : {}) };
+      return isRemoteComputerId(computerId)
+        ? stopSession(sessionOwnerWorkspace(workspace_id), id, profile_name, options, computerId)
+        : stopSession(sessionOwnerWorkspace(workspace_id), id, profile_name, options);
+    },
+    onSettled: (_data, _error, { id, workspace_id, computerId }) => {
+      void invalidateSessionMutationQueries(
+        queryClient,
+        sessionOwnerWorkspace(workspace_id),
+        id,
+        computerId
+      );
     },
   });
 }
 
 /** Keep remote disappearance recovery from racing an operator-owned deletion. */
-export function useSessionDeletionPending(sessionId: string | null): boolean {
+export function useSessionDeletionPending(
+  sessionId: string | null,
+  computerId?: ComputerId
+): boolean {
+  const targetComputer = normalizeComputerId(computerId);
   return (
     useIsMutating({
       mutationKey: sessionKeys.deletions(),
       predicate: mutation => {
         const variables = mutation.state.variables;
-        return (
-          typeof variables === "object" &&
-          variables !== null &&
-          "id" in variables &&
-          variables.id === sessionId
-        );
+        if (typeof variables !== "object" || variables === null || !("id" in variables)) {
+          return false;
+        }
+        const mutationComputer =
+          "computerId" in variables
+            ? normalizeComputerId(variables.computerId as ComputerId | undefined)
+            : normalizeComputerId(undefined);
+        return variables.id === sessionId && mutationComputer === targetComputer;
       },
     }) > 0
   );
@@ -184,7 +229,11 @@ export function useSessionArchivePending(requestOwnerId: string): boolean {
  * True once this client deleted the session: a window still showing it after an
  * operator-owned deletion is retired quietly, never reported as a missing session.
  */
-export function useSessionDeletedByOperator(sessionId: string | null): boolean {
+export function useSessionDeletedByOperator(
+  sessionId: string | null,
+  computerId?: ComputerId
+): boolean {
+  const targetComputer = normalizeComputerId(computerId);
   return (
     useMutationState({
       filters: {
@@ -192,12 +241,14 @@ export function useSessionDeletedByOperator(sessionId: string | null): boolean {
         status: "success",
         predicate: mutation => {
           const variables = mutation.state.variables;
-          return (
-            typeof variables === "object" &&
-            variables !== null &&
-            "id" in variables &&
-            variables.id === sessionId
-          );
+          if (typeof variables !== "object" || variables === null || !("id" in variables)) {
+            return false;
+          }
+          const mutationComputer =
+            "computerId" in variables
+              ? normalizeComputerId(variables.computerId as ComputerId | undefined)
+              : normalizeComputerId(undefined);
+          return variables.id === sessionId && mutationComputer === targetComputer;
         },
       },
     }).length > 0
@@ -205,10 +256,7 @@ export function useSessionDeletedByOperator(sessionId: string | null): boolean {
 }
 
 /** Captured session ownership and the optional process disposition for deletion. */
-export interface DeleteSessionParams extends Pick<
-  SessionPayload,
-  "id" | "workspace_id" | "profile_name"
-> {
+export interface DeleteSessionParams extends SessionActionTarget {
   /** Stop or keep the processes the session left running; omitted keeps them. */
   processes?: SessionProcessPolicy;
   /** The children known when asked; present opts into deleting the daemon's current tree. */
@@ -224,53 +272,81 @@ export function useDeleteSession(
   // Capture ownership with the target, not the active profile/workspace at confirmation time.
   return useMutation({
     mutationKey: sessionKeys.deletions(),
-    mutationFn: ({ processes, descendants, ...session }: DeleteSessionParams) => {
+    mutationFn: ({ processes, descendants, computerId, ...session }: DeleteSessionParams) => {
       const workspaceId = sessionOwnerWorkspace(session.workspace_id);
+      const remote = isRemoteComputerId(computerId);
       if (descendants) {
-        return deleteSessionTree(
+        return remote
+          ? deleteSessionTree(
+              workspaceId,
+              session.id,
+              session.profile_name,
+              undefined,
+              processes,
+              computerId
+            )
+          : deleteSessionTree(workspaceId, session.id, session.profile_name, undefined, processes);
+      }
+      // Omitted keeps the processes, the daemon default, so only an answer is sent.
+      if (remote) {
+        return deleteSession(
           workspaceId,
           session.id,
           session.profile_name,
           undefined,
-          processes
+          processes,
+          computerId
         );
       }
-      // Omitted keeps the processes, the daemon default, so only an answer is sent.
       return processes
         ? deleteSession(workspaceId, session.id, session.profile_name, undefined, processes)
         : deleteSession(workspaceId, session.id, session.profile_name);
     },
-    onMutate: async ({ id, workspace_id }) => {
+    onMutate: async ({ id, workspace_id, computerId }) => {
       const deleteWorkspaceId = sessionOwnerWorkspace(workspace_id);
-      sessionStore.trigger.sessionLiveTailSuspended({ sessionId: id });
+      const keys = sessionKeys.forComputer(computerId);
+      sessionStore.trigger.sessionLiveTailSuspended({
+        sessionId: sessionRowKey({ computerId: normalizeComputerId(computerId), sessionId: id }),
+      });
       await Promise.all([
-        queryClient.cancelQueries({ queryKey: sessionKeys.detail(deleteWorkspaceId, id) }),
-        queryClient.cancelQueries({ queryKey: sessionKeys.byIdRoot(id) }),
+        queryClient.cancelQueries({ queryKey: keys.detail(deleteWorkspaceId, id) }),
+        queryClient.cancelQueries({ queryKey: keys.byIdRoot(id) }),
       ]);
     },
     onSuccess: async (_data, session) => {
       const successWorkspaceId = sessionOwnerWorkspace(session.workspace_id);
-      const targets = [session, ...(session.descendants ?? [])];
+      const keys = sessionKeys.forComputer(session.computerId);
+      const targets: SessionActionTarget[] = [
+        session,
+        ...(session.descendants ?? []).map(descendant =>
+          session.computerId ? { ...descendant, computerId: session.computerId } : descendant
+        ),
+      ];
       await Promise.all(targets.map(target => options.onDeleteSuccess?.(target)));
+      const targetComputer = normalizeComputerId(session.computerId);
       for (const { id } of targets) {
-        discardComposerDraftAttachments(id);
-        sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
-        queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
-        queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
+        const rowKey = sessionRowKey({ computerId: targetComputer, sessionId: id });
+        discardComposerDraftAttachments(rowKey);
+        sessionStore.trigger.sessionInteractionRemoved({ sessionId: rowKey });
+        queryClient.removeQueries({ queryKey: keys.detail(successWorkspaceId, id) });
+        queryClient.removeQueries({ queryKey: keys.byIdRoot(id) });
       }
-      void invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
-      void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists("") });
-      void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });
+      void invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId, session.computerId);
+      void queryClient.invalidateQueries({ queryKey: keys.workspaceLists("") });
+      void queryClient.invalidateQueries({ queryKey: keys.attentionSummary() });
     },
-    onSettled: (_data, error, { id, workspace_id, descendants }) => {
-      sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
+    onSettled: (_data, error, { id, workspace_id, descendants, computerId }) => {
+      sessionStore.trigger.sessionLiveTailResumed({
+        sessionId: sessionRowKey({ computerId: normalizeComputerId(computerId), sessionId: id }),
+      });
       if (error) {
         // A failed tree delete can still have removed some of it.
         for (const target of [{ id }, ...(descendants ?? [])]) {
           void invalidateSessionMutationQueries(
             queryClient,
             sessionOwnerWorkspace(workspace_id),
-            target.id
+            target.id,
+            computerId
           );
         }
       }
@@ -302,23 +378,46 @@ export function useArchiveSession(options: { requestOwnerId?: string } = {}) {
       stop,
       processes,
       descendants,
+      computerId,
     }: ArchiveSessionParams) =>
       request(signal => {
         const workspace = sessionOwnerWorkspace(workspace_id);
+        const remote = isRemoteComputerId(computerId);
         if (descendants) {
-          return archiveSessionTree(workspace, id, profile_name, signal, stop ?? false, processes);
+          return remote
+            ? archiveSessionTree(
+                workspace,
+                id,
+                profile_name,
+                signal,
+                stop ?? false,
+                processes,
+                computerId
+              )
+            : archiveSessionTree(workspace, id, profile_name, signal, stop ?? false, processes);
         }
-        const archived = processes
+        if (remote) {
+          return archiveSession(
+            workspace,
+            id,
+            profile_name,
+            signal,
+            stop ?? false,
+            processes,
+            computerId
+          );
+        }
+        return processes
           ? archiveSession(workspace, id, profile_name, signal, stop ?? false, processes)
           : archiveSession(workspace, id, profile_name, signal, stop ?? false);
-        return archived;
       }),
-    onSettled: (_data, _error, { id, workspace_id, descendants }) => {
+    onSettled: (_data, _error, { id, workspace_id, descendants, computerId }) => {
       for (const target of [{ id }, ...(descendants ?? [])]) {
         void invalidateSessionMutationQueries(
           queryClient,
           sessionOwnerWorkspace(workspace_id),
-          target.id
+          target.id,
+          computerId
         );
       }
     },
@@ -331,100 +430,25 @@ export function useUnarchiveSession() {
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: ({ id, workspace_id, profile_name }: SessionActionTarget) =>
+    mutationFn: ({ id, workspace_id, profile_name, computerId }: SessionActionTarget) =>
       request(signal =>
-        unarchiveSession(sessionOwnerWorkspace(workspace_id), id, profile_name, signal)
+        isRemoteComputerId(computerId)
+          ? unarchiveSession(
+              sessionOwnerWorkspace(workspace_id),
+              id,
+              profile_name,
+              signal,
+              computerId
+            )
+          : unarchiveSession(sessionOwnerWorkspace(workspace_id), id, profile_name, signal)
       ),
-    onSettled: (_data, _error, { id, workspace_id }) => {
-      void invalidateSessionMutationQueries(queryClient, sessionOwnerWorkspace(workspace_id), id);
-    },
-  });
-}
-
-export interface RepairSessionParams extends SessionRepairQuery {
-  id: string;
-}
-
-export function useRepairSession(options: UseSessionWorkspaceOptions = {}) {
-  const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
-
-  return useMutation({
-    mutationFn: ({ id, ...query }: RepairSessionParams) =>
-      repairSession(requireWorkspace(workspaceId), id, query),
-    onSettled: (_data, _error, params) => {
-      if (workspaceId) {
-        void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
-      }
-    },
-  });
-}
-
-interface ClearConversationSnapshot {
-  session: SessionPayload | undefined;
-  transcript: unknown;
-  history: unknown;
-}
-
-export function useClearSessionConversation(options: UseSessionWorkspaceOptions = {}) {
-  const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
-
-  return useMutation({
-    mutationKey: sessionKeys.clearConversation(workspaceId ?? ""),
-    mutationFn: (id: string) => clearSessionConversation(requireWorkspace(workspaceId), id),
-    onMutate: async (id): Promise<ClearConversationSnapshot> => {
-      const mutateWorkspaceId = requireWorkspace(workspaceId);
-      await queryClient.cancelQueries({ queryKey: sessionKeys.detail(mutateWorkspaceId, id) });
-      await queryClient.cancelQueries({ queryKey: sessionKeys.history(mutateWorkspaceId, id) });
-      await queryClient.cancelQueries({ queryKey: sessionKeys.transcript(mutateWorkspaceId, id) });
-
-      const snapshot: ClearConversationSnapshot = {
-        session: queryClient.getQueryData<SessionPayload>(
-          sessionKeys.detail(mutateWorkspaceId, id)
-        ),
-        transcript: queryClient.getQueryData(sessionKeys.transcript(mutateWorkspaceId, id)),
-        history: queryClient.getQueryData(sessionKeys.history(mutateWorkspaceId, id)),
-      };
-
-      return snapshot;
-    },
-    onError: (_error, id, snapshot) => {
-      if (!snapshot) {
-        return;
-      }
-
-      if (snapshot.session) {
-        const snapshotWorkspaceId = requireWorkspace(snapshot.session.workspace_id);
-        queryClient.setQueryData(
-          sessionKeys.detail(snapshotWorkspaceId, snapshot.session.id),
-          snapshot.session
-        );
-      }
-
-      const errorWorkspaceId = requireWorkspace(workspaceId);
-      if (snapshot.transcript !== undefined) {
-        queryClient.setQueryData(sessionKeys.transcript(errorWorkspaceId, id), snapshot.transcript);
-      }
-      queryClient.setQueryData(sessionKeys.history(errorWorkspaceId, id), snapshot.history);
-    },
-    onSuccess: (session, id) => {
-      const workspaceId = requireWorkspace(session.workspace_id);
-      queryClient.setQueryData(sessionKeys.detail(workspaceId, id), session);
-      queryClient.setQueryData(sessionKeys.transcript(workspaceId, id), {
-        pages: [],
-        pageParams: [],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: sessionKeys.transcript(workspaceId, id),
-        exact: true,
-      });
-      queryClient.setQueryData(sessionKeys.history(workspaceId, id), []);
-    },
-    onSettled: (_data, _error, id) => {
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
+    onSettled: (_data, _error, { id, workspace_id, computerId }) => {
+      void invalidateSessionMutationQueries(
+        queryClient,
+        sessionOwnerWorkspace(workspace_id),
+        id,
+        computerId
+      );
     },
   });
 }

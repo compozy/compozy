@@ -397,6 +397,22 @@ The per-profile scope for work that belongs to no project: sessions, Loop runs a
 
 The breadth mode toggled by the topbar globe: every registered project plus [User scope](#user-scope) rows, within the current profile lens. It never widens the profile lens (that is **All profiles**). Client state in the destination store (`breadthMode: "all" | "focused"`, focus = a project or User); it binds the profile's reserved `global` desktop partition. Public reads: `all_workspaces=true` (+ repeatable `workspace_ids`, `@user` for User) on HTTP/UDS and `--all-workspaces` on CLI lists. Agent aggregate reads follow [Cross-workspace access](#cross-workspace-access) (`approve-all`, `approve-reads` consent, or the grant); other agents and ungranted aggregate writes get `agent_scope_denied`; app tokens are denied on new routes. Replaces "Global scope" as the mode name; the palette ID `scope.global.toggle` is unchanged. Spec: `all-projects`.
 
+### Computer section
+
+The part of the Sessions List that shows one computer under **Separate**. The equivalent area in
+Kanban is a computer band. The window's grouping applies inside each section or band.
+
+### Computer layer
+
+The Sessions window's layout for several computers. **Separate** gives each computer a section or
+band. **Together** uses a shared view with computer labels. The **Computers** control sets this layer.
+
+### Computer scope
+
+The Sessions window's computer filter. **All computers** includes this computer and enabled remote
+computers. One selected computer limits the view and supplies the default **Run on** for new sessions.
+The window remembers its scope. A new window starts at **All computers**.
+
 ### Unrestricted grant
 
 The AGENT.md field `workspace_access: unrestricted`, the only grant vocabulary in CompozyOS (see [Cross-workspace access](#cross-workspace-access)). Operator-authored only (`workspace_access_operator_only`; dropped from marketplace/extension sources). Resolved once per session into `effective_workspace_access`; agent-originated creations get `min(creator, definition)`; deferred records persist `grant_ceiling`. Allows every workspace, User, every profile, and aggregates, audited as `workspace.access_granted` with source `agent_grant`. Does not change tool-risk approvals, the `global` desktop partition, other profiles' partitions, presence, or notification receipts. UI badge: **Unrestricted**.
