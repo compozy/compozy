@@ -44,10 +44,7 @@ type SessionListFolderLayoutModel = ReturnType<typeof useSessionListFolderLayout
  * Say what is empty AND for whom: an operator in Marketing needs to know the
  * list is empty in Marketing, not on the machine (US-009.EC-3).
  */
-export function emptySessionListMessage(
-  filtering: boolean,
-  view: SessionListViewModel
-): string | null {
+function emptySessionListMessage(filtering: boolean, view: SessionListViewModel): string | null {
   if (sessionListHasPinnedRows(view)) return null;
   if (filtering) return `${emptyForScope("matching sessions", view.scopeLabel)}.`;
   return `${emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.`;
