@@ -67,7 +67,7 @@ function desktopItem(release: DesktopRelease, id: DesktopTargetId): DownloadItem
   };
 }
 
-function windowsItem(release: DesktopRelease): DownloadItem {
+export function windowsCommandItem(release: DesktopRelease): DownloadItem {
   const file = release.status === "ready" ? release.windowsCommand : null;
   return {
     name: "x64",
@@ -84,7 +84,8 @@ const MAC_TARGET: Record<MacArch, DesktopTargetId> = { arm64: "mac-arm64", x64: 
 export function offerFor(release: DesktopRelease, { platform, arch }: Choice): Offer {
   if (platform === "linux")
     return { cta: "Download for Linux", item: desktopItem(release, "linux-appimage") };
-  if (platform === "windows") return { cta: "Download the command", item: windowsItem(release) };
+  if (platform === "windows")
+    return { cta: "Download for Windows", item: desktopItem(release, "windows-x64") };
   return { cta: "Download for macOS", item: desktopItem(release, MAC_TARGET[arch]) };
 }
 
@@ -101,23 +102,21 @@ export interface DownloadGroup {
 const DESKTOP_GROUPS: ReadonlyArray<readonly [string, readonly DesktopTargetId[]]> = [
   ["macOS", ["mac-arm64", "mac-x64"]],
   ["Linux", ["linux-appimage", "linux-deb"]],
+  ["Windows", ["windows-x64"]],
 ];
 
-/** Desktop apps first, then the Windows command. When the release is unavailable every row opens it on GitHub. */
+/** Desktop apps for every supported OS. When the release is unavailable every row opens it on GitHub. */
 export function desktopGroups(release: DesktopRelease): DownloadGroup[] {
-  return [
-    ...DESKTOP_GROUPS.map(([label, ids]) => ({
-      label,
-      note: "Desktop app",
-      items: ids.map(id => desktopItem(release, id)),
-    })),
-    { label: "Windows", note: "Command only", items: [windowsItem(release)] },
-  ];
+  return DESKTOP_GROUPS.map(([label, ids]) => ({
+    label,
+    note: "Desktop app",
+    items: ids.map(id => desktopItem(release, id)),
+  }));
 }
 
 /** Command-line packages per OS; a ready release lists only the files it published. */
 export function commandGroups(release: DesktopRelease): DownloadGroup[] {
-  return (["macOS", "Linux"] as const).map(os => ({
+  return (["macOS", "Linux", "Windows"] as const).map(os => ({
     label: os,
     note: "Command only",
     items:

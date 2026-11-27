@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func provisionBundledRuntime(sourcePath string, targetPath string) (returnErr error) {
@@ -64,16 +66,8 @@ func provisionBundledRuntime(sourcePath string, targetPath string) (returnErr er
 		}
 		return fmt.Errorf("cli: publish provisioned runtime: %w", err)
 	}
-	dir, err := os.Open(filepath.Dir(targetPath))
-	if err != nil {
-		return fmt.Errorf("cli: open runtime bin directory: %w", err)
-	}
-	if err := dir.Sync(); err != nil {
-		closeErr := dir.Close()
-		return errors.Join(fmt.Errorf("cli: sync runtime bin directory: %w", err), closeErr)
-	}
-	if err := dir.Close(); err != nil {
-		return fmt.Errorf("cli: close runtime bin directory: %w", err)
+	if err := fileutil.SyncDir(filepath.Dir(targetPath)); err != nil {
+		return fmt.Errorf("cli: sync runtime bin directory: %w", err)
 	}
 	return nil
 }

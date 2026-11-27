@@ -15,7 +15,11 @@ import {
   rewriteUpdateManifestURLs,
   selectUpdateManifestFiles,
 } from "../mac-manifest";
-import { buildReleaseConfig, validateReleaseConfig } from "../release-config";
+import {
+  buildReleaseConfig,
+  validateReleaseConfig,
+  windowsAzureSigningFromEnvironment,
+} from "../release-config";
 import { parseBooleanFlag, parseReleaseScriptFlags } from "../release-script-flags";
 import { resolveDesktopBuildChannel } from "../build-channel";
 
@@ -66,6 +70,91 @@ describe("desktop release policy", () => {
     });
   });
 
+  it("Should publish an NSIS installer on the same update channel as the Windows app", () => {
+    expect(
+      buildReleaseConfig({
+        arch: "x64",
+        platform: "win",
+        channel: "beta",
+        notarize: false,
+        version: "1.2.0-beta.1",
+      })
+    ).toMatchObject({
+      win: {
+        target: ["nsis"],
+        detectUpdateChannel: false,
+        artifactName: "CompozyOS-${version}-win-x64.${ext}",
+      },
+      publish: { url: "https://raw.githubusercontent.com/compozy/compozy/channel-beta/desktop/" },
+    });
+    const source =
+      "version: 1.2.0-beta.1\nfiles:\n  - url: CompozyOS-1.2.0-beta.1-win-x64.exe\n    sha512: windows\n    size: 10\nreleaseDate: '2026-11-04T00:00:00Z'\n";
+    expect(
+      parseUpdateManifest(
+        rewriteUpdateManifestURLs(
+          selectUpdateManifestFiles(source, ["-win-x64.exe"]),
+          "https://github.com/compozy/compozy/releases/download/v1.2.0-beta.1"
+        )
+      ).files
+    ).toEqual([
+      {
+        url: "https://github.com/compozy/compozy/releases/download/v1.2.0-beta.1/CompozyOS-1.2.0-beta.1-win-x64.exe",
+        sha512: "windows",
+        size: 10,
+      },
+    ]);
+  });
+
+  // Invariant: release packaging pins the Azure publisher without persisting authentication credentials.
+  // Owner: release configuration. Canonical suite: release.test.ts.
+  it("Should reuse Azure signing metadata without embedding runner credentials", () => {
+    const environment = {
+      AZURE_SIGNING_ENDPOINT: "https://wus2.codesigning.azure.net/",
+      AZURE_PUBLISHER_NAME: "Example Company",
+      AZURE_CODE_SIGNING_ACCOUNT: "example-account",
+      AZURE_CERTIFICATE_PROFILE: "public-profile",
+      AZURE_CLIENT_SECRET: "must-stay-in-the-runner",
+    };
+    const signing = windowsAzureSigningFromEnvironment(environment);
+    if (!signing) throw new Error("Expected the complete Azure signing configuration.");
+    expect(signing).toEqual({
+      endpoint: environment.AZURE_SIGNING_ENDPOINT,
+      publisherName: environment.AZURE_PUBLISHER_NAME,
+      codeSigningAccountName: environment.AZURE_CODE_SIGNING_ACCOUNT,
+      certificateProfileName: environment.AZURE_CERTIFICATE_PROFILE,
+    });
+    const config = buildReleaseConfig({
+      arch: "x64",
+      platform: "win",
+      channel: "stable",
+      notarize: false,
+      version: "1.2.0",
+      windowsAzureSigning: signing,
+    });
+    expect(config).toMatchObject({ win: { azureSignOptions: signing } });
+    expect(JSON.stringify(config)).not.toContain(environment.AZURE_CLIENT_SECRET);
+    expect(windowsAzureSigningFromEnvironment({})).toBeUndefined();
+    expect(() =>
+      windowsAzureSigningFromEnvironment({ ...environment, AZURE_PUBLISHER_NAME: "" })
+    ).toThrow("AZURE_PUBLISHER_NAME");
+    expect(() =>
+      windowsAzureSigningFromEnvironment({
+        ...environment,
+        AZURE_SIGNING_ENDPOINT: "http://example.test",
+      })
+    ).toThrow("HTTPS service endpoint");
+    expect(() =>
+      buildReleaseConfig({
+        arch: "x64",
+        platform: "linux",
+        channel: "stable",
+        notarize: false,
+        version: "1.2.0",
+        windowsAzureSigning: signing,
+      })
+    ).toThrow("only to Windows");
+  });
+
   it("Should produce Linux targets and reject invalid release matrices", () => {
     expect(packageMetadata).toMatchObject({
       desktopName: "compozyos.desktop",
@@ -92,6 +181,8 @@ describe("desktop release policy", () => {
     for (const input of [
       { arch: "x64", platform: "mac", notarize: false, version: "v1.2.0" },
       { arch: "x64", platform: "windows", notarize: false, version: "1.2.0" },
+      { arch: "arm64", platform: "win", notarize: false, version: "1.2.0" },
+      { arch: "x64", platform: "win", notarize: true, version: "1.2.0" },
       { arch: "ia32", platform: "mac", notarize: false, version: "1.2.0" },
       { arch: "arm64", platform: "linux", notarize: false, version: "1.2.0" },
       { arch: "x64", platform: "linux", notarize: true, version: "1.2.0" },

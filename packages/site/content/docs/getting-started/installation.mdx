@@ -9,7 +9,7 @@ and `~/.compozy` home.
 
 ## Before You Begin
 
-The desktop app supports macOS on Apple silicon and Intel, and Linux on x64. Before
+The desktop app supports macOS on Apple silicon and Intel, Linux on x64, and Windows on x64. Before
 installing either surface, make sure you have:
 
 - **An install method that fits your machine**. For the desktop app, use the package for your
@@ -40,14 +40,17 @@ export OPENROUTER_API_KEY="..."
 
 Download the package whose name matches your machine from the CompozyOS GitHub release:
 
-| System | Architecture  | Package                                                                         |
-| ------ | ------------- | ------------------------------------------------------------------------------- |
-| macOS  | Apple silicon | `CompozyOS-<version>-mac-arm64.dmg`                                             |
-| macOS  | Intel         | `CompozyOS-<version>-mac-x64.dmg`                                               |
-| Linux  | x64           | `CompozyOS-<version>-linux-x64.deb` or `CompozyOS-<version>-linux-x64.AppImage` |
+| System  | Architecture  | Package                                                                         |
+| ------- | ------------- | ------------------------------------------------------------------------------- |
+| macOS   | Apple silicon | `CompozyOS-<version>-mac-arm64.dmg`                                             |
+| macOS   | Intel         | `CompozyOS-<version>-mac-x64.dmg`                                               |
+| Linux   | x64           | `CompozyOS-<version>-linux-x64.deb` or `CompozyOS-<version>-linux-x64.AppImage` |
+| Windows | x64           | `CompozyOS-<version>-win-x64.exe`                                               |
 
 On macOS, open the matching notarized `.dmg`, then drag CompozyOS to Applications. On Linux,
-verify the package against the release `checksums.txt` before installing or running it.
+verify the package against the release `checksums.txt` before installing or running it. On Windows,
+run the Authenticode-signed `CompozyOS-<version>-win-x64.exe` per-user installer; it registers the
+`compozyos://` handler and preserves `%USERPROFILE%\.compozy` across upgrades and uninstalls.
 
 The AppImage carries a static runtime, so no `libfuse2` package is required. Where kernel FUSE
 support is unavailable, such as inside some containers, use the built-in extraction fallback:

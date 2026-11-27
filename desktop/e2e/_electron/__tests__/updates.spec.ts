@@ -1,11 +1,28 @@
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import { access, copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { parse as parseYAML, stringify as stringifyYAML } from "yaml";
 
-import { expect, test, type DesktopInstance, type PackagedCopy } from "../fixtures";
+import {
+  expect,
+  test,
+  type DesktopInstance,
+  type PackagedCopy,
+  terminateRestartedDesktop,
+  terminateRuntime,
+} from "../fixtures";
 import { completeOnboarding, readDiagnosticFile } from "../helpers";
 import { runCommand } from "../process";
 import {
@@ -19,6 +36,7 @@ interface UpdateFixture {
   readonly asset: string;
   readonly baseline_app_image?: string;
   readonly baseline_executable?: string;
+  readonly baseline_installer?: string;
   readonly current_version: string;
   readonly directory: string;
   readonly manifest: string;
@@ -71,6 +89,7 @@ async function listen(server: Server): Promise<number> {
 }
 
 async function closeServer(server: Server): Promise<void> {
+  server.closeAllConnections();
   await new Promise<void>((resolveClose, reject) => {
     server.close(error => (error ? reject(error) : resolveClose()));
   });
@@ -157,15 +176,25 @@ async function configureFeed(
   feedURL: string
 ): Promise<() => Promise<void>> {
   const cacheName = `compozyos-e2e-${createHash("sha256").update(packaged.executablePath).digest("hex")}`;
+  const configPath = join(packaged.resourcesPath, "app-update.yml");
+  const existing = parseYAML(await readFile(configPath, "utf8")) as Record<string, unknown>;
   await writeFile(
-    join(packaged.resourcesPath, "app-update.yml"),
-    `provider: generic\nurl: ${feedURL}\nupdaterCacheDirName: ${cacheName}\n`,
+    configPath,
+    stringifyYAML({
+      ...existing,
+      provider: "generic",
+      url: feedURL,
+      updaterCacheDirName: cacheName,
+    }),
     { mode: 0o600 }
   );
   return async () => {
-    // Linux fixtures already own an isolated HOME; macOS uses the login cache root.
+    // Linux fixtures own an isolated HOME; native updaters use the login cache root.
     if (process.platform === "darwin") {
       await rm(join(homedir(), "Library", "Caches", cacheName), { recursive: true, force: true });
+    } else if (process.platform === "win32") {
+      const cacheRoot = process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local");
+      await rm(join(cacheRoot, cacheName), { recursive: true, force: true });
     }
   };
 }
@@ -274,24 +303,90 @@ async function readAppRecord(home: string): Promise<Record<string, unknown>> {
   return JSON.parse(await readFile(join(home, "app.json"), "utf8")) as Record<string, unknown>;
 }
 
+async function removeDirectoryWithin(path: string, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      await rm(path, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (Date.now() >= deadline) throw error;
+      await new Promise(resolveDelay => setTimeout(resolveDelay, 250));
+    }
+  }
+}
+
+async function stopWindowsProcessesIn(directory: string): Promise<void> {
+  if (process.platform !== "win32") return;
+  await runCommand(
+    join(
+      process.env.SystemRoot || "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe"
+    ),
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      "$prefix = $env:COMPOZY_E2E_INSTALL_DIR; foreach ($p in [System.Diagnostics.Process]::GetProcesses()) { try { $file = $p.MainModule.FileName; if ($file -and $file.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { $p.Kill() } } catch {} }",
+    ],
+    {
+      env: { ...process.env, COMPOZY_E2E_INSTALL_DIR: directory },
+      windowsHide: true,
+    }
+  ).catch(() => undefined);
+}
+
+async function readUpdateDiagnostics(home: string): Promise<string> {
+  const [appState, operationState, desktopLog, bootstrapLog, historyLog] = await Promise.all([
+    readDiagnosticFile(join(home, "app.json")),
+    readDiagnosticFile(join(home, "update-operation.json")),
+    readDiagnosticFile(join(home, "logs", "desktop.log")),
+    readDiagnosticFile(join(home, "logs", "desktop-bootstrap.jsonl")),
+    readDiagnosticFile(join(home, "logs", "update-history.jsonl")),
+  ]);
+  return [
+    `app.json:\n${appState}`,
+    `update-operation.json:\n${operationState}`,
+    `desktop.log:\n${desktopLog}`,
+    `desktop-bootstrap.jsonl:\n${bootstrapLog}`,
+    `update-history.jsonl:\n${historyLog}`,
+  ].join("\n\n");
+}
+
 async function expectUpdatedRuntime(desktop: DesktopInstance, version: string): Promise<void> {
   // Owner: packaged desktop update journey. The relaunched bundle must update its
   // owned daemon too; an app-version marker alone cannot prove product readiness.
-  await expect
-    .poll(async () => await readAppRecord(desktop.home), { timeout: 60_000 })
-    .toMatchObject({
-      state: "product",
-      diagnostic_report: { runtime_version: version, runtime_owned: true, current_error: null },
-    });
-  await expect
-    .poll(
-      async () => {
-        const result = await desktop.cli(["status", "-o", "json"]);
-        return JSON.parse(result.stdout) as Record<string, unknown>;
-      },
-      { timeout: 60_000 }
-    )
-    .toMatchObject({ daemon: { status: "running", version } });
+  // Windows NSIS updates run silent uninstall + ~200MB LZMA unpack + shell/daemon restart.
+  const readyTimeout = process.platform === "win32" ? 90_000 : 60_000;
+  try {
+    await expect
+      .poll(async () => await readAppRecord(desktop.home), { timeout: readyTimeout })
+      .toMatchObject({
+        state: "product",
+        diagnostic_report: { runtime_version: version, runtime_owned: true, current_error: null },
+      });
+    await expect
+      .poll(
+        async () => {
+          const result = await desktop.cli(["status", "-o", "json"]);
+          return JSON.parse(result.stdout) as Record<string, unknown>;
+        },
+        { timeout: 60_000 }
+      )
+      .toMatchObject({ daemon: { status: "running", version } });
+  } catch (error) {
+    const diagnostics = await readUpdateDiagnostics(desktop.home).catch(
+      (readError: unknown) =>
+        `(diagnostics unreadable: ${readError instanceof Error ? readError.message : String(readError)})`
+    );
+    throw new Error(
+      `The relaunched desktop runtime did not reach version ${version}.\n${diagnostics}`,
+      { cause: error }
+    );
+  }
 }
 
 async function history(home: string): Promise<readonly Record<string, unknown>[]> {
@@ -589,4 +684,98 @@ test("A staged app update never executes an unverified runtime bundle", async ({
   await expect(access(join(desktop.home, "unverified-runtime-executed"))).rejects.toMatchObject({
     code: "ENOENT",
   });
+});
+
+// Invariant: the Windows installer and updater preserve the home while replacing the app and owned runtime.
+// Owner: packaged desktop lifecycle. Canonical suite: updates.spec.ts, on a native Windows CI runner.
+test("Windows desktop: signed NSIS install, authenticated control, update and uninstall preserve user data", async ({
+  launchDesktop,
+}) => {
+  test.skip(process.platform !== "win32", "Native Windows installer contract");
+  test.setTimeout(300_000);
+  const fixture = await updateFixture();
+  if (!fixture.baseline_installer) throw new Error("The Windows installer fixture is missing.");
+  const root = await mkdtemp(join(tmpdir(), "compozy-windows-install-"));
+  const installation = join(root, "Compozy OS São Paulo");
+  const packaged = {
+    executablePath: join(installation, "CompozyOS.exe"),
+    resourcesPath: join(installation, "resources"),
+  };
+  const feed = await startMockFeed(fixture);
+  let desktop: DesktopInstance | undefined;
+  let clearCache: (() => Promise<void>) | undefined;
+  try {
+    const installed = await runCommand(fixture.baseline_installer, ["/S", `/D=${installation}`], {
+      windowsVerbatimArguments: true,
+    });
+    expect(installed.exitCode, installed.stderr).toBe(0);
+    clearCache = await configureFeed(packaged, feed.url);
+    desktop = await launchDesktop({ executablePath: packaged.executablePath });
+    const product = await desktop.product();
+    await expect(product).toHaveTitle(/CompozyOS/u);
+    const originalConfig = await readFile(join(desktop.home, "config.toml"), "utf8");
+    const preserved = join(desktop.home, "workspace-preserved.txt");
+    await writeFile(preserved, "User data survives install, update and uninstall.\n");
+    const diagnose = await desktop.cli(["app", "diagnose", "-o", "json"]);
+    expect(JSON.parse(diagnose.stdout)).toMatchObject({
+      boot_phase: "product",
+      current_error: null,
+    });
+    await desktop.cli(["app", "open", "/settings/general"]);
+    await expect(product).toHaveURL(/settings\/general/u);
+    await desktop.cli(["app", "retry", "-o", "json"]);
+    await desktop.cli(["app", "diagnose", "--bundle", "--yes", "-o", "json"]);
+    await product.screenshot({ path: test.info().outputPath("windows-desktop.png") });
+    await stageAppOperation(desktop, fixture, await artifactDigest(fixture));
+    await waitForShellExit(desktop);
+    await expectUpdatedRuntime(desktop, fixture.next_version);
+    await expect
+      .poll(async () => (await history(desktop!.home)).at(-1)?.outcome, { timeout: 60_000 })
+      .toBe("updated");
+    expect(await readFile(join(desktop.home, "config.toml"), "utf8")).toBe(originalConfig);
+    await terminateRestartedDesktop(desktop.home);
+    await terminateRuntime(desktop.home, desktop.environment);
+    const uninstallerPath = join(installation, "Uninstall CompozyOS.exe");
+    const uninstalled = await runCommand(uninstallerPath, ["/S"]);
+    expect(uninstalled.exitCode, uninstalled.stderr).toBe(0);
+    // NSIS silent uninstall copies itself to %TEMP% and removes the uninstaller last; wait for both
+    // the app binary and the uninstaller to disappear before removing the temporary install parent.
+    await expect
+      .poll(
+        async () => {
+          const [appExists, uninstallerExists] = await Promise.all([
+            access(packaged.executablePath).then(
+              () => true,
+              () => false
+            ),
+            access(uninstallerPath).then(
+              () => true,
+              () => false
+            ),
+          ]);
+          return appExists || uninstallerExists;
+        },
+        {
+          timeout: 60_000,
+        }
+      )
+      .toBe(false);
+    expect(await readFile(preserved, "utf8")).toBe(
+      "User data survives install, update and uninstall.\n"
+    );
+    expect(await readFile(join(desktop.home, "config.toml"), "utf8")).toBe(originalConfig);
+  } finally {
+    try {
+      if (desktop) {
+        await desktop.closeShell();
+        await terminateRestartedDesktop(desktop.home);
+        await terminateRuntime(desktop.home, desktop.environment);
+      }
+    } finally {
+      await stopWindowsProcessesIn(installation);
+      await feed.close();
+      await clearCache?.();
+      await removeDirectoryWithin(root, 15_000);
+    }
+  }
 });

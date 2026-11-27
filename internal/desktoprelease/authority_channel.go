@@ -5,22 +5,23 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 )
 
-func (a *Authority) channelState(ctx context.Context, branch string) (string, Generation, error) {
+func (a *Authority) channelState(ctx context.Context, branch string) (string, ChannelCommit, error) {
 	sha, err := a.backend.ChannelRef(ctx, branch)
 	if errors.Is(err, ErrChannelRefNotFound) {
-		return "", Generation{}, nil
+		return "", ChannelCommit{}, nil
 	}
 	if err != nil {
-		return "", Generation{}, err
+		return "", ChannelCommit{}, err
 	}
 	commit, err := a.backend.ReadCommit(ctx, sha)
 	if err != nil {
-		return "", Generation{}, err
+		return "", ChannelCommit{}, err
 	}
-	return sha, commit.Generation, nil
+	return sha, commit, nil
 }
 
 func prepareChannelFiles(dir, assetDir, repository string, generation Generation) (map[string][]byte, error) {
@@ -35,8 +36,8 @@ func prepareChannelFiles(dir, assetDir, repository string, generation Generation
 	if err != nil {
 		return nil, err
 	}
-	for _, name := range []string{ManifestMac, ManifestLinux} {
-		manifest, decodeErr := decodeUpdateManifest(files[filepath.Join(ChannelDirectory, name)], name)
+	for _, name := range []string{ManifestMac, ManifestLinux, ManifestWindows} {
+		manifest, decodeErr := decodeUpdateManifest(files[path.Join(ChannelDirectory, name)], name)
 		if decodeErr != nil {
 			return nil, decodeErr
 		}

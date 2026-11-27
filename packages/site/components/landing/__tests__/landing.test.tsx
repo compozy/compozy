@@ -402,7 +402,7 @@ describe("DownloadHero", () => {
 
   it("opens the release on GitHub in a new tab when the file is not listed", () => {
     hero(ready, "windows");
-    const link = screen.getByRole("link", { name: "Download the command" });
+    const link = screen.getByRole("link", { name: "Download for Windows" });
     expect(link.getAttribute("href")).toBe(releaseUrl);
     expect(link.getAttribute("target")).toBe("_blank");
   });

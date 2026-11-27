@@ -16,6 +16,7 @@ type ChannelCommit struct {
 	Files      map[string][]byte
 }
 
+// CommitRequest uses nil file contents to remove a path from the parent tree.
 type CommitRequest struct {
 	ParentSHA  string
 	Generation Generation

@@ -5,11 +5,16 @@ import { COMPOZY_REPOSITORY, type ChangelogRelease } from "../changelog/types";
 /** Always resolves to the newest stable GitHub release, so it never goes stale. */
 export const LATEST_RELEASE_URL = `${COMPOZY_REPOSITORY.url}/releases/latest`;
 
-export type DesktopTargetId = "mac-arm64" | "mac-x64" | "linux-appimage" | "linux-deb";
+export type DesktopTargetId =
+  | "mac-arm64"
+  | "mac-x64"
+  | "linux-appimage"
+  | "linux-deb"
+  | "windows-x64";
 
 export interface DesktopTarget {
   id: DesktopTargetId;
-  os: "macOS" | "Linux";
+  os: "macOS" | "Linux" | "Windows";
   arch: string;
   format: string;
   /** Asset name suffix after `CompozyOS-<version>` (electron-builder artifact names). */
@@ -27,6 +32,13 @@ export const DESKTOP_TARGETS: readonly DesktopTarget[] = [
     suffix: "-linux-x64.AppImage",
   },
   { id: "linux-deb", os: "Linux", arch: "x64", format: "deb", suffix: "-linux-x64.deb" },
+  {
+    id: "windows-x64",
+    os: "Windows",
+    arch: "x64",
+    format: "Installer",
+    suffix: "-win-x64.exe",
+  },
 ];
 
 const WINDOWS_COMMAND_ASSET = "compozy_windows_x86_64.zip";
@@ -49,7 +61,7 @@ export interface ReleaseFile {
 
 /** One command-line package of a release (GoReleaser artifact names). */
 export interface CommandTarget {
-  os: "macOS" | "Linux";
+  os: "macOS" | "Linux" | "Windows";
   arch: string;
   format: string;
   /** Asset name; `{version}` stands for the bare release version (plain data, so it reaches client components). */
@@ -85,6 +97,7 @@ export const COMMAND_TARGETS: readonly CommandTarget[] = [
     format: "rpm",
     pattern: "compozy-{version}-1.aarch64.rpm",
   },
+  { os: "Windows", arch: "x64", format: "ZIP", pattern: WINDOWS_COMMAND_ASSET },
 ];
 
 export interface CommandPackage {

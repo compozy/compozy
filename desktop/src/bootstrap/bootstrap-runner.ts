@@ -73,7 +73,7 @@ export class BootstrapRunner {
     signal?: AbortSignal
   ): Promise<BootstrapResult> {
     await verifyRuntimeBundle(this.#bundlePath, this.#manifestPath);
-    await ensurePrivateDirectory(dirname(this.#logPath));
+    await ensurePrivateDirectory(dirname(this.#logPath), true);
     const child = spawn(
       this.#bundlePath,
       [
@@ -94,6 +94,8 @@ export class BootstrapRunner {
         "jsonl",
       ],
       {
+        // Keep the detached runtime out of the app installation directory so Windows uninstall can remove it.
+        cwd: dirname(this.#logPath),
         env: this.#environment,
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,

@@ -69,11 +69,22 @@ func resolveWindowsAppInstallation(
 	ctx context.Context,
 	run appRegistrationCommand,
 ) (appInstallation, error) {
-	script := "$paths=@('HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'," +
-		"'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*');" +
-		"$app=Get-ItemProperty $paths -ErrorAction SilentlyContinue | " +
-		"Where-Object {$_.DisplayName -eq 'CompozyOS'} | Select-Object -First 1;" +
-		"if($app){Write-Output 'installed'; Write-Output $app.DisplayVersion}"
+	script := "$roots=@(" +
+		"@([Microsoft.Win32.Registry]::CurrentUser,'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall')," +
+		"@([Microsoft.Win32.Registry]::LocalMachine,'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall')," +
+		"@([Microsoft.Win32.Registry]::LocalMachine,'Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall')" +
+		");" +
+		"foreach($r in $roots){" +
+		"$k=$r[0].OpenSubKey($r[1]);if(-not $k){continue};" +
+		"try{foreach($n in $k.GetSubKeyNames()){" +
+		"$s=$k.OpenSubKey($n);if(-not $s){continue};" +
+		"try{$dn=[string]$s.GetValue('DisplayName');" +
+		"if($dn -eq 'CompozyOS' -or $dn -like 'CompozyOS *'){" +
+		"[Console]::WriteLine('installed');" +
+		"$dv=[string]$s.GetValue('DisplayVersion');" +
+		"if($dv){[Console]::WriteLine($dv)};exit 0}" +
+		"}finally{$s.Dispose()}}" +
+		"}finally{$k.Dispose()}}"
 	output, err := run(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command", script)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {

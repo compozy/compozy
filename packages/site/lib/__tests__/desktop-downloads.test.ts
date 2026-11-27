@@ -13,6 +13,7 @@ import {
   desktopGroups,
   heroModeFor,
   offerFor,
+  windowsCommandItem,
 } from "../release/download-offer";
 
 vi.mock("../changelog/github-client", () => ({
@@ -24,6 +25,7 @@ const DESKTOP_ASSETS = [
   "mac-x64.dmg",
   "linux-x64.AppImage",
   "linux-x64.deb",
+  "win-x64.exe",
 ] as const;
 
 function assetUrl(version: string, name: string) {
@@ -87,6 +89,7 @@ describe("desktop release selection", () => {
       ["mac-x64", assetUrl("v0.5.3", "CompozyOS-0.5.3-mac-x64.dmg")],
       ["linux-appimage", assetUrl("v0.5.3", "CompozyOS-0.5.3-linux-x64.AppImage")],
       ["linux-deb", assetUrl("v0.5.3", "CompozyOS-0.5.3-linux-x64.deb")],
+      ["windows-x64", assetUrl("v0.5.3", "CompozyOS-0.5.3-win-x64.exe")],
     ]);
     expect(selected.checksums?.url).toBe(assetUrl("v0.5.3", "checksums.txt"));
     expect(selected.windowsCommand?.url).toBe(assetUrl("v0.5.3", "compozy_windows_x86_64.zip"));
@@ -95,6 +98,7 @@ describe("desktop release selection", () => {
       "compozy_darwin_arm64.tar.gz",
       "compozy_0.5.3_amd64.deb",
       "compozy-0.5.3-1.aarch64.rpm",
+      "compozy_windows_x86_64.zip",
     ]);
   });
 
@@ -171,13 +175,37 @@ describe("download offer", () => {
       "Download for Linux",
       "CompozyOS-0.5.5-linux-x64.AppImage",
     ],
-    [{ platform: "windows", arch: "arm64" }, "Download the command", "compozy_windows_x86_64.zip"],
+    [{ platform: "windows", arch: "arm64" }, "Download for Windows", "CompozyOS-0.5.5-win-x64.exe"],
   ] as const)("offers %o the release's real file", (choice, cta, fileName) => {
     const offer = offerFor(ready, choice);
     expect(offer.cta).toBe(cta);
     expect(offer.item.fileName).toBe(fileName);
     expect(offer.item.href).toBe(assetUrl("v0.5.5", fileName));
     expect(offer.item.size).toBe(fileName.length * 1048576);
+  });
+
+  it("links the Windows standalone command ZIP alongside the desktop installer", () => {
+    expect(windowsCommandItem(ready)).toMatchObject({
+      name: "x64",
+      detail: "ZIP",
+      fileName: "compozy_windows_x86_64.zip",
+      href: assetUrl("v0.5.5", "compozy_windows_x86_64.zip"),
+    });
+    expect(
+      desktopGroups(ready).map(group => [
+        group.label,
+        group.note,
+        group.items.map(item => item.fileName),
+      ])
+    ).toEqual([
+      ["macOS", "Desktop app", ["CompozyOS-0.5.5-mac-arm64.dmg", "CompozyOS-0.5.5-mac-x64.dmg"]],
+      [
+        "Linux",
+        "Desktop app",
+        ["CompozyOS-0.5.5-linux-x64.AppImage", "CompozyOS-0.5.5-linux-x64.deb"],
+      ],
+      ["Windows", "Desktop app", ["CompozyOS-0.5.5-win-x64.exe"]],
+    ]);
   });
 
   it("sends every file to the latest release, with no invented names or sizes, when GitHub is unavailable", () => {
@@ -198,6 +226,7 @@ describe("download offer", () => {
     ).toEqual([
       ["macOS", ["compozy_darwin_arm64.tar.gz"]],
       ["Linux", ["compozy_0.5.5_amd64.deb", "compozy-0.5.5-1.aarch64.rpm"]],
+      ["Windows", ["compozy_windows_x86_64.zip"]],
     ]);
   });
 

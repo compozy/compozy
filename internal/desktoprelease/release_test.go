@@ -1,8 +1,11 @@
 package desktoprelease
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -11,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -100,6 +104,8 @@ func TestDesktopArtifactInventory(t *testing.T) {
 		"CompozyOS-0.4.0-beta.2-mac-arm64.zip",
 		"CompozyOS-0.4.0-beta.2-mac-x64.dmg",
 		"CompozyOS-0.4.0-beta.2-mac-x64.zip",
+		"CompozyOS-0.4.0-beta.2-win-x64.exe",
+		"CompozyOS-0.4.0-beta.2-win-x64.exe.blockmap",
 	}
 	got := DesktopArtifactNames(version)
 	slices.Sort(got)
@@ -146,12 +152,61 @@ func TestGitHubBackendSafety(t *testing.T) {
 		assertErrorContains(t, err, "must be an HTTPS origin")
 	})
 
-	t.Run("Should preserve the binary accept header for asset verification", func(t *testing.T) {
+	t.Run("Should remove a retired channel feed from the Git tree", func(t *testing.T) {
+		t.Parallel()
+		removed := false
+		backend := &GitHubBackend{
+			client: httpDoerFunc(func(request *http.Request) (*http.Response, error) {
+				response := `{"sha":"new-commit"}`
+				switch {
+				case strings.HasSuffix(request.URL.Path, "/git/commits/parent"):
+					response = `{"tree":{"sha":"parent-tree"}}`
+				case strings.HasSuffix(request.URL.Path, "/git/trees"):
+					var payload struct {
+						Tree []map[string]any `json:"tree"`
+					}
+					if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+						t.Fatalf("decode tree request: %v", err)
+					}
+					if len(payload.Tree) != 1 {
+						t.Fatalf("tree entries = %v, want one feed removal", payload.Tree)
+					}
+					entry := payload.Tree[0]
+					sha, present := entry[githubObjectSHAKey]
+					removed = entry["path"] == "desktop/latest.yml" && present && sha == nil
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(response)),
+				}, nil
+			}),
+			apiURL: "https://api.github.test", repository: "compozy/compozy", token: "secret",
+		}
+		_, err := backend.Commit(t.Context(), CommitRequest{
+			ParentSHA: "parent", Files: map[string][]byte{"desktop/latest.yml": nil},
+		})
+		if err != nil || !removed {
+			t.Fatalf("Commit(feed removal) error = %v, removed = %v", err, removed)
+		}
+	})
+
+	t.Run("Should verify remote bytes against both release and channel digests", func(t *testing.T) {
 		t.Parallel()
 		contents := []byte("desktop-payload")
 		digest := sha256.Sum256(contents)
+		manifestDigest := sha512.Sum512(contents)
 		backend := &GitHubBackend{
 			client: httpDoerFunc(func(request *http.Request) (*http.Response, error) {
+				if strings.Contains(request.URL.Path, "/releases/tags/") {
+					payload := fmt.Sprintf(
+						`{"assets":[{"id":42,"name":"CompozyOS.exe","size":%d,"digest":"sha256:%s"}]}`,
+						len(contents),
+						hex.EncodeToString(digest[:]),
+					)
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       io.NopCloser(strings.NewReader(payload)),
+					}, nil
+				}
 				if got := request.Header.Get("Accept"); got != "application/octet-stream" {
 					t.Fatalf("Accept = %q, want application/octet-stream", got)
 				}
@@ -162,12 +217,19 @@ func TestGitHubBackendSafety(t *testing.T) {
 			}),
 			apiURL: "https://api.github.test", repository: "compozy/compozy", token: "secret",
 		}
-		err := backend.verifyDownloadedAsset(t.Context(), 42, Artifact{
-			Name: "CompozyOS.zip", SHA256: hex.EncodeToString(digest[:]), Size: int64(len(contents)),
-		})
-		if err != nil {
-			t.Fatalf("verifyDownloadedAsset() error = %v", err)
+		artifact := Artifact{
+			Name: "CompozyOS.exe", SHA256: hex.EncodeToString(digest[:]), Size: int64(len(contents)),
+			expectedSHA512: base64.StdEncoding.EncodeToString(manifestDigest[:]),
 		}
+		// Invariant: hexadecimal case does not change integrity; owner: GitHub asset verification.
+		for _, expected := range []string{artifact.SHA256, strings.ToUpper(artifact.SHA256)} {
+			artifact.SHA256 = expected
+			if err := backend.VerifyAsset(t.Context(), "1.0.0", artifact); err != nil {
+				t.Fatalf("VerifyAsset(%q) error = %v", expected, err)
+			}
+		}
+		artifact.expectedSHA512 = base64.StdEncoding.EncodeToString(make([]byte, sha512.Size))
+		assertErrorContains(t, backend.VerifyAsset(t.Context(), "1.0.0", artifact), "channel manifest digest")
 	})
 
 	t.Run("Should scan every GitHub audit page", func(t *testing.T) {
@@ -244,6 +306,9 @@ func TestChannelAuthority(t *testing.T) {
 		}
 		if result.Outcome != "published" || result.AuditCommit != result.ChannelRefAfter {
 			t.Fatalf("Publish() result = %#v", result)
+		}
+		if len(result.VerifiedInventory) != 9 {
+			t.Fatalf("Publish() verified inventory = %v, want eight packages and compat.json", result.VerifiedInventory)
 		}
 		backend.assertAllVerificationPrecedesCAS(t)
 	})
@@ -447,6 +512,74 @@ func TestChannelAuthority(t *testing.T) {
 		})
 	}
 
+	t.Run("Should retry and restore a pre-Windows generation without keeping a newer Windows feed", func(t *testing.T) {
+		t.Parallel()
+		const version = "1.0.0-beta.1"
+		backend := newFakeAuthorityBackend(t, version)
+		legacy := backend.commits[backend.head]
+		delete(legacy.Files, path.Join(ChannelDirectory, ManifestWindows))
+		delete(backend.releases[version], "CompozyOS-"+version+"-win-x64.exe")
+		delete(backend.releases[version], "CompozyOS-"+version+"-win-x64.exe.blockmap")
+		authority := mustAuthority(t, backend)
+		result, err := authority.Publish(t.Context(), PublishRequest{
+			OperationID: legacy.Generation.OperationID, Channel: ChannelBeta, Version: version, PublishedAt: testTime(),
+		})
+		if err != nil || result.Outcome != "already_completed" || len(result.VerifiedInventory) != 7 {
+			t.Fatalf("retry historical Publish() = %#v, %v", result, err)
+		}
+		backend.seedGeneration(t, "1.0.0-beta.2")
+		request := RepairRequest{
+			OperationID: "repair-pre-windows", Channel: ChannelBeta, Version: version, PublishedAt: testTime(),
+		}
+		result, err = authority.Repair(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Repair(historical) error = %v", err)
+		}
+		files := backend.commits[result.AuditCommit].Files
+		if _, present := files[path.Join(ChannelDirectory, ManifestWindows)]; present {
+			t.Fatal("Repair(historical) retained a Windows feed from the replaced generation")
+		}
+		macPath := path.Join(ChannelDirectory, ManifestMac)
+		if !bytes.Equal(files[macPath], legacy.Files[macPath]) {
+			t.Fatal("Repair(historical) did not restore the original macOS feed")
+		}
+		result, err = authority.Repair(t.Context(), request)
+		if err != nil || result.Outcome != "already_completed" {
+			t.Fatalf("retry historical Repair() = %#v, %v", result, err)
+		}
+	})
+
+	// Invariant: rollback cannot restore a Windows feed whose installer digest changed.
+	// Owner: channel authority; canonical suite: TestChannelAuthority.
+	t.Run("Should refuse a Windows repair whose manifest no longer matches remote bytes", func(t *testing.T) {
+		t.Parallel()
+		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
+		before := backend.head
+		commit := backend.commits[before]
+		name := path.Join(ChannelDirectory, ManifestWindows)
+		manifest, err := decodeUpdateManifest(commit.Files[name], ManifestWindows)
+		if err != nil {
+			t.Fatal(err)
+		}
+		commit.Files[name] = bytes.ReplaceAll(
+			commit.Files[name],
+			[]byte(manifest.Files[0].SHA512),
+			[]byte(base64.StdEncoding.EncodeToString(make([]byte, sha512.Size))),
+		)
+		_, err = mustAuthority(t, backend).Repair(t.Context(), RepairRequest{
+			OperationID: "repair-tampered-windows",
+			Channel:     ChannelBeta,
+			Version:     "1.0.0-beta.1",
+			PublishedAt: testTime(),
+		})
+		if CodeOf(err) != ErrorVerificationFailed {
+			t.Fatalf("Repair() error = %v, want verification failure", err)
+		}
+		if backend.head != before {
+			t.Fatal("failed repair changed the channel head")
+		}
+	})
+
 	t.Run("Should repair from a known-good generation and refuse missing assets", func(t *testing.T) {
 		t.Parallel()
 		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
@@ -536,6 +669,7 @@ func newFakeAuthorityBackend(t *testing.T, version string) *fakeAuthorityBackend
 
 func (b *fakeAuthorityBackend) seedGeneration(t *testing.T, version string) {
 	t.Helper()
+	assetDir, channelDir := writeReleaseFixture(t, version, version)
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.nextCommit++
@@ -544,20 +678,32 @@ func (b *fakeAuthorityBackend) seedGeneration(t *testing.T, version string) {
 		OperationID: "seed-" + version, Operation: operationPublish, Version: version,
 		MinAppVersion: version, PublishedAt: testTime(),
 	}
-	files := map[string][]byte{
-		filepath.Join(ChannelDirectory, ManifestMac):   macManifestFixture(version),
-		filepath.Join(ChannelDirectory, ManifestLinux): linuxManifestFixture(version),
+	files := map[string][]byte{}
+	for _, name := range []string{ManifestMac, ManifestLinux, ManifestWindows} {
+		contents, err := os.ReadFile(filepath.Join(channelDir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		files[path.Join(ChannelDirectory, name)] = contents
 	}
 	bytes, err := canonicalJSON(generation)
 	if err != nil {
 		t.Fatalf("canonicalJSON(generation) error = %v", err)
 	}
-	files[filepath.Join(ChannelDirectory, GenerationFile)] = bytes
+	files[path.Join(ChannelDirectory, GenerationFile)] = bytes
 	b.commits[sha] = ChannelCommit{SHA: sha, Generation: generation, Files: files}
 	b.head = sha
 	assets := map[string]Artifact{}
 	for _, name := range append(DesktopArtifactNames(version), CompatibilityFile) {
-		assets[name] = Artifact{Name: name, SHA256: strings.Repeat("a", 64), Size: 1}
+		artifact, err := inspectArtifact(filepath.Join(assetDir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		artifact.expectedSHA512, _, err = inspectManifestIntegrity(filepath.Join(assetDir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assets[name] = artifact
 	}
 	b.releases[version] = assets
 }
@@ -591,7 +737,14 @@ func (b *fakeAuthorityBackend) Commit(_ context.Context, request CommitRequest) 
 	b.events = append(b.events, "commit")
 	b.nextCommit++
 	sha := fmt.Sprintf("commit-%d", b.nextCommit)
-	files := cloneFiles(request.Files)
+	files := cloneFiles(b.commits[request.ParentSHA].Files)
+	for name, contents := range request.Files {
+		if contents == nil {
+			delete(files, name)
+		} else {
+			files[name] = slices.Clone(contents)
+		}
+	}
 	files[".parent"] = []byte(request.ParentSHA)
 	b.commits[sha] = ChannelCommit{SHA: sha, Generation: request.Generation, Files: files}
 	return sha, nil
@@ -619,13 +772,18 @@ func (b *fakeAuthorityBackend) ReleaseInventory(_ context.Context, version strin
 	return result, nil
 }
 
-func (b *fakeAuthorityBackend) UploadAsset(_ context.Context, version, _ string, artifact Artifact) error {
+func (b *fakeAuthorityBackend) UploadAsset(_ context.Context, version, filePath string, artifact Artifact) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.events = append(b.events, "upload:"+artifact.Name)
 	if b.releases[version] == nil {
 		b.releases[version] = map[string]Artifact{}
 	}
+	digest, _, err := inspectManifestIntegrity(filePath)
+	if err != nil {
+		return err
+	}
+	artifact.expectedSHA512 = digest
 	b.releases[version][artifact.Name] = artifact
 	return nil
 }
@@ -638,7 +796,8 @@ func (b *fakeAuthorityBackend) VerifyAsset(_ context.Context, version string, ar
 		return errors.New("injected remote verification failure")
 	}
 	remote, ok := b.releases[version][artifact.Name]
-	if !ok || remote.Size != artifact.Size || remote.SHA256 != artifact.SHA256 {
+	if !ok || remote.Size != artifact.Size || remote.SHA256 != artifact.SHA256 ||
+		(artifact.expectedSHA512 != "" && remote.expectedSHA512 != artifact.expectedSHA512) {
 		return fmt.Errorf("remote artifact %s does not match", artifact.Name)
 	}
 	return nil
@@ -784,6 +943,7 @@ func writeReleaseFixture(t *testing.T, version, minAppVersion string) (string, s
 	channelDir := t.TempDir()
 	writeTestFile(t, filepath.Join(channelDir, ManifestMac), macManifestFixtureForAssets(t, assetDir, version))
 	writeTestFile(t, filepath.Join(channelDir, ManifestLinux), linuxManifestFixtureForAssets(t, assetDir, version))
+	writeTestFile(t, filepath.Join(channelDir, ManifestWindows), windowsManifestFixtureForAssets(t, assetDir, version))
 	return assetDir, channelDir
 }
 
@@ -792,18 +952,6 @@ func writeDesktopArtifacts(t *testing.T, dir, version string) {
 	for _, name := range DesktopArtifactNames(version) {
 		writeTestFile(t, filepath.Join(dir, name), []byte("artifact:"+name))
 	}
-}
-
-func macManifestFixture(version string) []byte {
-	return fmt.Appendf(
-		nil,
-		"version: %s\nfiles:\n  - url: https://github.com/compozy/compozy/releases/download/v%s/CompozyOS-%s-mac-arm64.zip\n    sha512: arm64\n    size: 10\n  - url: https://github.com/compozy/compozy/releases/download/v%s/CompozyOS-%s-mac-x64.zip\n    sha512: x64\n    size: 10\nreleaseDate: '2026-08-16T12:00:00Z'\n",
-		version,
-		version,
-		version,
-		version,
-		version,
-	)
 }
 
 func macManifestFixtureForAssets(t *testing.T, assetDir, version string) []byte {
@@ -840,6 +988,21 @@ func linuxManifestFixture(version string) []byte {
 func linuxManifestFixtureForAssets(t *testing.T, assetDir, version string) []byte {
 	t.Helper()
 	name := "CompozyOS-" + version + "-linux-x64.AppImage"
+	digest, size := manifestIntegrityFixture(t, assetDir, name)
+	return fmt.Appendf(
+		nil,
+		"version: %s\nfiles:\n  - url: https://github.com/compozy/compozy/releases/download/v%s/%s\n    sha512: %s\n    size: %d\nreleaseDate: '2026-08-16T12:00:00Z'\n",
+		version,
+		version,
+		name,
+		digest,
+		size,
+	)
+}
+
+func windowsManifestFixtureForAssets(t *testing.T, assetDir, version string) []byte {
+	t.Helper()
+	name := "CompozyOS-" + version + "-win-x64.exe"
 	digest, size := manifestIntegrityFixture(t, assetDir, name)
 	return fmt.Appendf(
 		nil,

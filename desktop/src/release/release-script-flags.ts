@@ -24,7 +24,8 @@ export function parseReleaseScriptFlags(
 }
 
 export function parseReleasePlatform(value: string | undefined): ReleasePlatform {
-  if (value !== "mac" && value !== "linux") throw new Error("Platform must be mac or linux.");
+  if (value !== "mac" && value !== "linux" && value !== "win")
+    throw new Error("Platform must be mac, linux or win.");
   return value;
 }
 
