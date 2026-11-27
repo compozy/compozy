@@ -44,4 +44,52 @@ The tunnel provisioner creates a proxied DNS record for each assigned hostname. 
 
 The Cloudflare API can confirm record creation before every resolver can return the record. A resolver can continue to return a cached negative answer after publication. The host retries a negative lookup through Cloudflare's public resolver for the readiness probe. The fallback uses TCP port 53. The probe verifies TLS for the assigned hostname and checks the computer descriptor before it reports `ready`.
 
+## Hosted webhook ingress
+
+Create a Configuration Rule in the hosted route zone for [issue #2063](https://github.com/compozy/compozy/issues/2063).
+Name it `hosted-webhooks-skip-bic (#2063)`. Set Browser Integrity Check to **Off**.
+The Rulesets API uses phase `http_config_settings`, action `set_config`, and action parameters `{"bic": false}`.
+
+The control plane assigns `<slug>-<id>.<zone>` in production and `<slug>-<id>.staging.<zone>` in staging.
+The ID suffix contains four lowercase base32 characters. The rule matches one assigned label and the two webhook POST path prefixes.
+The daemon still checks the binding and HMAC signature.
+
+Replace `<zone>` with the hosted route zone and `<service-zone>` with the public service zone.
+The offsets below assume a 12-byte production suffix, including the leading dot.
+If the suffix length changes, add the same difference to each length and negative offset magnitude.
+
+```text
+(http.request.method eq "POST"
+  and (
+    starts_with(http.request.uri.path, "/api/webhooks/global/")
+    or starts_with(http.request.uri.path, "/api/webhooks/workspaces/")
+  )
+  and not (http.host in {
+    "<zone>" "www.<zone>" "cloud.<zone>" "api.<zone>" "app.<zone>"
+    "staging.<zone>" "staging.cloud.<zone>" "cloud.staging.<zone>" "api.staging.<zone>" "app.staging.<zone>"
+    "<service-zone>" "www.<service-zone>" "cloud.<service-zone>" "app.<service-zone>" "staging.cloud.<service-zone>"
+  })
+  and (
+    (
+      http.host wildcard "*-*.<zone>"
+      and not (http.host wildcard "*.*.<zone>")
+      and len(http.host) gt 17
+      and substring(http.host, -17, -16) eq "-"
+      and trim(substring(http.host, -16, -12), "abcdefghijklmnopqrstuvwxyz234567") eq ""
+    )
+    or (
+      http.host wildcard "*-*.staging.<zone>"
+      and not (http.host wildcard "*.*.staging.<zone>")
+      and len(http.host) gt 25
+      and substring(http.host, -25, -24) eq "-"
+      and trim(substring(http.host, -24, -20), "abcdefghijklmnopqrstuvwxyz234567") eq ""
+    )
+  )
+)
+```
+
+1. Send a signed webhook POST from Python's default `urllib` client in staging.
+2. Check for a daemon response. A 404 with the daemon's `Referrer-Policy: no-referrer` confirms ingress for an unused endpoint.
+3. Send a descriptor GET with the same User-Agent. Check for Cloudflare HTTP 403 with error 1010.
+
 Related procedures [Monitoring and on-call](monitoring.md), [Signing keys](key-rotation.md), [Restore drill](../../qa/scenarios/RT-cloud-restore-drill.md).

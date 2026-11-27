@@ -14,8 +14,9 @@ qa_status: pending
    triggers with the same slug. Confirm each advertised URL and verify the workspace ID and stable
    webhook ID distinguish the two paths.
    In an isolated DNS fixture, keep a negative answer in the host's system resolver after public DNS returns an address. Verify that the host reaches `ready` and accepts a binding without a cache flush.
-2. Send a signed delivery to one URL. Verify exactly one attributed run on the intended computer
-   and workspace. Repeat the same delivery ID and verify it does not start a duplicate run.
+2. Send a signed delivery to one URL with Python's default `urllib` User-Agent.
+   Verify exactly one attributed run on the intended computer and workspace.
+   Repeat the delivery with the same ID. Verify the history still shows one attributed run for that ID.
 3. Change the advertised base. Check both triggers show **Needs confirmation** and an unconfirmed
    delivery is refused. Confirm the new address through Automations or the ingress bindings API.
    Deliver again using an unused delivery ID and observe the run.
