@@ -21,6 +21,8 @@ git:
   tag_sort: -version:refname
   ignore_tag_prefixes:
     - sdk/go/
+    # Compozy Cloud deploy tags (cloud-v<semver>) are not CompozyOS releases.
+    - cloud-v
 
 before:
   hooks:
