@@ -88,8 +88,9 @@ export function useSessionLifecycleActions(
     childSessions,
     includedTrees: includedDeleteTrees,
     prepare: prepareDeleteTarget,
+    cancelPrepare: cancelDeletePrepare,
     close: closeDeleteTarget,
-    updateChildrenScope: updateDeleteChildrenScope,
+    narrowToRemaining: narrowDeleteTarget,
   } = deleteConfirmationState;
   const [batchAction, setBatchAction] = useState<SessionLifecycleAction | null>(null);
   const [batchResults, setBatchResults] = useState<readonly SessionBatchResult[]>([]);
@@ -150,6 +151,7 @@ export function useSessionLifecycleActions(
   ): Promise<SessionBatchResult[] | null> => {
     const policy = processes ? { processes } : {};
     if (batchRunning.held() || pendingAction !== null || sessions.length === 0) return null;
+    cancelDeletePrepare();
     batchRunning.hold();
     setBatchAction(action);
     const coveredBy = sessionBatchCoverage(action, sessions, trees);
@@ -246,6 +248,7 @@ export function useSessionLifecycleActions(
       batchRunning.held()
     )
       return;
+    cancelDeletePrepare();
     checkingProcesses.current = true;
     const generation = ++processRead.current;
     setArchiveChildren(true);
@@ -262,7 +265,10 @@ export function useSessionLifecycleActions(
   };
 
   /** Retry failed IDs while preserving successful results across the dialog lifetime. */
-  const confirmDeleteMany = async (readErrors?: ReadonlyMap<string, unknown>) => {
+  const confirmDeleteMany = async (
+    readErrors?: ReadonlyMap<string, unknown>,
+    trees?: SessionTrees
+  ) => {
     if (!deleteTarget?.open || childrenPending) return;
     const failedIds = new Set(
       batchResults.flatMap(result => (result.status === "failed" ? [result.id] : []))
@@ -277,7 +283,7 @@ export function useSessionLifecycleActions(
       batchResults,
       deletePolicy.current,
       readErrors,
-      includedDeleteTrees
+      trees
     );
     if (!results) return;
     const failures = results.filter(result => result.status === "failed");
@@ -286,7 +292,7 @@ export function useSessionLifecycleActions(
       setDeleteTarget(target => (target ? { ...target, open: false } : null));
       reportDeletedSessions(results);
     } else
-      updateDeleteChildrenScope(
+      narrowDeleteTarget(
         deleteTarget.sessions.filter(
           session => !results.some(result => result.id === session.id && result.status === "done")
         )
@@ -296,18 +302,19 @@ export function useSessionLifecycleActions(
   /** Keep single-row deletion behavior while routing selection batches through result tracking. */
   const performDelete = (
     processes?: SessionProcessPolicy,
-    readErrors?: ReadonlyMap<string, unknown>
+    readErrors?: ReadonlyMap<string, unknown>,
+    trees?: SessionTrees
   ) => {
     if (!deleteTarget?.open || !deleteSession || remove.isPending || batchRunning.held()) return;
     if (processes) deletePolicy.current = processes;
     if (deleteTarget?.bulk) {
-      void confirmDeleteMany(readErrors);
+      void confirmDeleteMany(readErrors, trees);
       return;
     }
     const { id } = deleteSession;
     const policy = deletePolicy.current ? { processes: deletePolicy.current } : {};
     remove.mutate(
-      { ...deleteSession, ...policy, ...descendantsOf(deleteSession, includedDeleteTrees) },
+      { ...deleteSession, ...policy, ...descendantsOf(deleteSession, trees) },
       {
         onError: error => reportActionError("delete", error),
         onSuccess: () => {
@@ -334,6 +341,7 @@ export function useSessionLifecycleActions(
       queryClient,
       target: deleteTarget,
       batchResults,
+      includeChildren: includedDeleteTrees !== undefined,
       deletePolicy: deletePolicy.current,
       processes,
       isCurrent: () => confirmation === deleteConfirmation.current,
@@ -362,7 +370,7 @@ export function useSessionLifecycleActions(
     deleteConfirmRequest.current = null;
     deletePolicy.current = undefined;
     setBatchResults([]);
-    prepareDeleteTarget(sessions, bulk, onSelectionChange);
+    prepareDeleteTarget(sessions, bulk, onSelectionChange, () => !batchRunning.held());
   };
 
   /** Dismiss only the rename target whose mutation succeeded. */
@@ -392,7 +400,10 @@ export function useSessionLifecycleActions(
       pendingAction,
       pendingSessionIds,
       onRename: session => {
-        if (pendingAction === null && !batchRunning.held()) setRenameTarget(session);
+        if (pendingAction === null && !batchRunning.held()) {
+          cancelDeletePrepare();
+          setRenameTarget(session);
+        }
       },
       onStop: session =>
         void askAboutProcesses("stop", [session], processes =>
@@ -408,8 +419,10 @@ export function useSessionLifecycleActions(
             onSuccess: () => void notifyArchived(session, trees),
           })
         ),
-      onUnarchive: session =>
-        unarchive.mutate(session, { onError: error => reportActionError("unarchive", error) }),
+      onUnarchive: session => {
+        cancelDeletePrepare();
+        unarchive.mutate(session, { onError: error => reportActionError("unarchive", error) });
+      },
       onDelete: session => prepareDelete([session], false),
       onStopMany: sessions => actOnMany("stop", sessions),
       onArchiveMany: sessions => actOnMany("archive", sessions),
@@ -428,7 +441,6 @@ export function useSessionLifecycleActions(
       isDeleting: remove.isPending || batchAction === "delete",
       sideChats: deleteTarget?.sideChats ?? false,
       processCount: deleteTarget?.processCount ?? 0,
-      childrenPending,
       childSessions,
       onOpenChange: open => {
         if (!open && deleteTarget?.open && !remove.isPending && !batchRunning.held()) {

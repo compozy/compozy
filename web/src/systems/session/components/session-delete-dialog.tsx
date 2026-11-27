@@ -29,8 +29,6 @@ export interface SessionDeleteDialogProps {
   isDeleting: boolean;
   /** Present when the targets have child sessions; absent keeps the dialog unchanged. */
   childSessions?: SessionChildrenChoice;
-  /** Child counts are unresolved, independently of whether a checkbox is visible. */
-  childrenPending?: boolean;
   /** The prepared target process count is stable for this dialog lifetime. */
   processCount?: number;
   /** The session has side chats (closed ones included): deleting it deletes them too (S5). */
@@ -49,12 +47,10 @@ export function SessionDeleteDialog({
   onRetry,
   isDeleting,
   childSessions,
-  childrenPending = false,
   processCount,
   sideChats = false,
   onConfirm,
 }: SessionDeleteDialogProps) {
-  const treeReadPending = childrenPending || childSessions?.pending === true;
   if (sessions && sessions.length > 1) {
     return (
       <SessionDeleteDialogSet
@@ -65,7 +61,6 @@ export function SessionDeleteDialog({
         onRetry={onRetry}
         isDeleting={isDeleting}
         childSessions={childSessions}
-        childrenPending={treeReadPending}
         processCount={processCount}
         onConfirm={onConfirm}
       />
@@ -82,7 +77,6 @@ export function SessionDeleteDialog({
       onRetry={onRetry}
       isDeleting={isDeleting}
       childSessions={childSessions}
-      childrenPending={treeReadPending}
       processCount={processCount}
       sideChats={sideChats}
       onConfirm={onConfirm}
@@ -102,11 +96,11 @@ function SingleSessionDeleteDialog({
   onRetry,
   isDeleting,
   childSessions,
-  childrenPending = false,
   processCount,
   sideChats = false,
   onConfirm,
 }: SingleSessionDeleteDialogProps) {
+  const childrenPending = childSessions?.pending === true;
   const failure = results?.find(result => result.id === session.id && result.status === "failed");
   const retrying = failure !== undefined && !isDeleting;
   const targetProcessCount = processCount ?? sessionRunningProcesses(session);

@@ -30,18 +30,27 @@ export async function prepareSessionDeleteTarget(
   computerId: ComputerId
 ): Promise<PreparedSessionDeleteTarget> {
   const catalogRows = Object.freeze([...sessions]);
+  const sideOptions =
+    catalogRows.length === 1 && catalogRows[0]!.id.trim() !== ""
+      ? sessionSidesOptions(catalogRows[0]!.workspace_id ?? "", catalogRows[0]!.id, {
+          archived: true,
+          computerId,
+        })
+      : null;
   const [currentRead, treeRead, sideChats] = await Promise.all([
     readCurrentSessions(queryClient, catalogRows, bulk).catch(() => null),
     readSessionTrees(queryClient, catalogRows),
-    catalogRows.length === 1
+    sideOptions
       ? queryClient
-          .fetchQuery(
-            sessionSidesOptions(catalogRows[0]!.workspace_id ?? "", catalogRows[0]!.id, {
-              archived: true,
-              computerId,
-            })
-          )
-          .then(hasSideChats)
+          // Omit `select`: fetchQuery always resolves the raw `{ sides }` payload.
+          .fetchQuery({
+            queryKey: sideOptions.queryKey,
+            queryFn: sideOptions.queryFn,
+            ...(typeof sideOptions.staleTime === "number"
+              ? { staleTime: sideOptions.staleTime }
+              : {}),
+          })
+          .then(response => response.sides.length > 0)
           .catch(() => false)
       : Promise.resolve(false),
   ]);
@@ -58,11 +67,4 @@ export async function prepareSessionDeleteTarget(
     sideChats,
     processCount: sessionsRunningProcesses(resolved),
   };
-}
-
-function hasSideChats(result: unknown): boolean {
-  if (Array.isArray(result)) return result.length > 0;
-  if (!result || typeof result !== "object") return false;
-  const sides = (result as { sides?: unknown }).sides;
-  return Array.isArray(sides) && sides.length > 0;
 }

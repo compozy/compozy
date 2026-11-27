@@ -34,7 +34,6 @@ export interface SessionDeleteDialogSetProps {
   results?: readonly SessionBatchResult[];
   isDeleting: boolean;
   childSessions?: SessionChildrenChoice;
-  childrenPending?: boolean;
   processCount?: number;
   /** `processes` answers what happens to running processes; absent when none run. */
   onConfirm: (processes?: SessionProcessPolicy) => void;
@@ -49,12 +48,11 @@ export function SessionDeleteDialogSet({
   results = [],
   isDeleting,
   childSessions,
-  childrenPending = false,
   processCount,
   onConfirm,
   onRetry,
 }: SessionDeleteDialogSetProps) {
-  const treeReadPending = childrenPending || childSessions?.pending === true;
+  const treeReadPending = childSessions?.pending === true;
   const count = sessions.length;
   const failed = results.filter(result => result.status === "failed").length;
   const deleted = results.filter(result => result.status === "done").length;

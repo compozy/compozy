@@ -158,28 +158,47 @@ describe("OsSessionsModal", () => {
   });
 
   it("keeps the shared delete dialog mounted while closed and reopens it", async () => {
-    const lifecycle = {
+    const makeLifecycle = (deleteOpen: boolean): UseSessionLifecycleActionsResult => ({
       actions: SESSION_ACTIONS,
       batchResults: [],
       deleteDialog: {
-        open: true,
+        open: deleteOpen,
         session: SESSIONS[0]!,
         sessions: [SESSIONS[0]!],
         results: undefined,
         onRetry: vi.fn(),
         isDeleting: false,
-        childrenPending: false,
         processCount: 0,
         childSessions: undefined,
         sideChats: false,
         onOpenChange: vi.fn(),
         onConfirm: vi.fn(),
       },
-      processDialog: { open: false },
-      renameDialog: { open: false, session: null },
-      laterDialog: { open: false },
-    } as unknown as UseSessionLifecycleActionsResult;
-    const renderHost = () => (
+      processDialog: {
+        open: false,
+        action: "stop",
+        sessionCount: 0,
+        processCount: 0,
+        ports: [],
+        onOpenChange: vi.fn(),
+        onChoose: vi.fn(),
+      },
+      renameDialog: {
+        open: false,
+        session: null,
+        isRenaming: false,
+        onOpenChange: vi.fn(),
+        onConfirm: vi.fn(),
+      },
+      laterDialog: {
+        open: false,
+        sessions: [],
+        isMoving: false,
+        onOpenChange: vi.fn(),
+        onConfirm: vi.fn(),
+      },
+    });
+    const renderHost = (deleteOpen: boolean) => (
       <TestShell value={createShell()}>
         <OsSessionsDialogHost
           open={false}
@@ -188,20 +207,18 @@ describe("OsSessionsModal", () => {
           view={listView()}
           currentWorkspaceId="workspace-1"
           onNewSession={vi.fn()}
-          lifecycle={lifecycle}
+          lifecycle={makeLifecycle(deleteOpen)}
         />
       </TestShell>
     );
-    const view = render(renderHost());
+    const view = render(renderHost(true));
     const dialog = await screen.findByTestId("session-delete-dialog-host");
     expect(dialog).toHaveAttribute("data-open", "true");
 
-    lifecycle.deleteDialog.open = false;
-    view.rerender(renderHost());
+    view.rerender(renderHost(false));
     expect(screen.getByTestId("session-delete-dialog-host")).toHaveAttribute("data-open", "false");
 
-    lifecycle.deleteDialog.open = true;
-    view.rerender(renderHost());
+    view.rerender(renderHost(true));
     expect(screen.getByTestId("session-delete-dialog-host")).toHaveAttribute("data-open", "true");
   });
 

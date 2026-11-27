@@ -353,7 +353,6 @@ describe("SessionDeleteDialog child sessions", () => {
         open
         sessions={[session]}
         isDeleting={false}
-        childrenPending
         childSessions={{
           count: 0,
           included: false,
@@ -376,7 +375,6 @@ describe("SessionDeleteDialog child sessions", () => {
         open
         sessions={[session]}
         isDeleting={false}
-        childrenPending
         childSessions={{
           count: 0,
           included: false,

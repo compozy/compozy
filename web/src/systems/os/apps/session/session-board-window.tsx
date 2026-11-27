@@ -162,7 +162,6 @@ export function SessionBoardWindow({
             <Suspense fallback={null}>
               <SessionDeleteDialog
                 isDeleting={deleteDialog.isDeleting}
-                childrenPending={deleteDialog.childrenPending}
                 processCount={deleteDialog.processCount}
                 childSessions={deleteDialog.childSessions}
                 sideChats={deleteDialog.sideChats}

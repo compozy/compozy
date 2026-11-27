@@ -1289,10 +1289,7 @@ describe("session actions", () => {
         await waitFor(() => expect(dialog().childSessions?.onRetryRead).toBeDefined());
         expect(dialog().open).toBe(true);
         expect(dialog().childSessions?.pending).toBe(true);
-        if (action === "delete") {
-          expect(result.current.deleteDialog.childrenPending).toBe(true);
-          expect(result.current.deleteDialog.childSessions?.count).toBe(0);
-        }
+        if (action === "delete") expect(result.current.deleteDialog.childSessions?.count).toBe(0);
         act(() =>
           action === "archive"
             ? result.current.processDialog.onChoose()
@@ -1337,7 +1334,7 @@ describe("session actions", () => {
       ]);
     });
 
-    it("keeps its prepared child choice when a background tree refetch changes", async () => {
+    it("keeps its prepared child choice on background refetches and re-checks on confirm", async () => {
       vi.mocked(listSessionDescendants).mockResolvedValue([child]);
       const client = treeClient();
       const { result } = renderHook(() => useSessionLifecycleActions(), {
@@ -1354,8 +1351,113 @@ describe("session actions", () => {
       );
       expect(result.current.deleteDialog.childSessions?.count).toBe(1);
       act(() => result.current.deleteDialog.onConfirm());
-      await waitFor(() => expect(deleteSessionTree).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(deleteSession).toHaveBeenCalledTimes(1));
+      expect(deleteSessionTree).not.toHaveBeenCalled();
+    });
+
+    // Invariant: confirm-time tree re-read prevents deleting unconfirmed children that spawned after open.
+    // Owner: lifecycle confirmation hook; canonical suite: use-session-actions.
+    it("re-asks on confirm when included child sessions grow after the dialog opens", async () => {
+      const secondChild = { ...createdSession, id: "sess-child-2", name: "Second child" };
+      const onDeleteSuccess = vi.fn();
+      vi.mocked(deleteSessionTree).mockResolvedValue(undefined);
+      vi.mocked(listSessionDescendants).mockResolvedValue([child]);
+      const client = treeClient();
+      const { result } = renderHook(() => useSessionLifecycleActions({ onDeleteSuccess }), {
+        wrapper: createWrapper(client),
+      });
+      act(() => result.current.actions.onDelete(createdSession));
+      await waitFor(() => expect(result.current.deleteDialog.childSessions?.pending).toBe(false));
+      act(() => result.current.deleteDialog.childSessions?.onIncludedChange(true));
+
+      vi.mocked(listSessionDescendants).mockResolvedValue([child, secondChild]);
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(result.current.deleteDialog.childSessions?.count).toBe(2));
+      expect(deleteSessionTree).not.toHaveBeenCalled();
       expect(deleteSession).not.toHaveBeenCalled();
+
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(deleteSessionTree).toHaveBeenCalledOnce());
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
+      expect(onDeleteSuccess.mock.calls.map(call => call[0].id)).toEqual([
+        createdSession.id,
+        child.id,
+        secondChild.id,
+      ]);
+    });
+
+    it("keeps readable bulk trees when another target fails and supports retrying a failed retry", async () => {
+      const second = { ...createdSession, id: "sess-second", name: "Second target" };
+      let secondFails = true;
+      vi.mocked(fetchSessionById).mockImplementation(async id =>
+        id === second.id ? second : createdSession
+      );
+      vi.mocked(listSessionDescendants).mockImplementation(async (_workspace, id) => {
+        if (id === createdSession.id) return [child];
+        if (secondFails) throw new Error("Tree unavailable");
+        return [];
+      });
+      const client = treeClient();
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(client),
+      });
+
+      act(() => result.current.actions.onDeleteMany?.([createdSession, second]));
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+      expect(result.current.deleteDialog.childSessions).toMatchObject({
+        count: 1,
+        pending: true,
+      });
+      expect(result.current.deleteDialog.childSessions?.onRetryRead).toBeDefined();
+
+      act(() => result.current.deleteDialog.onConfirm());
+      expect(deleteSession).not.toHaveBeenCalled();
+      expect(deleteSessionTree).not.toHaveBeenCalled();
+
+      // First retry also fails: retry remains available and confirm stays blocked.
+      const callsBeforeRetry = vi.mocked(listSessionDescendants).mock.calls.length;
+      act(() => result.current.deleteDialog.childSessions?.onRetryRead?.());
+      await waitFor(() =>
+        expect(vi.mocked(listSessionDescendants).mock.calls.length).toBeGreaterThan(
+          callsBeforeRetry
+        )
+      );
+      await waitFor(() =>
+        expect(result.current.deleteDialog.childSessions?.onRetryRead).toBeDefined()
+      );
+      expect(result.current.deleteDialog.childSessions?.pending).toBe(true);
+
+      secondFails = false;
+      act(() => result.current.deleteDialog.childSessions?.onRetryRead?.());
+      await waitFor(() => expect(result.current.deleteDialog.childSessions?.pending).toBe(false));
+      expect(result.current.deleteDialog.childSessions?.count).toBe(1);
+      expect(result.current.deleteDialog.childSessions?.onRetryRead).toBeUndefined();
+
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
+      expect(deleteSession).toHaveBeenCalledTimes(2);
+    });
+
+    it("cancels in-flight delete preparation when another lifecycle action starts", async () => {
+      let resolveTree!: (sessions: SessionPayload[]) => void;
+      vi.mocked(listSessionDescendants).mockImplementation(
+        () =>
+          new Promise(resolve => {
+            resolveTree = resolve;
+          })
+      );
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(treeClient()),
+      });
+
+      act(() => result.current.actions.onDelete(createdSession));
+      await waitFor(() => expect(listSessionDescendants).toHaveBeenCalledOnce());
+
+      act(() => result.current.actions.onRename(createdSession));
+      expect(result.current.renameDialog.open).toBe(true);
+
+      await act(async () => resolveTree([]));
+      expect(result.current.deleteDialog.open).toBe(false);
     });
   });
 

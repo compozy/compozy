@@ -32,7 +32,8 @@ export function useSessionDeleteTarget(queryClient: QueryClient, computerId: Com
   const prepare = (
     sessions: readonly SessionPayload[],
     bulk: boolean,
-    onSelectionChange?: (ids: readonly string[]) => void
+    onSelectionChange?: (ids: readonly string[]) => void,
+    canOpen?: () => boolean
   ) => {
     if (sessions.length === 0 || preparing.current || target?.open) return;
     preparing.current = true;
@@ -40,7 +41,7 @@ export function useSessionDeleteTarget(queryClient: QueryClient, computerId: Com
     setIncluded(false);
     void prepareSessionDeleteTarget(queryClient, sessions, bulk, computerId)
       .then(prepared => {
-        if (request !== generation.current) return;
+        if (request !== generation.current || (canOpen && !canOpen())) return;
         setTarget({
           ...prepared,
           bulk,
@@ -55,6 +56,12 @@ export function useSessionDeleteTarget(queryClient: QueryClient, computerId: Com
       .finally(() => {
         if (request === generation.current) preparing.current = false;
       });
+  };
+
+  const cancelPrepare = () => {
+    if (!preparing.current) return;
+    generation.current++;
+    preparing.current = false;
   };
 
   const retryTrees = () => {
@@ -105,10 +112,11 @@ export function useSessionDeleteTarget(queryClient: QueryClient, computerId: Com
 
   const close = () => {
     generation.current++;
+    preparing.current = false;
     retrying.current = undefined;
     setTarget(value => (value ? { ...value, open: false } : value));
   };
-  const updateChildrenScope = (sessions: readonly SessionPayload[]) =>
+  const narrowToRemaining = (sessions: readonly SessionPayload[]) =>
     setTarget(value =>
       value
         ? {
@@ -122,7 +130,7 @@ export function useSessionDeleteTarget(queryClient: QueryClient, computerId: Com
     ? sessionChildrenChoice(childrenScope, included, setIncluded, { pending: childrenPending })
     : undefined;
   const childSessions =
-    childChoice && target?.treeErrors.size
+    childChoice && target?.treeErrors.size && !target.treeReadPending
       ? { ...childChoice, onRetryRead: retryTrees }
       : childChoice;
 
@@ -132,8 +140,9 @@ export function useSessionDeleteTarget(queryClient: QueryClient, computerId: Com
     included,
     setIncluded,
     prepare,
+    cancelPrepare,
     close,
-    updateChildrenScope,
+    narrowToRemaining,
     childrenPending,
     childrenScope,
     childSessions,

@@ -74,8 +74,6 @@ export interface SessionDeleteConfirmation {
   isDeleting: boolean;
   /** Present when the targets have child sessions to include. */
   childSessions?: SessionChildrenChoice;
-  /** The child tree is unresolved, independently of whether a checkbox is visible. */
-  childrenPending: boolean;
   /** Prepared process count, frozen for the confirmation lifetime. */
   processCount: number;
   /** A single target has side chats (open or closed), which are deleted with it. */
