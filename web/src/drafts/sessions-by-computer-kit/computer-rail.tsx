@@ -24,7 +24,8 @@ import { SESSION_SIDEBAR_DEFAULT_WIDTH } from "@/systems/session/lib/session-sid
 import type { SessionPayload } from "@/systems/session/types";
 
 import { byProject, matches, totalsOf, type RailComputer, type RailLayout } from "./model";
-import { ComputerBody, ComputerSection, ProjectGroup, Row } from "./rail-tree";
+import { ComputerBody, ComputerSection } from "./rail-computer-section";
+import { ProjectGroup, Row } from "./rail-tree";
 import { useOpenOnMount } from "./hooks/use-open-on-mount";
 import { RailLookContext, type RailLook } from "./rail-look";
 
@@ -117,6 +118,82 @@ export interface ComputerRailProps {
   selection?: SessionSelectionVerbs;
 }
 
+function ComputerRailToolbar({
+  layout,
+  groupBy,
+  onGroupByChange,
+  onLayoutChange,
+  selection,
+}: Pick<
+  ComputerRailProps,
+  "layout" | "groupBy" | "onGroupByChange" | "onLayoutChange" | "selection"
+>) {
+  if (selection) {
+    return (
+      <SessionListSelectionBar
+        allSelected={false}
+        hiddenByFilter={0}
+        onClear={noop}
+        onSelectAll={noop}
+        testIdPrefix="draft-rail"
+        verbs={selection}
+      />
+    );
+  }
+  const scoped = layout === "scoped";
+  return (
+    <SessionListToolbar
+      computerLayout={
+        scoped
+          ? undefined
+          : {
+              value: layout === "separate" ? "separate" : "together",
+              onValueChange: onLayoutChange,
+            }
+      }
+      foldAll={null}
+      groupBy={groupBy}
+      groupByOptions={["none", "project", "profile"]}
+      newFolderUnavailable={
+        scoped ? null : "Folders live on one computer. Use the + of a computer or project."
+      }
+      onFoldAllChange={noop}
+      onGroupByChange={onGroupByChange}
+      onNewFolder={scoped ? noop : undefined}
+      onNewSession={noop}
+      onShelfChange={noop}
+      onShowAutomationChange={noop}
+      onShowEmptyProjectsChange={noop}
+      onSortChange={noop}
+      shelf="active"
+      showAutomation={false}
+      showEmptyProjects={false}
+      sort={scoped ? "manual" : "created"}
+      testIdPrefix="draft-rail"
+    />
+  );
+}
+
+function ComputerRailBody({
+  layout,
+  groupBy,
+  shown,
+}: {
+  layout: RailLayout;
+  groupBy: SessionListGroupBy;
+  shown: readonly RailComputer[];
+}) {
+  if (layout === "scoped") {
+    return shown[0] ? <ComputerBody computer={shown[0]} groupBy={groupBy} /> : null;
+  }
+  if (layout === "separate") {
+    return shown.map(computer => (
+      <ComputerSection computer={computer} groupBy={groupBy} key={computer.key} />
+    ));
+  }
+  return <TogetherBody computers={shown} groupBy={groupBy} />;
+}
+
 export function ComputerRail({
   layout,
   groupBy,
@@ -140,62 +217,19 @@ export function ComputerRail({
     computer =>
       computer.read !== "ok" && computer.read !== "offline" && computer.read !== "needs_pro"
   );
-  let body: ReactNode;
-  if (scoped) {
-    body = shown[0] ? <ComputerBody computer={shown[0]} groupBy={groupBy} /> : null;
-  } else if (layout === "separate") {
-    body = shown.map(computer => (
-      <ComputerSection computer={computer} groupBy={groupBy} key={computer.key} />
-    ));
-  } else {
-    body = <TogetherBody computers={shown} groupBy={groupBy} />;
-  }
   return (
     <aside
       aria-label="Sessions"
       className="flex h-full shrink-0 flex-col overflow-hidden bg-sunken pt-1.5"
       style={{ width: SESSION_SIDEBAR_DEFAULT_WIDTH }}
     >
-      {selection ? (
-        <SessionListSelectionBar
-          allSelected={false}
-          hiddenByFilter={0}
-          onClear={noop}
-          onSelectAll={noop}
-          testIdPrefix="draft-rail"
-          verbs={selection}
-        />
-      ) : (
-        <SessionListToolbar
-          computerLayout={
-            scoped
-              ? undefined
-              : {
-                  value: layout === "separate" ? "separate" : "together",
-                  onValueChange: onLayoutChange,
-                }
-          }
-          foldAll={null}
-          groupBy={groupBy}
-          groupByOptions={["none", "project", "profile"]}
-          newFolderUnavailable={
-            scoped ? null : "Folders live on one computer. Use the + of a computer or project."
-          }
-          onFoldAllChange={noop}
-          onGroupByChange={onGroupByChange}
-          onNewFolder={scoped ? noop : undefined}
-          onNewSession={noop}
-          onShelfChange={noop}
-          onShowAutomationChange={noop}
-          onShowEmptyProjectsChange={noop}
-          onSortChange={noop}
-          shelf="active"
-          showAutomation={false}
-          showEmptyProjects={false}
-          sort={scoped ? "manual" : "created"}
-          testIdPrefix="draft-rail"
-        />
-      )}
+      <ComputerRailToolbar
+        groupBy={groupBy}
+        layout={layout}
+        onGroupByChange={onGroupByChange}
+        onLayoutChange={onLayoutChange}
+        selection={selection}
+      />
       <div className="px-3 pb-1.5">
         <SearchInput
           aria-label="Filter sessions"
@@ -215,7 +249,7 @@ export function ComputerRail({
               : "gap-1"
           )}
         >
-          {body}
+          <ComputerRailBody groupBy={groupBy} layout={layout} shown={shown} />
         </div>
       </RailLookContext>
       <SessionListTotals testIdPrefix="draft-rail" totals={totalsOf(rows)} />

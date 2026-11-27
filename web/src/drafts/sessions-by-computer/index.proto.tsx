@@ -224,15 +224,15 @@ const PRESETS: Record<string, Preset> = {
   "scope-removed": { ...BASE, removed: "gpu-vm" },
 };
 
-const sessionById = (id: string) => ENTRIES.find(item => item.session.id === id)!.session;
-
 /** The open session: the devbox question, or the first row the scope holds. */
 function openSessionFor(scoped: readonly ComputerSession[]): SessionPayload {
-  return (
+  const chosen =
     scoped.find(item => item.session.id === "d1")?.session ??
     scoped[0]?.session ??
-    sessionById("d1")
-  );
+    ENTRIES.find(item => item.session.id === "d1")?.session ??
+    ENTRIES[0]?.session;
+  if (!chosen) throw new Error("Missing sessions-by-computer fixture entries");
+  return chosen;
 }
 
 function byComputer(entries: readonly ComputerSession[]) {

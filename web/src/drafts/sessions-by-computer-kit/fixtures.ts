@@ -93,8 +93,20 @@ function entry(
   };
 }
 
-const PENDING = { state: "pending", passed: 8, failed: 0, pending: 4, failed_names: [] } as const;
-const FAILING = { state: "failing", passed: 9, failed: 2, pending: 0, failed_names: ["lint"] };
+const PENDING: SessionPullRequest["checks"] = {
+  state: "pending",
+  passed: 8,
+  failed: 0,
+  pending: 4,
+  failed_names: [],
+};
+const FAILING: SessionPullRequest["checks"] = {
+  state: "failing",
+  passed: 9,
+  failed: 2,
+  pending: 0,
+  failed_names: ["lint"],
+};
 
 export const ENTRIES: readonly ComputerSession[] = [
   entry("local", "l1", "needs_you", "ws_checkout", "Raise the Brazil canary to 50%", {
@@ -134,7 +146,7 @@ export const ENTRIES: readonly ComputerSession[] = [
     badge: "waiting",
     waiting_on: "monitor",
     branch: "feat/installment-tokens",
-    pull_request: pr(491, { checks: PENDING as SessionPullRequest["checks"] }),
+    pull_request: pr(491, { checks: PENDING }),
     minutes: 3,
   }),
   entry(STUDIO.id, "st4", "done", "ws_checkout", "Migrate the installment selector to tokens", {
@@ -177,7 +189,7 @@ export const ENTRIES: readonly ComputerSession[] = [
   entry(WORKSTATION.id, "w2", "in_review", "ws_infra", "Rotate PSP webhook signing secrets", {
     badge: "done",
     branch: "chore/rotate-psp-secrets",
-    pull_request: pr(479, { checks: FAILING as SessionPullRequest["checks"] }),
+    pull_request: pr(479, { checks: FAILING }),
     minutes: 240,
   }),
 ];

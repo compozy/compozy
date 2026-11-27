@@ -135,7 +135,7 @@ export function SessionListComputerStateNotice({
           testId={`${testIdPrefix}-computer-${computerId}-incompatible`}
           tone="warning"
         >
-          Update Compozy on {name} to list its sessions.
+          Update CompozyOS on {name} to list its sessions.
         </SessionListComputerNote>
       );
     default:

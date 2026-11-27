@@ -2,10 +2,10 @@ import { useEffect } from "react";
 
 /** Clicks controls in order on mount, for the review states that show a menu or submenu open. */
 export function useOpenOnMount(selector: string | readonly string[] | undefined) {
-  const key = Array.isArray(selector) ? selector.join("|") : selector;
+  const key = typeof selector === "string" ? selector : selector?.join("|");
   useEffect(() => {
     if (!key) return;
-    const timers = key.split("|").map((each, index) =>
+    const timers: number[] = key.split("|").map((each, index) =>
       window.setTimeout(() => {
         const target = document.querySelector<HTMLElement>(each);
         if (index === 0) target?.click();
