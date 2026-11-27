@@ -2,6 +2,7 @@ import { createStoreLogic } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "@compozy/ui";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { useProfileReadScope, useProfiles } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -49,22 +50,29 @@ export function useSessionListGroupFolderCreate(target: {
   workspaceId: string | null;
   /** `null` when the group spans profiles. */
   profile: string | null;
+  /** Target computer when creating a folder on a remote daemon (`F10`, `F15`). */
+  computerId?: ComputerId;
 }) {
   const store = useStore(groupFolderDialogLogic);
   const picks = useSelector(store, snapshot => snapshot.context);
   const { open } = picks;
+  const remote = isRemoteComputerId(target.computerId);
   const profileScope = useProfileReadScope();
   const active = useActiveWorkspace();
-  const profiles = useProfiles(open && target.profile === null);
+  const profiles = useProfiles(open && target.profile === null, remote ? target.computerId : undefined);
   const projectOptions =
     target.workspaceId === null ? sessionProjectOptions(active.projectWorkspaces) : [];
   const profileOptions = target.profile === null ? sessionProfileOptions(profiles.data ?? []) : [];
   const workspaceId = groupFolderWorkspace(target.workspaceId, picks.project, projectOptions);
-  const profile = target.profile ?? picks.profile ?? profileScope.destination;
+  const fallbackProfile = remote
+    ? (profileOptions[0]?.value ?? "default")
+    : profileScope.destination;
+  const profile = target.profile ?? picks.profile ?? fallbackProfile;
   const folders = useSessionFolders({
     workspaceId,
     profile,
     enabled: open && workspaceId !== null && profile !== "",
+    computerId: target.computerId,
   });
   const projectLabel =
     projectOptions.find(option => option.value === workspaceId)?.label ??

@@ -15,6 +15,7 @@ import {
   rowDragged,
 } from "../../hooks/use-session-list-dnd";
 import { sessionHasOwnPlacement } from "../../lib/session-folders";
+import { sessionComputerOf, sessionRowKey } from "../../lib/session-row-ref";
 import { SessionListThread } from "./session-list-thread";
 import type { SessionFoldSet, SessionSubagentFolds } from "../../lib/session-sidebar-scope";
 
@@ -69,7 +70,10 @@ export function SessionListThreadList({
     <>
       {threads.map(thread => (
         <SessionListThread
-          key={thread.session.id}
+          key={sessionRowKey({
+            computerId: sessionComputerOf(thread.session),
+            sessionId: thread.session.id,
+          })}
           session={thread.session}
           layoutFor={readOnly ? undefined : rowLayout}
           showActions={!readOnly}

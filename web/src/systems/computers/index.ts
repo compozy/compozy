@@ -72,6 +72,12 @@ export {
 } from "./components/computer-details-panel";
 export { ComputerLoadMeter, type ComputerLoadMeterProps } from "./components/computer-load-meter";
 export {
+  ComputerMark,
+  ComputerTag,
+  type ComputerMarkProps,
+  type ComputerTagProps,
+} from "./components/computer-mark";
+export {
   ComputerPlatformIcon,
   type ComputerPlatformIconProps,
 } from "./components/computer-platform-icon";

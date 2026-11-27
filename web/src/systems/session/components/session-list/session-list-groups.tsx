@@ -20,11 +20,12 @@ import { SessionGroupsSkeleton } from "./session-list-skeleton";
  * body. A group that spans pairs renders its split subgroups through this same
  * section, one level in.
  */
-function SessionListGroupSection({
+export function SessionListGroupSection({
   group,
   path,
   nested = false,
   arrange,
+  readOnly,
   ...props
 }: GroupRowProps & {
   group: SessionListGroupSpec;
@@ -33,10 +34,14 @@ function SessionListGroupSection({
   nested?: boolean;
   /** The header's part in project folders, where they apply. */
   arrange?: SessionListGroupArrange;
+  readOnly?: boolean;
 }) {
   const { view, testIdPrefix } = props;
   const collapsed = view.collapsedGroupKeys.has(group.key);
-  const alwaysOnScope = group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
+  const alwaysOnScope =
+    group.kind === "project" && !group.computerId
+      ? sessionListGroupTarget(group).workspaceId
+      : null;
   return (
     <section data-collapsed={collapsed ? "true" : undefined} data-group-key={group.key}>
       <SessionListGroupHeader
@@ -46,6 +51,7 @@ function SessionListGroupSection({
         onNewSession={props.onNewSession}
         testIdPrefix={testIdPrefix}
         arrange={arrange}
+        readOnly={readOnly || view.readOnly || group.offline}
       />
       {collapsed || !alwaysOnScope ? null : (
         <AlwaysOnProjectRow
