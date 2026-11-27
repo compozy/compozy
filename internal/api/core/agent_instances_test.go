@@ -2143,14 +2143,22 @@ func TestAgentSkillReviews(t *testing.T) {
 		decodeJSON(t, unavailableDetail.Body.Bytes(), &unavailableReview)
 		if unavailableDetail.Code != http.StatusOK || unavailableReview.Review.State != "approved" ||
 			unavailableReview.Review.Revert != nil {
-			t.Fatalf("review with unknown revert eligibility: %d %s", unavailableDetail.Code, unavailableDetail.Body.String())
+			t.Fatalf(
+				"review with unknown revert eligibility: %d %s",
+				unavailableDetail.Code,
+				unavailableDetail.Body.String(),
+			)
 		}
 		unavailableRevert := request("POST", approvedPath+"/revert", revertDigest, false)
 		var revertFailure contract.AgentSkillRevertConflictPayload
 		decodeJSON(t, unavailableRevert.Body.Bytes(), &revertFailure)
 		if unavailableRevert.Code != http.StatusConflict || revertFailure.Code != "workspace_archived" ||
 			revertFailure.Reason != "" {
-			t.Fatalf("revert with a failed target lookup: %d %s", unavailableRevert.Code, unavailableRevert.Body.String())
+			t.Fatalf(
+				"revert with a failed target lookup: %d %s",
+				unavailableRevert.Code,
+				unavailableRevert.Body.String(),
+			)
 		}
 		unresolved := request("POST", "/reviews/"+invalid.ID+"/reject", `{"digest":"`+invalid.Digest+`"}`, false)
 		var unresolvedFailure contract.ErrorPayload
