@@ -302,26 +302,90 @@ async function readAppRecord(home: string): Promise<Record<string, unknown>> {
   return JSON.parse(await readFile(join(home, "app.json"), "utf8")) as Record<string, unknown>;
 }
 
+async function removeDirectoryWithin(path: string, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      await rm(path, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (Date.now() >= deadline) throw error;
+      await new Promise(resolveDelay => setTimeout(resolveDelay, 250));
+    }
+  }
+}
+
+async function stopWindowsProcessesIn(directory: string): Promise<void> {
+  if (process.platform !== "win32") return;
+  await runCommand(
+    join(
+      process.env.SystemRoot || "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe"
+    ),
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      "$prefix = $env:COMPOZY_E2E_INSTALL_DIR; foreach ($p in [System.Diagnostics.Process]::GetProcesses()) { try { $file = $p.MainModule.FileName; if ($file -and $file.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { $p.Kill() } } catch {} }",
+    ],
+    {
+      env: { ...process.env, COMPOZY_E2E_INSTALL_DIR: directory },
+      windowsHide: true,
+    }
+  ).catch(() => undefined);
+}
+
+async function readUpdateDiagnostics(home: string): Promise<string> {
+  const [appState, operationState, desktopLog, bootstrapLog, historyLog] = await Promise.all([
+    readDiagnosticFile(join(home, "app.json")),
+    readDiagnosticFile(join(home, "update-operation.json")),
+    readDiagnosticFile(join(home, "logs", "desktop.log")),
+    readDiagnosticFile(join(home, "logs", "desktop-bootstrap.jsonl")),
+    readDiagnosticFile(join(home, "logs", "update-history.jsonl")),
+  ]);
+  return [
+    `app.json:\n${appState}`,
+    `update-operation.json:\n${operationState}`,
+    `desktop.log:\n${desktopLog}`,
+    `desktop-bootstrap.jsonl:\n${bootstrapLog}`,
+    `update-history.jsonl:\n${historyLog}`,
+  ].join("\n\n");
+}
+
 async function expectUpdatedRuntime(desktop: DesktopInstance, version: string): Promise<void> {
   // Owner: packaged desktop update journey. The relaunched bundle must update its
   // owned daemon too; an app-version marker alone cannot prove product readiness.
-  // Windows NSIS updates run silent uninstall + ~200MB LZMA unpack + shell/daemon restart (~60-75s on CI).
-  const readyTimeout = process.platform === "win32" ? 120_000 : 60_000;
-  await expect
-    .poll(async () => await readAppRecord(desktop.home), { timeout: readyTimeout })
-    .toMatchObject({
-      state: "product",
-      diagnostic_report: { runtime_version: version, runtime_owned: true, current_error: null },
-    });
-  await expect
-    .poll(
-      async () => {
-        const result = await desktop.cli(["status", "-o", "json"]);
-        return JSON.parse(result.stdout) as Record<string, unknown>;
-      },
-      { timeout: 60_000 }
-    )
-    .toMatchObject({ daemon: { status: "running", version } });
+  // Windows NSIS updates run silent uninstall + ~200MB LZMA unpack + shell/daemon restart.
+  const readyTimeout = process.platform === "win32" ? 90_000 : 60_000;
+  try {
+    await expect
+      .poll(async () => await readAppRecord(desktop.home), { timeout: readyTimeout })
+      .toMatchObject({
+        state: "product",
+        diagnostic_report: { runtime_version: version, runtime_owned: true, current_error: null },
+      });
+    await expect
+      .poll(
+        async () => {
+          const result = await desktop.cli(["status", "-o", "json"]);
+          return JSON.parse(result.stdout) as Record<string, unknown>;
+        },
+        { timeout: 60_000 }
+      )
+      .toMatchObject({ daemon: { status: "running", version } });
+  } catch (error) {
+    const diagnostics = await readUpdateDiagnostics(desktop.home).catch(
+      (readError: unknown) =>
+        `(diagnostics unreadable: ${readError instanceof Error ? readError.message : String(readError)})`
+    );
+    throw new Error(
+      `The relaunched desktop runtime did not reach version ${version}.\n${diagnostics}`,
+      { cause: error }
+    );
+  }
 }
 
 async function history(home: string): Promise<readonly Record<string, unknown>[]> {
@@ -705,9 +769,10 @@ test("Windows desktop: signed NSIS install, authenticated control, update and un
         await terminateRestartedDesktop(desktop.home);
       }
     } finally {
+      await stopWindowsProcessesIn(installation);
       await feed.close();
       await clearCache?.();
-      await rm(root, { recursive: true, force: true, maxRetries: 40, retryDelay: 500 });
+      await removeDirectoryWithin(root, 15_000);
     }
   }
 });
