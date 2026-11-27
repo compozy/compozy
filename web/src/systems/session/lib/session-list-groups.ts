@@ -147,7 +147,10 @@ export function projectSessionGroup(
   const scope = ownerDataScope(workspaceId);
   const remote = isRemoteComputerId(input.computerId);
   const baseKey = scope.kind === "user" ? "user" : `project:${scope.workspaceId}`;
-  const key = input.qualifyKey && input.computerId ? `project:${input.computerId}:${scope.kind === "user" ? "@user" : scope.workspaceId}` : baseKey;
+  const key =
+    input.qualifyKey && input.computerId
+      ? `project:${input.computerId}:${scope.kind === "user" ? "@user" : scope.workspaceId}`
+      : baseKey;
   return {
     key,
     kind: "project",

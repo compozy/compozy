@@ -75,7 +75,11 @@ export const ComputerStates: Story = {
         read: "connecting",
         detail: "Connecting…",
         count: null,
-        computer: makeComputerFixture({ id: "cmp_connecting", name: "hetzner", status: "connecting" }),
+        computer: makeComputerFixture({
+          id: "cmp_connecting",
+          name: "hetzner",
+          status: "connecting",
+        }),
       }),
       sourceFixture({
         key: "cmp_failed",
@@ -93,7 +97,11 @@ export const ComputerStates: Story = {
         count: null,
         canOperate: false,
         canCreate: false,
-        computer: makeComputerFixture({ id: "cmp_offline", name: "workstation", status: "offline" }),
+        computer: makeComputerFixture({
+          id: "cmp_offline",
+          name: "workstation",
+          status: "offline",
+        }),
       }),
       sourceFixture({
         key: "cmp_pro",

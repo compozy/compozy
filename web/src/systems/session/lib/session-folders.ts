@@ -345,7 +345,9 @@ export function sessionBulkMove(
       const rowKey = sessionRowKeyFor(session);
       const isSelected = selectedIds.has(rowKey) || selectedIds.has(session.id);
       if (!isSelected || !roots.has(rowKey) || !sessionHasOwnPlacement(session)) return [];
-      return [{ session, rank: rank.get(rowKey) ?? rank.get(session.id) ?? visibleOrder.length + index }];
+      return [
+        { session, rank: rank.get(rowKey) ?? rank.get(session.id) ?? visibleOrder.length + index },
+      ];
     })
     .sort((left, right) => left.rank - right.rank)
     .map(entry => entry.session);

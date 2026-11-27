@@ -853,7 +853,12 @@ describe("useSessionSidebarState", () => {
       })
     );
     const loaded = await loadFreshSidebarState();
-    expect(loaded.resolveSessionWindowOrder(loaded.sessionSidebarStore.getSnapshot().context.byScope, WINDOW_ONE)).toEqual({
+    expect(
+      loaded.resolveSessionWindowOrder(
+        loaded.sessionSidebarStore.getSnapshot().context.byScope,
+        WINDOW_ONE
+      )
+    ).toEqual({
       sort: null,
       groupBy: null,
       computers: null,
@@ -873,10 +878,16 @@ describe("useSessionSidebarState", () => {
 
     // Window two never inherits window one's computer scope or computers layer (Q6).
     expect(
-      loaded.resolveSessionWindowOrder(loaded.sessionSidebarStore.getSnapshot().context.byScope, WINDOW_ONE)
+      loaded.resolveSessionWindowOrder(
+        loaded.sessionSidebarStore.getSnapshot().context.byScope,
+        WINDOW_ONE
+      )
     ).toMatchObject({ computers: "together", computerScope: "cmp_devbox" });
     expect(
-      loaded.resolveSessionWindowOrder(loaded.sessionSidebarStore.getSnapshot().context.byScope, WINDOW_TWO)
+      loaded.resolveSessionWindowOrder(
+        loaded.sessionSidebarStore.getSnapshot().context.byScope,
+        WINDOW_TWO
+      )
     ).toMatchObject({ computers: null, computerScope: "all" });
 
     // Removing the scoped computer falls back to "all" and removes its folds, keeping local folds.

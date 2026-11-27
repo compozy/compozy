@@ -122,10 +122,8 @@ export const sessionSidebarLogic = createStoreLogic({
       withScopeState(context, event.scopeId, state => ({ ...state, sort: event.sort })),
     groupByChanged: (context, event: { scopeId: string; groupBy: SessionListGroupBy }) =>
       withScopeState(context, event.scopeId, state => ({ ...state, groupBy: event.groupBy })),
-    computersChanged: (
-      context,
-      event: { scopeId: string; computers: SessionListComputerLayout }
-    ) => withScopeState(context, event.scopeId, state => ({ ...state, computers: event.computers })),
+    computersChanged: (context, event: { scopeId: string; computers: SessionListComputerLayout }) =>
+      withScopeState(context, event.scopeId, state => ({ ...state, computers: event.computers })),
     computerScopeChanged: (
       context,
       event: { scopeId: string; computerScope: SessionWindowComputerScope }

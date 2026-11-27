@@ -3,17 +3,10 @@ import { useQueries } from "@tanstack/react-query";
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import type { ScopedComputerFailureItem } from "@/systems/computers";
 import type { ProfileScopeParams } from "@/systems/profiles";
-import {
-  workspaceBadgeIdentity,
-  type DataScope,
-  type WorkspacePayload,
-} from "@/systems/workspace";
+import { workspaceBadgeIdentity, type DataScope, type WorkspacePayload } from "@/systems/workspace";
 
 import { fetchSessionCatalogPage } from "../adapters/session-catalog-api";
-import {
-  SESSION_BOARD_PAGE_SIZE,
-  sessionBoardPageOptions,
-} from "../lib/session-catalog-options";
+import { SESSION_BOARD_PAGE_SIZE, sessionBoardPageOptions } from "../lib/session-catalog-options";
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import type { SessionBoardColumnId, SessionBoardPayload } from "../lib/session-board-contract";
 import type { SessionRowComputerInfo } from "../lib/session-list-computer";
@@ -89,11 +82,9 @@ function boardFiltersForSource(
       ...(matched.length > 0 ? { workspace_ids: [...matched] } : {}),
     };
   }
-  return sessionCatalogScopedFilters(
-    scope?.kind === "user" ? scope : { kind: "all" },
-    shared,
-    { all_profiles: true }
-  );
+  return sessionCatalogScopedFilters(scope?.kind === "user" ? scope : { kind: "all" }, shared, {
+    all_profiles: true,
+  });
 }
 
 function defaultBandFolded(source: ComputerSessionsSource): boolean {
@@ -283,7 +274,10 @@ export function useSessionsBoardComputers(options: {
         iconKind: source.computer.iconKind,
         offline: source.read === "offline",
       };
-      computerBySessionId.set(sessionRowKey({ computerId: source.key, sessionId: session.id }), info);
+      computerBySessionId.set(
+        sessionRowKey({ computerId: source.key, sessionId: session.id }),
+        info
+      );
       computerBySessionId.set(session.id, info);
     }
   };
@@ -335,7 +329,11 @@ export function useSessionsBoardComputers(options: {
           baseFilters: boardFiltersForSource(source, scope, shared, localLens),
           lanes,
           boardCounts: source.facets?.facets.board,
-          workspaceNameOf: workspaceNameResolverFor(source.workspaces, allProjects, !source.isLocal),
+          workspaceNameOf: workspaceNameResolverFor(
+            source.workspaces,
+            allProjects,
+            !source.isLocal
+          ),
         };
       })
     : null;
@@ -344,8 +342,9 @@ export function useSessionsBoardComputers(options: {
     together && groupBy === "project"
       ? buildTogetherProjectGroups(sourcesResult.sources, localLens).map(group => {
           const source =
-            sourcesResult.sources.find(item => item.key === (group.computerId ?? LOCAL_COMPUTER_ID)) ??
-            sourcesResult.sources[0]!;
+            sourcesResult.sources.find(
+              item => item.key === (group.computerId ?? LOCAL_COMPUTER_ID)
+            ) ?? sourcesResult.sources[0]!;
           return makeLane(group, source);
         })
       : null;

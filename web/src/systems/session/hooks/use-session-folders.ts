@@ -153,8 +153,7 @@ export function useSessionFolders(options: {
       for (const entry of context?.previous ?? []) queryClient.setQueryData(entry.key, entry.data);
       toast.error(run.failure, { description: error instanceof Error ? error.message : undefined });
     },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: keys.workspaceLists(workspaceId) }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: keys.workspaceLists(workspaceId) }),
   });
   const write = (run: LayoutWrite) => mutation.mutateAsync(run).then(() => undefined);
   const fireAndForget = (run: LayoutWrite) => void write(run).catch(() => undefined);

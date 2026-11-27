@@ -42,11 +42,7 @@ export interface SessionsBoardViewProps {
     row: SessionsBoardRow
   ) => ReactNode;
   /** One computer band per enabled computer under Separate (`F13`). */
-  renderBand?: (
-    band: SessionsBoardComputerBand,
-    row: SessionsBoardRow,
-    rank: number
-  ) => ReactNode;
+  renderBand?: (band: SessionsBoardComputerBand, row: SessionsBoardRow, rank: number) => ReactNode;
 }
 
 /**

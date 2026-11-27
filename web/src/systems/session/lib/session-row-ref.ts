@@ -40,10 +40,7 @@ export function parseSessionRowKey(key: string): SessionRowRef {
 }
 
 /** Row key for a session payload whose computer is known or inferred from provenance. */
-export function sessionRowKeyFor(
-  session: SessionPayload,
-  computerId?: ComputerId
-): string {
+export function sessionRowKeyFor(session: SessionPayload, computerId?: ComputerId): string {
   return sessionRowKey({
     computerId: computerId ?? sessionComputerOf(session),
     sessionId: session.id,
@@ -79,10 +76,7 @@ export function recordSessionsComputer<T extends SessionPayload>(
 }
 
 /** Resolves the computer owning a session payload; defaults to this computer. */
-export function sessionComputerOf(
-  session: SessionPayload,
-  fallback?: ComputerId
-): ComputerId {
+export function sessionComputerOf(session: SessionPayload, fallback?: ComputerId): ComputerId {
   return SESSION_COMPUTER_OWNERSHIP.get(session) ?? normalizeComputerId(fallback);
 }
 

@@ -406,7 +406,13 @@ export function useUnarchiveSession() {
     mutationFn: ({ id, workspace_id, profile_name, computerId }: SessionActionTarget) =>
       request(signal =>
         isRemoteComputerId(computerId)
-          ? unarchiveSession(sessionOwnerWorkspace(workspace_id), id, profile_name, signal, computerId)
+          ? unarchiveSession(
+              sessionOwnerWorkspace(workspace_id),
+              id,
+              profile_name,
+              signal,
+              computerId
+            )
           : unarchiveSession(sessionOwnerWorkspace(workspace_id), id, profile_name, signal)
       ),
     onSettled: (_data, _error, { id, workspace_id, computerId }) => {

@@ -21,7 +21,13 @@ export function useMarkSessionSeen() {
     mutationFn: ({ id, workspace_id, profile_name, computerId }: SessionActionTarget) =>
       request(signal =>
         isRemoteComputerId(computerId)
-          ? markSessionSeen(requireWorkspace(workspace_id ?? ""), id, profile_name, signal, computerId)
+          ? markSessionSeen(
+              requireWorkspace(workspace_id ?? ""),
+              id,
+              profile_name,
+              signal,
+              computerId
+            )
           : markSessionSeen(requireWorkspace(workspace_id ?? ""), id, profile_name, signal)
       ),
     onSettled: (_data, _error, { id, workspace_id, computerId }) => {

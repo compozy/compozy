@@ -43,10 +43,7 @@ function errorText(error: unknown, fallback: string): string {
  * a toast with the count and skip summary, and Undo that restores exactly the reported ids.
  * The in-flight state is the mutation cache's, so every menu reading a scope agrees.
  */
-export function useArchiveStopped(
-  profile: string,
-  computerId?: ComputerId
-): ArchiveStoppedModel {
+export function useArchiveStopped(profile: string, computerId?: ComputerId): ArchiveStoppedModel {
   const queryClient = useQueryClient();
   const resolvedComputer = normalizeComputerId(computerId);
   const keys = sessionKeys.forComputer(resolvedComputer);

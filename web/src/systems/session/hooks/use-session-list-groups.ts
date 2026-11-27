@@ -132,7 +132,10 @@ export function useSessionListGroups({
 
 function resolveGroups(
   grouped: boolean,
-  input: Pick<SessionListGroupsInput, "groupBy" | "scope" | "lens" | "workspaces" | "computerId"> & {
+  input: Pick<
+    SessionListGroupsInput,
+    "groupBy" | "scope" | "lens" | "workspaces" | "computerId"
+  > & {
     facets: Parameters<typeof projectSessionGroups>[0] & Parameters<typeof profileSessionGroups>[0];
     residents: readonly string[];
     profiles: ReturnType<typeof useProfiles>["data"];

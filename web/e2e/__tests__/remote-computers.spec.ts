@@ -330,10 +330,16 @@ test.describe("Account-linked computer", () => {
     await expect(sidebar.locator(`[data-computer-section="${host.id}"]`)).toBeVisible();
 
     // Switching to Kanban renders computer bands under Separate (`F13`).
-    await session.getByRole("group", { name: "View" }).getByRole("button", { name: "Kanban" }).click();
+    await session
+      .getByRole("group", { name: "View" })
+      .getByRole("button", { name: "Kanban" })
+      .click();
     await expect(session.getByTestId("sessions-board-bands")).toBeVisible({ timeout: 15_000 });
     await expect(session.getByTestId(`sessions-board-band-${host.id}`)).toBeVisible();
-    await session.getByRole("group", { name: "View" }).getByRole("button", { name: "List" }).click();
+    await session
+      .getByRole("group", { name: "View" })
+      .getByRole("button", { name: "List" })
+      .click();
 
     const palette = await openCommandPalette(page);
     await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(title);

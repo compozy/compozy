@@ -53,7 +53,8 @@ export function useSessionGroupFolds(
   const qualify = (key: string) => {
     if (!remote) return key;
     if (key.startsWith(`project:${normalizedComputer}:`) || key.startsWith("computer:")) return key;
-    if (key.startsWith("project:")) return `project:${normalizedComputer}:${key.slice("project:".length)}`;
+    if (key.startsWith("project:"))
+      return `project:${normalizedComputer}:${key.slice("project:".length)}`;
     return `project:${normalizedComputer}:${key}`;
   };
   const groupId = (key: string) => `${foldLens}\u0000${qualify(key)}`;
@@ -62,9 +63,7 @@ export function useSessionGroupFolds(
     // folded lane does not open and read its columns until `groupLensResolved` moves it.
     isCollapsed: key =>
       sidebar.groupFlag(groupId(key)) ??
-      (resolvedProfile && !remote
-        ? sidebar.groupFlag(`${fallbackLens}\u0000${key}`)
-        : undefined) ??
+      (resolvedProfile && !remote ? sidebar.groupFlag(`${fallbackLens}\u0000${key}`) : undefined) ??
       sidebar.groupFolds.has(groupId(key)),
     toggle: key => sidebar.toggleGroup(groupId(key)),
   };

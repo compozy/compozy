@@ -12,10 +12,7 @@ import {
 
 import { useSessionsBoardColumns } from "../../hooks/use-sessions-board";
 import type { SessionsBoardComputerBand } from "../../hooks/use-sessions-board-computers";
-import {
-  SESSION_BOARD_COLUMNS,
-  type SessionBoardColumnId,
-} from "../../lib/session-board-contract";
+import { SESSION_BOARD_COLUMNS, type SessionBoardColumnId } from "../../lib/session-board-contract";
 import { SessionListComputerStateNotice } from "../session-list/session-list-computer-note";
 import { SessionsBoardColumnGlyph } from "./sessions-board-column-glyph";
 import { SessionsBoardColumnsRow } from "./sessions-board-columns-row";
@@ -148,7 +145,10 @@ function BandBody({
             {...row}
             key={lane.group.key}
             lane={lane}
-            selectionRow={{ key: `band:${source.key}:lane:${lane.group.key}`, rank: rank * 100 + index }}
+            selectionRow={{
+              key: `band:${source.key}:lane:${lane.group.key}`,
+              rank: rank * 100 + index,
+            }}
             workspaceNameOf={band.workspaceNameOf}
           />
         ))}

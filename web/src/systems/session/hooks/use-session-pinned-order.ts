@@ -37,7 +37,11 @@ export function useSessionPinnedOrder(
     },
     mutationFn: (sessionIds: readonly string[]) =>
       remote
-        ? reorderPinnedSessions({ workspaceId, profile: profile || undefined }, sessionIds, computerId)
+        ? reorderPinnedSessions(
+            { workspaceId, profile: profile || undefined },
+            sessionIds,
+            computerId
+          )
         : reorderPinnedSessions({ workspaceId, profile: profile || undefined }, sessionIds),
     onMutate: async (sessionIds: readonly string[]) => {
       await queryClient.cancelQueries({ queryKey: keys.workspaceLists(workspaceId) });
@@ -74,8 +78,7 @@ export function useSessionPinnedOrder(
         description: error instanceof Error ? error.message : undefined,
       });
     },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: keys.workspaceLists(workspaceId) }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: keys.workspaceLists(workspaceId) }),
   });
   if (pair === null) return undefined;
   return sessionIds => mutation.mutate(sessionIds);

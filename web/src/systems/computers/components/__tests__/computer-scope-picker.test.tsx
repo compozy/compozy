@@ -7,10 +7,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  LOCAL_COMPUTER_FIXTURE,
-  makeComputerFixture,
-} from "../../mocks/remote-computers-fixtures";
+import { LOCAL_COMPUTER_FIXTURE, makeComputerFixture } from "../../mocks/remote-computers-fixtures";
 import { ComputerScopePicker, type ComputerScopeCount } from "../computer-scope-picker";
 
 const DEVBOX = makeComputerFixture({ id: "cmp_devbox", name: "devbox", status: "connected" });

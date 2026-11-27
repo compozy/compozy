@@ -134,9 +134,7 @@ function ComputerSectionAction({
         session: `New session on ${source.name}`,
         menu: `New session or project folder on ${source.name}`,
       }}
-      newFolderUnavailable={
-        canCreateProjectFolder ? null : "Group by Project to add folders."
-      }
+      newFolderUnavailable={canCreateProjectFolder ? null : "Group by Project to add folders."}
       onNewFolder={canCreateProjectFolder ? onNewProjectFolder : undefined}
       onNewSession={onNewSession}
       size="icon-xs"
@@ -165,7 +163,10 @@ export function SessionListComputerSection({
   onOpenComputerDetails,
 }: SessionListComputerSectionProps) {
   const sidebar = useSessionSidebarState();
-  const dragComputer = useSelector(sessionDragComputerStore, snapshot => snapshot.context.computerId);
+  const dragComputer = useSelector(
+    sessionDragComputerStore,
+    snapshot => snapshot.context.computerId
+  );
   const [hoverRefused, setHoverRefused] = useState(false);
   const [projectFolderDialog, setProjectFolderDialog] =
     useState<SessionFolderDialogState<WorkspaceFolderPayload>>(null);

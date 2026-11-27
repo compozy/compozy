@@ -132,7 +132,8 @@ export function clearRemovedComputerFromSidebarState(
   let changed = false;
   const byScope: Record<string, SessionSidebarScopeState> = {};
   for (const [scopeId, state] of Object.entries(context.byScope)) {
-    const nextScope = state.computerScope === target ? DEFAULT_SCOPE_STATE.computerScope : state.computerScope;
+    const nextScope =
+      state.computerScope === target ? DEFAULT_SCOPE_STATE.computerScope : state.computerScope;
     const nextGroups = withoutRemoteFoldFlags(state.collapsedGroups, target);
     const nextFolders = withoutRemoteFoldFlags(state.collapsedFolders, target);
     if (

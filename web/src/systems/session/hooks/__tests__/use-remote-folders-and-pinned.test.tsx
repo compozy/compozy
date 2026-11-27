@@ -46,10 +46,9 @@ describe("Remote folders (T-F11) and multi-computer Pinned (T-F12)", () => {
   it("Should return cached folders without issuing network requests when readOnly is true (F10/F11)", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const folder = { id: "fld_1", name: "Backend", position: 0 };
-    client.setQueryData(
-      sessionKeys.forComputer("cmp_devbox").folders("ws_r1", "default"),
-      [folder]
-    );
+    client.setQueryData(sessionKeys.forComputer("cmp_devbox").folders("ws_r1", "default"), [
+      folder,
+    ]);
 
     const { result } = renderHook(
       () =>

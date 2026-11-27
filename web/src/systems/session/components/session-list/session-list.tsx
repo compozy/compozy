@@ -21,7 +21,10 @@ import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-
 import { useSessionListLocalState } from "../../hooks/use-session-list-local-state";
 import { useSessionListContent } from "../../hooks/use-session-list-reveal-current";
 import { useSessionListSelection } from "../../hooks/use-session-list-selection";
-import type { SessionListTotals as Totals, SessionListViewModel } from "../../hooks/use-session-list-view";
+import type {
+  SessionListTotals as Totals,
+  SessionListViewModel,
+} from "../../hooks/use-session-list-view";
 import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";

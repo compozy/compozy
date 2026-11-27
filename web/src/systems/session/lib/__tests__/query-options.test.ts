@@ -741,7 +741,10 @@ describe("session read invalidation", () => {
 
 describe("computer-scoped catalog, facets, folder and layout keys (T-F1)", () => {
   it("Should prefix remote folder, layout, facets, board and descendant keys with ['computer', id] and poll remote facets/pages at 15 s", () => {
-    const folders = sessionFoldersOptions({ workspaceId: "ws_alpha", profile: "default" }, "cmp_dev");
+    const folders = sessionFoldersOptions(
+      { workspaceId: "ws_alpha", profile: "default" },
+      "cmp_dev"
+    );
     const localFolders = sessionFoldersOptions({ workspaceId: "ws_alpha", profile: "default" });
     expect(folders.queryKey.slice(0, 2)).toEqual(["computer", "cmp_dev"]);
     expect(localFolders.queryKey.slice(0, 2)).toEqual(["computer", "local"]);

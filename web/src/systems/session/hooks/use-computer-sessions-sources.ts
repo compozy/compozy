@@ -1,11 +1,7 @@
 import { QueryClient, QueryClientContext, useQueries, useQuery } from "@tanstack/react-query";
 import { useContext } from "react";
 
-import {
-  isRemoteComputerId,
-  LOCAL_COMPUTER_ID,
-  type ComputerId,
-} from "@/lib/computer-scope";
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import {
   computerCanOperateSessions,
   computerReadDetail,
@@ -136,7 +132,7 @@ export function useComputerSessionsSources(options: {
       ? registeredWorkspaces.find(workspace => workspace.id === scope.workspaceId)
       : undefined;
   const focusedRepoKey =
-    scope?.kind === "project" ? (focusedProject?.repository_key?.trim() || null) : null;
+    scope?.kind === "project" ? focusedProject?.repository_key?.trim() || null : null;
 
   const basePopulation = buildComputerPopulationFilters({
     shelf,
@@ -268,7 +264,8 @@ export function useComputerSessionsSources(options: {
         ? facetsQuery.data.facets.all
         : null;
     const canOperate =
-      read === "ok" && computerCanOperateSessions(computer.scopes, !isRemoteComputerId(computer.id));
+      read === "ok" &&
+      computerCanOperateSessions(computer.scopes, !isRemoteComputerId(computer.id));
     return {
       key: computer.id,
       isLocal: false,

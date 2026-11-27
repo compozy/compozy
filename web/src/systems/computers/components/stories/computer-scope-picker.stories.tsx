@@ -3,10 +3,7 @@ import { fn } from "storybook/test";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 
-import {
-  LOCAL_COMPUTER_FIXTURE,
-  makeComputerFixture,
-} from "../../mocks/remote-computers-fixtures";
+import { LOCAL_COMPUTER_FIXTURE, makeComputerFixture } from "../../mocks/remote-computers-fixtures";
 import { ComputerScopePicker, type ComputerScopeCount } from "../computer-scope-picker";
 
 const DEVBOX = makeComputerFixture({ id: "cmp_devbox", name: "devbox", status: "connected" });

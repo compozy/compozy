@@ -43,9 +43,7 @@ export interface SessionListComputerBodyProps {
   onOpenComputerDetails?: (computerId: string) => void;
   /** External create-project-folder trigger from the section header's `+` menu (`F3`). */
   projectFolderDialog?: SessionFolderDialogState<WorkspaceFolderPayload>;
-  onProjectFolderDialogChange?: (
-    state: SessionFolderDialogState<WorkspaceFolderPayload>
-  ) => void;
+  onProjectFolderDialogChange?: (state: SessionFolderDialogState<WorkspaceFolderPayload>) => void;
 }
 
 /**
@@ -61,9 +59,7 @@ export function SessionListComputerBody(props: SessionListComputerBodyProps) {
       <SessionListComputerStateNotice
         computerId={source.key}
         name={source.name}
-        onOpenDetails={
-          onOpenComputerDetails ? () => onOpenComputerDetails(source.key) : undefined
-        }
+        onOpenDetails={onOpenComputerDetails ? () => onOpenComputerDetails(source.key) : undefined}
         onRetry={source.retry}
         onUpgrade={upgradeSheet ? () => upgradeSheet.openUpgradeSheet() : undefined}
         read={source.read}

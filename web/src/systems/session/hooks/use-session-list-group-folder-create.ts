@@ -59,7 +59,10 @@ export function useSessionListGroupFolderCreate(target: {
   const remote = isRemoteComputerId(target.computerId);
   const profileScope = useProfileReadScope();
   const active = useActiveWorkspace();
-  const profiles = useProfiles(open && target.profile === null, remote ? target.computerId : undefined);
+  const profiles = useProfiles(
+    open && target.profile === null,
+    remote ? target.computerId : undefined
+  );
   const projectOptions =
     target.workspaceId === null ? sessionProjectOptions(active.projectWorkspaces) : [];
   const profileOptions = target.profile === null ? sessionProfileOptions(profiles.data ?? []) : [];

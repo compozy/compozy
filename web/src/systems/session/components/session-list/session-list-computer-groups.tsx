@@ -262,7 +262,8 @@ export function SessionListTogetherFlatBody({
   const connecting = sources.filter(source => source.read === "connecting");
   const failed = sources.filter(source => source.read === "failed");
   const initialLoading =
-    merged.length === 0 && queries.some((query, index) => query.isLoading && querySpecs[index]?.source.read === "ok");
+    merged.length === 0 &&
+    queries.some((query, index) => query.isLoading && querySpecs[index]?.source.read === "ok");
   if (initialLoading && connecting.length === 0) return <SessionListSkeleton />;
 
   return (

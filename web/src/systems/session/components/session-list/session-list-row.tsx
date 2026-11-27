@@ -15,8 +15,15 @@ export type { SessionListRowProps } from "./session-list-row-view";
  * and the always-on agent that started a session show inside the session, not on its row (#1191).
  */
 export function SessionListRow(props: SessionListRowProps) {
-  const { session, computerId, current = false, selection, sessionActions, layoutMenu, onSelect } =
-    props;
+  const {
+    session,
+    computerId,
+    current = false,
+    selection,
+    sessionActions,
+    layoutMenu,
+    onSelect,
+  } = props;
   const runtime = useSessionRowRuntimeLabel(session);
   const preloadHandlers = useSessionEntryPreload(session, !current && !selection?.mode);
   const rowKey = sessionRowKey({

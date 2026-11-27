@@ -130,10 +130,7 @@ function SessionsBoardLaneToggle({
   const signal = lane.collapsed ? sessionListGroupSignalLabel(lane.group) : null;
   const mark =
     lane.group.computerName && lane.group.computerPlatform && lane.group.computerIconKind ? (
-      <ComputerMark
-        iconKind={lane.group.computerIconKind}
-        platform={lane.group.computerPlatform}
-      />
+      <ComputerMark iconKind={lane.group.computerIconKind} platform={lane.group.computerPlatform} />
     ) : undefined;
   return (
     <SessionListGroupProjectMenu group={lane.group}>
@@ -158,7 +155,11 @@ function SessionsBoardLaneToggle({
             <SessionListDisclosureMark
               mark={mark}
               open={!lane.collapsed}
-              signal={{ needsYou: lane.group.needsYou, working: lane.group.working, slot: "session-group" }}
+              signal={{
+                needsYou: lane.group.needsYou,
+                working: lane.group.working,
+                slot: "session-group",
+              }}
             />
           ) : (
             <Icon

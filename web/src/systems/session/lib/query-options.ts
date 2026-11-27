@@ -469,7 +469,12 @@ export function sessionDescendantsOptions(
             signal,
             computerId
           )
-        : listSessionDescendants(session.workspace_id ?? "", session.id, session.profile_name, signal),
+        : listSessionDescendants(
+            session.workspace_id ?? "",
+            session.id,
+            session.profile_name,
+            signal
+          ),
     staleTime: 0,
   });
 }

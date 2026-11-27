@@ -33,11 +33,7 @@ import {
   visibleSessionOrder,
 } from "../session-folders";
 import { sessionListPairKey } from "../session-list-group-rows";
-import {
-  recordSessionComputer,
-  sessionDragComputerStore,
-  sessionRowKey,
-} from "../session-row-ref";
+import { recordSessionComputer, sessionDragComputerStore, sessionRowKey } from "../session-row-ref";
 import { buildSessionListThreads } from "../session-list-threads";
 import {
   sessionListVisibleOrder,

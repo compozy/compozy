@@ -61,7 +61,9 @@ function ScopeSessionCount({ entry }: { entry: ComputerScopeCount | undefined })
   );
 }
 
-function aggregateCount(countsByComputer: ReadonlyMap<string, ComputerScopeCount>): ComputerScopeCount {
+function aggregateCount(
+  countsByComputer: ReadonlyMap<string, ComputerScopeCount>
+): ComputerScopeCount {
   let answered = false;
   let count = 0;
   let needsYou = 0;
@@ -99,9 +101,7 @@ function TriggerLabel({
         size="sm"
         tone="muted"
       />
-      <span className="truncate font-medium text-fg">
-        {remote ? remote.name : "This computer"}
-      </span>
+      <span className="truncate font-medium text-fg">{remote ? remote.name : "This computer"}</span>
       {offline ? <span className="shrink-0 text-muted-foreground">· Offline</span> : null}
     </>
   );

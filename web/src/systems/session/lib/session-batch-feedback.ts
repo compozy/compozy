@@ -66,7 +66,8 @@ export function reportBatch(
   const byId = new Map(sessions.map(session => [session.id, session]));
   const hasRemoteFailure = failures.some(result => {
     const session = byId.get(result.id);
-    const computer = result.computerId ?? (session ? sessionComputerOf(session) : LOCAL_COMPUTER_ID);
+    const computer =
+      result.computerId ?? (session ? sessionComputerOf(session) : LOCAL_COMPUTER_ID);
     return isRemoteComputerId(computer);
   });
   let failureDetails: string;

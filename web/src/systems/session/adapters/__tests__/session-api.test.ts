@@ -1846,7 +1846,8 @@ describe("computer-scoped folder, pin, Later and lifecycle adapters (T-F1)", () 
         method: "PATCH",
         path: "/api/workspace-folders/pf-1?profile=default",
         response: { folder },
-        call: computerId => renameWorkspaceFolder("default", "pf-1", "Renamed", undefined, computerId),
+        call: computerId =>
+          renameWorkspaceFolder("default", "pf-1", "Renamed", undefined, computerId),
       },
       {
         name: "deleteWorkspaceFolder",
@@ -1867,7 +1868,8 @@ describe("computer-scoped folder, pin, Later and lifecycle adapters (T-F1)", () 
         method: "PUT",
         path: "/api/workspace-order/workspaces?profile=default",
         response: layout,
-        call: computerId => reorderWorkspaces("default", null, [WORKSPACE_ID], undefined, computerId),
+        call: computerId =>
+          reorderWorkspaces("default", null, [WORKSPACE_ID], undefined, computerId),
       },
       {
         name: "moveWorkspace",
@@ -1881,28 +1883,32 @@ describe("computer-scoped folder, pin, Later and lifecycle adapters (T-F1)", () 
         method: "POST",
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/pin?profile=default`,
         response: { session: mockSession },
-        call: computerId => setSessionPinned(WORKSPACE_ID, "sess-001", "default", true, undefined, computerId),
+        call: computerId =>
+          setSessionPinned(WORKSPACE_ID, "sess-001", "default", true, undefined, computerId),
       },
       {
         name: "moveSessionToLater",
         method: "POST",
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/later?profile=default`,
         response: { session: mockSession },
-        call: computerId => moveSessionToLater(WORKSPACE_ID, "sess-001", "default", {}, undefined, computerId),
+        call: computerId =>
+          moveSessionToLater(WORKSPACE_ID, "sess-001", "default", {}, undefined, computerId),
       },
       {
         name: "resumeSessionFromLater",
         method: "POST",
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/resume-later?profile=default`,
         response: { session: mockSession },
-        call: computerId => resumeSessionFromLater(WORKSPACE_ID, "sess-001", "default", {}, undefined, computerId),
+        call: computerId =>
+          resumeSessionFromLater(WORKSPACE_ID, "sess-001", "default", {}, undefined, computerId),
       },
       {
         name: "markSessionSeen",
         method: "POST",
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/mark-seen?profile=default`,
         response: { session: mockSession },
-        call: computerId => markSessionSeen(WORKSPACE_ID, "sess-001", "default", undefined, computerId),
+        call: computerId =>
+          markSessionSeen(WORKSPACE_ID, "sess-001", "default", undefined, computerId),
       },
       {
         name: "deleteSession",
@@ -1910,34 +1916,58 @@ describe("computer-scoped folder, pin, Later and lifecycle adapters (T-F1)", () 
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001?profile=default`,
         response: null,
         empty: true,
-        call: computerId => deleteSession(WORKSPACE_ID, "sess-001", "default", undefined, undefined, computerId),
+        call: computerId =>
+          deleteSession(WORKSPACE_ID, "sess-001", "default", undefined, undefined, computerId),
       },
       {
         name: "renameSession",
         method: "PATCH",
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001?profile=default`,
         response: { session: mockSession },
-        call: computerId => renameSession(WORKSPACE_ID, "sess-001", "default", { name: "New" }, undefined, computerId),
+        call: computerId =>
+          renameSession(
+            WORKSPACE_ID,
+            "sess-001",
+            "default",
+            { name: "New" },
+            undefined,
+            computerId
+          ),
       },
       {
         name: "setSessionParent",
         method: "PUT",
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/parent?profile=default`,
         response: { session: mockSession },
-        call: computerId => setSessionParent(WORKSPACE_ID, "sess-001", "default", "sess-parent", undefined, computerId),
+        call: computerId =>
+          setSessionParent(
+            WORKSPACE_ID,
+            "sess-001",
+            "default",
+            "sess-parent",
+            undefined,
+            computerId
+          ),
       },
       {
         name: "clearSessionParent",
         method: "DELETE",
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/parent?profile=default`,
         response: { session: mockSession },
-        call: computerId => clearSessionParent(WORKSPACE_ID, "sess-001", "default", undefined, computerId),
+        call: computerId =>
+          clearSessionParent(WORKSPACE_ID, "sess-001", "default", undefined, computerId),
       },
       {
         name: "stopSession",
         method: "POST",
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/stop?profile=default`,
-        response: { session_id: "sess-001", state: "stopped", status: "stopped", verified: true, escalated: false },
+        response: {
+          session_id: "sess-001",
+          state: "stopped",
+          status: "stopped",
+          verified: true,
+          escalated: false,
+        },
         call: computerId => stopSession(WORKSPACE_ID, "sess-001", "default", {}, computerId),
       },
       {
@@ -1945,7 +1975,16 @@ describe("computer-scoped folder, pin, Later and lifecycle adapters (T-F1)", () 
         method: "POST",
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/archive?profile=default&with_children=true`,
         response: { session: mockSession },
-        call: computerId => archiveSessionTree(WORKSPACE_ID, "sess-001", "default", undefined, false, undefined, computerId),
+        call: computerId =>
+          archiveSessionTree(
+            WORKSPACE_ID,
+            "sess-001",
+            "default",
+            undefined,
+            false,
+            undefined,
+            computerId
+          ),
       },
       {
         name: "deleteSessionTree",
@@ -1953,28 +1992,32 @@ describe("computer-scoped folder, pin, Later and lifecycle adapters (T-F1)", () 
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001?profile=default&with_children=true`,
         response: null,
         empty: true,
-        call: computerId => deleteSessionTree(WORKSPACE_ID, "sess-001", "default", undefined, undefined, computerId),
+        call: computerId =>
+          deleteSessionTree(WORKSPACE_ID, "sess-001", "default", undefined, undefined, computerId),
       },
       {
         name: "listSessionDescendants",
         method: "GET",
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/descendants?profile=default`,
         response: { sessions: [] },
-        call: computerId => listSessionDescendants(WORKSPACE_ID, "sess-001", "default", undefined, computerId),
+        call: computerId =>
+          listSessionDescendants(WORKSPACE_ID, "sess-001", "default", undefined, computerId),
       },
       {
         name: "unarchiveSession",
         method: "POST",
         path: `/api/workspaces/${WORKSPACE_ID}/sessions/sess-001/unarchive?profile=default`,
         response: { session: mockSession },
-        call: computerId => unarchiveSession(WORKSPACE_ID, "sess-001", "default", undefined, computerId),
+        call: computerId =>
+          unarchiveSession(WORKSPACE_ID, "sess-001", "default", undefined, computerId),
       },
       {
         name: "archiveStoppedSessions",
         method: "POST",
         path: "/api/sessions/archive-stopped?profile=default",
         response: { archived: [], skipped: [] },
-        call: computerId => archiveStoppedSessions("default", { kind: "all" }, undefined, computerId),
+        call: computerId =>
+          archiveStoppedSessions("default", { kind: "all" }, undefined, computerId),
       },
     ];
 

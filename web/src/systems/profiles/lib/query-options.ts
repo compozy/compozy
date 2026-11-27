@@ -17,7 +17,9 @@ import { profileKeys } from "./query-keys";
 export function profilesListOptions(enabled = true, computerId?: ComputerId) {
   const remote = isRemoteComputerId(computerId);
   return queryOptions({
-    queryKey: remote ? (["computer", computerId, ...profileKeys.list()] as const) : profileKeys.list(),
+    queryKey: remote
+      ? (["computer", computerId, ...profileKeys.list()] as const)
+      : profileKeys.list(),
     queryFn: ({ signal }) => (remote ? fetchProfiles(signal, computerId) : fetchProfiles(signal)),
     enabled,
     staleTime: 30_000,

@@ -99,7 +99,9 @@ export function manualSortNote(
   multiComputer = false
 ): string | null {
   if (sort !== "manual" || !manualBlocked) return null;
-  return multiComputer ? SESSION_LIST_MANUAL_SORT_MULTI_COMPUTER_NOTE : SESSION_LIST_MANUAL_SORT_NOTE;
+  return multiComputer
+    ? SESSION_LIST_MANUAL_SORT_MULTI_COMPUTER_NOTE
+    : SESSION_LIST_MANUAL_SORT_NOTE;
 }
 
 export function newFolderUnavailableReason(

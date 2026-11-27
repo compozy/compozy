@@ -1,8 +1,4 @@
-import type {
-  ComputerFixture,
-  ComputerStatus,
-  RemoteScope,
-} from "../mocks/remote-computers-types";
+import type { ComputerFixture, ComputerStatus, RemoteScope } from "../mocks/remote-computers-types";
 
 /**
  * How one computer's session-list read went (`model.ts` visual contract).

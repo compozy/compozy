@@ -239,9 +239,7 @@ function SessionListPairGroupContent({
   const readOnly = view.readOnly === true || group.offline === true;
   const select = (session: SessionListTarget) => {
     if (partitions || !catalog.paging) {
-      props.onSelectSession(
-        isRemoteComputerId(computerId) ? { ...session, computerId } : session
-      );
+      props.onSelectSession(isRemoteComputerId(computerId) ? { ...session, computerId } : session);
     }
   };
   const pair = group.pair;

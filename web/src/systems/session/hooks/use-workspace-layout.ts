@@ -83,7 +83,9 @@ export function useWorkspaceLayout(options: {
   const requestProfile = profile || undefined;
 
   const mutation = useMutation({
-    scope: { id: remote ? `workspace-layout:${computerId}:${profile}` : `workspace-layout:${profile}` },
+    scope: {
+      id: remote ? `workspace-layout:${computerId}:${profile}` : `workspace-layout:${profile}`,
+    },
     mutationFn: (run: LayoutWrite) => run.request(),
     onMutate: async (run: LayoutWrite) => {
       await queryClient.cancelQueries({ queryKey: key });

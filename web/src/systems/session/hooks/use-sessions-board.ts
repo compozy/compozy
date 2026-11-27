@@ -265,14 +265,21 @@ export function useSessionsBoard({
   const arranged = useProjectFolderGroups({
     groups: grouping.groups,
     groupBy: effectiveGroupBy,
-    breadth: { allProjects: breadth.allProjects, allProfiles: isRemoteScoped ? true : breadth.allProfiles },
+    breadth: {
+      allProjects: breadth.allProjects,
+      allProfiles: isRemoteScoped ? true : breadth.allProfiles,
+    },
     lens: targetLens,
     workspaces: targetWorkspaces,
     showEmptyProjects,
     enabled: singleGroupingActive,
     computerId: targetComputerId,
   });
-  const folds = useSessionGroupFolds(scope, effectiveGroupBy, isRemoteScoped ? targetComputerId : undefined);
+  const folds = useSessionGroupFolds(
+    scope,
+    effectiveGroupBy,
+    isRemoteScoped ? targetComputerId : undefined
+  );
   const localShelfActive = active && !multi.multiArchive;
   const archive = useSessionsBoardPage(
     { ...base, ...sessionListShelfFilters("archive") },

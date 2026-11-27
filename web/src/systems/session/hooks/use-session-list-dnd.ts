@@ -282,7 +282,11 @@ export function useSessionListDnd(
               }
             },
             onDrop: event => {
-              if (sameComputer(dragging) && selection && selectionDrops(dragging, selection, folderId)) {
+              if (
+                sameComputer(dragging) &&
+                selection &&
+                selectionDrops(dragging, selection, folderId)
+              ) {
                 finish(event, () => selection.move(folderId));
               }
             },
