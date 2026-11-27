@@ -1,4 +1,3 @@
-import { ChevronsUpDown } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import {
@@ -170,7 +169,6 @@ export function WorktreeRefSelect({
             {worktreeRefTriggerText(value, selection, emptyOption, placeholder, displayValue)}
           </span>
         </span>
-        <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-subtle" />
       </CommandSelectTrigger>
       <CommandSelectShell className="min-w-64" inputPlaceholder="Search worktrees...">
         <WorktreeRefOptions
