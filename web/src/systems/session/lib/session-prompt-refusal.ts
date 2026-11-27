@@ -9,28 +9,34 @@ const MAX_REFUSAL_REASON_LENGTH = 400;
  * again retries the reload; there is no separate retry action.
  */
 export const MCP_RELOAD_FAILED_CODE = "session_mcp_reload_failed";
+export const SESSION_REBIND_TIMEOUT_CODE = "session_rebind_timeout";
 
-/**
- * The daemon's reason for refusing a prompt, read from the body of its error
- * response (the AI SDK transport surfaces that body as the error message).
- */
-export function sessionPromptRefusalReason(body: string): string | null {
+/** Reads the visible reason and identifies a rebind failure that preceded prompt admission. */
+export function parseSessionPromptRefusal(
+  status: number,
+  body: string
+): { reason: string | null; rebindTimeout: boolean } {
   const trimmed = body.trim();
-  if (trimmed.length === 0) return null;
+  if (trimmed.length === 0) return { reason: null, rebindTimeout: false };
   try {
     const payload: unknown = JSON.parse(trimmed);
-    if (typeof payload === "object" && payload !== null && "error" in payload) {
-      const reason = payload.error;
-      if (typeof reason === "string" && reason.trim().length > 0) {
-        if ("code" in payload && payload.code === MCP_RELOAD_FAILED_CODE) {
-          return mcpReloadReason(reason.trim());
-        }
-        return readableReason(reason.trim());
-      }
+    if (typeof payload !== "object" || payload === null)
+      return { reason: null, rebindTimeout: false };
+    const code = "code" in payload ? payload.code : null;
+    const rebindTimeout =
+      status === 504 &&
+      code === SESSION_REBIND_TIMEOUT_CODE &&
+      "retryable" in payload &&
+      payload.retryable === true;
+    const reason =
+      "error" in payload && typeof payload.error === "string" ? payload.error.trim() : "";
+    if (!reason) return { reason: null, rebindTimeout };
+    if (code === MCP_RELOAD_FAILED_CODE || code === SESSION_REBIND_TIMEOUT_CODE) {
+      return { reason: codedRefusalReason(reason, code), rebindTimeout };
     }
-    return null;
+    return { reason: readableReason(reason), rebindTimeout };
   } catch {
-    return readableReason(trimmed);
+    return { reason: readableReason(trimmed), rebindTimeout: false };
   }
 }
 
@@ -58,10 +64,10 @@ function bounded(reason: string): string {
 
 // The daemon's sentence ends by saying the message wasn't sent, then names its error code in
 // parentheses. The notice says "not sent" once and never shows the code (it is in `code`).
-function mcpReloadReason(reason: string): string {
+function codedRefusalReason(reason: string, code: string): string {
   return bounded(
     reason
-      .replace(/\s*\(session_mcp_reload_failed\)\.?$/, "")
+      .replace(new RegExp(`\\s*\\(${code}\\)\\.?$`), "")
       .replace(/\.?\s*Your message wasn't sent\.?$/i, "")
   );
 }

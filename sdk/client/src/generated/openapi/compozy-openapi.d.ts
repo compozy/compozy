@@ -65352,6 +65352,15 @@ export interface operations {
           "application/json": components["schemas"]["SessionDeriveErrorPayload"];
         };
       };
+      /** @description Session reload timed out and transcript replay failed (session_rebind_timeout) */
+      504: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
     };
   };
   cancelSessionPrompt: {

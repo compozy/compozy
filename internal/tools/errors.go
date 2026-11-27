@@ -91,6 +91,8 @@ const (
 	ErrorCodeWorktreeMissing             ErrorCode = "worktree_missing"
 	ErrorCodeWorktreeOperationInProgress ErrorCode = "worktree_operation_in_progress"
 	ErrorCodeWorktreeSessionActive       ErrorCode = "worktree_session_active"
+	// ErrorCodeSessionRebindTimeout reports a timed-out reload whose replay failed before admission.
+	ErrorCodeSessionRebindTimeout ErrorCode = "session_rebind_timeout"
 	// ErrorCodeCompactionUnsupported reports a missing native compaction capability.
 	ErrorCodeCompactionUnsupported ErrorCode = "compaction_unsupported"
 	// ErrorCodeSessionArchiveStopFailed reports a stop-first archive whose stop

@@ -113735,6 +113735,16 @@
               }
             },
             "description": "New-work admission is unavailable while the daemon is draining"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session reload timed out and transcript replay failed (session_rebind_timeout)"
           }
         },
         "summary": "Send, queue, interrupt, or steer a session prompt",

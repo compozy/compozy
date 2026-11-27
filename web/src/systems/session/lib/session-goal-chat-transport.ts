@@ -187,7 +187,8 @@ export function createGoalAwareFetch({
     onRequest?.();
     const submittedText = requestText(init);
     const response = await fetch(input, withCanonicalPromptMessage(init, submittedText));
-    if (!isJsonContentType(response.headers.get("content-type"))) {
+    // A 504 has no Goal envelope. Let prompt recovery handle the error body and its deadline.
+    if (response.status === 504 || !isJsonContentType(response.headers.get("content-type"))) {
       return response;
     }
 

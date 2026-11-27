@@ -255,6 +255,11 @@ func sendSessionPromptOperationSpec() OperationSpec {
 			{Status: 413, Description: "Session input queue is full", Body: contract.ErrorPayload{}},
 			promptGoalErrorResponse(422, "Goal command is invalid or cannot transition"),
 			promptDeriveErrorResponse(503, specNewWorkAdmissionUnavailableDescription),
+			{
+				Status:      504,
+				Description: "Session reload timed out and transcript replay failed (session_rebind_timeout)",
+				Body:        contract.ErrorPayload{},
+			},
 			promptDeriveErrorResponse(500, specInternalServerErrorDescription),
 		},
 	}

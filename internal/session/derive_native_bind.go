@@ -3,12 +3,15 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/toolmeta"
 )
 
 const (
@@ -46,7 +49,8 @@ func (m *Manager) prepareNativeBootstrapBind(
 // the launch runs session/load of the clone id and settles the bootstrap: loaded on
 // success; failed when the clone cannot load (see nativeCloneLoadFailed), after which the
 // launch restarts on the carried context. A released idle runtime reloads its own ACP
-// session the same way and replays the transcript when the load fails. Other errors surface.
+// session the same way and replays the transcript when the load fails. Either replay
+// renews the hosted MCP launch consumed by the failed attempt. Other errors surface.
 func (m *Manager) launchPromptRuntimeCandidate(
 	ctx context.Context,
 	session *Session,
@@ -82,15 +86,73 @@ func (m *Manager) launchPromptRuntimeCandidate(
 	}
 	plan.spec.acpSessionID = ""
 	plan.spec.resumeReplay = true
-	startOpts, prepareErr := m.prepareSessionLaunch(ctx, &plan.spec, session, runtime, nil)
-	if prepareErr != nil {
-		return nil, errors.Join(err, prepareErr)
+	candidate, replayErr := m.launchPromptRuntimeReplay(ctx, session, plan, runtime)
+	if replayErr == nil {
+		return candidate, nil
 	}
-	candidate, fallbackErr := m.startAgentProcess(ctx, &plan.spec, startOpts)
-	if fallbackErr != nil {
-		return nil, errors.Join(err, fallbackErr)
+	if reload && acp.IsLoadSessionTimeout(err) && ctx.Err() == nil {
+		return nil, &RebindTimeoutError{LoadTimeout: err, Fallback: replayErr}
 	}
-	return candidate, nil
+	return nil, errors.Join(err, replayErr)
+}
+
+func (m *Manager) launchPromptRuntimeReplay(
+	ctx context.Context,
+	session *Session,
+	plan *promptRuntimePlan,
+	runtime *sessionStartRuntime,
+) (_ *AgentProcess, err error) {
+	renewed, err := m.remintHostedMCPForReplay(ctx, plan, runtime)
+	if err != nil {
+		return nil, err
+	}
+	if renewed {
+		defer func() {
+			if err != nil {
+				m.hostedMCP.CancelLaunch(session.ID)
+			}
+		}()
+	}
+	startOpts, err := m.prepareSessionLaunch(ctx, &plan.spec, session, runtime, nil)
+	if err != nil {
+		return nil, err
+	}
+	return m.startAgentProcess(ctx, &plan.spec, startOpts)
+}
+
+func (m *Manager) remintHostedMCPForReplay(
+	ctx context.Context,
+	plan *promptRuntimePlan,
+	runtime *sessionStartRuntime,
+) (bool, error) {
+	if m.hostedMCP == nil {
+		return false, nil
+	}
+	for index, server := range runtime.mcpServers {
+		if server.Name != toolmeta.HostedServerName ||
+			server.Transport != compozyconfig.MCPServerTransportStdio {
+			continue
+		}
+		// The failed load process released its proxy bind, so transcript replay needs a newly
+		// minted hosted launch rather than reusing the launch entry that process consumed.
+		hosted, err := m.hostedMCP.Launch(ctx, HostedMCPLaunchRequest{
+			EagerTools:  true,
+			SessionID:   plan.spec.sessionID,
+			ProfileID:   plan.spec.profileID,
+			WorkspaceID: plan.spec.workspace.ID,
+			AgentName:   runtime.agent.Name,
+		})
+		if err != nil {
+			return false, errors.Join(
+				ErrHostedMCPUnavailable,
+				fmt.Errorf("session: re-mint hosted MCP launch for transcript replay: %w", err),
+			)
+		}
+		runtime.mcpServers = append([]compozyconfig.MCPServer(nil), runtime.mcpServers...)
+		runtime.mcpServers[index] = hosted
+		return true, nil
+	}
+	return false, nil
 }
 
 // nativeCloneLoadFailed reports a clone the child's own process could not load (ADR-003):

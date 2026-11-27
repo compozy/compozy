@@ -521,9 +521,11 @@ successful release.
 The next prompt from any surface (composer, CLI, HTTP/UDS, a reply delivery, or a wake) binds a
 runtime again without a Resume step:
 
-- CompozyOS reloads the same ACP session with `session/load`.
+- CompozyOS reloads the same ACP session with `session/load`, which has a 90-second default budget.
 - If the load fails, it starts a fresh ACP session and replays the bounded transcript
-  (`session.derive.max_replay_bytes`).
+  (`session.derive.max_replay_bytes`). If the load timed out and replay also fails, HTTP and UDS
+  return `504 session_rebind_timeout` with `retryable: true`. The web composer keeps your draft.
+  Retry the prompt, or use Continue or Fork to carry the conversation to a fresh provider session.
 - If the prompt selects a different provider or model, it binds that route and carries the
   transcript, as a live runtime switch does.
 

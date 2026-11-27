@@ -1343,6 +1343,38 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should return a retryable rebind timeout from a native session prompt", func(t *testing.T) {
+		t.Parallel()
+		const secret = "sk-live-0123456789abcdefghijklmnopqrstuv"
+		manager := nativeTestSessionManager("ws-native")
+		manager.SendPromptFn = func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
+			return session.SendPromptResult{}, &session.RebindTimeoutError{
+				LoadTimeout: context.DeadlineExceeded,
+				Fallback:    fmt.Errorf("hosted proxy bind failed: Authorization: Bearer %s", secret),
+			}
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Config:     compozyconfig.DefaultWithHome(compozyconfig.HomePaths{}),
+			Sessions:   manager,
+			Workspaces: nativeTestWorkspaceServiceWithRoot(t, t.TempDir()),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionPrompt,
+			Input: json.RawMessage(`{"workspace":"ws-native","session_id":"sess-native","message":"retry",` +
+				`"message_id":"msg-native","idempotency_key":"idem-native"}`),
+		})
+		refusal, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || refusal.Code != toolspkg.ErrorCodeSessionRebindTimeout ||
+			refusal.HTTPStatus != http.StatusGatewayTimeout || !refusal.Retryable ||
+			!strings.Contains(refusal.PublicMessage, "Retry") {
+			t.Fatalf("native prompt error = %+v, want retryable rebind timeout", err)
+		}
+		if !strings.Contains(refusal.ProviderError, "hosted proxy bind failed") ||
+			strings.Contains(refusal.ProviderError, secret) {
+			t.Fatalf("provider_error = %q, want redacted replay failure", refusal.ProviderError)
+		}
+	})
+
 	t.Run("Should bound default tool search results with continuation metadata", func(t *testing.T) {
 		t.Parallel()
 		deps := &daemonNativeToolsDeps{}

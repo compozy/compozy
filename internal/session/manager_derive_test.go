@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -2694,9 +2695,9 @@ func TestForkSession(t *testing.T) {
 
 // newNativeForkHarness is a derive harness whose fake processes advertise session/fork
 // and session/load, with a bound, idle source.
-func newNativeForkHarness(t *testing.T) (*deriveHarness, *Session) {
+func newNativeForkHarness(t *testing.T, extraOpts ...func(*globaldb.GlobalDB) Option) (*deriveHarness, *Session) {
 	t.Helper()
-	h := newDeriveHarness(t)
+	h := newDeriveHarness(t, extraOpts...)
 	h.driver.mu.Lock()
 	h.driver.advertiseFork = true
 	h.driver.mu.Unlock()
@@ -2840,9 +2841,11 @@ func TestForkNativeSeed(t *testing.T) {
 
 	t.Run("Should settle failed and replay the carried context when the clone cannot load", func(t *testing.T) {
 		t.Parallel()
+		replayFailure := errors.New("replay failed")
 		for _, tc := range []struct {
 			name      string
-			loadErr   *acpsdk.RequestError
+			loadErr   error
+			replayErr error
 			wantError string
 		}{
 			{
@@ -2858,8 +2861,19 @@ func TestForkNativeSeed(t *testing.T) {
 				}},
 				wantError: "session/load: internal error",
 			},
+			{
+				name: "timed-out clone followed by failed replay",
+				loadErr: errors.Join(acp.ErrLoadSessionTimeout, &acpsdk.RequestError{
+					Code: -32603, Message: "Context deadline exceeded",
+				}),
+				replayErr: replayFailure,
+				wantError: "session/load: context deadline exceeded",
+			},
 		} {
-			h, source := newNativeForkHarness(t)
+			hosted := newRecordingReplayLauncher()
+			h, source := newNativeForkHarness(t, func(*globaldb.GlobalDB) Option {
+				return WithHostedMCPLauncher(hosted)
+			})
 			result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_native_missing"))
 			if err != nil || result.Seed != DeriveSeedNativeFork {
 				t.Fatalf("%s: ForkSession() = %+v, %v, want a native fork", tc.name, result, err)
@@ -2870,11 +2884,29 @@ func TestForkNativeSeed(t *testing.T) {
 					return nil, fmt.Errorf("%w: load session %q: %w", acp.ErrLoadSessionFailed,
 						opts.ResumeSessionID, tc.loadErr)
 				}
+				if tc.replayErr != nil {
+					return nil, tc.replayErr
+				}
 				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
 			}
 			h.driver.mu.Unlock()
 			before := len(h.promptMessages())
-			sendDeriveChildPrompt(t, h, result.Child.ID, "child ask", "msg_missing_child", "idem_missing_child")
+			startsBefore := len(h.startCallsSnapshot())
+			launchedBefore := len(hosted.launchRequests())
+			promptResult, promptErr := h.manager.SendPrompt(testutil.Context(t), result.Child.ID, SendPromptOpts{
+				Message: "child ask", MessageID: "msg_missing_child", IdempotencyKey: "idem_missing_child",
+			})
+			if tc.replayErr == nil {
+				if promptErr != nil {
+					t.Fatalf("%s: SendPrompt() error = %v", tc.name, promptErr)
+				}
+				if promptResult.Events != nil {
+					collectEvents(t, promptResult.Events)
+				}
+			} else if _, rebind := errors.AsType[*RebindTimeoutError](promptErr); rebind ||
+				!errors.Is(promptErr, tc.replayErr) || !errors.Is(promptErr, acp.ErrLoadSessionTimeout) {
+				t.Fatalf("%s: SendPrompt() error = %v, want clone and replay causes", tc.name, promptErr)
+			}
 			native := h.childNative(t, result.Child.ID)
 			if native.State != store.SessionNativeStateFailed || native.Error != tc.wantError {
 				t.Fatalf("%s: child native = %+v, want failed with %q", tc.name, native, tc.wantError)
@@ -2882,6 +2914,25 @@ func TestForkNativeSeed(t *testing.T) {
 			info, err := h.manager.Status(testutil.Context(t), result.Child.ID)
 			if err != nil || info.Derivation == nil || info.Derivation.Native.State != store.SessionNativeStateFailed {
 				t.Fatalf("%s: Status(child) = %+v, %v, want the failed native state", tc.name, info, err)
+			}
+			starts := h.startCallsSnapshot()[startsBefore:]
+			if len(starts) != 2 || starts[0].ResumeSessionID == "" || starts[1].ResumeSessionID != "" {
+				t.Fatalf("%s: want one clone load and one replay, got %d starts", tc.name, len(starts))
+			}
+			launches := hosted.launchRequests()[launchedBefore:]
+			replayServers := starts[1].MCPServers
+			if len(launches) != 2 || len(replayServers) != 1 ||
+				!slices.Contains(replayServers[0].Args, fmt.Sprintf("nonce-%d", launchedBefore+2)) {
+				t.Fatalf("%s: replay did not receive the renewed launch", tc.name)
+			}
+			if tc.replayErr != nil {
+				hosted.mu.Lock()
+				canceled := slices.Contains(hosted.cancels, result.Child.ID)
+				hosted.mu.Unlock()
+				if !canceled || len(h.promptMessages()) != before {
+					t.Fatalf("%s: failed replay must release the launch without dispatching a prompt", tc.name)
+				}
+				continue
 			}
 			prompt := h.promptMessages()[before]
 			if !strings.Contains(prompt, resumeReplayOpenTag) || !strings.Contains(prompt, "Start the migration") ||

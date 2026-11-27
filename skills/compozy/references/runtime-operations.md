@@ -1682,13 +1682,19 @@ ACP session id, retains its idle or monitor-waiting badge, records no supervisio
 `session.post_stop` hook (the process-level `agent.stopped` hook still fires). Agents without
 `session/load` keep their runtime. Treat `runtime.status: "unbound"` on an active session as
 released, not broken: just prompt it. The next prompt from any surface (composer, CLI, HTTP/UDS,
-`compozy__session_prompt`, reply delivery, wake) rebinds transparently with `session/load`; if the
-load fails it starts a fresh ACP session and replays the bounded transcript
+`compozy__session_prompt`, reply delivery, wake) rebinds transparently with `session/load` using a
+90-second default control budget. If the load fails it starts a fresh ACP session and replays the bounded transcript
 (`session.derive.max_replay_bytes`); a prompt selecting another provider/model binds that route and
 carries the transcript like a live runtime switch. If the daemon exits uncleanly while a runtime is
 released, boot recovery ends the session `stopped` with `stop_reason: "shutdown"` and detail
 "daemon exited while the idle session runtime was released" (not a failure); a later prompt resumes
 it with `session/load`.
+
+If the load times out and replay fails, the prompt returns `session_rebind_timeout` with
+`retryable: true` (HTTP/UDS `504`). The message was never sent. Retry the prompt, or use Continue or
+Fork to carry the conversation to a fresh provider session. The optional `provider_error` contains
+redacted diagnostics.
+
 The deprecated `session.limits.timeout` key is not enforced and ends no session; see
 `references/configuration.md`.
 
