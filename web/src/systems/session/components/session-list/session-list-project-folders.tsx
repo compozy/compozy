@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 import { TreeBranchNode, cn } from "@compozy/ui";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
 import {
   projectDropEdge,
@@ -12,6 +14,7 @@ import { useSessionSidebarState } from "../../hooks/use-session-sidebar-state";
 import type { WorkspaceLayout } from "../../hooks/use-workspace-layout";
 import { shiftId } from "../../lib/session-folders";
 import type { SessionListGroupSpec } from "../../lib/session-list-groups";
+import { folderComputerFoldKey } from "../../lib/session-sidebar-scope";
 import {
   projectGroupContainerIds,
   projectGroupTreeGroups,
@@ -35,6 +38,10 @@ export interface SessionListProjectFoldersProps {
   emptyMessage: string | null;
   /** A search shows what it matches: no folder stays folded over a result. */
   filtering: boolean;
+  /** Owning daemon for remote project folders (`F11`). */
+  computerId?: ComputerId;
+  /** Offline or lacking `sessions:operate` (`F10`, `F11`). */
+  readOnly?: boolean;
   testIdPrefix: string;
 }
 
@@ -51,10 +58,14 @@ export function SessionListProjectFolders({
   renderGroup,
   emptyMessage,
   filtering,
+  computerId,
+  readOnly = false,
   testIdPrefix,
 }: SessionListProjectFoldersProps) {
-  const dnd = useProjectFoldersDnd(layout, tree);
+  const dnd = useProjectFoldersDnd(readOnly ? undefined : layout, tree, computerId);
   const { folderFolds: collapsed, toggleFolder } = useSessionSidebarState();
+  const foldKeyFor = (id: string) =>
+    isRemoteComputerId(computerId) ? folderComputerFoldKey(computerId, id) : id;
   const ranks = new Map(projectGroupTreeGroups(tree).map((group, index) => [group.key, index]));
   const draggingFoldered = dnd.dragging?.kind === "project" && dnd.dragging.folderId !== null;
   // Every folder takes a project, including one hidden because its projects are empty (#1085).
@@ -97,9 +108,9 @@ export function SessionListProjectFolders({
           running={groups.reduce((working, group) => working + group.working, 0)}
           needsYou={groups.reduce((needsYou, group) => needsYou + group.needsYou, 0)}
           holds="projects"
-          expanded={filtering || !collapsed.has(folder.id)}
+          expanded={filtering || !collapsed.has(foldKeyFor(folder.id))}
           onToggle={() => {
-            if (!filtering) toggleFolder(folder.id);
+            if (!filtering) toggleFolder(foldKeyFor(folder.id));
           }}
           onRename={() => onFolderDialog({ kind: "rename", folder })}
           onDelete={() => onFolderDialog({ kind: "delete", folder })}
@@ -110,6 +121,7 @@ export function SessionListProjectFolders({
           drag={dnd.folderHeader(folder.id)}
           dropEdge={projectFolderDropEdge(dnd.indicator, folder.id)}
           dragging={dnd.dragging?.kind === "folder" && dnd.dragging.id === folder.id}
+          readOnly={readOnly}
           testIdPrefix={`${testIdPrefix}-project`}
         >
           {groups.length === 0 ? (

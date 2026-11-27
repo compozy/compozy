@@ -3,6 +3,9 @@ import { useId } from "react";
 
 import { Icon } from "@compozy/ui";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
+
+import type { MultiComputerPinnedRead } from "../../hooks/use-multi-computer-pinned";
 import type {
   SessionListPinnedRead,
   SessionListViewModel,
@@ -14,6 +17,7 @@ import {
   type SessionDropLayout,
 } from "../../hooks/use-session-list-dnd";
 import { shiftId } from "../../lib/session-folders";
+import { SessionListComputerContext } from "../../lib/session-list-computer";
 import { buildSessionListThreads, type SessionThreadModel } from "../../lib/session-list-threads";
 import {
   SESSION_LIST_PINNED_FOLD_KEY,
@@ -21,6 +25,7 @@ import {
   SessionListPinnedSectionContext,
 } from "../../lib/session-list-pinned";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
+import { sessionComputerOf, sessionRowKey } from "../../lib/session-row-ref";
 import type { SessionFoldSet, SessionSubagentFolds } from "../../lib/session-sidebar-scope";
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import type { SessionListTarget, SessionPayload } from "../../types";
@@ -32,6 +37,8 @@ import { SessionListThread, type SessionThreadRootLayout } from "./session-list-
 
 export interface SessionListPinnedProps {
   view: SessionListViewModel;
+  /** Optional combined multi-computer Pinned read (`Q8`, `R10`). */
+  pinnedOverride?: MultiComputerPinnedRead;
   filtering: boolean;
   collapsedThreads: SessionFoldSet;
   subagentThreads: SessionSubagentFolds;
@@ -50,9 +57,9 @@ export interface SessionListPinnedProps {
  * folder verbs. No pins, or a search that matches none, shows no section.
  */
 export function SessionListPinned(props: SessionListPinnedProps) {
-  const { view, filtering, testIdPrefix } = props;
+  const { view, pinnedOverride, filtering, testIdPrefix } = props;
   const headerId = useId();
-  const pinned = view.pinned;
+  const pinned: MultiComputerPinnedRead | undefined = pinnedOverride ?? view.pinned;
   if (!pinned || pinned.loading) return null;
   const testId = `${testIdPrefix}-pinned`;
   // A failed refresh keeps the pins it already shows; the paging row below offers Retry.
@@ -114,7 +121,7 @@ function SessionListPinnedRows({
   sessionActions,
   testIdPrefix,
   filtering,
-}: SessionListPinnedProps & { pinned: SessionListPinnedRead }) {
+}: SessionListPinnedProps & { pinned: MultiComputerPinnedRead }) {
   const threads = buildSessionListThreads(pinned.sessions, "");
   const ownerOf = view.aggregate ? view.ownerOf : undefined;
   const paged = pinned.more || pinned.failed;
@@ -123,15 +130,18 @@ function SessionListPinnedRows({
   const dnd = useSessionListDnd(reorder ? pinnedDropLayout(reorder) : undefined, {
     manual: true,
     reorderable: reorder !== undefined,
+    computerId: view.computerId,
   });
   const layoutFor = sessionListPinnedLayout(threads, reorder, dnd);
-  return (
-    <SessionListPinnedSectionContext value>
-      <SessionListBadgeContext value={view.badgeOf}>
-        <div className="flex flex-col gap-0.5">
-          {threads.map(thread => (
+  const badgeOf = pinned.badgeOf ?? view.badgeOf;
+  const listContent = (
+    <SessionListBadgeContext value={badgeOf}>
+      <div className="flex flex-col gap-0.5">
+        {threads.map(thread => {
+          const computerId = sessionComputerOf(thread.session);
+          return (
             <SessionListThread
-              key={thread.session.id}
+              key={sessionRowKey({ computerId, sessionId: thread.session.id })}
               session={thread.session}
               childSessions={thread.childSessions}
               currentSessionId={currentSessionId}
@@ -140,14 +150,32 @@ function SessionListPinnedRows({
               collapsed={collapsedThreads.has(thread.session.id)}
               subagentThreads={subagentThreads}
               onThreadBranchChange={onThreadBranchChange}
-              onSelectSession={onSelectSession}
+              onSelectSession={session => {
+                const targetComputer = sessionComputerOf(session) ?? computerId;
+                onSelectSession(
+                  isRemoteComputerId(targetComputer)
+                    ? { ...session, computerId: targetComputer }
+                    : session
+                );
+              }}
               sessionActions={sessionActions}
               testIdPrefix={testIdPrefix}
               layoutFor={layoutFor}
             />
-          ))}
-        </div>
-      </SessionListBadgeContext>
+          );
+        })}
+      </div>
+    </SessionListBadgeContext>
+  );
+  return (
+    <SessionListPinnedSectionContext value>
+      {pinned.computerBySessionId ? (
+        <SessionListComputerContext value={pinned.computerBySessionId}>
+          {listContent}
+        </SessionListComputerContext>
+      ) : (
+        listContent
+      )}
       {pinned.catalog && paged ? <SessionListCatalogNavigation catalog={pinned.catalog} /> : null}
     </SessionListPinnedSectionContext>
   );

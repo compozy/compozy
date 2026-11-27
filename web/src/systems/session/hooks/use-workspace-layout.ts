@@ -119,14 +119,20 @@ export function useWorkspaceLayout(options: {
       folders,
       placements,
       createFolder: async name => {
-        const folder = targetComputer
-          ? await createWorkspaceFolder(requestProfile, name, undefined, targetComputer)
-          : await createWorkspaceFolder(requestProfile, name);
-        queryClient.setQueryData<WorkspaceLayoutResponse>(key, current =>
-          current ? { ...current, folders: [folder, ...current.folders] } : current
-        );
-        await queryClient.invalidateQueries({ queryKey: key });
-        return folder;
+        try {
+          const folder = targetComputer
+            ? await createWorkspaceFolder(requestProfile, name, undefined, targetComputer)
+            : await createWorkspaceFolder(requestProfile, name);
+          queryClient.setQueryData<WorkspaceLayoutResponse>(key, current =>
+            current ? { ...current, folders: [folder, ...current.folders] } : current
+          );
+          await queryClient.invalidateQueries({ queryKey: key });
+          return folder;
+        } catch (error) {
+          // Re-read this computer's workspace layout after a conflict or limit error (`F12`).
+          void queryClient.invalidateQueries({ queryKey: key });
+          throw error;
+        }
       },
       renameFolder: (folderId, name) =>
         write({

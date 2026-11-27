@@ -60,6 +60,8 @@ export interface SessionListLayout {
 /** The folder layout once loaded, or the failed first read and its retry. */
 export interface SessionFoldersState {
   layout?: SessionListLayout;
+  /** Folders still in memory when an offline/read-only computer cannot mutate (`F10`, `F11`). */
+  cachedFolders?: readonly SessionFolderPayload[];
   loading?: boolean;
   pendingEdits?: readonly PendingSessionLayoutEdit[];
   /** Set when the folder list could not be read; the list stays flat until a retry loads it. */
@@ -79,6 +81,8 @@ export function useSessionFolders(options: {
   profile: string;
   enabled: boolean;
   computerId?: ComputerId;
+  /** Offline or lacking `sessions:operate`: reads in-memory cache only, no requests or verbs (`F10`, `F11`). */
+  readOnly?: boolean;
 }): SessionFoldersState {
   const queryClient = useQueryClient();
   const computerId = normalizeComputerId(options.computerId);
@@ -86,7 +90,8 @@ export function useSessionFolders(options: {
   const keys = sessionKeys.forComputer(computerId);
   const workspaceId = options.workspaceId ?? "";
   const scope: SessionLayoutScope = { workspaceId, profile: options.profile || undefined };
-  const enabled = options.enabled && workspaceId !== "";
+  const readOnly = options.readOnly === true;
+  const enabled = options.enabled && !readOnly && workspaceId !== "";
   const foldersQuery = useQuery({ ...sessionFoldersOptions(scope, computerId), enabled });
   const foldersKey = keys.folders(workspaceId, options.profile);
   const catalogPrefix = [...keys.workspaceLists(workspaceId), "page"] as const;
@@ -155,6 +160,10 @@ export function useSessionFolders(options: {
   const fireAndForget = (run: LayoutWrite) => void write(run).catch(() => undefined);
   const targetComputer = remote ? computerId : undefined;
 
+  // Offline or lacking `sessions:operate`: keep cached folders visible without mutations (`F10`, `F11`).
+  if (readOnly) {
+    return foldersQuery.data ? { cachedFolders: foldersQuery.data } : {};
+  }
   // Without the folder list, foldered rows would render as root members and a
   // root reorder would unfile them, so the list stays flat until it loads.
   if (!enabled) return {};
@@ -184,12 +193,18 @@ export function useSessionFolders(options: {
   const layout: SessionListLayout = {
     folders,
     createFolder: async name => {
-      const folder = targetComputer
-        ? await createSessionFolder(scope, name, targetComputer)
-        : await createSessionFolder(scope, name);
-      patchFolders(current => [folder, ...current]);
-      await queryClient.invalidateQueries({ queryKey: foldersKey });
-      return folder;
+      try {
+        const folder = targetComputer
+          ? await createSessionFolder(scope, name, targetComputer)
+          : await createSessionFolder(scope, name);
+        patchFolders(current => [folder, ...current]);
+        await queryClient.invalidateQueries({ queryKey: foldersKey });
+        return folder;
+      } catch (error) {
+        // Re-read this computer's layout after a conflict or limit error (`F12`).
+        void queryClient.invalidateQueries({ queryKey: foldersKey });
+        throw error;
+      }
     },
     renameFolder: (folderId, name) =>
       write({

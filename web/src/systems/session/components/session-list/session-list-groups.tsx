@@ -113,9 +113,11 @@ export function SessionListGroups(props: GroupRowProps & SessionListProjectFolde
     const { onProjectFolderDialog, ...rows } = props;
     return (
       <SessionListProjectFolders
+        computerId={view.computerId}
         projectFolders={view.projectFolders}
         filtering={props.filtering}
         onFolderDialog={onProjectFolderDialog}
+        readOnly={view.readOnly}
         renderGroup={(group, path, arrange) => (
           <SessionListGroupSection
             key={group.key}

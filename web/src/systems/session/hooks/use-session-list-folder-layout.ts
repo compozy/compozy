@@ -1,11 +1,13 @@
 import { useState } from "react";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
+
 import {
   buildSessionListSections,
   sectionsVisibleThreads,
   type SessionListSections,
 } from "../lib/session-folders";
-import type { SessionFoldSet } from "../lib/session-sidebar-scope";
+import { folderComputerFoldKey, type SessionFoldSet } from "../lib/session-sidebar-scope";
 import type { SessionThreadModel } from "../lib/session-list-threads";
 import type { SessionListViewModel } from "./use-session-list-view";
 import { useSessionListDnd } from "./use-session-list-dnd";
@@ -27,7 +29,7 @@ export type SessionFolderDialogState<
 /** What one folder-capable query contributes: its layout (if one pair), order, and page. */
 export type SessionListFolderSource = Pick<
   SessionListViewModel,
-  "layout" | "sort" | "shelf" | "worktreeId" | "catalog" | "partitions" | "folderOf"
+  "layout" | "sort" | "shelf" | "worktreeId" | "catalog" | "partitions" | "folderOf" | "computerId"
 >;
 
 /**
@@ -42,7 +44,15 @@ export function useSessionListFolderLayout(
   filtering: boolean
 ) {
   const layout = view.layout;
-  const { folderFolds: collapsedFolders, toggleFolder } = useSessionSidebarState();
+  const { folderFolds: rawCollapsedFolders, toggleFolder: rawToggleFolder } =
+    useSessionSidebarState();
+  const remote = isRemoteComputerId(view.computerId);
+  const collapsedFolders: SessionFoldSet = remote
+    ? { has: id => rawCollapsedFolders.has(folderComputerFoldKey(view.computerId!, id)) }
+    : rawCollapsedFolders;
+  const toggleFolder = remote
+    ? (id: string) => rawToggleFolder(folderComputerFoldKey(view.computerId!, id))
+    : rawToggleFolder;
   const loadedFolderFolds: SessionFoldSet = {
     has: id => view.partitions?.get(id)?.countOnly ?? (!filtering && collapsedFolders.has(id)),
   };
@@ -57,10 +67,6 @@ export function useSessionListFolderLayout(
         },
       })
     : null;
-  // A reorder pins the listed rows ahead of every container member the request
-  // omits. Rows hidden by a filter, a worktree scope, or a page boundary would be
-  // pushed behind the visible ones, so manual reorder needs the whole container on
-  // screen. Shelves and other filtered populations can still use Manual to read.
   const orderable =
     view.sort === "manual" &&
     view.shelf === "active" &&
@@ -71,6 +77,7 @@ export function useSessionListFolderLayout(
   const dnd = useSessionListDnd(layout, {
     manual: view.sort === "manual",
     reorderable: orderable,
+    computerId: view.computerId,
   });
   const [dialog, setDialog] = useState<SessionFolderDialogState>(null);
   return {

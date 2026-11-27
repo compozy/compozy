@@ -14,6 +14,7 @@ import {
   useComputerSessionsSources,
   type ComputerSessionsSource,
 } from "../../hooks/use-computer-sessions-sources";
+import { useMultiComputerPinned } from "../../hooks/use-multi-computer-pinned";
 import { useSessionComputerScope } from "../../hooks/use-session-computer-scope";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
@@ -172,9 +173,19 @@ export function SessionList({
   const multiComputerVisible = hasRemote && effectiveComputerScope === "all";
   const computersLayout = view.computers ?? "separate";
 
+  const multiComputerPinned = useMultiComputerPinned({
+    enabled: (multiComputerVisible || scopedRemoteSource !== null) && view.shelf === "active",
+    sources: scopedRemoteSource ? [scopedRemoteSource] : computerSources.sources,
+    scope: dataScope,
+    localLens: profile.params,
+    groupFilters: view.groupFilters,
+    allProjects: view.allProjects === true,
+  });
+
   const pinnedSection = (
     <SessionListPinned
       view={view}
+      pinnedOverride={multiComputerPinned}
       filtering={filtering}
       collapsedThreads={collapsedThreads}
       subagentThreads={subagentThreads}
