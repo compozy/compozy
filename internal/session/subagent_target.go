@@ -74,7 +74,7 @@ func (r managerSubagentRuntime) Resolve(
 		return SubagentTarget{}, err
 	}
 	inherited := subagentInherited(parent)
-	resolved, inheritRuntime, err := r.m.resolveSubagentAgent(&workspace, inherited, requested)
+	resolved, namedRuntime, err := r.m.resolveSubagentAgent(&workspace, inherited, requested)
 	if err != nil {
 		return SubagentTarget{}, err
 	}
@@ -111,7 +111,7 @@ func (r managerSubagentRuntime) Resolve(
 			ReasoningEffort: resolved.ReasoningEffort,
 			Speed:           string(resolved.SpeedValue()),
 		},
-		inheritRuntime,
+		namedRuntime,
 	)
 	if err := validateSubagentModel(target.Model, target.Provider, option.Models); err != nil {
 		return SubagentTarget{}, err
@@ -141,15 +141,11 @@ func (m *Manager) resolveSubagentAgent(
 	} else if configuredProvider == "" && strings.TrimSpace(cfg.Defaults.Provider) == "" {
 		cfg.Defaults.Provider = inherited.Provider
 	}
-	resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, compozyconfig.RuntimeOverrides{
-		Provider: provider, Model: requested.Model, Reasoning: requested.ReasoningEffort,
-	})
+	resolved, err := cfg.ResolveSessionAgent(agent, provider)
 	if err != nil {
 		return compozyconfig.ResolvedAgent{}, false, subagentResolveError(agentName, err)
 	}
-	inheritRuntime := !namedRuntime && requested.Provider == "" && requested.Model == "" &&
-		requested.ReasoningEffort == ""
-	return resolved, inheritRuntime, nil
+	return resolved, namedRuntime, nil
 }
 
 func subagentResolveError(agent string, err error) error {

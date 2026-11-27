@@ -114,7 +114,8 @@ E2E-008, which use acpmock.
     and confirm the provider, model, and effort on both the delegation record and the child session.
     Repeat with a named agent on Codex using a different model and effort from the parent. Repeat with
     explicit provider, model, and effort overrides and confirm they take precedence. Omit the target
-    and confirm that the child inherits the parent's active runtime.
+    and confirm that the child inherits the parent's active runtime. Supply only a different effort
+    and confirm the child keeps the parent's active model.
 
 QA impact 2026-10-08 (subagents): new in this change; no prior verdict.
 

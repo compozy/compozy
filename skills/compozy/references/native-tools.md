@@ -449,8 +449,8 @@ or unavailable.
    (`permission_escalation_denied` otherwise). There is no TTL, depth, or count cap.
    A named agent uses its configured provider, model, and reasoning effort. Explicit runtime
    selections take precedence. A different provider uses its own model defaults, and a different
-   model uses its own reasoning defaults. If neither the named agent nor the call specifies a
-   provider, model, or effort, the child inherits the caller's runtime.
+   model uses its own reasoning defaults. With no runtime configured on a named agent, omitted
+   values inherit from the caller on the same provider.
    `isolation` defaults to `shared`. Choose `worktree` for a separate branch; `base_ref` is valid only
    with `worktree`. For a fresh delegation it defaults to the caller checkout's current HEAD
    commit. See corrective rounds below for linked delegations. Uncommitted changes are not copied.

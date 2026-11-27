@@ -141,7 +141,7 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 		// Invariant: selecting a child model cannot carry the parent's model-specific effort.
 		// Owner: subagent target resolution; canonical suite: this function.
 		parent := SubagentTarget{Provider: "claude", Model: "opus", ReasoningEffort: "medium"}
-		child := resolveSubagentTarget(parent, SubagentTarget{Model: "haiku"}, SubagentTarget{}, true)
+		child := resolveSubagentTarget(parent, SubagentTarget{Model: "haiku"}, SubagentTarget{}, false)
 		if child.Model != "haiku" || child.ReasoningEffort != "" {
 			t.Fatalf("child = %#v, want Haiku without inherited effort", child)
 		}
@@ -149,7 +149,7 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 			parent,
 			SubagentTarget{Model: "sonnet", ReasoningEffort: "high"},
 			SubagentTarget{},
-			true,
+			false,
 		)
 		if explicit.ReasoningEffort != "high" {
 			t.Fatalf("explicit effort = %q, want high", explicit.ReasoningEffort)
@@ -157,7 +157,7 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 	})
 	t.Run("Should default omitted runtime speed to normal", func(t *testing.T) {
 		t.Parallel()
-		target := resolveSubagentTarget(SubagentTarget{}, SubagentTarget{}, SubagentTarget{}, true)
+		target := resolveSubagentTarget(SubagentTarget{}, SubagentTarget{}, SubagentTarget{}, false)
 		row := presentSubagent(store.SessionSubagent{Origin: store.SubagentOriginDelegated})
 		if target.Speed != "normal" || row.RuntimeSpeed != "normal" {
 			t.Fatal(target, row)
@@ -172,7 +172,7 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 			ReasoningEffort: "xhigh",
 			Speed:           "normal",
 		}
-		got := resolveSubagentTarget(in, SubagentTarget{}, SubagentTarget{}, true)
+		got := resolveSubagentTarget(in, SubagentTarget{}, SubagentTarget{}, false)
 		if got.Model != "opus" || got.ReasoningEffort != "xhigh" || got.Agent != "claude" {
 			t.Fatal(got)
 		}
@@ -229,37 +229,43 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 		runtime := managerSubagentRuntime{h.manager}
 		parent := &Info{
 			WorkspaceID: h.workspaceID, AgentName: "coder", Provider: "caller",
-			Model: "active-model", ReasoningEffort: "high",
+			Model: "active-model", ReasoningEffort: "high", Speed: "fast",
+			ACPOptions: []acp.SessionConfigOptionSelection{{ID: "fixture-option", ValueID: "parent"}},
 		}
 		for _, tc := range []struct {
 			name                    string
 			request                 SubagentTarget
 			provider, model, effort string
+			inheritOptions          bool
 		}{
 			{"Should select a named agent on another provider", SubagentTarget{Agent: "reviewer"},
-				"reviewer", "reviewer-model", "medium"},
+				"reviewer", "reviewer-model", "medium", false},
 			{"Should select a named agent on the caller's provider", SubagentTarget{Agent: "same-provider"},
-				"caller", "same-provider-model", "low"},
+				"caller", "same-provider-model", "low", false},
 			{"Should select a named agent's model with a fallback provider", SubagentTarget{Agent: "model-only"},
-				"caller", "configured-model", "low"},
+				"caller", "configured-model", "low", false},
 			{"Should use the operator's agent runtime override", SubagentTarget{Agent: "operator-override"},
-				"reviewer", "override-model", "medium"},
+				"reviewer", "override-model", "medium", false},
 			{"Should honor explicit runtime overrides", SubagentTarget{Agent: "reviewer", Provider: "caller",
-				Model: "explicit-model", ReasoningEffort: "xhigh"}, "caller", "explicit-model", "xhigh"},
+				Model: "explicit-model", ReasoningEffort: "xhigh"}, "caller", "explicit-model", "xhigh", false},
 			{"Should use the selected provider's defaults when only the provider is overridden",
-				SubagentTarget{Agent: "reviewer", Provider: "caller"}, "caller", "caller-default", ""},
+				SubagentTarget{Agent: "reviewer", Provider: "caller"}, "caller", "caller-default", "", false},
 			{"Should keep configured effort when only the same model is selected",
-				SubagentTarget{Agent: "reviewer", Model: "reviewer-model"}, "reviewer", "reviewer-model", "medium"},
+				SubagentTarget{Agent: "reviewer", Model: "reviewer-model"}, "reviewer", "reviewer-model", "medium", false},
 			{"Should drop configured effort when a different model is selected",
-				SubagentTarget{Agent: "reviewer", Model: "different-model"}, "reviewer", "different-model", ""},
+				SubagentTarget{Agent: "reviewer", Model: "different-model"}, "reviewer", "different-model", "", false},
 			{"Should honor explicit effort with the named agent's model",
-				SubagentTarget{Agent: "reviewer", ReasoningEffort: "high"}, "reviewer", "reviewer-model", "high"},
-			{"Should resolve defaults for an explicit runtime without a named agent",
-				SubagentTarget{Provider: "caller"}, "caller", "caller-default", ""},
+				SubagentTarget{Agent: "reviewer", ReasoningEffort: "high"}, "reviewer", "reviewer-model", "high", false},
+			{"Should keep the active runtime when reselecting the caller's provider",
+				SubagentTarget{Provider: "caller"}, "caller", "active-model", "high", true},
+			{"Should keep the active model when overriding only effort",
+				SubagentTarget{ReasoningEffort: "medium"}, "caller", "active-model", "medium", true},
+			{"Should drop the caller's effort when overriding its model",
+				SubagentTarget{Model: "different-model"}, "caller", "different-model", "", true},
 			{"Should inherit the caller's runtime when no target is specified", SubagentTarget{},
-				"caller", "active-model", "high"},
+				"caller", "active-model", "high", true},
 			{"Should inherit the caller's runtime when the named agent specifies none", SubagentTarget{Agent: "no-runtime"},
-				"caller", "active-model", "high"},
+				"caller", "active-model", "high", true},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -270,6 +276,21 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 				if got.Provider != tc.provider || got.Model != tc.model || got.ReasoningEffort != tc.effort {
 					t.Fatalf("runtime = %s/%s/%s, want %s/%s/%s",
 						got.Provider, got.Model, got.ReasoningEffort, tc.provider, tc.model, tc.effort)
+				}
+				wantSpeed := "normal"
+				var wantOptions []acp.SessionConfigOptionSelection
+				if tc.inheritOptions {
+					wantSpeed = string(parent.Speed)
+					wantOptions = parent.ACPOptions
+				}
+				if got.Speed != wantSpeed || !slices.Equal(got.ACPOptions, wantOptions) {
+					t.Fatalf(
+						"speed and ACP options = %s, %+v; want %s, %+v",
+						got.Speed,
+						got.ACPOptions,
+						wantSpeed,
+						wantOptions,
+					)
 				}
 			})
 		}

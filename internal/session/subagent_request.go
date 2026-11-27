@@ -203,25 +203,23 @@ func subagentInherited(info *Info) SubagentTarget {
 	}
 }
 
-func resolveSubagentTarget(inherited, requested, defaults SubagentTarget, inheritRuntime bool) SubagentTarget {
+func resolveSubagentTarget(inherited, requested, defaults SubagentTarget, namedRuntime bool) SubagentTarget {
 	target := requested
 	target.Agent = cmp.Or(requested.Agent, inherited.Agent)
 	target.Provider = cmp.Or(defaults.Provider, requested.Provider, inherited.Provider)
-	runtime := defaults
-	if inheritRuntime {
-		runtime = inherited
+	base := defaults
+	// Preserve omitted selections on the caller's provider for callers without a configured target runtime.
+	if !namedRuntime && compozyconfig.CanonicalProviderName(target.Provider) ==
+		compozyconfig.CanonicalProviderName(inherited.Provider) {
+		base = inherited
 	}
-	target.Model = cmp.Or(requested.Model, runtime.Model)
-	if target.Model == runtime.Model {
-		target.ReasoningEffort = cmp.Or(requested.ReasoningEffort, runtime.ReasoningEffort)
+	target.Model = cmp.Or(requested.Model, base.Model)
+	if target.Model == base.Model {
+		target.ReasoningEffort = cmp.Or(requested.ReasoningEffort, base.ReasoningEffort)
 	}
-	options := defaults
-	if target.Provider == inherited.Provider {
-		options = inherited
-	}
-	target.Speed = cmp.Or(requested.Speed, options.Speed, string(speedpkg.SpeedNormal))
+	target.Speed = cmp.Or(requested.Speed, base.Speed, string(speedpkg.SpeedNormal))
 	if target.ACPOptions == nil {
-		target.ACPOptions = acp.CloneSessionConfigOptionSelections(options.ACPOptions)
+		target.ACPOptions = acp.CloneSessionConfigOptionSelections(base.ACPOptions)
 	}
 	return target
 }
