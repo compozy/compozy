@@ -345,6 +345,10 @@ whether a turn was running, and the provider's live-apply semantics. With a `nex
 events recorded after the marker carry the new runtime; with a `next_turn` provider, the rest of the
 running turn keeps the runtime it started with, and the next turn uses the new one.
 
+During session startup and after a live model switch, CompozyOS briefly waits for the provider to
+announce the requested reasoning effort. If the provider never advertises it, configuration fails
+with the existing missing-option or unsupported-effort error.
+
 Workspace provider options report when an applied change reaches the agent as
 `runtime_live_apply`:
 
