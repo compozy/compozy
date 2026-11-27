@@ -90,7 +90,7 @@ export function LegalPage({
 
           <div className={cn("pt-9 [&_h2]:scroll-mt-28 [&_h3]:scroll-mt-28", DOCS_PROSE)}>
             {doc.sections.map(section => (
-              <section key={section.id} aria-labelledby={section.id} className="mt-9 first:mt-0">
+              <section key={section.id} aria-label={section.title} className="mt-9 first:mt-0">
                 <DocsH2 id={section.id}>{section.title}</DocsH2>
                 <div className={DOCS_PROSE}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
