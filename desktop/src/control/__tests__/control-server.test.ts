@@ -127,13 +127,16 @@ describe("control server", () => {
         );
       }
       if (process.platform === "win32") {
-        const permissions = await windowsPermissions(home);
+        const pipeName = (await controlEndpoint(socketPath)).slice(9);
+        const [permissions, pipe] = await Promise.all([
+          windowsPermissions(home),
+          windowsPermissions(pipeName, true),
+        ]);
         expect(permissions.owner).toBe(permissions.user);
         expect(permissions.protected).toBe(true);
         expect(permissions.allowed.sort()).toEqual(
           [permissions.user, "S-1-5-18", "S-1-5-32-544"].sort()
         );
-        const pipe = await windowsPermissions((await controlEndpoint(socketPath)).slice(9), true);
         expect(pipe.protected).toBe(true);
         expect(pipe.allowed).toEqual([pipe.user]);
       } else {
