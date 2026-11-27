@@ -1,3 +1,4 @@
+import { shallowEqual } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
@@ -34,8 +35,10 @@ export interface SessionWindowOrder {
  */
 export function useSessionWindowOrder(): SessionWindowOrder {
   const scopeId = useWorktreeScopeId();
-  const stored = useSelector(sessionSidebarStore, snapshot =>
-    resolveSessionWindowOrder(snapshot.context.byScope, scopeId)
+  const stored = useSelector(
+    sessionSidebarStore,
+    snapshot => resolveSessionWindowOrder(snapshot.context.byScope, scopeId),
+    shallowEqual
   );
   const seed = useSessionListPreferences();
   return {

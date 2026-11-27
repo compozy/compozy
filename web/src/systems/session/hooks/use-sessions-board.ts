@@ -364,7 +364,8 @@ export function useSessionsBoard({
   const grouped = effectiveGroupBy !== "none";
   const population = {
     children: hideChildren ? ("exclude" as const) : undefined,
-    subagents: "include" as const,
+    // Override the List filter and use the catalog default for Kanban.
+    subagents: undefined,
   };
   const shared: SessionListFilters = {
     ...population,

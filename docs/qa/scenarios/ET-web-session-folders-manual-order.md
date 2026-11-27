@@ -47,7 +47,9 @@ A collapsed project folder sums its projects' needs-you and working counts and l
 ## Sessions by computer
 
 1. In the remote project group, use **+** to create a session folder.
-2. Rename the folder, move a remote session into it, and reorder the session in **Manual** sort.
+2. Rename the folder. Drag a remote session into it.
+   Confirm the row moves and the list remains responsive while the write settles.
+   Reorder the session in **Manual** sort.
 3. Try to drop that session on a folder on this computer. Confirm "Sessions stay on the computer that runs them."
 4. Confirm the rejected drop preserves membership on both computers.
 5. With one profile and **Group by → Project**, create a project folder from the remote computer's **+**.

@@ -7,6 +7,7 @@ import {
   type QueryKey,
 } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
+import { useMemo } from "react";
 
 import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 
@@ -128,10 +129,11 @@ export function useSessionFolders(options: {
   };
 
   const mutationKey = sessionLayoutMutationKey(workspaceId, options.profile, computerId);
-  const pendingEdits = useMutationState({
+  const pendingWrites = useMutationState({
     filters: pendingSessionLayoutFilter(workspaceId, options.profile, computerId),
     select: entry => pendingSessionLayoutEdit(entry.state.variables),
-  }).flat();
+  });
+  const pendingEdits = useMemo(() => pendingWrites.flat(), [pendingWrites]);
 
   const mutation = useMutation({
     mutationKey,

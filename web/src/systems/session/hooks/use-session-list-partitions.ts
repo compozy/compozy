@@ -51,41 +51,48 @@ export function useSessionListPartitions(
     [client, computerId, containerKey, enabled, filterKey]
   );
   const results = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
-  if (!folders?.length) return undefined;
+  const manual = filters.sort === "manual";
 
-  const pages = new Map(
-    source.entries.map(({ folder, countOnly }, index) => {
-      const result = results[index]!;
-      const page = sessionCatalogPageView(result);
-      return [
-        folder,
-        {
-          ...page,
-          countOnly,
-          // Debouncing blocks actions but only actual page activity gets a pager.
-          showNavigation:
-            page.paging || page.next || page.previous || (page.failed && page.sessions.length > 0),
-          paging: page.paging || debouncing,
-          next: page.next && !debouncing,
-          previous: page.previous && !debouncing,
-          loading: enabled && result.isPending && !result.isError,
-          sessions: countOnly ? [] : page.sessions,
-        },
-      ] as const;
-    })
-  );
-  const root = pages.get(SESSION_LIST_ROOT_FOLDER)!;
-  const { sessions, folderOf } = projectPartitionRows(pages, edits, filters.sort === "manual");
-  return {
-    pages,
-    folderOf,
-    catalog: {
-      ...root,
-      sessions,
-      loading: [...pages.values()].some(page => page.loading),
-      facets: undefined,
-    },
-  };
+  // Group selection subscribes to these rows. Keep optimistic rows stable between updates.
+  return useMemo(() => {
+    if (source.entries.length === 0) return undefined;
+    const pages = new Map(
+      source.entries.map(({ folder, countOnly }, index) => {
+        const result = results[index]!;
+        const page = sessionCatalogPageView(result);
+        return [
+          folder,
+          {
+            ...page,
+            countOnly,
+            // Debouncing blocks actions but only actual page activity gets a pager.
+            showNavigation:
+              page.paging ||
+              page.next ||
+              page.previous ||
+              (page.failed && page.sessions.length > 0),
+            paging: page.paging || debouncing,
+            next: page.next && !debouncing,
+            previous: page.previous && !debouncing,
+            loading: enabled && result.isPending && !result.isError,
+            sessions: countOnly ? [] : page.sessions,
+          },
+        ] as const;
+      })
+    );
+    const root = pages.get(SESSION_LIST_ROOT_FOLDER)!;
+    const { sessions, folderOf } = projectPartitionRows(pages, edits, manual);
+    return {
+      pages,
+      folderOf,
+      catalog: {
+        ...root,
+        sessions,
+        loading: [...pages.values()].some(page => page.loading),
+        facets: undefined,
+      },
+    };
+  }, [source, results, edits, manual, enabled, debouncing]);
 }
 
 // One observer per container keeps its cursor in an infinite-query envelope,
