@@ -551,6 +551,10 @@ removes the effective effort claim. An explicit refusal on a healthy process is 
 new prompt request, without repeating the same intent as rollback or replacing the process.
 Reasoning is also read from the latest provider option; `max` and `ultra` are sent unchanged only when
 advertised by the selected model.
+During ACP session startup or a live model switch, CompozyOS briefly waits for a late
+`config_option_update` before returning `reasoning_option_missing` or `reasoning_effort_unsupported`.
+Supply the effort via `reasoning_effort` or the provider's ACP option. Supplying both for the same
+option is refused even if the option appears after the model switch.
 
 Session attachments are durable, workspace/session-scoped refs. Upload with
 `POST /api/workspaces/:workspace_id/sessions/:session_id/attachments` or

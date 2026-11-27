@@ -224,6 +224,8 @@ Two operational details matter here:
 - `runtime` is a prompt-bound snapshot of `provider`, `model`, `reasoning_effort`, `speed`, and typed
   ACP options. The
   accepted snapshot is retained with the turn and is not rewritten by later runtime changes.
+  Provide the reasoning effort once. A typed ACP selection for the same option is rejected even
+  when the provider announces that option after changing models.
 - If a snapshot keeps the same provider, CompozyOS configures the existing ACP session in place when
   the provider exposes the needed live options. A provider or harness change replaces the process
   and replays the stored transcript into the replacement ACP session as a
@@ -344,6 +346,10 @@ values, and a durable `transcript_marker.runtime_changed` event records the prev
 whether a turn was running, and the provider's live-apply semantics. With a `next_step` provider,
 events recorded after the marker carry the new runtime; with a `next_turn` provider, the rest of the
 running turn keeps the runtime it started with, and the next turn uses the new one.
+
+During session startup and after a live model switch, CompozyOS briefly waits for the provider to
+announce the requested reasoning effort. If the provider never advertises it, configuration fails
+with the existing missing-option or unsupported-effort error.
 
 Workspace provider options report when an applied change reaches the agent as
 `runtime_live_apply`:
