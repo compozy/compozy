@@ -1192,15 +1192,21 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		}
 	})
 
-	t.Run("Should retry a dead server through real MCP discovery and clear its durable failure", func(t *testing.T) {
+	t.Run("Should retry a published dead server and clear its durable and catalog failures", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
-		server := httptest.NewServer(
-			mcp.NewStreamableHTTPHandler(
-				func(*http.Request) *mcp.Server { return newSettingsMCPTestServer() },
-				&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
-			),
+		var recovered atomic.Bool
+		handler := mcp.NewStreamableHTTPHandler(
+			func(*http.Request) *mcp.Server { return newSettingsMCPTestServer() },
+			&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
 		)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !recovered.Load() {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			handler.ServeHTTP(w, r)
+		}))
 		t.Cleanup(server.Close)
 		db := openDaemonTestGlobalDB(t)
 		now := time.Date(2026, 7, 15, 18, 30, 0, 0, time.UTC)
@@ -1214,11 +1220,33 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		definition := compozyconfig.MCPServer{
+			Name:      "docs",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       server.URL,
+		}
+		catalog := newResourceCatalog(cloneDaemonMCPServer)
+		catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{{
+			ID: "docs", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-retry"},
+			Spec: definition,
+		}})
+		state := &bootState{
+			registry: db, mcpDigestKeys: vault.NewMCPDigestKeyProvider(t.TempDir()), mcpServerCatalog: catalog,
+			deadEntities:        deadentity.New(db, deadentity.WithPermanentFailureThreshold(1)),
+			toolProjectionEpoch: mcppkg.NewProjectionEpoch(),
+		}
+		state.cfg.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultEnabled
+		provider, executor, err := (&Daemon{}).newDaemonMCPToolProvider(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		state.mcpToolProvider, state.mcpAuthStatus = provider, executor
 		surface := &settingsRuntimeSurface{
-			digestKey:      []byte("test installation key"),
+			state:          state,
+			digestKey:      testMCPDigestKey(t, state),
 			mcpAuthStore:   db,
 			mcpAuthManager: auth,
-			deadEntities:   deadentity.New(db, deadentity.WithPermanentFailureThreshold(1)),
+			deadEntities:   state.deadEntities,
 		}
 		target := mcpauth.Target{Scope: mcpauth.ScopeWorkspace, WorkspaceID: "ws-retry", ServerName: "docs"}
 		key, tracked, err := surface.settingsMCPDeadEntityKey(ctx, target, "docs")
@@ -1231,23 +1259,157 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		if err := surface.deadEntities.RecordFailure(ctx, key, deadentity.FailurePermanent, "offline"); err != nil {
 			t.Fatal(err)
 		}
-		definition := compozyconfig.MCPServer{
-			Name:      "docs",
-			Transport: compozyconfig.MCPServerTransportHTTP,
-			URL:       server.URL,
-		}
 		suppressed, err := surface.MCPServerRuntimeStatus(ctx, target, definition)
 		if err != nil || suppressed.State != settingspkg.MCPServerRuntimeStateDead {
 			t.Fatalf("suppressed = %+v, %v", suppressed, err)
 		}
+		failed, err := surface.CheckMCPServerRuntime(ctx, target, definition)
+		if err != nil || failed.State != settingspkg.MCPServerRuntimeStateDead {
+			t.Fatalf("failed retry = %+v, %v", failed, err)
+		}
+		scope := toolspkg.Scope{ProfileID: store.DefaultProfileID, WorkspaceID: target.WorkspaceID}
+		if reason := provider.CatalogDiscoveryReason(
+			ctx,
+			scope,
+			definition.Name,
+		); reason != "Server unavailable during tool discovery" {
+			t.Fatalf("failed retry catalog reason = %q", reason)
+		}
+		recovered.Store(true)
 		status, err := surface.CheckMCPServerRuntime(ctx, target, definition)
 		if err != nil || status.State != settingspkg.MCPServerRuntimeStateReady || status.ToolCount != 1 {
 			t.Fatalf("retry = %+v, %v", status, err)
+		}
+		tools, err := provider.List(toolspkg.WithCachedMCPProjection(ctx), scope)
+		if err != nil || len(tools) != 1 || tools[0].ID != "mcp__docs__lookup" {
+			t.Fatalf("catalog after retry = %+v, %v", tools, err)
 		}
 		marks, err := db.ListDeadEntities(ctx, store.ReadScope{AllProfiles: true}, "ws-retry")
 		if err != nil || len(marks) != 0 {
 			t.Fatalf("marks = %+v, %v", marks, err)
 		}
+	})
+
+	// Invariant: an explicit Settings probe reports a rejected catalog listing as a failed probe.
+	// Owner: daemon Settings and real MCP discovery; canonical suite: Settings runtime.
+	t.Run("Should report the catalog diagnostic when a listed tool has an invalid schema", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcp.NewServer(&mcp.Implementation{Name: "invalid-schema", Version: "1.0.0"}, nil)
+		fixture.AddTool(&mcp.Tool{
+			Name: "lookup", InputSchema: json.RawMessage(`{"type":"object","properties":{"query":1}}`),
+		}, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{}, nil
+		})
+		upstream := httptest.NewServer(mcp.NewStreamableHTTPHandler(
+			func(*http.Request) *mcp.Server { return fixture },
+			&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
+		))
+		t.Cleanup(upstream.Close)
+		state, _ := newMCPConsentFixture(t)
+		server := compozyconfig.MCPServer{
+			Name: "docs", Transport: compozyconfig.MCPServerTransportHTTP, URL: upstream.URL,
+			Headers: map[string]string{"X-Fixture": "check"},
+		}
+		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{{
+			ID: "docs", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: server,
+		}})
+		provider, executor, err := (&Daemon{}).newDaemonMCPToolProvider(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			ctx := context.WithoutCancel(t.Context())
+			if err := executor.(*mcppkg.CallExecutor).CloseCatalogConnections(ctx); err != nil {
+				t.Error(err)
+			}
+		})
+		state.mcpToolProvider, state.mcpAuthStatus = provider, executor
+		surface := &settingsRuntimeSurface{state: state, digestKey: testMCPDigestKey(t, state)}
+		status, err := surface.CheckMCPServerRuntime(t.Context(), globalMCPTestTarget(server.Name), server)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateRuntimeUnavailable ||
+			status.Probe != settingspkg.MCPServerProbeFailed || status.Reason != string(toolspkg.ReasonSchemaInvalid) ||
+			!strings.Contains(status.Diagnostic, "properties: query") {
+			t.Fatalf("catalog rejection status = %+v, err = %v", status, err)
+		}
+	})
+
+	// Invariant: a Settings check can publish only its matching current declaration and active profile.
+	// Owner: daemon scope and definition selection; canonical suite: Settings runtime.
+	t.Run("Should select only the published definition that matches the Settings check", func(t *testing.T) {
+		t.Parallel()
+		state, req := newMCPConsentFixture(t)
+		work := req.Server
+		user := compozyconfig.MCPServer{Name: work.Name, Command: "personal"}
+		edited := work
+		edited.Command = "unpublished"
+		ext := compozyconfig.MCPServer{
+			Name: work.Name, RuntimeName: "fixture.sentry", Transport: compozyconfig.MCPServerTransportHTTP,
+			URL: "https://mcp.example.test",
+		}
+		profile, err := state.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "work"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		state.extensionEnvBindings = state.registry.(extensionpkg.EnvBindingStore)
+		ref := vault.ExtensionProfileSecretRef("fixture", profile.ID, "", "profile-key")
+		if err := state.extensionEnvBindings.PutEnvBinding(t.Context(), extensionpkg.EnvBinding{
+			ExtensionName: "fixture", ProfileID: profile.ID, EnvName: "FIXTURE_KEY", SecretRef: ref,
+			MCPServer: ext.Name, HeaderName: "X-Fixture-Key", Kind: extensionpkg.ExtensionEnvBindingKind,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{
+			{ID: "user", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: user},
+			{ID: "extension", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+				Owner: *extensionOwner("fixture"), Spec: ext},
+			{
+				ID:    "workspace",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: req.WorkspaceID},
+				Spec:  work,
+			},
+		})
+		surface := &settingsRuntimeSurface{state: state, digestKey: testMCPDigestKey(t, state)}
+		workspaceTarget := mcpauth.Target{
+			Scope:       mcpauth.ScopeWorkspace,
+			WorkspaceID: req.WorkspaceID,
+			ServerName:  work.Name,
+		}
+		userTarget := globalMCPTestTarget(user.Name)
+		extensionTarget := userTarget
+		extensionTarget.Owner = "extension:fixture"
+		for _, tc := range []struct {
+			name   string
+			target mcpauth.Target
+			server compozyconfig.MCPServer
+			want   string
+		}{
+			{"Should match the workspace declaration", workspaceTarget, work, "workspace"},
+			{"Should match the user declaration", userTarget, user, "user"},
+			{"Should match the extension declaration", extensionTarget, ext, "extension"},
+			{"Should isolate a same-named extension from a manual check", userTarget, ext, ""},
+			{"Should isolate a same-named user declaration from a workspace check", workspaceTarget, user, ""},
+			{"Should leave an unpublished edit out of the session catalog", workspaceTarget, edited, ""},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				source, found := surface.publishedMCPCheckSource(t.Context(), tc.target, tc.server)
+				if found != (tc.want != "") || source.ResourceID != tc.want {
+					t.Fatalf("published source = %+v, found=%v, want resource %q", source, found, tc.want)
+				}
+			})
+		}
+		t.Run("Should keep the active profile for a check of an installed extension", func(t *testing.T) {
+			t.Parallel()
+			ctx := mcpauth.WithConsentScope(t.Context(), mcpauth.ConsentScope{ProfileName: profile.Name})
+			source, found := surface.publishedMCPCheckSource(ctx, extensionTarget, ext)
+			if !found || source.ResourceID != "extension" || source.ProfileID != profile.ID {
+				t.Fatalf("extension check source = %+v, found=%v", source, found)
+			}
+			resolved, err := resolveDaemonMCPServer(ctx, state, source, extensionTarget.Owner)
+			if err != nil || resolved.Server.SecretHeaders["X-Fixture-Key"] != ref {
+				t.Fatalf("extension runtime did not select the active profile binding: %v", err)
+			}
+		})
 	})
 
 	t.Run("Should classify permission failures by error identity", func(t *testing.T) {
