@@ -363,8 +363,11 @@ func isSkillSourceValidationCode(code string) bool {
 
 func parseExtensionValidationAPIError(statusCode int, status string, body []byte) (bool, error) {
 	var payload contract.ExtensionValidationErrorPayload
-	if json.Unmarshal(body, &payload) != nil || len(payload.Issues) == 0 ||
-		(payload.Diagnostic == nil && payload.Dependency == "" && len(payload.DependenciesInstalled) == 0) {
+	if json.Unmarshal(body, &payload) != nil || len(payload.Issues) == 0 {
+		return false, nil
+	}
+	if payload.Diagnostic == nil && payload.Dependency == "" && len(payload.DependenciesInstalled) == 0 &&
+		(statusCode != http.StatusUnprocessableEntity || payload.Error == "" || payload.Issues[0].Path == "") {
 		return false, nil
 	}
 	payload.Error = redactToolDiagnostic(payload.Error)

@@ -18,6 +18,29 @@ type ManifestValidationError struct {
 	Message string
 }
 
+// ManifestDecodeError describes a malformed manifest and its source location.
+type ManifestDecodeError struct {
+	path   string
+	line   int
+	column int
+	cause  error
+}
+
+var _ error = (*ManifestDecodeError)(nil)
+
+func (e *ManifestDecodeError) Error() string {
+	return fmt.Sprintf("extension: decode manifest %q: %v", e.path, e.cause)
+}
+
+func (e *ManifestDecodeError) Is(target error) bool { return target == ErrManifestInvalid }
+
+func (e *ManifestDecodeError) Unwrap() error { return e.cause }
+
+// Issue combines the source location with the caller's redacted message.
+func (e *ManifestDecodeError) Issue(message string) ValidationIssue {
+	return ValidationIssue{Path: e.path, Line: e.line, Column: e.column, Message: message, Severity: IssueSeverityError}
+}
+
 // ManifestCompatibilityError describes a daemon-version compatibility failure.
 type ManifestCompatibilityError struct {
 	CurrentVersion string

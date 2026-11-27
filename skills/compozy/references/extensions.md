@@ -27,6 +27,10 @@ in v0.3.0-beta.31. Omit `profile` to retain the previous all-profile visibility.
 
 Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--profile <name>` on the CLI; HTTP/UDS accepts `?workspace=<id>&profile=<name>` to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, and placements without changing state.
 
+A malformed `extension.toml` returns HTTP 422 from install preview and install. The validation
+issue names the manifest file, line, and column. `compozy extension install <path> -o json` writes
+the validation error to stderr when the local manifest fails to parse.
+
 In extension detail, `created_by_extension: true` confirms that this extension created the current
 profile ID. `false` covers existing-profile bindings and historical declarations whose creator was
 not recorded. An upgrade preserves those markers without inferring authorship or reseeding defaults.

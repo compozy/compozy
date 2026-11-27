@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -1565,6 +1566,62 @@ func TestCLIAgentAuthoredContextIntegration(t *testing.T) {
 
 func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 	t.Parallel()
+	t.Run("Should report malformed TOML with its source location", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+		dir := t.TempDir()
+		writeExtensionManifest(t, filepath.Join(dir, "extension.toml"), `[extension]
+name = "broken"
+[[requires.extensions]]
+ref = "/x"\nmin_version = "9.0.0"
+`)
+		install := contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: dir, AllowUnverified: true,
+		}
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+			runtime.HTTPURL("/api/extensions/preview-install"), bytes.NewReader(mustJSON(t, install)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Content-Type", "application/json")
+		response, err := runtime.HTTPClient.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, readErr := io.ReadAll(response.Body)
+		if err := errors.Join(readErr, response.Body.Close()); err != nil {
+			t.Fatal(err)
+		}
+		if response.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("preview = HTTP %d %s, want 422", response.StatusCode, body)
+		}
+		assertMalformedExtensionManifestPayload(t, body)
+
+		client, err := NewClient(LocalClientTarget(runtime.Config.Daemon.Socket))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = client.InstallExtension(t.Context(), install)
+		validationErr, ok := errors.AsType[*extensionValidationAPIError](err)
+		if !ok || validationErr.statusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("install through daemon = %v, want 422 validation error", err)
+		}
+		assertMalformedExtensionManifestPayload(t, mustJSON(t, validationErr.payload))
+
+		args := []string{"extension", "install", dir, "--allow-unverified", "--yes"}
+		stdout, stderr, err := runtime.CLI.Run(t.Context(), args...)
+		if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 1 || stdout != "" ||
+			!strings.Contains(stderr, "extension.toml") || !strings.Contains(stderr, "toml: line 4") {
+			t.Fatalf("text install = stdout %q, stderr %q, error %v", stdout, stderr, err)
+		}
+		stdout, stderr, err = runtime.CLI.Run(t.Context(), append(args, "-o", "json")...)
+		if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 1 || stdout != "" {
+			t.Fatalf("JSON install = stdout %q, stderr %q, error %v", stdout, stderr, err)
+		}
+		assertMalformedExtensionManifestPayload(t, []byte(stderr))
+	})
+
 	t.Run("Should install an extension and round-trip profile enablement", func(t *testing.T) {
 		t.Parallel()
 
@@ -1665,6 +1722,20 @@ func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 			t.Fatalf("enabled extension = %#v, want enabled default-profile result", enabled)
 		}
 	})
+}
+
+func assertMalformedExtensionManifestPayload(t *testing.T, body []byte) {
+	t.Helper()
+	var payload contract.ExtensionValidationErrorPayload
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("decode manifest validation payload %q: %v", body, err)
+	}
+	if !strings.Contains(payload.Error, "extension.toml") || !strings.Contains(payload.Error, "toml: line 4") ||
+		len(payload.Issues) != 1 || payload.Issues[0].Path != "extension.toml" ||
+		payload.Issues[0].Line != 4 || payload.Issues[0].Column < 1 ||
+		payload.Issues[0].Severity != contract.IssueSeverityError || payload.Issues[0].Message == "" {
+		t.Fatalf("manifest validation payload = %s, want positioned issue for extension.toml", body)
+	}
 }
 
 func TestSessionEventsFollowIntegration(t *testing.T) {

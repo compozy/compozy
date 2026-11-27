@@ -47,4 +47,6 @@ for a manifest decode error. Not specific to dependencies.
 
 ## Verification
 
-Pending fix.
+`TestExtensionCommandRoundTripIntegration` exercises the HTTP preview, daemon install, and CLI
+human and JSON output with a malformed TOML manifest. The expected result is recorded in
+`ET-extension-dependencies`, step 17.

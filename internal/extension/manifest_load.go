@@ -198,10 +198,15 @@ func loadManifestTOMLContent(path string, data []byte) (*Manifest, error) {
 	var doc manifestDocument
 	meta, err := toml.Decode(string(data), &doc)
 	if err != nil {
-		if parseErr, ok := errors.AsType[toml.ParseError](err); ok &&
-			strings.HasPrefix(parseErr.LastKey, manifestResourcesKey+".") {
-			if field, found := jsonUnknownFieldMessage(parseErr.Message); found {
-				return nil, unknownManifestFieldError(parseErr.LastKey + "." + field)
+		if parseErr, ok := errors.AsType[toml.ParseError](err); ok {
+			if strings.HasPrefix(parseErr.LastKey, manifestResourcesKey+".") {
+				if field, found := jsonUnknownFieldMessage(parseErr.Message); found {
+					return nil, unknownManifestFieldError(parseErr.LastKey + "." + field)
+				}
+			}
+			return nil, &ManifestDecodeError{
+				path: filepath.Base(path), line: parseErr.Position.Line,
+				column: sourceColumn(data, parseErr.Position.Start), cause: err,
 			}
 		}
 		return nil, fmt.Errorf("extension: decode manifest %q: %w", path, err)
