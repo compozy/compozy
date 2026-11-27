@@ -1,7 +1,7 @@
 import { execFile, type ChildProcess } from "node:child_process";
 import { access, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,6 +29,7 @@ interface LaunchOptions {
   readonly environment?: NodeJS.ProcessEnv;
   readonly executablePath?: string;
   readonly home?: string;
+  readonly nativeRelaunch?: boolean;
   readonly prepare?: (context: LaunchContext) => Promise<void>;
 }
 
@@ -223,23 +224,32 @@ export async function terminateRuntime(
     } catch (error) {
       if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     }
-  } else {
-    await command(runtime, ["daemon", "stop"], environment);
+  } else if (processIsAlive(pid)) {
+    try {
+      await command(runtime, ["daemon", "stop"], environment);
+    } catch (error) {
+      if (processIsAlive(pid)) throw error;
+    }
     await waitForProcessExit(pid);
   }
   // Windows daemon stop terminates the process directly, leaving the AF_UNIX socket file behind.
   if (process.platform !== "win32") await waitForPathRemoval(join(home, "daemon.sock"));
 }
 
+function processIsAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ESRCH") return false;
+    throw error;
+  }
+}
+
 async function waitForProcessExit(pid: number): Promise<void> {
   const deadline = Date.now() + 5_000;
   while (Date.now() < deadline) {
-    try {
-      process.kill(pid, 0);
-    } catch (error) {
-      if (error instanceof Error && "code" in error && error.code === "ESRCH") return;
-      throw error;
-    }
+    if (!processIsAlive(pid)) return;
     await new Promise(resolveDelay => setTimeout(resolveDelay, 50));
   }
   throw new Error(`Desktop E2E process ${pid} did not stop within 5 seconds.`);
@@ -293,26 +303,47 @@ export async function terminateRestartedDesktop(home: string): Promise<void> {
   }
 }
 
+async function createTestHome(nativeRelaunch = false): Promise<string> {
+  if (!nativeRelaunch) return await mkdtemp(join(tmpdir(), "compozy-electron-e2e-"));
+  if (process.platform !== "win32" || process.env.COMPOZY_HOME?.trim()) {
+    throw new Error(
+      "Native Windows relaunch requires a test profile without a COMPOZY_HOME override."
+    );
+  }
+  // NSIS launches through Explorer, which cannot see Playwright's process environment.
+  const home = join(homedir(), ".compozy");
+  try {
+    await mkdir(home, { mode: 0o700 });
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "EEXIST") {
+      throw new Error("Native Windows relaunch requires an unused default Compozy home.", {
+        cause: error,
+      });
+    }
+    throw error;
+  }
+  return home;
+}
+
 export const test = base.extend<DesktopFixtures>({
   launchDesktop: async ({ playwright: _playwright }, use) => {
     const instances: DesktopInstance[] = [];
     const homes = new Set<string>();
     await use(async (options = {}) => {
-      const home = options.home ?? (await mkdtemp(join(tmpdir(), "compozy-electron-e2e-")));
+      const home = options.home ?? (await createTestHome(options.nativeRelaunch));
       if (options.home && !homes.has(home)) {
         throw new Error("A desktop E2E home can only be reused after this fixture created it.");
       }
       if (!homes.has(home)) {
+        homes.add(home);
         const port = await availableLoopbackPort();
         await writeFile(
           join(home, "config.toml"),
           `[app]\nupdate_check = false\n\n[http]\nhost = "127.0.0.1"\nport = ${port}\n`,
           { flag: "wx", mode: 0o600 }
         );
-        homes.add(home);
       }
       const executablePath = options.executablePath ?? packagedExecutable();
-      await access(executablePath);
       const paths = packagePaths(executablePath);
       const environment = compactEnvironment({ ...process.env, ...options.environment });
       environment.COMPOZY_DESKTOP_E2E = "1";
@@ -326,6 +357,7 @@ export const test = base.extend<DesktopFixtures>({
       environment.COMPOZY_HOME = home;
       const context: LaunchContext = { ...paths, environment, home };
       await options.prepare?.(context);
+      await access(executablePath);
       const app = await electron.launch({
         executablePath,
         args: [...(options.argv ?? [])],

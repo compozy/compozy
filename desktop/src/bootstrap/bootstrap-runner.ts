@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { appendFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname } from "node:path";
 import { createInterface } from "node:readline";
 
@@ -11,6 +12,7 @@ import {
 } from "./bootstrap-event";
 import { verifyRuntimeBundle } from "./bundle-integrity";
 import { ensurePrivateDirectory } from "../files/private-directory";
+import { resolveDesktopPaths } from "../home";
 import type { DesktopBuildChannel } from "../release/build-channel";
 
 const MAXIMUM_STDERR_BYTES = 64 * 1024;
@@ -74,6 +76,10 @@ export class BootstrapRunner {
   ): Promise<BootstrapResult> {
     await verifyRuntimeBundle(this.#bundlePath, this.#manifestPath);
     await ensurePrivateDirectory(dirname(this.#logPath), true);
+    const windows = process.platform === "win32";
+    const environment = windows
+      ? { ...this.#environment, COMPOZY_HOME: resolveDesktopPaths(this.#environment).home }
+      : this.#environment;
     const child = spawn(
       this.#bundlePath,
       [
@@ -94,9 +100,9 @@ export class BootstrapRunner {
         "jsonl",
       ],
       {
-        // Keep the detached runtime out of the app installation directory so Windows uninstall can remove it.
-        cwd: dirname(this.#logPath),
-        env: this.#environment,
+        // Windows locks a process's working directory. Keep it outside the installation and home.
+        cwd: windows ? tmpdir() : dirname(this.#logPath),
+        env: environment,
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
         // This child observes bootstrap; the runtime daemon is detached and remains alive.

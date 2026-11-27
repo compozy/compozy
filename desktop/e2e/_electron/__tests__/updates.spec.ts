@@ -6,6 +6,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rename,
   rm,
   writeFile,
@@ -318,7 +319,14 @@ async function removeDirectoryWithin(path: string, timeoutMs: number): Promise<v
 
 async function stopWindowsProcessesIn(directory: string): Promise<void> {
   if (process.platform !== "win32") return;
-  await runCommand(
+  let installation: string;
+  try {
+    installation = await realpath(directory);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return;
+    throw error;
+  }
+  const stopped = await runCommand(
     join(
       process.env.SystemRoot || "C:\\Windows",
       "System32",
@@ -330,13 +338,25 @@ async function stopWindowsProcessesIn(directory: string): Promise<void> {
       "-NoProfile",
       "-NonInteractive",
       "-Command",
-      "$prefix = $env:COMPOZY_E2E_INSTALL_DIR; foreach ($p in [System.Diagnostics.Process]::GetProcesses()) { try { $file = $p.MainModule.FileName; if ($file -and $file.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { $p.Kill() } } catch {} }",
+      [
+        "$ErrorActionPreference = 'Stop';",
+        "$prefix = $env:COMPOZY_E2E_INSTALL_DIR + [System.IO.Path]::DirectorySeparatorChar;",
+        "foreach ($p in [System.Diagnostics.Process]::GetProcesses()) {",
+        "  try { $file = $p.MainModule.FileName } catch { continue };",
+        "  if (!$file -or !$file.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { continue };",
+        "  try { $p.Kill() } catch { if (!$p.HasExited) { throw } };",
+        "  if (!$p.WaitForExit(5000)) { throw 'The test installation still has a running process.' };",
+        "}",
+      ].join(" "),
     ],
     {
-      env: { ...process.env, COMPOZY_E2E_INSTALL_DIR: directory },
+      env: { ...process.env, COMPOZY_E2E_INSTALL_DIR: installation },
       windowsHide: true,
     }
-  ).catch(() => undefined);
+  );
+  if (stopped.exitCode !== 0) {
+    throw new Error(stopped.stderr.trim() || "Could not stop the test installation processes.");
+  }
 }
 
 async function readUpdateDiagnostics(home: string): Promise<string> {
@@ -704,13 +724,20 @@ test("Windows desktop: signed NSIS install, authenticated control, update and un
   const feed = await startMockFeed(fixture);
   let desktop: DesktopInstance | undefined;
   let clearCache: (() => Promise<void>) | undefined;
+  const errors: unknown[] = [];
   try {
-    const installed = await runCommand(fixture.baseline_installer, ["/S", `/D=${installation}`], {
-      windowsVerbatimArguments: true,
+    const baselineInstaller = fixture.baseline_installer;
+    desktop = await launchDesktop({
+      executablePath: packaged.executablePath,
+      nativeRelaunch: true,
+      prepare: async () => {
+        const installed = await runCommand(baselineInstaller, ["/S", `/D=${installation}`], {
+          windowsVerbatimArguments: true,
+        });
+        expect(installed.exitCode, installed.stderr).toBe(0);
+        clearCache = await configureFeed(packaged, feed.url);
+      },
     });
-    expect(installed.exitCode, installed.stderr).toBe(0);
-    clearCache = await configureFeed(packaged, feed.url);
-    desktop = await launchDesktop({ executablePath: packaged.executablePath });
     const product = await desktop.product();
     await expect(product).toHaveTitle(/CompozyOS/u);
     const originalConfig = await readFile(join(desktop.home, "config.toml"), "utf8");
@@ -764,18 +791,28 @@ test("Windows desktop: signed NSIS install, authenticated control, update and un
       "User data survives install, update and uninstall.\n"
     );
     expect(await readFile(join(desktop.home, "config.toml"), "utf8")).toBe(originalConfig);
-  } finally {
+  } catch (error) {
+    errors.push(error);
+  }
+  for (const cleanup of [
+    () => desktop?.closeShell(),
+    () => (desktop ? terminateRestartedDesktop(desktop.home) : undefined),
+    () => (desktop ? terminateRuntime(desktop.home, desktop.environment) : undefined),
+    () => stopWindowsProcessesIn(installation),
+    () => feed.close(),
+    () => clearCache?.(),
+    () => removeDirectoryWithin(root, 15_000),
+  ]) {
     try {
-      if (desktop) {
-        await desktop.closeShell();
-        await terminateRestartedDesktop(desktop.home);
-        await terminateRuntime(desktop.home, desktop.environment);
-      }
-    } finally {
-      await stopWindowsProcessesIn(installation);
-      await feed.close();
-      await clearCache?.();
-      await removeDirectoryWithin(root, 15_000);
+      await cleanup();
+    } catch (error) {
+      errors.push(error);
     }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) {
+    throw new AggregateError(errors, "The Windows installation journey failed.", {
+      cause: errors[0],
+    });
   }
 });

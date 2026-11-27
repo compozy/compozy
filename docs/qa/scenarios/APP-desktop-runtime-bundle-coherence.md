@@ -40,8 +40,8 @@ remain Chromium-managed and are outside this HTTP-only budget. Daemon response h
 
 ## Windows desktop acceptance (2026-11-04)
 
-Run on Windows x64 with an isolated `COMPOZY_HOME` and install directory containing spaces and
-non-ASCII characters. Install the signed NSIS baseline without administrator elevation. Confirm
+Use a clean Windows x64 test profile with an unused default Compozy home. Use an installation
+directory with spaces and non-ASCII characters. Install the signed NSIS baseline without administrator elevation. Confirm
 offline bundled-runtime provisioning, product readiness and the existing `app status`, `app open`,
 `app retry` and diagnostic export commands over the authenticated local named pipe. A second
 launch must retain one shell and deliver the requested deep link.
