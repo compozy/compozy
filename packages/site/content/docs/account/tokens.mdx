@@ -48,7 +48,9 @@ terminal, or hook. It keeps the token in memory for the lifetime of the daemon. 
 ## Re-exchange and revocation
 
 The daemon exchanges `COMPOZY_ACCOUNT_TOKEN` at boot and then at most once every 24 hours while
-idle. Temporary network errors or cloud outages keep the daemon signed in.
+idle. A fresh CI runner needs to reach Compozy Cloud and complete its first exchange before it can
+sign in. Once signed in, the running daemon keeps that state during temporary network errors or
+cloud outages.
 
 List and revoke tokens from **Settings → Account → Account tokens** or the CLI:
 

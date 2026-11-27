@@ -68,13 +68,13 @@ The legacy Remote Gateway (`internal/gateway`, the bundled Tailscale provider, p
   sender's URL. Update scripts to use `/api/ingress/bindings` and remove references to other Gateway
   routes and `compozy__gateway`. For public webhook delivery, use a hosted route or set
   `remote.ingress.public_url` for your HTTPS tunnel. [Remote Computers setup](https://compozy.com/docs/computers)
-- Former gateway users receive a one-time notice in Settings linking the launch post and a
-  migration coupon for **3 months of Compozy Pro free** (redeemable in Checkout for 60 days).
+- Former Gateway users see a promotion code in the one-time notice in Settings → Computers. Enter
+  it at Pro checkout by January 27, 2027 for **3 months of Compozy Pro free** on your first purchase.
 
 ### Official install methods
 
 `go install` is no longer an official install method. Use the desktop app, the verified installer
 (`curl -fsSL https://compozy.com/install.sh | sh`), Homebrew, npm, or Linux release packages from
-[compozy.com/download](https://compozy.com/download). Building from source is documented in
-`.github/CONTRIBUTING.md` and produces a development build without the sign-in gate or
-Compozy Cloud features.
+[compozy.com/download](https://compozy.com/download). Source builds have optional sign-in. Run
+`compozy account login` to use Compozy Cloud features. See the [contributor guide](https://github.com/compozy/compozy/blob/main/.github/CONTRIBUTING.md#building-from-source)
+for source build instructions and how to connect to staging.

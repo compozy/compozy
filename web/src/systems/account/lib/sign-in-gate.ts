@@ -107,6 +107,12 @@ export function noticeFromSignInError(input: {
         kind: "account_deleting",
         message: "Your account is being deleted. Try again in a few minutes.",
       };
+    case "dpop_invalid":
+      return {
+        kind: "cancelled",
+        message:
+          "Couldn't verify this computer. Set its date and time automatically, then try signing in again.",
+      };
     case "installation_linked_to_other_account":
     case "link_account_mismatch":
       return {
@@ -133,7 +139,6 @@ export function resolveSignInView(
   options: {
     notice?: ResolvedSignInNotice | null;
     rateLimitRemainingSeconds?: number;
-    cloudUnreachable?: boolean;
   } = {}
 ): ResolvedSignInView {
   const reason = status?.signed_out_reason ?? null;
@@ -155,11 +160,9 @@ export function resolveSignInView(
   if (isSuspended) {
     title = "This account is suspended";
     subtitle = undefined;
-    notice = {
-      kind: "suspended",
-      message: "This account is suspended.",
-      showSupportLink: true,
-    };
+    notice = notice
+      ? { ...notice, showSupportLink: true }
+      : noticeFromSignInError({ code: "account_suspended" });
   } else if (isTokenRevoked) {
     title = "Sign in again";
     subtitle = undefined;
@@ -183,15 +186,6 @@ export function resolveSignInView(
     };
   }
 
-  if (options.cloudUnreachable && !isSuspended && !isTokenRevoked) {
-    notice = {
-      kind: "cloud_unreachable",
-      message: "Can't reach CompozyOS. Check your connection.",
-      retryable: true,
-      showStatusLink: true,
-    };
-  }
-
   if (isRateLimited && !isSuspended && !isTokenRevoked) {
     notice = {
       kind: "rate_limited",
@@ -199,8 +193,7 @@ export function resolveSignInView(
     };
   }
 
-  const buttonsDisabled =
-    Boolean(options.cloudUnreachable) || notice?.kind === "cloud_unreachable" || isRateLimited;
+  const buttonsDisabled = notice?.kind === "cloud_unreachable" || isRateLimited;
 
   return {
     title,

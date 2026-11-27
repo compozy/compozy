@@ -19,9 +19,12 @@ qa_status: pending
    point to `compozy computer`. Sign in and verify the same project, session titles and IDs, job
    definitions, and settings.
 4. Confirm the first home has no upgrade notice. On the second, open Settings → Computers from the
-   old `/settings/gateway` URL. Verify **Learn more** and, when bindings need confirmation,
-   **Review** and the correct count. Use **Dismiss**, reload, and restart. Check that HTTP and UDS
-   return the same dismissed state.
+   old `/settings/gateway` URL. Verify **Remote Computers launch notes** and, when bindings need
+   confirmation, **Review** and the correct count. Confirm that the existing notice shows
+   `GATEWAY3`, the January 27, 2027 redemption deadline, and how to redeem three months of Pro
+   on a first purchase at Checkout. Repeat with a home that already ran the migration and still
+   has the notice. Use **Dismiss**, reload, and restart. Check that HTTP and UDS return the same
+   dismissed state.
 5. Authenticate with an existing app token from its allowed browser origin, then verify refusal
    from a different origin. Add a remote computer again and follow `RT-computers-webhook-ingress`
    for webhook delivery at the new address.

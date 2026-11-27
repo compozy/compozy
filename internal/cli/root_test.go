@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"reflect"
@@ -80,6 +81,13 @@ func TestRenderHumanExecutionError(t *testing.T) {
 				"error: Daemon unavailable",
 				"CompozyOS daemon is not reachable at /tmp/compozy.sock",
 				"try: compozy daemon start",
+			},
+		},
+		{
+			name: "Should explain how to correct the clock when sign-in proof fails",
+			err:  accountLoginFailure("dpop_invalid"),
+			contains: []string{
+				"Couldn't verify this computer. Set its date and time automatically, then try signing in again.",
 			},
 		},
 	}
@@ -335,6 +343,42 @@ func TestRootAccountGate(t *testing.T) {
 		local.SetContext(t.Context())
 		assertDaemonUnavailableDiagnostic(t, checkAccountGate(local, deps), socket)
 	})
+
+	for _, tc := range []struct {
+		name        string
+		readAccount roundTripperFunc
+	}{
+		{
+			name: "Should admit uninstall while signed out",
+			readAccount: func(*http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(`{"state":"signed_out","gate":"enforced","signed_in":false}`)),
+				}, nil
+			},
+		},
+		{
+			name: "Should admit uninstall while the daemon is stopped",
+			readAccount: func(*http.Request) (*http.Response, error) {
+				return nil, os.ErrNotExist
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			deps := newTestDeps(t, &daemonClient{
+				target:     LocalClientTarget("/tmp/compozy-gate-fixture.sock"),
+				httpClient: &http.Client{Transport: tc.readAccount},
+			})
+			root := &cobra.Command{Use: "compozy"}
+			uninstall := newUninstallCommand(deps)
+			root.AddCommand(uninstall)
+			uninstall.SetContext(t.Context())
+			if err := checkAccountGate(uninstall, deps); err != nil {
+				t.Fatalf("uninstall gate = %v, want admission", err)
+			}
+		})
+	}
 }
 
 // UT-111. Root dispatch owns the one-release tombstones and their precedence over sign-in.

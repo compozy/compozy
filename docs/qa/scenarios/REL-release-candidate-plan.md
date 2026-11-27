@@ -60,3 +60,9 @@ extraction fallback must validate provenance against the planned desktop feed.
 The assertions for app/runtime versions, ownership, and isolation remain intact.
 Re-walk is pending workflow recovery; evidence is tracked in
 `docs/qa/reports/2026-10-23-merge-train-v040.md`.
+
+For the packaged signed-out runtime smoke, verify that `/api/workspaces` returns
+`401 sign_in_required` under enforcement and `200` under signed policy grace. In both cases,
+`/api/account` must report a signed-out installation and the corresponding gate.
+If grace expires between the two reads, the smoke retries within its startup deadline and confirms
+the enforced `401 sign_in_required` response.

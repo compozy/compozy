@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { DOCS_PROSE } from "@/components/docs/docs-classes";
 import { DocsH2, DocsInlineCode, DocsLink, DocsTable } from "@/components/docs/docs-prose";
 import { CONTAINER, FOCUS, HAIRLINE } from "@/components/site/layout";
+import { ABUSE_REPORT } from "./abuse-content";
 import { LEGAL_DOC_IDS, LEGAL_DOCUMENTS, type LegalDocId } from "./legal-content";
 import { LegalDesktopToc, LegalMobileToc } from "./legal-toc";
 
@@ -15,14 +16,17 @@ const MARKDOWN_COMPONENTS: Components = {
   code: ({ node: _node, ...props }) => <DocsInlineCode {...props} />,
 };
 
+const DOCUMENTS = { ...LEGAL_DOCUMENTS, abuse: ABUSE_REPORT };
+const DOCUMENT_IDS = [...LEGAL_DOC_IDS, "abuse"] as const;
+
 export function LegalPage({
   docId,
   mobileTocDefaultOpen = false,
 }: {
-  docId: LegalDocId;
+  docId: LegalDocId | "abuse";
   mobileTocDefaultOpen?: boolean;
 }) {
-  const doc = LEGAL_DOCUMENTS[docId];
+  const doc = DOCUMENTS[docId];
   const tocItems = doc.sections.map(section => ({ id: section.id, title: section.title }));
 
   return (
@@ -48,8 +52,8 @@ export function LegalPage({
               </nav>
 
               <nav aria-label="Legal documents" className="flex items-center gap-1">
-                {LEGAL_DOC_IDS.map(tabId => {
-                  const item = LEGAL_DOCUMENTS[tabId];
+                {DOCUMENT_IDS.map(tabId => {
+                  const item = DOCUMENTS[tabId];
                   const selected = tabId === docId;
                   return (
                     <Link
@@ -86,12 +90,19 @@ export function LegalPage({
 
           <div className={cn("pt-9 [&_h2]:scroll-mt-28 [&_h3]:scroll-mt-28", DOCS_PROSE)}>
             {doc.sections.map(section => (
-              <section key={section.id} aria-labelledby={section.id} className="mt-9 first:mt-0">
+              <section key={section.id} aria-label={section.title} className="mt-9 first:mt-0">
                 <DocsH2 id={section.id}>{section.title}</DocsH2>
                 <div className={DOCS_PROSE}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
                     {section.body}
                   </ReactMarkdown>
+                  {docId === "terms" && section.id === "acceptable-use-and-suspension" ? (
+                    <p>
+                      <DocsLink href={ABUSE_REPORT.route}>Report hosted-route abuse</DocsLink> if
+                      you encounter misuse on a <DocsInlineCode>*.compozy.run</DocsInlineCode>{" "}
+                      address.
+                    </p>
+                  ) : null}
                 </div>
               </section>
             ))}

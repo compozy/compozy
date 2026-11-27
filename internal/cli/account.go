@@ -378,6 +378,8 @@ func accountLoginFailure(code string) error {
 		message = "Can't reach Compozy Cloud. Local work is unaffected."
 	case "account_suspended":
 		message = "This account is suspended. Contact support@compozy.com."
+	case "dpop_invalid":
+		message = "Couldn't verify this computer. Set its date and time automatically, then try signing in again."
 	case "installation_linked_to_other_account":
 		return &daemonAPIError{statusCode: http.StatusConflict, payload: contract.ErrorPayload{
 			Code:  code,

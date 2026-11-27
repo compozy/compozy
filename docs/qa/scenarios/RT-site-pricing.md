@@ -52,10 +52,15 @@ overlaps: RT-computers-billing; RT-sign-in-first-run
    - Expand FAQ **Why does CompozyOS ask me to sign in?** and follow its link to
      `/docs/account/sign-in`.
    - Expand FAQ **What is the refund policy?** and follow its link to `/legal/refunds`.
+   - Confirm **What happens when Pro ends?** explains that renewal within 7 days restores
+     access at the same hosted addresses.
 
 3. **Legal pages & mobile TOC:**
    - Open `/legal/terms`, `/legal/privacy`, and `/legal/refunds` via the footer links and the legal
      document switcher tabs.
+   - Under **Acceptable use and suspension** in the Terms, follow **Report hosted-route abuse** to
+     `/abuse/`. Confirm that it lists the route URL, timestamp, and evidence to include, opens a
+     message to `abuse@compozy.com`, and explains what happens after a report.
    - On `/legal/privacy`, verify `#sub-processors` lists all 8 sub-processors (Cloudflare, Neon,
      Stripe, Resend, Google, GitHub, Sentry, Better Stack) and the hosted-route encryption note.
    - On a phone viewport on `/legal/terms`, open the **On this page** mobile table-of-contents

@@ -73,6 +73,10 @@ export function GatewayUpgradeNotice() {
             </>
           ) : null}
         </p>
+        <p>
+          Enter <strong className="font-mono text-fg">GATEWAY3</strong> at Pro checkout by January
+          27, 2027 for 3 months of Compozy Pro free on your first purchase.
+        </p>
       </AlertDescription>
     </Alert>
   );
