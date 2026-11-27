@@ -95,7 +95,7 @@ func subagentResponses(status int, body any) []ResponseSpec {
 
 func subagentErrorResponses() []ResponseSpec {
 	return []ResponseSpec{
-		{Status: 400, Description: "Invalid request", Body: contract.ErrorPayload{}},
+		{Status: 400, Description: cmdPaletteInvalidRequestDescription, Body: contract.ErrorPayload{}},
 		{Status: 403, Description: "Capability denied", Body: contract.ErrorPayload{}},
 		{Status: 404, Description: "Session or subagent not found", Body: contract.ErrorPayload{}},
 		{Status: 503, Description: "Subagents unavailable", Body: contract.ErrorPayload{}},

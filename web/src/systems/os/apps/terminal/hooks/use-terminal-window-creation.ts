@@ -5,9 +5,12 @@ import {
   type Mutation,
 } from "@tanstack/react-query";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import { remoteRejectionMessage } from "@/lib/remote-error-copy";
 import { toast } from "@compozy/ui";
 import {
   createTerminal,
+  TerminalApiError,
   terminalKeys,
   type TerminalProfileQueryScope,
   type TerminalQueryScope,
@@ -21,6 +24,7 @@ import { windowManagerStore } from "../../../stores/window-manager-store";
 interface TerminalWindowCreationScope {
   windowId: string;
   workspaceId: string;
+  computerId?: ComputerId;
   catalogScope: TerminalQueryScope;
   destinationScope: TerminalProfileQueryScope;
   coordinator: RoutingCoordinator;
@@ -29,7 +33,7 @@ interface TerminalWindowCreationScope {
 }
 
 interface TerminalWindowCreation extends TerminalWindowCreationScope {
-  identity: TerminalViewerIdentity;
+  identity: TerminalViewerIdentity | null;
   binding: ReturnType<typeof windowManagerStore.getSnapshot>["context"]["binding"];
 }
 
@@ -48,6 +52,7 @@ export function useTerminalWindowCreation(scope: TerminalWindowCreationScope) {
       const { data, variables } = candidate.state;
       return data && variables
         ? {
+            computerId: variables.computerId,
             workspaceId: variables.workspaceId,
             profileKey: variables.catalogScope.key.profileKey,
             destinationProfile: variables.destinationScope.params.profile,
@@ -59,19 +64,29 @@ export function useTerminalWindowCreation(scope: TerminalWindowCreationScope) {
   const mutation = useMutation({
     mutationKey: terminalWindowCreateKey(scope.windowId),
     mutationFn: (input: TerminalWindowCreation) =>
-      createTerminal(input.workspaceId, {}, input.destinationScope.params, input.identity),
+      isRemoteComputerId(input.computerId)
+        ? createTerminal(
+            input.workspaceId,
+            {},
+            input.destinationScope.params,
+            null,
+            undefined,
+            input.computerId
+          )
+        : createTerminal(input.workspaceId, {}, input.destinationScope.params, input.identity),
     onSuccess: async (terminal, input) => {
+      const keys = terminalKeys.forComputer(input.computerId);
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: terminalKeys.catalog(input.catalogScope.key),
+          queryKey: keys.catalog(input.catalogScope.key),
           exact: true,
         }),
         queryClient.invalidateQueries({
-          queryKey: terminalKeys.inputRequests(input.catalogScope.key),
+          queryKey: keys.inputRequests(input.catalogScope.key),
           exact: true,
         }),
         queryClient.invalidateQueries({
-          queryKey: terminalKeys.journalScope(input.catalogScope.key),
+          queryKey: keys.journalScope(input.catalogScope.key),
         }),
       ]);
       // The coordinator targets the currently bound desktop. A terminal created
@@ -91,10 +106,17 @@ export function useTerminalWindowCreation(scope: TerminalWindowCreationScope) {
         },
       });
     },
-    onError: error =>
-      toast.error(error instanceof Error ? error.message : "Failed to open terminal"),
+    onError: error => {
+      const message =
+        error instanceof TerminalApiError
+          ? remoteRejectionMessage(error.code, error.message, error.details)
+          : error instanceof Error
+            ? error.message
+            : "Failed to open terminal";
+      toast.error(message);
+    },
   });
-  const capture = (identity: TerminalViewerIdentity): TerminalWindowCreation => ({
+  const capture = (identity: TerminalViewerIdentity | null): TerminalWindowCreation => ({
     ...scope,
     identity,
     binding: windowManagerStore.getSnapshot().context.binding,
@@ -104,13 +126,16 @@ export function useTerminalWindowCreation(scope: TerminalWindowCreationScope) {
       completed
         .filter(
           candidate =>
-            candidate?.workspaceId === scope.workspaceId &&
+            candidate !== null &&
+            candidate.computerId === scope.computerId &&
+            candidate.workspaceId === scope.workspaceId &&
             candidate.profileKey === scope.catalogScope.key.profileKey &&
             candidate.destinationProfile === scope.destinationScope.params.profile
         )
         .at(-1)?.terminal ?? null,
-    mutate: (identity: TerminalViewerIdentity) => mutation.mutate(capture(identity)),
-    mutateAsync: (identity: TerminalViewerIdentity) => mutation.mutateAsync(capture(identity)),
+    mutate: (identity: TerminalViewerIdentity | null) => mutation.mutate(capture(identity)),
+    mutateAsync: (identity: TerminalViewerIdentity | null) =>
+      mutation.mutateAsync(capture(identity)),
     isPending: mutation.isPending,
     /** The last create's submission time when it was refused; a later create clears it. */
     refusal: mutation.isError ? mutation.submittedAt : null,

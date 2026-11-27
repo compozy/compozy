@@ -87,7 +87,7 @@ func (h *BaseHandlers) GetAgentSkillReview(c *gin.Context) {
 	if !ok {
 		return
 	}
-	payload, err := skillReviewPayload(review, true)
+	payload, err := skillReviewPayload(c.Request.Context(), review, true)
 	if err != nil {
 		h.skillReviewError(c, err)
 		return
@@ -102,16 +102,20 @@ func (api *AgentInstanceAPI) skillRevertEligibility(
 	review agentinstance.SkillReview,
 	instance agentinstance.Instance,
 ) *contract.AgentSkillRevertEligibility {
-	target := ""
-	if api.SkillTarget != nil {
-		if resolved, _, err := api.SkillTarget(ctx, instance); err == nil {
-			target = resolved
-		}
+	if api.SkillTarget == nil {
+		return nil
 	}
-	eligibility, err := api.SkillProposals.RevertEligibility(ctx, review, target)
+	target, _, err := api.SkillTarget(ctx, instance)
+	if errors.Is(err, agentinstance.ErrSkillReviewNoTarget) {
+		target, err = "", nil
+	}
+	var eligibility agentinstance.RevertEligibility
+	if err == nil {
+		eligibility, err = api.SkillProposals.RevertEligibility(ctx, review, target)
+	}
 	if err != nil {
 		slog.WarnContext(ctx, "skill.review.revert_eligibility_failed", "review_id", review.ID, "error", err)
-		eligibility = agentinstance.RevertEligibility{Reason: agentinstance.SkillRevertTargetUnavailable}
+		return nil
 	}
 	return &contract.AgentSkillRevertEligibility{Allowed: eligibility.Allowed, Reason: eligibility.Reason}
 }
@@ -185,32 +189,21 @@ func (h *BaseHandlers) decideAgentSkillReview(c *gin.Context, decision string) {
 	}
 	ctx := c.Request.Context()
 	target, _, targetErr := api.SkillTarget(ctx, instance)
-	switch decision {
-	case skillReviewApprove:
-		if targetErr != nil {
+	if targetErr != nil {
+		if decision == skillReviewApprove || !errors.Is(targetErr, agentinstance.ErrSkillReviewNoTarget) {
 			h.skillReviewError(c, targetErr)
 			return
 		}
+		target = ""
+	}
+	switch decision {
+	case skillReviewApprove:
 		// A post-commit projection or publication warning is logged by the service and retried by
 		// Reconcile; the skill is installed either way.
 		_, err = api.SkillProposals.Approve(ctx, actor, instance, review.ID, input.Digest, operator, target)
 	case skillReviewRevert:
-		// Without a resolvable target the revert is refused as target_unavailable by the service.
-		if targetErr != nil {
-			target = ""
-		}
 		_, err = api.SkillProposals.Revert(ctx, actor, instance, review.ID, input.Digest, operator, target)
 	default:
-		// An instance without an installation target never installs anything, so its reviews reject
-		// without the skill lock. Any other target failure refuses the rejection: without the install
-		// log, a committed approval whose projection is still pending cannot be told apart.
-		if targetErr != nil && !errors.Is(targetErr, agentinstance.ErrSkillReviewNoTarget) {
-			h.skillReviewError(c, targetErr)
-			return
-		}
-		if targetErr != nil {
-			target = ""
-		}
 		err = api.SkillProposals.Reject(ctx, actor, instance, review.ID, input.Digest, operator, target)
 	}
 	if err != nil {
@@ -256,7 +249,7 @@ func (api *AgentInstanceAPI) ProposeSkill(
 	if err != nil {
 		return contract.AgentSkillReviewResponse{}, err
 	}
-	payload, err := skillReviewPayload(result.Review, false)
+	payload, err := skillReviewPayload(ctx, result.Review, false)
 	return contract.AgentSkillReviewResponse{
 		Review: payload, DuplicateOfPending: result.Duplicate, AutoApproveSkipped: result.AutoApproveSkipped,
 	}, err

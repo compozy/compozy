@@ -2,12 +2,10 @@ import { PlusIcon } from "@compozy/ui/icons";
 
 import { Button, CommandItem, Field, FieldDescription, FieldError, FieldLabel } from "@compozy/ui";
 
-import {
-  WorktreeRefSelect,
-  WorktreeStateChip,
-  type WorktreeMaterialization,
-  type WorktreePayload,
-} from "@/systems/workspace";
+import { WorktreeRefSelect } from "@/systems/workspace/components/worktree-ref-select";
+import { WorktreeStateChip } from "@/systems/workspace/components/worktree-state-chip";
+import type { WorktreeMaterialization } from "@/systems/workspace/hooks/use-worktree-materialization";
+import type { WorktreePayload } from "@/systems/workspace/types";
 
 import {
   isEnvironmentTargetMissing,

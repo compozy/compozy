@@ -1,4 +1,4 @@
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import { DragGhost } from "../window-tabs-shared/drag-ghost";
 import { DESKTOPS, TAB, WINDOWS } from "../window-tabs-shared/fixtures";

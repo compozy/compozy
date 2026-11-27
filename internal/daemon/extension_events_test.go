@@ -22,7 +22,7 @@ import (
 func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should emit exact secret and network keys plus the enable result count", func(t *testing.T) {
+	t.Run("Should emit exact secret keys plus the enable result count", func(t *testing.T) {
 		t.Parallel()
 
 		secret := "vault:extensions/global/kit/env/secret-material-must-not-leak"
@@ -58,29 +58,12 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 				want: map[string]any{"extension_name": "kit", "workspace_id": "ws-1"},
 			},
 			{
-				name:      "Should emit the network-confirmed projection",
-				eventType: eventspkg.ExtensionGatewayConfirmed,
-				emit: func(service *daemonExtensionService, actor taskpkg.ActorContext) error {
-					return service.recordExtensionGatewayConfirmedEvent(
-						t.Context(),
-						actor,
-						extensionpkg.InstanceKey{Name: "kit", WorkspaceID: "ws-1"},
-						extensionpkg.GatewayConfirmation{Digest: "digest-1", ConfirmedBy: "operator"},
-					)
-				},
-				want: map[string]any{
-					"extension_name": "kit", "workspace_id": "ws-1", "digest": "digest-1", "confirmed_by": "operator",
-				},
-			},
-			{
 				name:      "Should emit the enable-result projection",
 				eventType: eventspkg.ExtensionEnabled,
 				emit: func(service *daemonExtensionService, actor taskpkg.ActorContext) error {
 					return service.recordExtensionEnableEvents(
 						t.Context(),
 						actor,
-						extensionpkg.GlobalInstanceKey("kit"),
-						nil,
 						&contract.ExtensionEnableResult{
 							Extension:         contract.ExtensionPayload{Name: "kit", LastError: secret},
 							AutomationStarted: []string{"kit/alpha", "kit/beta"},
@@ -160,34 +143,6 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 		}
 	})
 
-	t.Run("Should persist enable consent and completion as one event batch", func(t *testing.T) {
-		t.Parallel()
-
-		writer := &extensionEventRecorder{}
-		service := &daemonExtensionService{eventWriter: writer, now: time.Now}
-		actor, err := taskpkg.DeriveHumanActorContext("operator-1", taskpkg.OriginKindCLI, "cli")
-		if err != nil {
-			t.Fatalf("DeriveHumanActorContext() error = %v", err)
-		}
-		confirmation := &extensionpkg.GatewayConfirmation{Digest: "digest-1", ConfirmedBy: "operator"}
-		result := contract.ExtensionEnableResult{
-			Extension: contract.ExtensionPayload{Name: "kit"}, AutomationStarted: []string{"kit/job"},
-		}
-		if err := service.recordExtensionEnableEvents(
-			t.Context(), actor, extensionpkg.GlobalInstanceKey("kit"), confirmation, &result,
-		); err != nil {
-			t.Fatalf("recordExtensionEnableEvents() error = %v", err)
-		}
-		if writer.batchCalls != 1 || writer.writeCalls != 0 {
-			t.Fatalf("event writes = batch:%d single:%d, want one atomic batch", writer.batchCalls, writer.writeCalls)
-		}
-		got := writer.snapshot()
-		if len(got) != 2 || got[0].Type != eventspkg.ExtensionGatewayConfirmed ||
-			got[1].Type != eventspkg.ExtensionEnabled {
-			t.Fatalf("event batch = %#v, want gateway confirmation then enable completion", got)
-		}
-	})
-
 	t.Run("Should invalidate every workspace catalog after a global enable", func(t *testing.T) {
 		t.Parallel()
 
@@ -208,7 +163,7 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		if err := service.recordExtensionEnableEvents(
-			t.Context(), actor, extensionpkg.GlobalInstanceKey("notes"), nil,
+			t.Context(), actor,
 			&contract.ExtensionEnableResult{Extension: contract.ExtensionPayload{Name: "notes"}},
 		); err != nil {
 			t.Fatalf("recordExtensionEnableEvents() error = %v", err)

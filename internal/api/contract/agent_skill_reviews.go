@@ -36,13 +36,14 @@ type AgentSkillAutomaticContents struct {
 	Scripts    int `json:"scripts"`
 }
 
-// AgentSkillBaseFile is one file of an edit's base snapshot: text files carry their (redacted)
-// content; non-UTF-8 files carry only binary and size.
+// AgentSkillBaseFile is one file of an edit's base snapshot. Redacted reports whether text
+// was masked for display. Non-UTF-8 files carry only binary and size.
 type AgentSkillBaseFile struct {
-	Path    string `json:"path"`
-	Content string `json:"content,omitempty"`
-	Binary  bool   `json:"binary,omitempty"`
-	Size    int64  `json:"size,omitempty"`
+	Path     string `json:"path"`
+	Content  string `json:"content,omitempty"`
+	Redacted bool   `json:"redacted,omitzero"`
+	Binary   bool   `json:"binary,omitempty"`
+	Size     int64  `json:"size,omitempty"`
 }
 
 // AgentSkillFileChange marks one path of an edit's base or resulting tree as added, removed,
@@ -121,10 +122,10 @@ type AgentSkillRevertEligibility struct {
 	Reason  string `json:"reason,omitempty"`
 }
 
-// AgentSkillRevertConflictPayload is the 409 body of a refused revert: the stable code, the
-// eligibility reason (superseded, changed_on_disk, legacy, target_unavailable) and the message.
+// AgentSkillRevertConflictPayload is the 409 body of a refused revert. Eligibility refusals
+// include a reason; stale digests and install conflicts carry the code and message only.
 type AgentSkillRevertConflictPayload struct {
 	Code   string `json:"code"`
-	Reason string `json:"reason"`
+	Reason string `json:"reason,omitempty"`
 	Error  string `json:"error"`
 }

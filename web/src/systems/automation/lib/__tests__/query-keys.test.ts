@@ -6,13 +6,33 @@ describe("automationKeys", () => {
   it("separates job, trigger, and run namespaces", () => {
     // What matters is that the three families can never collide, not how many
     // filter dimensions each currently folds in.
-    expect(automationKeys.jobList().slice(0, 3)).toEqual(["automation", "jobs", "list"]);
-    expect(automationKeys.triggerList().slice(0, 3)).toEqual(["automation", "triggers", "list"]);
-    expect(automationKeys.runList().slice(0, 3)).toEqual(["automation", "runs", "list"]);
+    expect(automationKeys.jobList().slice(0, 5)).toEqual([
+      "computer",
+      "local",
+      "automation",
+      "jobs",
+      "list",
+    ]);
+    expect(automationKeys.triggerList().slice(0, 5)).toEqual([
+      "computer",
+      "local",
+      "automation",
+      "triggers",
+      "list",
+    ]);
+    expect(automationKeys.runList().slice(0, 5)).toEqual([
+      "computer",
+      "local",
+      "automation",
+      "runs",
+      "list",
+    ]);
   });
 
   it("distinguishes workspace-scoped filters in list keys", () => {
     expect(automationKeys.jobList({ scope: "workspace", workspace_id: "ws_alpha" })).toEqual([
+      "computer",
+      "local",
       "automation",
       "jobs",
       "list",
@@ -28,6 +48,8 @@ describe("automationKeys", () => {
       "",
     ]);
     expect(automationKeys.jobList({ scope: "workspace", workspace_id: "ws_beta" })).toEqual([
+      "computer",
+      "local",
       "automation",
       "jobs",
       "list",
@@ -50,9 +72,9 @@ describe("automationKeys", () => {
       all_workspaces: true,
       workspace_ids: ["ws_b", "@user", "ws_b"],
     });
-    expect(all[5]).toBe("all:");
-    expect(narrowed[5]).toBe("all:@user,ws_b");
-    expect(automationKeys.jobList({ scope: "workspace", workspace_id: "ws_a" })[5]).toBe("");
+    expect(all[7]).toBe("all:");
+    expect(narrowed[7]).toBe("all:@user,ws_b");
+    expect(automationKeys.jobList({ scope: "workspace", workspace_id: "ws_a" })[7]).toBe("");
   });
 
   it("includes package, target, enabled, search and loop filters but never a cursor", () => {
@@ -66,6 +88,8 @@ describe("automationKeys", () => {
         target: "task",
       })
     ).toEqual([
+      "computer",
+      "local",
       "automation",
       "jobs",
       "list",
@@ -97,14 +121,40 @@ describe("automationKeys", () => {
   it("includes status filters in run-history keys", () => {
     expect(
       automationKeys.jobRuns("job_1", { status: "running", limit: 5, profile: "marketing" })
-    ).toEqual(["automation", "jobs", "runs", "job_1", "running", "", "", "5", "marketing"]);
+    ).toEqual([
+      "computer",
+      "local",
+      "automation",
+      "jobs",
+      "runs",
+      "job_1",
+      "running",
+      "",
+      "",
+      "5",
+      "marketing",
+    ]);
     expect(
       automationKeys.triggerRuns("trg_1", { status: "failed", limit: 2, all_profiles: true })
-    ).toEqual(["automation", "triggers", "runs", "trg_1", "failed", "", "", "2", "@all"]);
+    ).toEqual([
+      "computer",
+      "local",
+      "automation",
+      "triggers",
+      "runs",
+      "trg_1",
+      "failed",
+      "",
+      "",
+      "2",
+      "@all",
+    ]);
   });
 
   it("keys suggestion lists by exact workspace and status", () => {
     expect(automationKeys.suggestionList("ws_alpha", "pending")).toEqual([
+      "computer",
+      "local",
       "automation",
       "suggestions",
       "list",
@@ -112,6 +162,8 @@ describe("automationKeys", () => {
       "pending",
     ]);
     expect(automationKeys.suggestionList("ws_beta", "dismissed")).toEqual([
+      "computer",
+      "local",
       "automation",
       "suggestions",
       "list",

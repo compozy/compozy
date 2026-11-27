@@ -20,9 +20,11 @@ const (
 
 const (
 	specContentTypeEventStream = "text/event-stream"
+	specBinaryContentType      = "*/*"
 	specEventStreamUpgrade     = "WebSocket upgrade; each text message contains one complete SSE frame"
 	specExpectedRevisionKey    = "expected_revision"
 	specFormatInt64            = "int64"
+	specParameterInHeader      = openapi3.ParameterInHeader
 	specParameterInPath        = openapi3.ParameterInPath
 	specParameterInQuery       = openapi3.ParameterInQuery
 	specArrayKind              = "array"
@@ -45,6 +47,7 @@ const (
 	specAPIExtensionsNameLogsPath       = specAPIExtensionsNamePath + "/logs"
 	specAPIExtensionsNameInventoryPath  = specAPIExtensionsNamePath + "/inventory"
 	specAPIExtensionsNameSecretsPath    = specAPIExtensionsNamePath + "/secrets"
+	specAPIExtensionsNameInputsPath     = specAPIExtensionsNamePath + "/inputs"
 	specAPIExtensionsNameSecretPath     = specAPIExtensionsNameSecretsPath + "/{env_name}"
 	specAPIExtensionsNameEnablementPath = specAPIExtensionsNamePath + "/enablement"
 	specAPIResourcesKindIDPath          = "/api/resources/{kind}/{id}"
@@ -154,7 +157,6 @@ const (
 	specDiagnosticsKey = "diagnostics"
 	specOnboardingKey  = "onboarding"
 	specFilesystemKey  = "filesystem"
-	specGatewayKey     = "gateway"
 	specExtensionKey   = "extension"
 	specExtensionsKey  = "extensions"
 	specHooksKey       = "hooks"
@@ -196,6 +198,7 @@ type Transport string
 const (
 	TransportHTTP                   Transport = "http"
 	TransportUDS                    Transport = "uds"
+	TransportHostedHTTP             Transport = "hosted_http"
 	workspaceRootMissingDescription           = "Workspace root is missing"
 )
 
@@ -233,9 +236,10 @@ type ResponseSpec struct {
 type OperationAuth string
 
 const (
-	OperationAuthDevice         OperationAuth = "device"
 	OperationAuthLocalSocket    OperationAuth = "local_socket"
 	OperationAuthPrivatePreAuth OperationAuth = "private_pre_auth"
+	OperationAuthBrowserDPoP    OperationAuth = "browser_dpop"
+	OperationAuthBrowserSession OperationAuth = "browser_session_dpop"
 )
 
 // AppAccess is an explicit local-browser authorization decision.
@@ -291,7 +295,8 @@ func Document() (*openapi3.T, error) {
 			{Name: specDiagnosticsKey},
 			{Name: specOnboardingKey},
 			{Name: specFilesystemKey},
-			{Name: specGatewayKey},
+			{Name: specAccountKey},
+			{Name: specRemoteHostKey},
 			{Name: specNotificationsKey},
 			{Name: specExtensionsKey},
 			{Name: specHooksKey},

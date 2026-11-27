@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/tools"
 )
 
@@ -27,6 +28,7 @@ type ToolDescriptorPayload struct {
 	Source              ToolSourceRefPayload  `json:"source"`
 	Visibility          tools.Visibility      `json:"visibility"`
 	Risk                tools.RiskClass       `json:"risk"`
+	RemoteScope         remoteproto.Scope     `json:"remote_scope,omitempty"`
 	ReadOnly            bool                  `json:"read_only"`
 	Destructive         bool                  `json:"destructive"`
 	OpenWorld           bool                  `json:"open_world"`
@@ -121,6 +123,7 @@ type ToolSearchRequest struct {
 }
 
 // ToolInvokeRequest executes a concrete tool call through registry dispatch.
+// Remote device calls must omit session_id, agent_name, turn_id and approval_token.
 type ToolInvokeRequest struct {
 	SessionID            string          `json:"session_id,omitempty"`
 	WorkspaceID          string          `json:"workspace_id,omitempty"`
@@ -135,12 +138,17 @@ type ToolInvokeRequest struct {
 
 // ToolInvokeResponse is the stable result envelope returned by invoke endpoints.
 type ToolInvokeResponse struct {
+	Meta       *ToolInvokeMetadata    `json:"_meta,omitempty"`
 	ToolID     tools.ToolID           `json:"tool_id"`
 	Status     string                 `json:"status"`
 	Result     tools.ToolResult       `json:"result"`
 	Truncated  bool                   `json:"truncated"`
 	DurationMS int64                  `json:"duration_ms"`
 	Events     []ToolCallEventPayload `json:"events"`
+}
+
+type ToolInvokeMetadata struct {
+	ComputerID remoteproto.ComputerID `json:"computer_id"`
 }
 
 // ToolArtifactPageResponse is one exact byte page from a retained oversized result.

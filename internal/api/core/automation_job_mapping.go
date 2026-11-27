@@ -102,6 +102,14 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) (au
 	if req.LoopTarget != nil {
 		next.LoopTarget = cloneAutomationLoopTarget(req.LoopTarget)
 	}
+	if req.LoopInputCommand != nil {
+		if next.LoopTarget == nil {
+			return automationpkg.Job{}, errors.New("loop_input_command requires a Loop target job")
+		}
+		target := cloneAutomationLoopTarget(next.LoopTarget)
+		target.InputCommand = strings.TrimSpace(*req.LoopInputCommand)
+		next.LoopTarget = target
+	}
 	if req.Enabled != nil {
 		next.Enabled = *req.Enabled
 	}
@@ -131,6 +139,7 @@ func validateManagedJobUpdate(req contract.UpdateJobRequest) error {
 		req.Schedule != nil ||
 		req.Task != nil ||
 		req.LoopTarget != nil ||
+		req.LoopInputCommand != nil ||
 		req.Retry != nil ||
 		req.FireLimit != nil:
 		return errors.New("managed automation jobs only accept enabled updates")

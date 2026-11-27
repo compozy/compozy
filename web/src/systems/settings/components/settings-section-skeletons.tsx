@@ -304,23 +304,32 @@ function AutomationSkeleton() {
   );
 }
 
-function GatewaySkeleton() {
+function AccountSkeleton() {
   return (
-    <SettingsPageSkeleton subhead={1} testId={pageTestId("gateway")} width="wide">
+    <SettingsPageSkeleton subhead={1} testId={pageTestId("account")}>
+      <SettingsGroupSkeleton rows={[{ id: "profile", description: 1, control: "button" }]} />
+      <SettingsGroupSkeleton
+        description={1}
+        rows={[{ id: "quota", description: 1, control: "none" }]}
+      />
+      <SettingsGroupSkeleton
+        description={1}
+        rows={[{ id: "device", description: 1, control: "button" }]}
+      />
+    </SettingsPageSkeleton>
+  );
+}
+
+function ComputersSkeleton() {
+  return (
+    <SettingsPageSkeleton subhead={1} testId={pageTestId("computers")} width="wide">
       <SettingsGroupSkeleton
         rows={[
-          { id: "private", description: 2 },
-          { id: "public-ingress", description: 2 },
-          { id: "public-operator", description: 3 },
+          { id: "run-agents", control: "switch" },
+          { id: "remote-access", control: "switch" },
         ]}
       />
       <SettingsGroupSkeleton>
-        <EmptyPanelSkeleton descriptionLines={2} />
-      </SettingsGroupSkeleton>
-      <SettingsGroupSkeleton action>
-        <EmptyPanelSkeleton descriptionLines={2} />
-      </SettingsGroupSkeleton>
-      <SettingsGroupSkeleton action>
         <EmptyPanelSkeleton descriptionLines={1} />
       </SettingsGroupSkeleton>
     </SettingsPageSkeleton>
@@ -453,6 +462,7 @@ const SECTION_SKELETONS: Record<SettingsSectionSlug, ComponentType> = {
   terminal: TerminalSkeleton,
   appearance: AppearanceSkeleton,
   layouts: LayoutsSkeleton,
+  account: AccountSkeleton,
   shortcuts: ShortcutsSkeleton,
   palette: PaletteSkeleton,
   profiles: ProfilesSkeleton,
@@ -462,7 +472,8 @@ const SECTION_SKELETONS: Record<SettingsSectionSlug, ComponentType> = {
   skills: SkillsSkeleton,
   mcp: McpSkeleton,
   automation: AutomationSkeleton,
-  gateway: GatewaySkeleton,
+  computers: ComputersSkeleton,
+  gateway: ComputersSkeleton,
   attention: AttentionSkeleton,
   observability: ObservabilitySkeleton,
   hooks: HooksSkeleton,

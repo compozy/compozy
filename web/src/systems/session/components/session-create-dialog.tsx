@@ -1,5 +1,5 @@
 import { Play } from "@compozy/ui/icons";
-import { type FormEvent, useLayoutEffect, useRef } from "react";
+import { type FormEvent, type ReactNode, useLayoutEffect, useRef } from "react";
 
 import {
   Dialog,
@@ -16,16 +16,22 @@ import {
 import { SessionCreateAdvancedSection } from "./session-create-advanced-section";
 import { SessionEnvironmentField } from "./session-environment-field";
 import { SessionCreateSimpleSection } from "./session-create-simple-section";
-import type { AgentPayload } from "@/systems/agent";
+import type { AgentPayload } from "@/systems/agent/types";
 import {
   SessionDestinationRow,
-  type DestinationKind,
   type SessionDestinationAxis,
-} from "@/systems/workspace";
+} from "@/systems/workspace/components/create-destination-session";
+import type { DestinationKind } from "@/systems/workspace/lib/workspace-scope-copy";
 
 export interface SessionCreateDialogProps {
   /** Inline pickers, present only for the aggregated axes (ADR-003). */
   destinationAxes?: { project?: SessionDestinationAxis; profile?: SessionDestinationAxis };
+  /** Optional computer selector placed before the session fields (Remote Computers U4). */
+  runOn?: ReactNode;
+  /** Optional inline notice (e.g. offline computer or Auto status) inside the dialog body. */
+  notice?: ReactNode;
+  /** Blocks launch when an external precondition (e.g. offline computer) prevents creation. */
+  submitDisabled?: boolean;
   open: boolean;
   restoreFocusOnClose: boolean;
   onOpenChange: (open: boolean) => void;
@@ -76,6 +82,9 @@ function SessionCreateDialog({
   onCancelEnvironment,
   submitError,
   destinationAxes,
+  runOn,
+  notice,
+  submitDisabled = false,
 }: SessionCreateDialogProps) {
   const restoreFocusOnCloseRef = useRef(restoreFocusOnClose);
   useLayoutEffect(() => {
@@ -86,7 +95,12 @@ function SessionCreateDialog({
   const hasAgents = agents.length > 0;
   const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
   const canSubmit =
-    !isSubmitting && destinationReady && !isAwaitingEnvironment && hasAgents && hasSelectedAgent;
+    !isSubmitting &&
+    !submitDisabled &&
+    destinationReady &&
+    !isAwaitingEnvironment &&
+    hasAgents &&
+    hasSelectedAgent;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -129,6 +143,8 @@ function SessionCreateDialog({
 
         <form className="contents" onSubmit={handleSubmit}>
           <EntityDialogBody className="flex flex-col gap-4">
+            {runOn}
+
             <SessionCreateSimpleSection
               agents={agents}
               isSubmitting={isSubmitting}
@@ -147,6 +163,8 @@ function SessionCreateDialog({
                 sessionName={sessionName}
               />
             ) : null}
+
+            {notice}
 
             {submitError ? (
               <FieldError

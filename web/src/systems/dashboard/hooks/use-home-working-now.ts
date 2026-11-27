@@ -3,7 +3,7 @@ import { homeWorkingNowSessionFilters } from "../lib/home-working-now-query";
 import type { HomeRunCardModel, HomeWorkingNowModel, HomeWorkingNowStatus } from "../types";
 import { elapsedSecondsSince } from "./use-elapsed-ticker";
 import { useProfileReadScope } from "@/systems/profiles";
-import { useSessions, type SessionPayload } from "@/systems/session";
+import { sessionBadgeSignal, useSessions, type SessionPayload } from "@/systems/session";
 import { useTaskDashboard } from "@/systems/tasks";
 import { ownerDataScope, windowBindingValue, workspaceBadgeIdentity } from "@/systems/workspace";
 
@@ -122,9 +122,12 @@ function workingSessionCard(session: SessionPayload, sessionsAtMs: number): Home
     agentName: session.agent_name,
     agentScope: { workspace: session.workspace_id || null, profile: session.profile_name },
     title: session.name?.trim() ? session.name : session.agent_name,
-    subtitle: activity?.current_tool?.trim()
-      ? `Running ${activity.current_tool}`
-      : "Working on the current turn",
+    subtitle:
+      session.badge === "waiting"
+        ? sessionBadgeSignal(session.badge, session.waiting_on).displayLabel
+        : activity?.current_tool?.trim()
+          ? `Running ${activity.current_tool}`
+          : "Working on the current turn",
     elapsedBaseSeconds: elapsedSecondsSince(
       Math.floor(sessionsAtMs / 1000),
       activity?.turn_started_at ?? session.created_at ?? ""

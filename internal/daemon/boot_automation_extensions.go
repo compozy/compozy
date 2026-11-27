@@ -50,6 +50,23 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if state.runtimeWorkers.account.AdmitNewWork() != nil {
+		state.signInDeferred = append(state.signInDeferred, func(ctx context.Context) error {
+			if err := startBootExtensionManager(ctx, state, extRegistry, manager); err != nil {
+				return err
+			}
+			return d.syncExtensionRuntimeConsumers(ctx, state)
+		})
+	} else if err := startBootExtensionManager(ctx, state, extRegistry, manager); err != nil {
+		return err
+	}
+	state.setExtensionRuntime(manager)
+	return d.attachExtensionRuntime(ctx, state, extRegistry, manager)
+}
+
+func startBootExtensionManager(
+	ctx context.Context, state *bootState, extRegistry *extensionpkg.Registry, manager extensionRuntime,
+) error {
 	if err := manager.Start(ctx); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, ctxErr) {
 			return err
@@ -65,8 +82,7 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 			state.logger.Error("daemon: extension manager start failed; continuing without blocking boot", "error", err)
 		}
 	}
-	state.setExtensionRuntime(manager)
-	return d.attachExtensionRuntime(ctx, state, extRegistry, manager)
+	return nil
 }
 
 func (d *Daemon) configureExtensionResourcePublishers(

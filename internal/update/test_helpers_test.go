@@ -81,9 +81,9 @@ func testReleaseAssets(t testing.TB, manager *Manager) []ReleaseAsset {
 
 	archiveName := "compozy_linux_x86_64.tar.gz"
 	if manager != nil {
-		resolvedArchiveName, err := archiveAssetName(manager.runtimeOS, manager.runtimeArch)
+		resolvedArchiveName, err := ArchiveAssetName(manager.runtimeOS, manager.runtimeArch)
 		if err != nil {
-			t.Fatalf("archiveAssetName() error = %v", err)
+			t.Fatalf("ArchiveAssetName() error = %v", err)
 		}
 		archiveName = resolvedArchiveName
 	}

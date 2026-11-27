@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { maskHashedAssetNames } from "../fixtures/artifacts";
-import { appWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { appWindow, sessionWindow, switchWorkspace, windowID } from "../fixtures/os-navigation";
 import {
   sessionLifecycleSelectors,
   sessionWindowSelectors,
@@ -512,6 +512,7 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   const deletableWin = sessionWindow(appPage, deletableSession.id);
   const deletableUi = sessionWindowSelectors(deletableWin, appPage);
   await expect(deletableWin).toBeVisible();
+  const sessionsView = appPage.getByTestId(`os-window-${await windowID(deletableWin)}`);
   await expect(deletableUi.sessionRowActions(deletableSession.id)).toBeEnabled();
   await browserArtifacts.captureScreenshot("session-stopped-before-delete", appPage);
   await deletableUi.sessionRowActions(deletableSession.id).click();
@@ -531,11 +532,15 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
     );
   }
   expect(deleteResponse.status()).toBe(204);
-  // The daemon removes a deleted session's windows; its window was the only one in the only
-  // tab, so the desktop is left empty, with no tab of its own (#1799).
   await expect(deletableWin).toHaveCount(0);
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/");
-  await expect(appPage.getByTestId("os-desk-empty")).toBeVisible();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/sessions");
+  await expect(sessionsView.getByTestId("session-window-empty")).toBeVisible();
+  await expect(
+    sessionsView.getByTestId(`session-sidebar-session-${deletableSession.id}`)
+  ).toHaveCount(0);
+  await expect(
+    sessionsView.getByTestId(`session-sidebar-session-${otherSession.id}`)
+  ).toBeVisible();
 
   await expect(
     runtime.requestJSON<SessionEnvelope>(sessionAPIPath(workspace.id, deletableSession.id))

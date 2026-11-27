@@ -1,6 +1,6 @@
 import "./src/styles.css";
 
-import type { CanvasProps } from "@compozy/proto";
+import type { CanvasProps } from "@protohq/cli";
 import {
   RouterProvider,
   createMemoryHistory,

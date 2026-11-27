@@ -58,6 +58,9 @@ func NewNativeProvider(source SourceRef, nativeTools ...NativeTool) (*NativeProv
 		if err != nil {
 			return nil, wrapField(err, fmt.Sprintf("tools[%d].descriptor", i))
 		}
+		if err := prepareComputerInputSchema(&descriptor); err != nil {
+			return nil, wrapField(err, fmt.Sprintf("tools[%d].descriptor", i))
+		}
 		nativeTool.Descriptor = descriptor
 		if err := validateNativeTool(source, nativeTool); err != nil {
 			return nil, wrapField(err, fmt.Sprintf("tools[%d]", i))

@@ -72,7 +72,7 @@ func marketplaceSourceOperations() []OperationSpec {
 
 func marketplaceSourceErrorResponses() []ResponseSpec {
 	return []ResponseSpec{
-		{Status: 400, Description: "Invalid request", Body: contract.ErrorPayload{}},
+		{Status: 400, Description: cmdPaletteInvalidRequestDescription, Body: contract.ErrorPayload{}},
 		{
 			Status:      403,
 			Description: "Mutation forbidden or preset removal refused",

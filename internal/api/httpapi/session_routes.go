@@ -1,39 +1,45 @@
 package httpapi
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/gin-gonic/gin"
+)
 
-func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
-	registerSessionProcessRoutes(api, handlers)
-	sessions := api.Group("/sessions")
+func registerSessionRoutes(api operatorRouteGroups, handlers *Handlers) {
+	sessionOperations := api.group("", remoteproto.ScopeSessions)
+	registerSessionProcessRoutes(sessionOperations, handlers)
+	sessions := sessionOperations.Group("/sessions")
 	sessions.GET("", handlers.ListSessions)
 	sessions.GET("/facets", handlers.ListSessionFacets)
 	sessions.GET("/catalog-stream", handlers.StreamSessionCatalog)
 	sessions.GET("/attention-summary", handlers.SessionAttentionSummary)
 	registerSessionHistoryCleanupRoutes(sessions, handlers)
+	sessions.POST("/archive-stopped", handlers.ArchiveStoppedSessions)
 	sessions.GET("/:session_id", handlers.GetSessionByID)
 	sessions.POST("/:session_id/pull-request/refresh", handlers.RefreshSessionPullRequest)
 	sessions.GET("/:session_id/owner", handlers.GetSessionOwner)
 	registerSessionReadRoutes(sessions, handlers)
 	sessions.POST("", handlers.CreateSession)
 
-	api.GET("/workspaces/:workspace_id/subagents/:subagent_id", handlers.GetSubagent)
-	api.POST("/workspaces/:workspace_id/subagents/:subagent_id/cancel", handlers.CancelSubagent)
-	api.DELETE("/workspaces/:workspace_id/subagents/:subagent_id", handlers.DeleteSubagent)
-	registerSessionLayoutRoutes(api, handlers)
-	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
+	sessionOperations.GET("/workspaces/:workspace_id/subagents/:subagent_id", handlers.GetSubagent)
+	sessionOperations.POST("/workspaces/:workspace_id/subagents/:subagent_id/cancel", handlers.CancelSubagent)
+	sessionOperations.DELETE("/workspaces/:workspace_id/subagents/:subagent_id", handlers.DeleteSubagent)
+	registerSessionLayoutRoutes(sessionOperations, handlers)
+	const path = "/workspaces/:workspace_id/sessions"
+	workspaceSessions := sessionOperations.Group(path)
 	workspaceSessions.GET("", handlers.ListSessions)
 	registerSessionLinkRoutes(workspaceSessions, handlers)
 	workspaceSessions.GET("/:session_id/subagents", handlers.ListSessionSubagents)
 	workspaceSessions.GET("/:session_id/monitors", handlers.ListSessionMonitors)
 	workspaceSessions.POST("/:session_id/monitors/:monitor_id/cancel", handlers.CancelSessionMonitor)
 	workspaceSessions.GET("/:session_id", handlers.GetSession)
-	registerSessionMCPRoutes(workspaceSessions, handlers)
+	registerSessionMCPRoutes(api.group(path, remoteproto.ScopeSettings), handlers)
 	workspaceSessions.PATCH("/:session_id", handlers.RenameSession)
 	registerSessionParentRoutes(workspaceSessions, handlers)
 	workspaceSessions.GET("/:session_id/goal", handlers.GetSessionGoal)
 	workspaceSessions.POST("/:session_id/goal", handlers.MutateSessionGoal)
 	workspaceSessions.GET("/:session_id/commands", handlers.GetSessionCommands)
-	registerSessionFileRoutes(workspaceSessions, handlers)
+	registerSessionFileRoutes(api, path, handlers)
 	workspaceSessions.POST("/:session_id/soul/refresh", handlers.RefreshSessionSoul)
 	workspaceSessions.GET("/:session_id/health", handlers.GetSessionHealth)
 	workspaceSessions.POST("/:session_id/wait", handlers.SessionWait)
@@ -44,7 +50,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	registerSessionLifecycleRoutes(workspaceSessions, handlers)
 	workspaceSessions.POST("/:session_id/move", handlers.MoveSession)
 	workspaceSessions.POST("/:session_id/attach", handlers.AttachSession)
-	workspaceSessions.POST("/:session_id/worktree-fork", handlers.ForkSessionToWorktree)
+	api.group(path, remoteproto.ScopeFilesW).POST("/:session_id/worktree-fork", handlers.ForkSessionToWorktree)
 	workspaceSessions.PUT("/:session_id/worktree", handlers.BindSessionWorktree)
 	workspaceSessions.DELETE("/:session_id/worktree", handlers.UnbindSessionWorktree)
 	workspaceSessions.POST("/:session_id/repair", handlers.RepairSession)
@@ -56,12 +62,16 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.DELETE("/:session_id/runtime", handlers.ClearSessionRuntime)
 	registerSessionPromptRoutes(workspaceSessions, handlers)
 	registerSessionReadRoutes(workspaceSessions, handlers)
-	workspaceSessions.GET("/:session_id/recap", handlers.SessionRecap)
-	workspaceSessions.GET("/:session_id/usage", handlers.SessionUsage)
-	workspaceSessions.GET("/:session_id/usage/turns", handlers.SessionUsageTurns)
+	registerSessionSummaryRoutes(workspaceSessions, handlers)
 	workspaceSessions.POST("/:session_id/approve", handlers.approveSession)
 	workspaceSessions.GET("/:session_id/clarifications", handlers.ListSessionClarifications)
 	workspaceSessions.POST("/:session_id/clarifications/:request_id/answer", handlers.AnswerSessionClarification)
+}
+
+func registerSessionSummaryRoutes(sessions gin.IRouter, handlers *Handlers) {
+	sessions.GET("/:session_id/recap", handlers.SessionRecap)
+	sessions.GET("/:session_id/usage", handlers.SessionUsage)
+	sessions.GET("/:session_id/usage/turns", handlers.SessionUsageTurns)
 }
 
 func registerSessionProcessRoutes(api gin.IRouter, handlers *Handlers) {
@@ -117,20 +127,23 @@ func registerSessionLayoutRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceOrder.POST("/move", handlers.MoveWorkspace)
 }
 
-func registerSessionFileRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {
-	workspaceSessions.GET("/:session_id/files", handlers.SearchSessionFiles)
-	workspaceSessions.GET("/:session_id/files/entries", handlers.ListSessionFileEntries)
-	workspaceSessions.GET("/:session_id/files/find", handlers.FindSessionFiles)
-	workspaceSessions.GET("/:session_id/files/search", handlers.SearchSessionFileContents)
-	workspaceSessions.GET("/:session_id/files/content", handlers.ReadSessionFileContent)
-	workspaceSessions.GET("/:session_id/files/raw/*path", sameOriginFetchGuard, handlers.ReadSessionFileBytes)
-	workspaceSessions.GET("/:session_id/changes", handlers.GetSessionChanges)
-	workspaceSessions.GET("/:session_id/changes/patches", handlers.GetSessionChangePatches)
-	workspaceSessions.GET("/:session_id/changes/contents", handlers.GetSessionChangeContents)
-	workspaceSessions.GET("/:session_id/changes/bases", handlers.ListSessionChangeBases)
-	workspaceSessions.POST("/:session_id/attachments", handlers.UploadSessionAttachment)
-	workspaceSessions.GET("/:session_id/attachments/:attachment_id/bytes", handlers.ReadSessionAttachmentBytes)
-	workspaceSessions.DELETE("/:session_id/attachments/:attachment_id", handlers.DeleteSessionAttachment)
+func registerSessionFileRoutes(api operatorRouteGroups, path string, handlers *Handlers) {
+	reads := api.group(path, remoteproto.ScopeFilesR)
+	reads.GET("/:session_id/files", handlers.SearchSessionFiles)
+	reads.GET("/:session_id/files/entries", handlers.ListSessionFileEntries)
+	reads.GET("/:session_id/files/find", handlers.FindSessionFiles)
+	reads.GET("/:session_id/files/search", handlers.SearchSessionFileContents)
+	reads.GET("/:session_id/files/content", handlers.ReadSessionFileContent)
+	reads.GET("/:session_id/files/raw/*path", sameOriginFetchGuard, handlers.ReadSessionFileBytes)
+	reads.GET("/:session_id/changes", handlers.GetSessionChanges)
+	reads.GET("/:session_id/changes/patches", handlers.GetSessionChangePatches)
+	reads.GET("/:session_id/changes/contents", handlers.GetSessionChangeContents)
+	reads.GET("/:session_id/changes/bases", handlers.ListSessionChangeBases)
+	reads.GET("/:session_id/attachments/:attachment_id/bytes", handlers.ReadSessionAttachmentBytes)
+
+	writes := api.group(path, remoteproto.ScopeFilesW)
+	writes.POST("/:session_id/attachments", handlers.UploadSessionAttachment)
+	writes.DELETE("/:session_id/attachments/:attachment_id", handlers.DeleteSessionAttachment)
 }
 
 func registerSessionParentRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {

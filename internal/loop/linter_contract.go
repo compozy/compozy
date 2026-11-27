@@ -23,5 +23,6 @@ func (c *lintContext) lintContractShape() {
 			c.add("", CodeUnknownTerminalState, "terminal state %q is not in the closed enum", state)
 		}
 	}
+	c.lintContractOnResult()
 	c.lintLifecycleGrammar()
 }

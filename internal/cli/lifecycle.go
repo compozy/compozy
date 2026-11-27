@@ -16,7 +16,11 @@ import (
 )
 
 const (
-	toolBoolTrue = "true"
+	toolBoolTrue     = "true"
+	cliOffValue      = "off"
+	cliRemoveAction  = "remove"
+	cliRefreshAction = "refresh"
+	cliRevokedValue  = "revoked"
 )
 
 const (

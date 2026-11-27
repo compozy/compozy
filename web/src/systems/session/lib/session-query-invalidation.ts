@@ -1,5 +1,6 @@
 import type { Query, QueryClient, QueryKey } from "@tanstack/react-query";
 
+import { queryKeyComputerId, type ComputerId } from "@/lib/computer-scope";
 import { PROFILE_AGGREGATE } from "@/systems/profiles";
 
 import { isSessionUnavailable } from "../adapters/session-api-errors";
@@ -16,18 +17,18 @@ import { queryKeyHasScope } from "./session-query-policy";
  */
 function isSettledForeignByIdRead(queryClient: QueryClient, query: Query): boolean {
   const key = query.queryKey;
-  const id = key[sessionKeys.all.length + 1];
+  if (key[sessionKeys.all.length] !== "by-id") return false;
+  const keys = sessionKeys.forComputer(queryKeyComputerId(key) ?? undefined);
+  const id = key[keys.all.length + 1];
   if (typeof id !== "string") return false;
-  const root = sessionKeys.byIdRoot(id);
+  const root = keys.byIdRoot(id);
   if (key.length !== root.length + 1 || !queryKeyHasScope(key, root)) return false;
   const lens = key[root.length];
   if (lens === PROFILE_AGGREGATE) return false;
   if (query.state.status !== "error" || !isSessionUnavailable(query.state.error)) return false;
   // The aggregate's latest answer must be a success naming another owner: a failed refetch keeps
   // stale data, and a session gone since then is the deletion reconciliation's to reread.
-  const aggregate = queryClient.getQueryState<SessionPayload>(
-    sessionKeys.byId(id, PROFILE_AGGREGATE)
-  );
+  const aggregate = queryClient.getQueryState<SessionPayload>(keys.byId(id, PROFILE_AGGREGATE));
   return (
     aggregate?.status === "success" &&
     aggregate.data !== undefined &&
@@ -39,11 +40,11 @@ function isSettledForeignByIdRead(queryClient: QueryClient, query: Query): boole
 export function invalidateSessionByIdReads(
   queryClient: QueryClient,
   sessionId: string,
-  options?: { cancelRefetch?: boolean }
+  { computerId, ...options }: { cancelRefetch?: boolean; computerId?: ComputerId } = {}
 ): Promise<void> {
   return queryClient.invalidateQueries(
     {
-      queryKey: sessionKeys.byIdRoot(sessionId),
+      queryKey: sessionKeys.forComputer(computerId).byIdRoot(sessionId),
       predicate: query => !isSettledForeignByIdRead(queryClient, query),
     },
     options
@@ -56,11 +57,10 @@ export function invalidateSessionByIdReads(
  * session-scoped reread that skipped the aggregate left those rows to the
  * throttled catalog-stream wake alone.
  */
-function sessionCatalogScopes(workspaceId: string): QueryKey[] {
-  const aggregate = sessionKeys.workspaceLists("");
-  return workspaceId.trim() === ""
-    ? [aggregate]
-    : [sessionKeys.workspaceLists(workspaceId), aggregate];
+function sessionCatalogScopes(workspaceId: string, computerId?: ComputerId): QueryKey[] {
+  const keys = sessionKeys.forComputer(computerId);
+  const aggregate = keys.workspaceLists("");
+  return workspaceId.trim() === "" ? [aggregate] : [keys.workspaceLists(workspaceId), aggregate];
 }
 
 export function invalidateWorkspaceSessionCatalog(
@@ -75,30 +75,34 @@ export function invalidateWorkspaceSessionCatalog(
 export function invalidateSessionMutationQueries(
   queryClient: QueryClient,
   workspaceId: string,
-  sessionId: string
+  sessionId: string,
+  computerId?: ComputerId
 ): Promise<void> {
+  const keys = sessionKeys.forComputer(computerId);
   return invalidateSessionReads(queryClient, [
-    sessionKeys.detail(workspaceId, sessionId),
+    keys.detail(workspaceId, sessionId),
     // The profile-enforced by-id entries hold the same session under whichever
     // lens read it. A mutation knows the session, not the lens, so it sweeps the
     // whole family rather than guessing which one is on screen.
-    sessionKeys.byIdRoot(sessionId),
-    ...sessionCatalogScopes(workspaceId),
+    keys.byIdRoot(sessionId),
+    ...sessionCatalogScopes(workspaceId, computerId),
   ]);
 }
 
 export function invalidateSessionLiveQueries(
   queryClient: QueryClient,
   workspaceId: string,
-  sessionId: string
+  sessionId: string,
+  computerId?: ComputerId
 ): Promise<void> {
+  const keys = sessionKeys.forComputer(computerId);
   return invalidateSessionReads(
     queryClient,
-    [sessionKeys.byIdRoot(sessionId), ...sessionCatalogScopes(workspaceId)],
+    [keys.byIdRoot(sessionId), ...sessionCatalogScopes(workspaceId, computerId)],
     [
-      sessionKeys.detail(workspaceId, sessionId),
-      sessionKeys.history(workspaceId, sessionId),
-      sessionKeys.inputQueue(workspaceId, sessionId),
+      keys.detail(workspaceId, sessionId),
+      keys.history(workspaceId, sessionId),
+      keys.inputQueue(workspaceId, sessionId),
     ]
   );
 }
@@ -107,15 +111,17 @@ export function invalidateSessionLiveQueries(
 export function invalidateSessionOwnLiveQueries(
   queryClient: QueryClient,
   workspaceId: string,
-  sessionId: string
+  sessionId: string,
+  computerId?: ComputerId
 ): Promise<void> {
+  const keys = sessionKeys.forComputer(computerId);
   return invalidateSessionReads(
     queryClient,
-    [sessionKeys.byIdRoot(sessionId)],
+    [keys.byIdRoot(sessionId)],
     [
-      sessionKeys.detail(workspaceId, sessionId),
-      sessionKeys.history(workspaceId, sessionId),
-      sessionKeys.inputQueue(workspaceId, sessionId),
+      keys.detail(workspaceId, sessionId),
+      keys.history(workspaceId, sessionId),
+      keys.inputQueue(workspaceId, sessionId),
     ]
   );
 }
@@ -124,12 +130,14 @@ export function invalidateSessionOwnLiveQueries(
 export function invalidateSessionUsageQueries(
   queryClient: QueryClient,
   workspaceId: string,
-  sessionId: string
+  sessionId: string,
+  computerId?: ComputerId
 ): Promise<void> {
+  const keys = sessionKeys.forComputer(computerId);
   return invalidateSessionReads(
     queryClient,
     [],
-    [sessionKeys.usage(workspaceId, sessionId), sessionKeys.usageTurns(workspaceId, sessionId)]
+    [keys.usage(workspaceId, sessionId), keys.usageTurns(workspaceId, sessionId)]
   );
 }
 
@@ -176,7 +184,8 @@ export function invalidateSessionOwnerLabelReads(queryClient: QueryClient): Prom
 }
 
 function isSessionDetailKey(key: QueryKey): boolean {
-  const [, , workspace, , id] = key;
+  const workspace = key[sessionKeys.all.length + 1];
+  const id = key[sessionKeys.all.length + 3];
   return (
     typeof workspace === "string" &&
     typeof id === "string" &&

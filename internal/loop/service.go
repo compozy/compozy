@@ -49,6 +49,7 @@ type service struct {
 	logger                *slog.Logger
 	now                   func() time.Time
 	newRunID              func() (RunID, error)
+	localExecution        func() error
 }
 
 // NewService creates the loop aggregate service.

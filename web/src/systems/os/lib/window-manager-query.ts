@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
+import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import { isReservedDesktopPartition } from "@/systems/workspace";
 
 import { fetchWindowManagerSnapshot } from "../adapters/window-manager-api";
@@ -22,8 +23,8 @@ export function windowManagerScopeKey(workspaceId: string | null): string {
 }
 
 export const windowManagerKeys = {
-  all: ["os", "window-manager"] as const,
-  configs: () => ["settings", "section", "window-manager"] as const,
+  all: ["computer", LOCAL_COMPUTER_ID, "os", "window-manager"] as const,
+  configs: () => ["computer", LOCAL_COMPUTER_ID, "settings", "section", "window-manager"] as const,
   config: (workspaceId: string | null = null, clientId?: string, clientProfile?: string) =>
     [
       ...windowManagerKeys.configs(),

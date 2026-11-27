@@ -194,7 +194,16 @@ describe("tasks detail and run options", () => {
   it("carries timeline filters into the query key", () => {
     const options = taskTimelineOptions("task_1", { after_sequence: 12, limit: 30 });
 
-    expect(options.queryKey).toEqual(["tasks", "timeline", "task_1", "12", "30", ""]);
+    expect(options.queryKey).toEqual([
+      "computer",
+      "local",
+      "tasks",
+      "timeline",
+      "task_1",
+      "12",
+      "30",
+      "",
+    ]);
   });
 });
 
@@ -258,6 +267,8 @@ describe("orchestration options", () => {
       limit: 25,
     });
     expect(options.queryKey).toEqual([
+      "computer",
+      "local",
       "tasks",
       "reviews",
       "run",

@@ -2,10 +2,16 @@
 // Owning layer: workspace worktree HTTP adapter. No existing suite owns this adapter.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
+import { expectFetchRequest, mockEmptyResponse, mockJsonResponse } from "@/test/fetch-test-utils";
 import { buildWorktreeFixture } from "../../mocks/worktree-fixtures";
 
-import { createWorktree, fetchWorktrees } from "../worktree-api";
+import {
+  cancelWorktreeCreate,
+  createWorktree,
+  dismissWorktree,
+  fetchWorktrees,
+  removeWorktree,
+} from "../worktree-api";
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
@@ -54,6 +60,43 @@ describe("fetchWorktrees", () => {
     await expectFetchRequest({
       method: "GET",
       path: "/api/workspaces/ws_alpha/worktrees?refresh=true&include_removed=true",
+    });
+  });
+
+  // Regression test for AST-008: worktree mutations targeting a remote computer must route
+  // through `/c/{computerId}` rather than the local controller.
+  it("AST-008: Should route worktree create, cancel, dismiss, and remove through /c/{computerId}", async () => {
+    const worktree = buildWorktreeFixture({ id: "wt_remote_1" });
+    mockJsonResponse({ worktree }, { status: 202 });
+    await expect(
+      createWorktree("ws_alpha", { name: "remote-wt" }, undefined, undefined, "cmp_remote")
+    ).resolves.toEqual(worktree);
+    await expectFetchRequest({
+      body: { name: "remote-wt" },
+      method: "POST",
+      path: "/c/cmp_remote/api/workspaces/ws_alpha/worktrees",
+    });
+
+    mockEmptyResponse({ status: 204 });
+    await cancelWorktreeCreate("ws_alpha", "wt_remote_1", undefined, "cmp_remote");
+    await expectFetchRequest({
+      callIndex: 1,
+      method: "POST",
+      path: "/c/cmp_remote/api/workspaces/ws_alpha/worktrees/wt_remote_1/cancel",
+    });
+
+    await dismissWorktree("ws_alpha", "wt_remote_1", { computerId: "cmp_remote" });
+    await expectFetchRequest({
+      callIndex: 2,
+      method: "POST",
+      path: "/c/cmp_remote/api/workspaces/ws_alpha/worktrees/wt_remote_1/dismiss",
+    });
+
+    await removeWorktree("ws_alpha", "wt_remote_1", { computerId: "cmp_remote" });
+    await expectFetchRequest({
+      callIndex: 3,
+      method: "DELETE",
+      path: "/c/cmp_remote/api/workspaces/ws_alpha/worktrees/wt_remote_1",
     });
   });
 });

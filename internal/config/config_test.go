@@ -1829,17 +1829,14 @@ func TestLoadForHomeSkipsDuplicateWorkspaceOverlay(t *testing.T) {
 		if err := EnsureHomeLayout(homePaths); err != nil {
 			t.Fatalf("EnsureHomeLayout() error = %v", err)
 		}
-		writeFile(t, homePaths.ConfigFile, "[gateway]\nenabled = true\nprivate_port = 4242\n")
+		writeFile(t, homePaths.ConfigFile, "[http]\nport = 4242\n")
 
 		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(operatorHome))
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
-		if !cfg.Gateway.Enabled {
-			t.Fatal("LoadForHome() Gateway.Enabled = false, want true")
-		}
-		if got, want := cfg.Gateway.PrivatePort, 4242; got != want {
-			t.Fatalf("LoadForHome() Gateway.PrivatePort = %d, want %d", got, want)
+		if got, want := cfg.HTTP.Port, 4242; got != want {
+			t.Fatalf("LoadForHome() HTTP.Port = %d, want %d", got, want)
 		}
 	})
 }
@@ -3296,7 +3293,7 @@ func TestProviderUsageConfig(t *testing.T) {
 		cfg := DefaultWithHome(HomePaths{})
 		usage := cfg.ProviderUsage
 		if !usage.Enabled || usage.RefreshInterval != 5*time.Minute || len(usage.Providers) != 0 ||
-			!usage.ProviderEnabled("claude") || usage.ClaudeKeychainAccess() {
+			!usage.ProviderEnabled("claude") || usage.KeychainAccess("claude") {
 			t.Fatalf("defaults = %#v", usage)
 		}
 		overlay, err := loadConfigOverlayBytes([]byte(`[provider_usage]
@@ -3316,7 +3313,7 @@ enabled = false
 			t.Fatal(err)
 		}
 		if !cfg.ProviderUsage.ProviderEnabled("claude") || cfg.ProviderUsage.ProviderEnabled("cursor") ||
-			!cfg.ProviderUsage.ClaudeKeychainAccess() || cfg.ProviderUsage.RefreshInterval != 10*time.Minute {
+			!cfg.ProviderUsage.KeychainAccess("claude") || cfg.ProviderUsage.RefreshInterval != 10*time.Minute {
 			t.Fatalf("merged = %#v", cfg.ProviderUsage)
 		}
 		cfg.ProviderUsage.Enabled = false

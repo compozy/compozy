@@ -31,7 +31,7 @@ export type {
   AutomationStart,
 } from "./automation-sentence";
 
-export type AutomationSkipReasonCode = "self_overlap" | "misfire_grace_exceeded";
+export type AutomationSkipReasonCode = "self_overlap" | "misfire_grace_exceeded" | "no inputs";
 
 export interface AutomationLastRun {
   id: string;
@@ -65,6 +65,8 @@ export interface AutomationView {
   owner?: ProfileOwner;
   /** The project badge; set only under All projects, where rows of every project mix. */
   project?: WorkspaceBadgeIdentity;
+  /** Remote computer that owns and runs this job; omitted for local jobs (`_uiux.md` U5). */
+  computer?: { id: string; name: string; offline: boolean };
   /** The profile name mutations route to. */
   profileName: string;
   /** Jobs: `scheduler.next_run_at ?? next_run`. */
@@ -84,6 +86,10 @@ export interface AutomationViewContext extends SentenceContext {
   ownerOf?: (entity: AutomationJob | AutomationTrigger) => ProfileOwner | undefined;
   /** Resolves the project badge; supplied only under All projects. */
   projectOf?: (entity: AutomationJob | AutomationTrigger) => WorkspaceBadgeIdentity;
+  /** Resolves remote-computer provenance for a merged job row. */
+  computerOf?: (
+    entity: AutomationJob | AutomationTrigger
+  ) => { id: string; name: string; offline: boolean } | undefined;
 }
 
 function nonEmpty(value: string | null | undefined): string | undefined {
@@ -95,7 +101,9 @@ function toLastRun(entity: AutomationEntity): AutomationLastRun | undefined {
   if (!run) return undefined;
   const reason = run.skip_reason;
   const skipReason =
-    reason === "self_overlap" || reason === "misfire_grace_exceeded" ? reason : undefined;
+    reason === "self_overlap" || reason === "misfire_grace_exceeded" || reason === "no inputs"
+      ? reason
+      : undefined;
   return {
     id: run.id,
     status: run.status,
@@ -117,6 +125,7 @@ export function toAutomationView(
   const kind: AutomationEntityKind = isAutomationTrigger(entity) ? "trigger" : "job";
   const owner = ctx.ownerOf?.(entity);
   const project = ctx.projectOf?.(entity);
+  const computer = ctx.computerOf?.(entity);
   const workspaceName = entity.workspace_id
     ? (ctx.workspaceName?.(entity.workspace_id) ?? undefined)
     : undefined;
@@ -141,6 +150,7 @@ export function toAutomationView(
     ...(workspaceName ? { workspaceName } : {}),
     ...(owner ? { owner } : {}),
     ...(project ? { project } : {}),
+    ...(computer ? { computer } : {}),
     profileName: entity.profile_name,
     ...(nextRunAt ? { nextRunAt } : {}),
     ...(lastRun ? { lastRun } : {}),

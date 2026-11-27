@@ -1,4 +1,5 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import { apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
 
 import type { ForkSessionToWorktreeParams, SessionPayload } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
@@ -17,9 +18,10 @@ export async function forkSessionToWorktree(
   workspaceId: string,
   sessionId: string,
   params: ForkSessionToWorktreeParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork",
     {
       params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId } },
@@ -48,16 +50,18 @@ export async function changeSessionWorktree(
   sessionId: string,
   worktree: string,
   expectedWorktreeId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
   const path = { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId };
+  const client = apiClientFor(computerId);
   const result = worktree
-    ? await apiClient.PUT("/api/workspaces/{workspace_id}/sessions/{session_id}/worktree", {
+    ? await client.PUT("/api/workspaces/{workspace_id}/sessions/{session_id}/worktree", {
         params: { path },
         body: { worktree, expected_worktree_id: expectedWorktreeId },
         signal,
       })
-    : await apiClient.DELETE("/api/workspaces/{workspace_id}/sessions/{session_id}/worktree", {
+    : await client.DELETE("/api/workspaces/{workspace_id}/sessions/{session_id}/worktree", {
         params: { path, query: { expected_worktree_id: expectedWorktreeId } },
         signal,
       });

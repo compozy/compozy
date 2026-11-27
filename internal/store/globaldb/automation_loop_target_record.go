@@ -11,6 +11,7 @@ import (
 type automationLoopTargetEncoded struct {
 	workspaceID      string
 	loopName         string
+	inputCommand     string
 	inputsJSON       any
 	inputMappingJSON any
 }
@@ -18,6 +19,7 @@ type automationLoopTargetEncoded struct {
 type automationLoopTargetRecord struct {
 	workspaceID     sql.NullString
 	loopName        sql.NullString
+	inputCommand    sql.NullString
 	inputsRaw       sql.NullString
 	inputMappingRaw sql.NullString
 }
@@ -41,6 +43,7 @@ func normalizeAutomationLoopTarget(target *automation.LoopTarget) *automation.Lo
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.LoopName = strings.TrimSpace(normalized.LoopName)
 	normalized.InputMapping = normalizeStringMap(normalized.InputMapping)
+	normalized.InputCommand = strings.TrimSpace(normalized.InputCommand)
 	return &normalized
 }
 
@@ -77,6 +80,7 @@ func encodeAutomationLoopTarget(
 	return automationLoopTargetEncoded{
 		workspaceID:      strings.TrimSpace(target.WorkspaceID),
 		loopName:         strings.TrimSpace(target.LoopName),
+		inputCommand:     strings.TrimSpace(target.InputCommand),
 		inputsJSON:       inputsJSON,
 		inputMappingJSON: inputMappingJSON,
 	}, nil
@@ -106,8 +110,9 @@ func decodeAutomationLoopTarget(
 	}
 
 	decoded := automation.LoopTarget{
-		WorkspaceID: workspaceID,
-		LoopName:    loopName,
+		WorkspaceID:  workspaceID,
+		LoopName:     loopName,
+		InputCommand: automationNullStringValue(record.inputCommand),
 	}
 	if err := decodeOptionalAutomationJSON(record.inputsRaw, &decoded.Inputs, label+".inputs"); err != nil {
 		return err
@@ -126,6 +131,7 @@ func decodeAutomationLoopTarget(
 func (r automationLoopTargetRecord) hasAnyValue() bool {
 	return r.workspaceID.Valid ||
 		r.loopName.Valid ||
+		r.inputCommand.Valid ||
 		r.inputsRaw.Valid ||
 		r.inputMappingRaw.Valid
 }

@@ -37,9 +37,10 @@ func (d *Driver) Prompt(ctx context.Context, proc *AgentProcess, req PromptReque
 	var err error
 	traceCtx := trace.SpanContextFromContext(ctx)
 	if strings.TrimSpace(req.RunID) == "" {
-		active, err = proc.beginPromptState(req.TurnID, "", 0, traceCtx, d.promptBufferCap, cancelPrompt)
+		active, err = proc.beginPromptState(promptCtx, req.TurnID, "", 0, traceCtx, d.promptBufferCap, cancelPrompt)
 	} else {
 		active, err = proc.beginPromptForRun(
+			promptCtx,
 			req.TurnID,
 			req.RunID,
 			req.Generation,
@@ -53,10 +54,6 @@ func (d *Driver) Prompt(ctx context.Context, proc *AgentProcess, req PromptReque
 		proc.finishChildTask(run)
 		return nil, err
 	}
-
-	active.steerMu.Lock()
-	active.steerContext = promptCtx
-	active.steerMu.Unlock()
 	proc.startReservedChildTask(run, func() {
 		d.runPrompt(promptCtx, proc, active, req)
 	})
@@ -107,6 +104,7 @@ func (d *Driver) CancelCooperatively(ctx context.Context, proc *AgentProcess) er
 	}
 	err := proc.conn.SendNotification(ctx, acpsdk.AgentMethodSessionCancel,
 		acpsdk.CancelNotification{SessionId: acpsdk.SessionId(proc.SessionID)})
+	active.cancelClarifications()
 	if err != nil {
 		active.cooperativeCancelSent.Store(false)
 		return fmt.Errorf("acp: request cooperative prompt cancellation: %w", err)

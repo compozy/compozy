@@ -52,6 +52,7 @@
                     "--env",
                     "GITHUB_PERSONAL_ACCESS_TOKEN",
                     "ghcr.io/github/github-mcp-server@sha256:d5a18c04b92714c309eb46a2305087e91a4dbd80420f6e462656699f95093520",
+                    "stdio",
                     "--read-only"
                 ],
                 "secret_env": {

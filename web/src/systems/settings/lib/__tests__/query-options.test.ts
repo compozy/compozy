@@ -60,6 +60,8 @@ describe("settings section options", () => {
     const signal = new AbortController().signal;
 
     expect(options.queryKey).toEqual([
+      "computer",
+      "local",
       "settings",
       "section",
       "persona",
@@ -79,7 +81,15 @@ describe("settings section options", () => {
     const options = settingsAttentionOptions(filter);
     const signal = new AbortController().signal;
 
-    expect(options.queryKey).toEqual(["settings", "section", "attention", "profile", "marketing"]);
+    expect(options.queryKey).toEqual([
+      "computer",
+      "local",
+      "settings",
+      "section",
+      "attention",
+      "profile",
+      "marketing",
+    ]);
     if (typeof options.queryFn !== "function") throw new Error("attention query function missing");
     await options.queryFn({ signal } as never);
     expect(adapterMocks.getSettingsAttention).toHaveBeenCalledWith(filter, signal);
@@ -108,6 +118,8 @@ describe("settings collection options", () => {
     const disabled = settingsMCPServersListOptions({ scope: "workspace" }, false);
 
     expect(global.queryKey).toEqual([
+      "computer",
+      "local",
       "settings",
       "collection",
       "mcp-servers",
@@ -117,6 +129,8 @@ describe("settings collection options", () => {
       "",
     ]);
     expect(scoped.queryKey).toEqual([
+      "computer",
+      "local",
       "settings",
       "collection",
       "mcp-servers",
@@ -144,6 +158,8 @@ describe("settings collection options", () => {
     const signal = new AbortController().signal;
 
     expect(options.queryKey).toEqual([
+      "computer",
+      "local",
       "settings",
       "collection",
       "hooks",
@@ -167,7 +183,7 @@ describe("settings restart options", () => {
 
     expect(disabled.enabled).toBe(false);
     expect(enabled.enabled).toBe(true);
-    expect(enabled.queryKey).toEqual(["settings", "restart", "op_1"]);
+    expect(enabled.queryKey).toEqual(["computer", "local", "settings", "restart", "op_1"]);
   });
 
   it("polls through transient errors and stops only on terminal states", () => {

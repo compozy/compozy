@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/session"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -19,6 +20,13 @@ func (h *BaseHandlers) terminalActor(
 	c *gin.Context,
 	workspaceID, profileID, action string,
 ) (terminalpkg.Actor, bool) {
+	if principal, remote := remotehost.PrincipalFromContext(c.Request.Context()); remote {
+		return terminalpkg.Actor{
+			Kind:      terminalpkg.ActorKindHuman,
+			ID:        string(principal.DeviceID),
+			ProfileID: profileID,
+		}, true
+	}
 	credentials := agentCallerCredentialsFromRequest(c)
 	if !hasAgentCallerIdentityCredentials(credentials) {
 		return terminalpkg.Actor{
@@ -75,6 +83,10 @@ func (h *BaseHandlers) bindTerminalHumanClient(
 	workspaceID, profileID, clientID string,
 	actor terminalpkg.Actor,
 ) (terminalpkg.Actor, error) {
+	if _, remote := remotehost.PrincipalFromContext(c.Request.Context()); remote {
+		// The controller's window-manager client ID is meaningful only on that controller.
+		return actor, nil
+	}
 	if actor.Kind != terminalpkg.ActorKindHuman {
 		return actor, nil
 	}

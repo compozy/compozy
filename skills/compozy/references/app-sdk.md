@@ -25,7 +25,7 @@ isolated QA; defaults are not a substitute for the manifest. A major/minor misma
 blocking the connection; compare the actual connected version before diagnosing missing fields.
 
 Go methods for HTTP-only operations require `client.WithBaseURL` with the daemon's HTTP address:
-`MintGatewayStreamTicket`, `CompleteMCPAuthCallback`, `ListOpenAIModels`, `DeliverGlobalWebhook`, and
+`CompleteMCPAuthCallback`, `ListOpenAIModels`, `DeliverGlobalWebhook`, and
 `DeliverWorkspaceWebhook`. Their routes are absent on UDS, so a socket client gets 404. Read
 `x-compozy-transports` in OpenAPI; transport selection does not change authorization.
 
@@ -82,13 +82,13 @@ fail before the request with exit 2.
 
 The matching local routes are `POST|GET /api/app-tokens` and
 `PATCH|DELETE /api/app-tokens/{app_token_id}`. No new configuration keys or hooks are introduced.
-App tokens are distinct from paired devices and must not appear in `compozy device list`.
+App tokens authenticate local integrations. Manage them with `compozy app-token`.
 
 ## Browser boundary
 
 A foreign browser origin needs a bearer token whose own allowlist includes that exact origin.
 Successful preflight is not authentication. Only registry-marked app-access operations are allowed;
-Terminal, filesystem, settings, Vault, extensions, tool invocation, Gateway, agent kernel, and token
+Terminal, filesystem, settings, Vault, extensions, tool invocation, Computers, agent kernel, and token
 management remain forbidden. See the generated operation table at
 https://compozy.com/docs/apps/browser. `Origin: null` is always denied. A prompt-capable app can ask
 agents to act with their session permissions: the origin allowlist does not sandbox the allowed app.
@@ -121,12 +121,12 @@ JavaScript sees a CORS/network failure. `events()` then follows its existing rec
 end with `CompozyStreamError` after 20 consecutive failures, rather than a readable 401. Abort the
 reader when the app should stop waiting. Requests without `Origin` remain tokenless locally; if a
 token is supplied, it is validated.
-Gateway listeners reject app tokens with `gateway_app_token_local_only` and do not update last use.
+App tokens authenticate only on the local listener.
 
 ## Contract and stability
 
 `GET /api/openapi.json` serves the running release's OpenAPI 3.0.3 document over local HTTP and UDS,
-with ETag and gzip. It is not exposed on Gateway listeners. API reference samples and SDK methods
+with ETag and gzip. API reference samples and SDK methods
 come from the same generated document.
 
 Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact

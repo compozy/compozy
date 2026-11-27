@@ -1,9 +1,9 @@
 package httpapi
 
-import "github.com/gin-gonic/gin"
+import "github.com/compozy/compozy/internal/remoteproto"
 
-func registerCmdPaletteRoutes(api gin.IRouter, handlers *Handlers) {
-	palette := api.Group("/cmd-palette")
+func registerCmdPaletteRoutes(api operatorRouteGroups, handlers *Handlers) {
+	palette := api.group("/cmd-palette", remoteproto.ScopeSettings)
 	palette.GET("/commands", handlers.ListCmdPaletteCommands)
 	palette.GET("/clients", handlers.ListCmdPaletteClients)
 	palette.GET("/rank-signals", handlers.GetCmdPaletteRankSignals)
@@ -29,7 +29,7 @@ func registerCmdPaletteRoutes(api gin.IRouter, handlers *Handlers) {
 		handlers.InvokeCmdPaletteCommand,
 	)
 
-	approvals := api.Group("/tools/approvals")
+	approvals := api.group("/tools/approvals", remoteproto.ScopeSessions)
 	approvals.GET("/:id", handlers.GetPendingToolApproval)
 	approvals.POST("/:id/resolve", handlers.privilegedMutationGuard(), handlers.ResolvePendingToolApproval)
 	approvals.POST(

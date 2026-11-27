@@ -99,7 +99,7 @@ func (s *Service) tokenBinding(
 	if !tokenMatchesFingerprint(token, cfg) {
 		return false, nil, nil
 	}
-	if !scopesCover(token.Scopes, cfg.Scopes) {
+	if !scopesCover(token.loginScopes(), cfg.Scopes) {
 		return false, nil, nil
 	}
 	if cfg.registrationStrategy() == RegistrationPreRegistered {
@@ -132,6 +132,23 @@ func (s *Service) tokenBinding(
 			cfg.ResourceURL,
 			cfg.RemoteURL,
 		), &registration, nil
+}
+
+// loginScopes is the set the token was requested for, so a narrower grant still binds the
+// configuration it was issued under. Tokens stored before RequestedScopes existed fall back to the grant.
+func (t TokenRecord) loginScopes() []string {
+	if len(t.RequestedScopes) != 0 {
+		return t.RequestedScopes
+	}
+	return t.Scopes
+}
+
+// requestedTokenScopes records what login asked for; a refresh keeps the original request.
+func requestedTokenScopes(cfg ServerConfig, current TokenRecord) []string {
+	if current.AccessToken != "" {
+		return normalizeScopes(current.RequestedScopes)
+	}
+	return normalizeScopes(cfg.Scopes)
 }
 
 func scopesCover(granted []string, required []string) bool {

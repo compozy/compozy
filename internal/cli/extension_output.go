@@ -25,6 +25,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 			authoredContextSourceValue,
 			"Missing Env",
 			extensionCapabilitiesValue,
+			extensionUnmetDependenciesValue,
 		},
 		"extensions",
 		[]string{
@@ -36,6 +37,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 			automationSourceKey,
 			extensionMissingEnvKey,
 			extensionCapabilitiesKey,
+			extensionUnmetDependenciesKey,
 		},
 		func(item ExtensionRecord) []string {
 			return []string{
@@ -47,6 +49,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 				stringOrDash(item.Source),
 				stringOrDash(strings.Join(item.MissingEnv, ", ")),
 				stringOrDash(strings.Join(item.Capabilities, ", ")),
+				stringOrDash(extensionUnmetDependenciesLabel(item.UnmetDependencies, ", ")),
 			}
 		},
 		func(item ExtensionRecord) []string {
@@ -59,6 +62,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 				item.Source,
 				strings.Join(item.MissingEnv, "|"),
 				strings.Join(item.Capabilities, "|"),
+				extensionUnmetDependenciesLabel(item.UnmetDependencies, "|"),
 			}
 		},
 	)
@@ -99,6 +103,7 @@ func extensionBundle(item *ExtensionRecord) outputBundle {
 				"restart_backoff_ms",
 				"summary",
 				"diagnostics",
+				extensionUnmetDependenciesKey,
 			}, []string{
 				item.Name,
 				item.Version,
@@ -120,6 +125,7 @@ func extensionBundle(item *ExtensionRecord) outputBundle {
 				fmt.Sprintf("%d", item.RestartBackoffMS),
 				extensionRuntimeSummary(item),
 				string(diagnosticsJSON),
+				extensionUnmetDependenciesLabel(item.UnmetDependencies, "|"),
 			}), nil
 		},
 	}
@@ -155,6 +161,12 @@ func extensionHumanDetail(item *ExtensionRecord, includeFormat bool) string {
 		keyValue{Label: "Summary", Value: extensionRuntimeSummary(item)},
 		keyValue{Label: "Last Error", Value: stringOrDash(item.LastError)},
 	)
+	if len(item.UnmetDependencies) > 0 {
+		rows = append(rows, keyValue{
+			Label: extensionUnmetDependenciesValue,
+			Value: extensionUnmetDependenciesLabel(item.UnmetDependencies, ", "),
+		})
+	}
 	blocks := []string{renderHumanSection("Extension", rows)}
 	if diagnostics := extensionDiagnosticsHuman("Diagnostics", item.Diagnostics); diagnostics != "" {
 		blocks = append(blocks, diagnostics)
@@ -369,4 +381,18 @@ func boolLabel(value bool, whenTrue string, whenFalse string) string {
 		return whenTrue
 	}
 	return whenFalse
+}
+
+const (
+	extensionUnmetDependenciesValue = "Unmet Dependencies"
+	extensionUnmetDependenciesKey   = "unmet_dependencies"
+)
+
+// extensionUnmetDependenciesLabel lists the experimental unmet dependencies as "name (state)".
+func extensionUnmetDependenciesLabel(items []contract.ExtensionDependencyPayload, separator string) string {
+	labels := make([]string, 0, len(items))
+	for _, item := range items {
+		labels = append(labels, item.Name+" ("+item.State+")")
+	}
+	return strings.Join(labels, separator)
 }

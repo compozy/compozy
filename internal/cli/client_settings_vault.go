@@ -47,29 +47,16 @@ func newClientWithTimeout(target ClientTarget, requestTimeout time.Duration) (Da
 		requestTimeout = defaultUnixSocketClientTimeout
 	}
 
-	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-	if !ok {
-		return nil, errors.New("cli: default HTTP transport is not an HTTP transport")
-	}
-	transport := defaultTransport.Clone()
-	switch target.kind {
-	case clientTargetLocal:
-		transport = &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				var dialer net.Dialer
-				return dialer.DialUnix(
-					ctx,
-					clientUnixNetwork,
-					nil,
-					&net.UnixAddr{Name: target.socketPath, Net: clientUnixNetwork},
-				)
-			},
-		}
-	case clientTargetSSHForward:
-		transport.Proxy = nil
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var dialer net.Dialer
+			return dialer.DialUnix(ctx, clientUnixNetwork, nil, &net.UnixAddr{
+				Name: target.socketPath, Net: clientUnixNetwork,
+			})
+		},
 	}
 	checkRedirect := defaultCLIRedirectPolicy
-	if target.isRemoteGateway() {
+	if target.computerID != "" {
 		checkRedirect = func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}

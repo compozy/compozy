@@ -18,13 +18,14 @@ func DescribeInputState(
 	if manifest != nil {
 		for _, input := range manifest.Inputs {
 			declared[input.ID] = struct{}{}
-			_, _, present, err := effectiveInputValue(input, state, getenv)
+			_, _, present, err := manifestInputValue(manifest, input, state, getenv)
 			active := true
 			if record, found := state.Values[input.ID]; found {
 				active = record.Active
 			}
 			result = append(result, contract.ExtensionInputStatePayload{
 				ID: input.ID, Type: input.Type, Set: present && err == nil, Active: active,
+				State: InputSetupState(manifest, input, state, getenv),
 			})
 		}
 	}

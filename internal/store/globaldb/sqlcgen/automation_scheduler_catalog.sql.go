@@ -48,7 +48,7 @@ func (q *Queries) DeleteAutomationTriggerCatalogTerms(ctx context.Context, trigg
 const getAutomationSchedulerState = `-- name: GetAutomationSchedulerState :one
 SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
-       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until
+       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until, held_for_sign_in
 FROM automation_scheduler_state WHERE job_id = ?1
 `
 
@@ -69,6 +69,7 @@ func (q *Queries) GetAutomationSchedulerState(ctx context.Context, jobID string)
 		&i.MisfireCount,
 		&i.UpdatedAt,
 		&i.DeferredUntil,
+		&i.HeldForSignIn,
 	)
 	return i, err
 }
@@ -81,7 +82,7 @@ SELECT j.grant_ceiling, j.profile_id, j.id, j.scope, j.name, j.agent_name, j.wor
   CASE WHEN j.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
     THEN o.enabled_override ELSE j.enabled END AS enabled,
   j.retry, j.fire_limit, j.source, j.target_kind, j.loop_workspace_id,
-	j.loop_name, j.loop_inputs, j.loop_input_mapping, j.created_at, j.updated_at
+	j.loop_name, j.loop_inputs, j.loop_input_mapping, j.loop_input_command, j.created_at, j.updated_at
 FROM requested
 JOIN automation_jobs AS j ON j.id = requested.job_id
 LEFT JOIN automation_job_overlays AS o ON o.job_id = j.id
@@ -108,6 +109,7 @@ type HydrateAutomationJobCatalogRow struct {
 	LoopName         sql.NullString `json:"loop_name"`
 	LoopInputs       sql.NullString `json:"loop_inputs"`
 	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
+	LoopInputCommand sql.NullString `json:"loop_input_command"`
 	CreatedAt        string         `json:"created_at"`
 	UpdatedAt        string         `json:"updated_at"`
 }
@@ -141,6 +143,7 @@ func (q *Queries) HydrateAutomationJobCatalog(ctx context.Context, idsJson any) 
 			&i.LoopName,
 			&i.LoopInputs,
 			&i.LoopInputMapping,
+			&i.LoopInputCommand,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -166,6 +169,7 @@ SELECT t.grant_ceiling, t.profile_id, t.id, t.scope, t.name, t.agent_name, t.wor
     THEN o.enabled_override ELSE t.enabled END AS enabled,
   t.retry, t.fire_limit, t.source, t.webhook_id, t.endpoint_slug, t.webhook_secret_ref,
   t.target_kind, t.target_instance_scope, t.loop_workspace_id, t.loop_name, t.loop_inputs, t.loop_input_mapping,
+  t.loop_input_command,
 	t.created_at, t.updated_at
 FROM requested
 JOIN automation_triggers AS t ON t.id = requested.trigger_id
@@ -197,6 +201,7 @@ type HydrateAutomationTriggerCatalogRow struct {
 	LoopName            sql.NullString `json:"loop_name"`
 	LoopInputs          sql.NullString `json:"loop_inputs"`
 	LoopInputMapping    sql.NullString `json:"loop_input_mapping"`
+	LoopInputCommand    sql.NullString `json:"loop_input_command"`
 	CreatedAt           string         `json:"created_at"`
 	UpdatedAt           string         `json:"updated_at"`
 }
@@ -234,6 +239,7 @@ func (q *Queries) HydrateAutomationTriggerCatalog(ctx context.Context, idsJson a
 			&i.LoopName,
 			&i.LoopInputs,
 			&i.LoopInputMapping,
+			&i.LoopInputCommand,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -268,7 +274,7 @@ func (q *Queries) InsertAutomationTriggerCatalogTerms(ctx context.Context, arg I
 const listAutomationSchedulerStates = `-- name: ListAutomationSchedulerStates :many
 SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
-       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until
+       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until, held_for_sign_in
 FROM automation_scheduler_state ORDER BY job_id ASC
 `
 
@@ -295,6 +301,7 @@ func (q *Queries) ListAutomationSchedulerStates(ctx context.Context) ([]Automati
 			&i.MisfireCount,
 			&i.UpdatedAt,
 			&i.DeferredUntil,
+			&i.HeldForSignIn,
 		); err != nil {
 			return nil, err
 		}
@@ -452,13 +459,13 @@ const upsertAutomationSchedulerState = `-- name: UpsertAutomationSchedulerState 
 INSERT INTO automation_scheduler_state (
   job_id, deferred_until, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
   schedule_hash, catch_up_policy, misfire_grace_seconds,
-  consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
+  consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, held_for_sign_in
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7,
   ?8, ?9,
   ?10, ?11,
-  ?12, ?13
+  ?12, ?13, ?14
 )
 ON CONFLICT(job_id) DO UPDATE SET
   deferred_until = excluded.deferred_until, next_run_at = excluded.next_run_at, last_run_at = excluded.last_run_at,
@@ -467,7 +474,7 @@ ON CONFLICT(job_id) DO UPDATE SET
   misfire_grace_seconds = excluded.misfire_grace_seconds,
   consecutive_resume_failures = excluded.consecutive_resume_failures,
   last_misfire_at = excluded.last_misfire_at, misfire_count = excluded.misfire_count,
-  updated_at = excluded.updated_at
+  updated_at = excluded.updated_at, held_for_sign_in = excluded.held_for_sign_in
 `
 
 type UpsertAutomationSchedulerStateParams struct {
@@ -484,6 +491,7 @@ type UpsertAutomationSchedulerStateParams struct {
 	LastMisfireAt             sql.NullString `json:"last_misfire_at"`
 	MisfireCount              int64          `json:"misfire_count"`
 	UpdatedAt                 string         `json:"updated_at"`
+	HeldForSignIn             int64          `json:"held_for_sign_in"`
 }
 
 func (q *Queries) UpsertAutomationSchedulerState(ctx context.Context, arg UpsertAutomationSchedulerStateParams) error {
@@ -501,6 +509,7 @@ func (q *Queries) UpsertAutomationSchedulerState(ctx context.Context, arg Upsert
 		arg.LastMisfireAt,
 		arg.MisfireCount,
 		arg.UpdatedAt,
+		arg.HeldForSignIn,
 	)
 	return err
 }

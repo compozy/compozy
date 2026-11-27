@@ -15,8 +15,6 @@ const (
 	lifecycleEventDigestMatchedKey       = "digest_matched"
 	lifecycleEventWorkspaceIDKey         = "workspace_id"
 	lifecycleEventExtensionGenerationKey = "extension_generation"
-	lifecycleEventDigestKey              = "digest"
-	lifecycleEventConfirmedByKey         = "confirmed_by"
 	lifecycleEventBoundCountKey          = "bound_count"
 	lifecycleEventAutomationCountKey     = "automation_started_count"
 	lifecycleEventProfileIDKey           = "profile_id"
@@ -38,8 +36,6 @@ type LifecycleEvent struct {
 	DigestMatched       bool
 	WorkspaceID         string
 	ExtensionGeneration string
-	Digest              string
-	ConfirmedBy         string
 	BoundCount          *int
 	AutomationCount     *int
 	ProfileID           string
@@ -80,10 +76,6 @@ func (e LifecycleEvent) RequiredFields() (map[string]any, error) {
 		if workspaceID := strings.TrimSpace(e.WorkspaceID); workspaceID != "" {
 			fields[lifecycleEventWorkspaceIDKey] = workspaceID
 		}
-	case eventspkg.ExtensionGatewayConfirmed:
-		if err := addGatewayConfirmationLifecycleFields(fields, e); err != nil {
-			return nil, err
-		}
 	case eventspkg.ExtensionSecretsUpdated:
 		if err := addSecretsUpdatedLifecycleFields(fields, e); err != nil {
 			return nil, err
@@ -123,19 +115,6 @@ func addDevelopmentLifecycleFields(fields map[string]any, event LifecycleEvent) 
 	return requireLifecycleStringField(
 		fields, lifecycleEventExtensionGenerationKey, event.ExtensionGeneration,
 		"extension: development lifecycle event extension generation is required",
-	)
-}
-
-func addGatewayConfirmationLifecycleFields(fields map[string]any, event LifecycleEvent) error {
-	fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(event.WorkspaceID)
-	if err := requireLifecycleStringField(
-		fields, lifecycleEventDigestKey, event.Digest, "extension: gateway confirmation digest is required",
-	); err != nil {
-		return err
-	}
-	return requireLifecycleStringField(
-		fields, lifecycleEventConfirmedByKey, event.ConfirmedBy,
-		"extension: gateway confirmation actor is required",
 	)
 }
 

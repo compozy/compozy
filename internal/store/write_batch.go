@@ -352,6 +352,9 @@ func writeContextParent(ctx context.Context) *writeContextOwner {
 }
 
 func hasMutationCommitFence(ctx context.Context) bool {
+	if guard, ok := ctx.Value(mutationCommitGuardContextKey{}).(MutationCommitGuard); ok && guard != nil {
+		return true
+	}
 	fence, ok := ctx.Value(mutationCommitFenceContextKey{}).(MutationCommitFence)
 	return ok && fence != nil
 }

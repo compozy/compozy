@@ -1,6 +1,8 @@
 package contract
 
 import (
+	"encoding/json"
+
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -14,10 +16,10 @@ type DescribePayload struct {
 	Provides             []string                                  `json:"provides"`
 	Permissions          []string                                  `json:"permissions"`
 	RequiresEnv          []string                                  `json:"requires_env,omitempty"`
+	Inputs               []DescribeInput                           `json:"inputs,omitempty"`
 	Profiles             []DescribeProfile                         `json:"profiles,omitempty"`
 	Resources            DescribeResources                         `json:"resources"`
 	Subprocess           DescribeSubprocess                        `json:"subprocess"`
-	Gateway              *DescribeGatewayRequirement               `json:"gateway,omitempty"`
 	Tools                []toolspkg.ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
 	HookEvents           []DescribeHookEvent                       `json:"hook_events,omitempty"`
 	HeartbeatSourceKinds []extensionprotocol.HeartbeatSourceKind   `json:"heartbeat_source_kinds,omitempty"`
@@ -25,6 +27,22 @@ type DescribePayload struct {
 	CmdPaletteViews      []string                                  `json:"cmd_palette_views,omitempty"`
 	CommandGroups        []ExtensionCommandGroupSpec               `json:"command_groups,omitempty"`
 	SDK                  DescribeSDKInfo                           `json:"sdk"`
+}
+
+// DescribeInput declares one typed install input with the manifest [[inputs]] grammar.
+type DescribeInput struct {
+	ID       string               `json:"id"`
+	Prompt   string               `json:"prompt"`
+	Type     string               `json:"type"`
+	Required bool                 `json:"required"`
+	Binding  DescribeInputBinding `json:"binding"`
+	Default  json.RawMessage      `json:"default,omitempty"`
+}
+
+// DescribeInputBinding names the environment variable receiving an input value.
+type DescribeInputBinding struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
 }
 
 // DescribeProfile declares one profile seeded when an SDK-built extension is installed.
@@ -59,11 +77,6 @@ type DescribeResourcePath struct {
 type DescribeHookEvent struct {
 	Event   hookspkg.HookEvent `json:"event"`
 	Profile string             `json:"profile,omitempty"`
-}
-
-// DescribeGatewayRequirement declares the reachability control included in consent digests.
-type DescribeGatewayRequirement struct {
-	Permissions []string `json:"permissions"`
 }
 
 // DescribeResources declares source-relative static resource paths copied into a generation.

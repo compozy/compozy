@@ -50,7 +50,10 @@ function serve(envelope: ProviderUsageEnvelope) {
 function renderUsageWindow(envelope: ProviderUsageEnvelope) {
   serve(envelope);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  queryClient.setQueryData(["provider-usage", "envelope", "default"], envelope);
+  queryClient.setQueryData(
+    ["computer", "local", "provider-usage", "envelope", "default"],
+    envelope
+  );
   return render(
     <QueryClientProvider client={queryClient}>
       <UIProvider reducedMotion="never" skipAnimations>

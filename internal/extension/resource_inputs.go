@@ -24,7 +24,11 @@ func applyManifestMCPInputs(
 		}
 		value, ref, present, err := effectiveInputValue(input, state, getenv)
 		if err != nil {
-			return err
+			if input.Required {
+				return err
+			}
+			// An optional invalid value publishes the same server shape as an optional input with no value.
+			value, ref, present = "", "", false
 		}
 		if input.Binding.Type == manifestInputBindingTemplate {
 			if server.InputValues == nil {

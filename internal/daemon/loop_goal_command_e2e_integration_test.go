@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -33,6 +34,8 @@ import (
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
+
+const goalCommandTestIterationCap = 7
 
 // Controls fence the next turn and interrupt held work; the public daemon Goal suite owns this contract.
 func TestDaemonGoalControlHeldTurn(t *testing.T) {
@@ -209,6 +212,13 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 				return goal != nil && goal.RunStatus == compozycontract.LoopRunStatusDone && goal.Status == "complete"
 			},
 		)
+		run, err := getGoalLoopRun(ctx, harness, rejectionSnapshot.RunID)
+		if err != nil {
+			t.Fatalf("read Goal run: %v", err)
+		}
+		if got := run.Run.IterationCap; got != goalCommandTestIterationCap {
+			t.Fatalf("Goal generation cap = %d, want workspace cap %d", got, goalCommandTestIterationCap)
+		}
 		rejectionTurns := waitForGoalTurns(
 			ctx,
 			t,
@@ -617,10 +627,13 @@ func goalCommandRuntimeOptions(
 		Workspace: e2etest.WorkspaceSeedOptions{
 			Root: workspaceRoot,
 			Files: map[string]string{
-				filepath.Join(compozyconfig.DirName, compozyconfig.ConfigName): `
+				filepath.Join(compozyconfig.DirName, compozyconfig.ConfigName): fmt.Sprintf(`
+[loops.defaults.delivery]
+iteration_cap = %d
+
 [loops.defaults.delivery.runtime_defaults.judge]
 model = "goal-e2e-judge"
-`,
+`, goalCommandTestIterationCap),
 			},
 		},
 		StartTimeout: 30 * time.Second,
@@ -1605,7 +1618,7 @@ func goalDaemonClient(d *Daemon, workspaceID string) *e2etest.RuntimeHarness {
 	return &e2etest.RuntimeHarness{
 		WorkspaceID: workspaceID,
 		UDSBaseURL:  "http://unix",
-		UDSClient:   gatewayDaemonUDSClient(d.homePaths.DaemonSocket),
+		UDSClient:   daemonIntegrationUDSClient(d.homePaths.DaemonSocket),
 	}
 }
 

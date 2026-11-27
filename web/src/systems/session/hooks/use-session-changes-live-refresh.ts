@@ -1,6 +1,8 @@
 import { hashKey, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+
 import { sessionKeys } from "../lib/query-keys";
 import {
   CHANGES_REFRESH_DEBOUNCE_MS,
@@ -38,6 +40,7 @@ export function useSessionChangesLiveRefresh({
   onRefresh: () => void;
 }): void {
   const queryClient = useQueryClient();
+  const computerId = useCurrentComputerId();
   const onRefreshRef = useRef(onRefresh);
   useEffect(() => {
     onRefreshRef.current = onRefresh;
@@ -52,8 +55,9 @@ export function useSessionChangesLiveRefresh({
 
   useEffect(() => {
     if (!enabled || !workspaceId || !sessionId) return;
-    const transcriptKey = sessionKeys.transcript(workspaceId, sessionId);
-    const detailKey = sessionKeys.detail(workspaceId, sessionId);
+    const keys = sessionKeys.forComputer(computerId);
+    const transcriptKey = keys.transcript(workspaceId, sessionId);
+    const detailKey = keys.detail(workspaceId, sessionId);
     const transcriptHash = hashKey(transcriptKey);
     const detailHash = hashKey(detailKey);
     const scheduler = createDebouncedRefresh({
@@ -80,5 +84,5 @@ export function useSessionChangesLiveRefresh({
       unsubscribe();
       scheduler.cancel();
     };
-  }, [enabled, queryClient, sessionId, workspaceId]);
+  }, [computerId, enabled, queryClient, sessionId, workspaceId]);
 }

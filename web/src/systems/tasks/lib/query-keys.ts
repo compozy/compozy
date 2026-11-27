@@ -1,3 +1,4 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import type {
   AgentContextIdentity,
   TaskDashboardFilter,
@@ -39,7 +40,7 @@ function profileLens(scope: { profile?: string | null; all_profiles?: boolean | 
 }
 
 export const tasksKeys = {
-  all: ["tasks"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "tasks"),
 
   lists: () => [...tasksKeys.all, "list"] as const,
   list: (filters: TaskListFilter = {}) => {

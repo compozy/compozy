@@ -353,13 +353,7 @@ func (c *daemonClient) SendSessionPrompt(
 	id string,
 	request SessionPromptRequest,
 ) (SessionPromptRecord, error) {
-	query := url.Values{}
-	query.Set(cliFormatKey, "raw")
-	path, err := c.sessionScopedPath(ctx, id, "/prompt")
-	if err != nil {
-		return SessionPromptRecord{}, err
-	}
-	return c.doSessionPrompt(ctx, http.MethodPost, path, query, request)
+	return c.SendSessionPromptAs(ctx, id, request, agentidentity.Credentials{})
 }
 
 // SendSessionPromptAs sends a prompt on behalf of a validated agent session identity, which stamps the
@@ -370,11 +364,13 @@ func (c *daemonClient) SendSessionPromptAs(
 	request SessionPromptRequest,
 	credentials agentidentity.Credentials,
 ) (SessionPromptRecord, error) {
-	query := url.Values{}
-	query.Set(cliFormatKey, "raw")
 	path, err := c.sessionScopedPath(ctx, id, "/prompt")
 	if err != nil {
 		return SessionPromptRecord{}, err
+	}
+	var query url.Values
+	if c.target.computerID == "" {
+		query = url.Values{cliFormatKey: {"raw"}}
 	}
 	return c.doSessionPromptAs(ctx, http.MethodPost, path, query, request, credentials)
 }
@@ -388,5 +384,26 @@ func (c *daemonClient) SteerSessionPrompt(
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}
-	return c.doSessionPrompt(ctx, http.MethodPost, path, nil, request)
+	return c.doSessionPrompt(ctx, http.MethodPost, path, request)
+}
+
+const sessionArchiveStoppedPath = "/api/sessions/archive-stopped"
+
+type sessionArchiveStoppedClient interface {
+	ArchiveStoppedSessions(
+		context.Context,
+		contract.SessionArchiveStoppedRequest,
+	) (contract.SessionArchiveStoppedResponse, error)
+}
+
+var _ sessionArchiveStoppedClient = (*daemonClient)(nil)
+
+// ArchiveStoppedSessions archives, or with DryRun previews, every eligible stopped thread in scope.
+func (c *daemonClient) ArchiveStoppedSessions(
+	ctx context.Context,
+	request contract.SessionArchiveStoppedRequest,
+) (contract.SessionArchiveStoppedResponse, error) {
+	var response contract.SessionArchiveStoppedResponse
+	err := c.doJSON(ctx, http.MethodPost, sessionArchiveStoppedPath, nil, request, &response)
+	return response, err
 }

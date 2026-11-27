@@ -195,14 +195,15 @@ func (s *SkillProposalService) editProvenance(
 	review SkillReview,
 	current *SkillInstallMarker,
 ) string {
-	if current == nil || current.ReviewID == "" || current.InstanceID != instance.ID {
+	if current == nil || current.ReviewID == "" || current.HomeID != s.HomeID || current.InstanceID != instance.ID {
 		return SkillAutoApproveOperatorAuthored
 	}
 	writer, err := s.Store.GetReview(ctx, current.ReviewID)
-	if err != nil || writer.InstanceID != instance.ID || writer.State != skillReviewApproved {
+	if err != nil || writer.InstanceID != instance.ID || writer.State != skillReviewApproved ||
+		writer.SkillKey != review.SkillKey || writer.InstalledDigest != current.InstalledDigest {
 		return SkillAutoApproveOperatorAuthored
 	}
-	live, err := skillTreeState(t.dir)
+	live, err := skillTreeState(ctx, t.dir)
 	if err != nil || live != current.InstalledDigest {
 		return SkillAutoApproveOperatorAuthored
 	}
@@ -241,7 +242,7 @@ func (s *SkillProposalService) installAutomatically(
 	if err := t.ensureParent(); err != nil {
 		return err
 	}
-	live, err := skillTreeState(t.dir)
+	live, err := skillTreeState(ctx, t.dir)
 	if err != nil {
 		return err
 	}
@@ -254,7 +255,7 @@ func (s *SkillProposalService) installAutomatically(
 			DecidedVia: skillDecidedViaAutoApprove, DecidedBy: skillDecidedByAutoApprove,
 		},
 	}
-	if err := prepareSkillInstallOp(&op, t, review, draft, live); err != nil {
+	if err := prepareSkillInstallOp(ctx, &op, t, review, draft, live); err != nil {
 		return err
 	}
 	result, err := s.runSkillOp(ctx, t, op)

@@ -365,3 +365,74 @@ func assertRemoveCompensationFailure(
 	}
 	return payload
 }
+
+// Invariant: the experimental dependency guard answers 409 extension_dependency_in_use with the dependents, and
+// force=true reaches the service as the remove's dependency force (rule 14) [T-18].
+func TestRemoveExtensionDependencyGuard(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should answer 409 with the dependents that still need the extension", func(t *testing.T) {
+		t.Parallel()
+
+		dependents := []contract.ExtensionDependentPayload{{Name: "acme-tool", WorkspaceID: "ws-1", Profile: "work"}}
+		service := removeStub{removeFn: func(
+			context.Context, string, taskpkg.ActorContext,
+		) (contract.ManagedExtensionRemovePayload, error) {
+			return contract.ManagedExtensionRemovePayload{}, &extensionpkg.DependencyInUseError{
+				Name: "acme-core", Dependents: dependents,
+			}
+		}}
+		response := performRequest(t, removeEngine(service), http.MethodDelete, "/extensions/acme-core", nil)
+		if response.Code != http.StatusConflict {
+			t.Fatalf("status = %d, want 409; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.ExtensionOperationErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(error) error = %v", err)
+		}
+		if payload.Code != diagnosticcontract.CodeExtensionDependencyInUse || len(payload.Dependents) != 1 ||
+			payload.Dependents[0] != dependents[0] {
+			t.Fatalf("payload = %+v, want extension_dependency_in_use listing acme-tool", payload)
+		}
+	})
+
+	for _, testCase := range []struct {
+		name   string
+		target string
+		want   bool
+	}{
+		{name: "Should carry force=true to the service", target: "/extensions/acme-core?force=true", want: true},
+		{name: "Should leave the guard on without force", target: "/extensions/acme-core", want: false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			forced := !testCase.want
+			service := removeStub{removeFn: func(
+				ctx context.Context, name string, _ taskpkg.ActorContext,
+			) (contract.ManagedExtensionRemovePayload, error) {
+				forced = extensionpkg.DependencyForced(ctx)
+				return contract.ManagedExtensionRemovePayload{Name: name, Status: "removed"}, nil
+			}}
+			response := performRequest(t, removeEngine(service), http.MethodDelete, testCase.target, nil)
+			if response.Code != http.StatusOK || forced != testCase.want {
+				t.Fatalf("status = %d, forced = %t; want 200 and %t", response.Code, forced, testCase.want)
+			}
+		})
+	}
+
+	t.Run("Should reject a non-boolean force flag", func(t *testing.T) {
+		t.Parallel()
+
+		response := performRequest(
+			t,
+			removeEngine(removeStub{}),
+			http.MethodDelete,
+			"/extensions/acme-core?force=yes",
+			nil,
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
+		}
+	})
+}

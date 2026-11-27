@@ -56,6 +56,9 @@ func (s *daemonExtensionService) ListRemovedBuiltins(
 	}
 	items := make([]contract.ExtensionRemovedBuiltinPayload, 0, len(tombstones))
 	for _, tombstone := range tombstones {
+		if _, available := s.builtinEnrollmentFor(tombstone.Name); !available {
+			continue
+		}
 		items = append(items, contract.ExtensionRemovedBuiltinPayload{
 			Name:      tombstone.Name,
 			RemovedAt: tombstone.RemovedAt.UTC().Format(time.RFC3339),

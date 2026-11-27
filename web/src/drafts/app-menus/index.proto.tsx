@@ -5,7 +5,7 @@
  */
 import { Button, Eyebrow, TopbarOverflowIcon } from "@compozy/ui";
 
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import { SessionDropdownMenu } from "../session-menus/session-menu";
 import { FAMILIES, type MenuSpecimen } from "./app-menu-trees";

@@ -1,7 +1,9 @@
 import { HttpResponse, http, type HttpHandler } from "msw";
 
+import { handlers as accountHandlers } from "@/systems/account/mocks/handlers";
 import { handlers as agentHandlers } from "@/systems/agent/mocks";
 import { handlers as automationHandlers } from "@/systems/automation/mocks";
+import { computersHandlers } from "@/systems/computers/mocks/handlers";
 import { handlers as daemonHandlers } from "@/systems/status/mocks";
 import { handlers as dashboardHandlers } from "@/systems/dashboard/mocks";
 import { handlers as extensionHandlers } from "@/systems/extensions/mocks";
@@ -15,7 +17,6 @@ import { handlers as runtimeHandlers } from "@/systems/runtime/mocks";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as providerUsageHandlers } from "@/systems/provider-usage/mocks";
 import { handlers as sessionHandlers } from "@/systems/session/mocks";
-import { handlers as gatewayHandlers } from "@/systems/gateway/mocks";
 import { handlers as settingsHandlers } from "@/systems/settings/mocks";
 import { handlers as skillHandlers } from "@/systems/skill/mocks";
 import { handlers as schedulerHandlers } from "@/systems/scheduler/mocks";
@@ -72,9 +73,7 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   profiles: profileHandlers,
   "provider-usage": providerUsageHandlers,
   session: sessionHandlers,
-  // Gateway is a settings section, so its reads ride the settings group rather
-  // than opening a system of their own.
-  settings: [...settingsHandlers, ...gatewayHandlers],
+  settings: [...settingsHandlers, ...accountHandlers, ...computersHandlers],
   skill: skillHandlers,
   scheduler: schedulerHandlers,
   tasks: tasksHandlers,

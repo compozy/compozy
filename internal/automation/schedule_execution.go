@@ -9,6 +9,7 @@ import (
 
 	"time"
 
+	"github.com/compozy/compozy/internal/account"
 	gocron "github.com/go-co-op/gocron/v2"
 )
 
@@ -43,13 +44,7 @@ func (s *Scheduler) buildSchedulePlan(job Job) (schedulePlan, error) {
 		if err != nil {
 			return schedulePlan{}, fmt.Errorf("automation: parse one-time schedule for job %q: %w", job.ID, err)
 		}
-		if !atTime.After(now) {
-			return schedulePlan{register: false}, nil
-		}
-		return schedulePlan{
-			register: true,
-			nextRun:  atTime,
-		}, nil
+		return schedulePlan{register: atTime.After(now), nextRun: atTime}, nil
 	default:
 		return schedulePlan{}, fmt.Errorf("automation: unsupported schedule mode %q", job.Schedule.Mode)
 	}
@@ -106,6 +101,12 @@ func (s *Scheduler) runJobLoop(ctx context.Context, cancel context.CancelFunc, j
 		if err := s.executeScheduledJob(ctx, jobID); err != nil {
 			if ctx.Err() != nil {
 				return
+			}
+			if errors.Is(err, account.ErrSignInRequired) && s.waitForSignIn != nil {
+				if s.waitForSignIn(ctx) != nil {
+					return
+				}
+				continue
 			}
 			retryDelay = min(max(2*retryDelay, time.Second), 30*time.Second)
 			s.logger.Warn(

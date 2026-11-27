@@ -1,6 +1,6 @@
 import { ConfirmDialog } from "@compozy/ui";
 
-import { definePrototype, protoHref, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, protoHref, type PrototypeProps } from "@protohq/cli";
 
 import { goToState } from "../always-on-agents-shared/go-to-state";
 import { LISTED_ON_DEMAND, LISTED_ALWAYS_ON } from "../always-on-agents-shared/agents-fixtures";

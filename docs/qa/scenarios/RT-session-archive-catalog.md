@@ -7,12 +7,12 @@ journey: J-archive-session-without-deleting
 expected: Archiving is a durable workspace-scoped marker allowed only for stopped sessions; default lists exclude archived rows, archived-only and inclusive filters return exact pages, direct reads preserve history, prompt/resume/attach reject archived sessions, and unarchive restores the same session across HTTP, UDS, CLI, native tools, extension Host API, SSE, and fresh daemon reads.
 entry_points: Web session catalog; CLI session archive/unarchive/list; HTTP+UDS archive routes; native tools; extension Host API
 qa_status: untested
-bug_ids: BUG-20260805-session-archive-sdk-missing;BUG-20260805-archived-detail-unarchive-missing
+bug_ids: BUG-20260805-session-archive-sdk-missing;BUG-20260805-archived-detail-unarchive-missing;BUG-20261122-archive-stopped-denial-code-docs
 fix_status: fixed
 retest_status: pass
-fix_commits: e40dc76
-evidence: /Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/journey-log.jsonl;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/extension-host-api.json;/Users/pedronauck/dev/qa-labs/compozy-session-archive-20260805-031044-743468-lab/qa-artifacts/qa/daemon-restart.json
-last_report: docs/qa/reports/2026-08-04-session-archive.md
+fix_commits: e40dc76;12e4be26d
+evidence: /home/jilles/dev/qa-labs/compozy-archive-stopped-1940-20261122-185609-503208-lab/qa-artifacts/evidence/02-archive-alpha.json;/home/jilles/dev/qa-labs/compozy-archive-stopped-1940-20261122-185609-503208-lab/qa-artifacts/evidence/04-archive-alpha-subagent.json;/home/jilles/dev/qa-labs/compozy-archive-stopped-1940-20261122-185609-503208-lab/qa-artifacts/evidence/06-usage-errors.txt;/home/jilles/dev/qa-labs/compozy-archive-stopped-1940-20261122-185609-503208-lab/qa-artifacts/evidence/07-profile-flag.txt;/home/jilles/dev/qa-labs/compozy-archive-stopped-1940-20261122-185609-503208-lab/qa-artifacts/evidence/09-tool-all-denied.json
+last_report: docs/qa/reports/2026-11-22-archive-stopped-1940.md
 overlaps: RT-011; RT-042; RT-session-delete-owned-history
 ---
 
@@ -136,3 +136,39 @@ owner receipt. A wrong-profile/workspace cleanup request still cannot remove it.
 sets any retained subagent child activity to stopped without changing its outcome. Stall one accepted
 delete: its 30-second deadline fails that thread while the run can continue with other roots.
 CI owns this verification; the manual walk is pending.
+
+## Archive every stopped thread (#1924)
+
+Fill one project with stopped threads (some with child sessions and subagents) plus one thread of
+each skip kind: a running session, a stopped thread with an unresolved interaction (waiting on
+you), queued input, a pinned session, a session in Later, and an always-on agent's main session. A
+live session with a pending permission counts as `running`, since `running` is classified first;
+stopping a session cancels its pending permission, so the thread becomes eligible. Repeat a smaller set in a
+second project.
+
+1. `compozy session archive --stopped --workspace <project> --dry-run` prints
+   `Would archive N threads (M sessions) in <project>.` and
+   `Skipped K threads: …` with one count per reason, largest first. Nothing is archived afterwards.
+2. Without `--dry-run` the same counts print with `Archived`; every member of each archived thread
+   is archived, and the skipped threads are untouched. `-o json` prints the HTTP response unchanged;
+   unarchiving its `archived[].restore_ids` in order restores every thread, subagents included
+   (each restores with its parent; unarchiving a subagent directly is refused).
+3. Run it from the project directory without `--workspace`: it targets that project.
+   `--all-workspaces` covers both projects and prints `in all projects.`; archived projects are left
+   out.
+4. `--stopped` with a session ID, or with `--stop`, `--with-children`, `--terminate-processes`, or
+   `--keep-processes`, exits `2` without a request. Make one thread's archive fail: the summary lists
+   it under `Failed`, the others archive, and the command exits `1`.
+5. From an agent session, `compozy__session_archive_stopped` with `dry_run: true` runs without
+   approval and reports the caller's own thread as skipped `caller`; without `dry_run` it archives
+   and never archives the caller's thread. `all_workspaces: true` from a restricted agent returns
+   `tool_denied` with reason code `workspace_access_denied`.
+
+QA 2026-11-22 (PR #1940 at `db3f92bd5`, isolated lab, mock ACP agents): steps 1, 2, 3 and 5 pass, and
+the global `--profile` flag archives only that profile's threads in a shared project. Step 4's usage
+errors exit `2`; its per-thread failure is not reachable through public surfaces and stays owned by the
+store and session suites. `waiting_on_you` was not reachable from a public seed (stopping a session
+cancels its permission; a restart left no orphaned interaction); the store suite owns it. Step 5 found
+the documented denial code wrong (BUG-20261122-archive-stopped-denial-code-docs, fixed in `12e4be26d`).
+The other sections of this scenario were not re-walked, so `qa_status` stays `untested`. Report:
+[2026-11-22-archive-stopped-1940](../reports/2026-11-22-archive-stopped-1940.md).

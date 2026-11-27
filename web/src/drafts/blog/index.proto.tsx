@@ -1,7 +1,7 @@
 import "../landing/landing.css";
 import "./blog.css";
 
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 import { LazyMotion, domMax } from "motion/react";
 import { useState } from "react";
 

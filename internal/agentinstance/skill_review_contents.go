@@ -2,6 +2,7 @@ package agentinstance
 
 import (
 	"bytes"
+	"context"
 	"errors"
 )
 
@@ -35,8 +36,8 @@ type SkillReviewContents struct {
 
 // ReadSkillReviewContents reads a review's draft and, for an edit, its re-verified base snapshot. A
 // draft that fails verification returns ErrSkillReviewInvalid.
-func ReadSkillReviewContents(review SkillReview) (SkillReviewContents, error) {
-	draft, err := ReadSkillDraft(review.DraftPath, review.Digest)
+func ReadSkillReviewContents(ctx context.Context, review SkillReview) (SkillReviewContents, error) {
+	draft, err := ReadSkillDraft(ctx, review.DraftPath, review.Digest)
 	if err != nil {
 		return SkillReviewContents{}, err
 	}
@@ -45,7 +46,10 @@ func ReadSkillReviewContents(review SkillReview) (SkillReviewContents, error) {
 		contents.Result = draftSkillTree(draft)
 		return contents, nil
 	}
-	base, err := readSkillSnapshot(review)
+	base, err := readSkillSnapshot(ctx, review)
+	if contextErr := ctx.Err(); contextErr != nil {
+		return SkillReviewContents{}, contextErr
+	}
 	if err == nil {
 		contents.Result, err = applySkillOverlay(base, draft)
 	}

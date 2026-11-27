@@ -250,6 +250,7 @@ type Manager struct {
 	attachmentScopeLease       attachmentScopeLease
 	managedInputLifecycle      ManagedInputLifecycle
 	workAdmission              admission.Checker
+	localExecution             func() error
 	transportsListening        chan struct{}
 	transportsListeningOnce    sync.Once
 	goalCommandHandler         GoalCommandHandler

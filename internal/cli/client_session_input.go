@@ -61,7 +61,7 @@ func (c *daemonClient) PromoteSessionInput(
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}
-	return c.doSessionPrompt(ctx, http.MethodPost, path, nil, request)
+	return c.doSessionPrompt(ctx, http.MethodPost, path, request)
 }
 
 // CancelSessionInput removes one pending queued input.
@@ -78,5 +78,5 @@ func (c *daemonClient) CancelSessionInput(
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}
-	return c.doSessionPrompt(ctx, http.MethodDelete, path, nil, nil)
+	return c.doSessionPrompt(ctx, http.MethodDelete, path, nil)
 }

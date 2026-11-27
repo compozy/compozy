@@ -1,5 +1,6 @@
 // Suite: the one project menu tree
-// Invariant: every project surface draws New ▸, Open files, Move ▸, then Archive and Remove
+// Invariant: every project surface draws New ▸, Open files, Move ▸, then Archive stopped (disabled
+// while its run is in flight), Archive and Remove
 // (destructive, last); a verb the surface cannot reach is absent, never a dead row; an archived
 // project offers only Unarchive and Remove; Move ▸ draws the project's own folder checked and
 // disabled, and offers Move out only from inside one.
@@ -77,6 +78,36 @@ describe("projectMenuTree", () => {
     const unarchive = nodes[0];
     if (unarchive?.kind === "item") unarchive.onSelect?.();
     expect(choose).toHaveBeenCalledWith("archive");
+  });
+
+  it("Should draw Archive stopped above Archive project and hold it while it runs", () => {
+    const run = vi.fn();
+    const nodes = projectMenuTree({
+      workspace: PROJECT,
+      verbs: { archiveStopped: { run, running: false } },
+      choose: vi.fn(),
+    });
+
+    expect(labels(nodes)).toEqual(["Archive stopped", "Archive project", "Remove project"]);
+    const item = nodes[0];
+    if (item?.kind === "item") item.onSelect?.();
+    expect(run).toHaveBeenCalledOnce();
+    expect(
+      projectMenuTree({
+        workspace: PROJECT,
+        verbs: { archiveStopped: { run, running: true } },
+        choose: vi.fn(),
+      })[0]
+    ).toMatchObject({ label: "Archive stopped", disabled: true });
+    expect(
+      labels(
+        projectMenuTree({
+          workspace: { id: "ws-alpha", archived_at: "2026-11-01T00:00:00Z" },
+          verbs: { archiveStopped: { run, running: false } },
+          choose: vi.fn(),
+        })
+      )
+    ).toEqual(["Unarchive project", "Remove project"]);
   });
 
   it("Should check the current folder, move to the others or out, and disable a missing step", () => {

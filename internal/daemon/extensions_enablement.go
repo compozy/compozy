@@ -83,8 +83,12 @@ func (s *daemonExtensionService) SetEnablement(
 			return err
 		}
 		result = contract.ExtensionEnablementPayload{Profile: profile.Name, Enabled: req.Enabled}
+		if err := s.guardProfileDisable(ctx, name, profile.ID, req); err != nil {
+			return err
+		}
 		return s.applyProfileEnablement(ctx, name, profile.ID, profile.Name, req.Enabled, actor)
 	})
+	s.addRefusalRetryCommands(ctx, err)
 	if err != nil {
 		return contract.ExtensionEnablementPayload{}, err
 	}
@@ -102,13 +106,18 @@ func (s *daemonExtensionService) applyProfileEnablement(
 	if previous == enabled {
 		return nil
 	}
-	if err := s.checkProfileEnablementInputs(ctx, name, profileID, enabled); err != nil {
-		return err
+	if enabled {
+		if err := s.checkProfileEnablementInputs(ctx, name, profileID, actor.Scope.Operator); err != nil {
+			return err
+		}
+		if err := s.checkProfileEnablementDependencies(ctx, name, profileID); err != nil {
+			return err
+		}
 	}
 	if err := s.registry.SetEnabledForProfile(name, profileID, enabled); err != nil {
 		return err
 	}
-	if err := s.reloadExtensions(ctx, name); err != nil {
+	if err := s.reloadExtensionProfile(ctx, name, profileID, enabled); err != nil {
 		return s.rollbackProfileEnablement(ctx, name, profileID, previous, err)
 	}
 	if err := s.recordExtensionEnablementChanged(
@@ -176,7 +185,7 @@ func (s *daemonExtensionService) rollbackProfileEnablement(
 	if err := s.registry.SetEnabledForProfile(name, profileID, previous); err != nil {
 		rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: restore extension enablement: %w", err))
 	}
-	if err := s.reloadExtensions(rollbackCtx, name); err != nil {
+	if err := s.reloadExtensionProfile(rollbackCtx, name, profileID, previous); err != nil {
 		rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: reload restored extension enablement: %w", err))
 	}
 	return errors.Join(operationErr, rollbackErr)

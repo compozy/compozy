@@ -23,14 +23,29 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { group: daemon, shard_index: 0, shard_total: 3 }
-          - { group: daemon, shard_index: 1, shard_total: 3 }
-          - { group: daemon, shard_index: 2, shard_total: 3 }
+          - { group: daemon, shard_index: 0, shard_total: 4 }
+          - { group: daemon, shard_index: 1, shard_total: 4 }
+          - { group: daemon, shard_index: 2, shard_total: 4 }
+          - { group: daemon, shard_index: 3, shard_total: 4 }
           - { group: globaldb, shard_index: 0, shard_total: 2 }
           - { group: globaldb, shard_index: 1, shard_total: 2 }
           - { group: other, shard_index: 0, shard_total: 3 }
           - { group: other, shard_index: 1, shard_total: 3 }
           - { group: other, shard_index: 2, shard_total: 3 }
+    services:
+      postgres:
+        image: ${{ matrix.group == 'other' && 'postgres:17-alpine' || '' }}
+        env:
+          POSTGRES_USER: cloud_test
+          POSTGRES_DB: cloud_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cloud_test -d cloud_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     env:
       COMPOZY_GO_INTEGRATION_GROUP: ${{ matrix.group }}
       COMPOZY_GO_TEST_P: "1"
@@ -68,13 +83,18 @@ jobs:
 
       - uses: ./.github/actions/setup-bun
         with:
-          install-playwright: "false"
+          install-playwright: ${{ matrix.group == 'other' && 'true' || 'false' }}
 
       - name: Build integration fixture dependencies
         run: bun run turbo run build --filter=@compozy/extension-react --filter=@compozy/client
 
+      - name: Build the hosted browser fixture bundle
+        if: matrix.group == 'other'
+        run: bun run turbo run build --filter=./web
+
       - name: Run full integration suite
         env:
+          COMPOZY_CLOUD_TEST_POSTGRES: postgresql://cloud_test@127.0.0.1:5432/cloud_test?sslmode=disable
           CI: "true"
           CGO_ENABLED: 0
           GOTMPDIR: ${{ runner.temp }}/go-tmp

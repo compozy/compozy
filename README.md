@@ -15,6 +15,7 @@
     <a href="https://compozy.com/download"><strong>Download</strong></a> ·
     <a href="https://compozy.com/docs"><strong>Docs</strong></a> ·
     <a href="https://compozy.com/marketplace"><strong>Marketplace</strong></a> ·
+    <a href="https://compozy.com/pricing"><strong>Pricing</strong></a> ·
     <a href="https://compozy.com/changelog"><strong>Changelog</strong></a> ·
     <a href="https://compozy.com/blog"><strong>Blog</strong></a>
   </p>
@@ -61,7 +62,7 @@ installs the binary on macOS or Linux. Prefer the desktop app?
 [Download it for macOS or Linux](https://compozy.com/download).
 
 <details>
-<summary>Homebrew, npm, Go, or from source</summary>
+<summary>Homebrew or npm</summary>
 
 ```bash
 # Homebrew
@@ -69,27 +70,22 @@ brew install compozy/compozy/compozy
 
 # npm
 npm install -g @compozy/cli
-
-# Go, with the tag shown on https://github.com/compozy/compozy/releases/latest
-go install github.com/compozy/compozy@<release-tag>
-
-# From source
-git clone https://github.com/compozy/compozy.git
-cd compozy
-go build -o ./bin/compozy .
 ```
 
 The CLI runs on macOS, Linux, and Windows. The
 [installation guide](https://compozy.com/docs/getting-started/installation) covers installer
-flags, Linux packages, verification, and managed updates.
+flags, Linux packages, verification, and managed updates. To build a development binary from
+source, see [CONTRIBUTING.md](.github/CONTRIBUTING.md#building-from-source) (source builds run
+without the sign-in gate and without Compozy Cloud features). See the
+[latest release](https://github.com/compozy/compozy/releases/latest) for archives and checksums.
 
 </details>
 
-Then start one session, from the repository you want agents to work on:
+Then sign in and start one session, from the repository you want agents to work on:
 
 ```bash
 compozy install        # pick a provider (the verified installer opens this for you)
-compozy daemon start   # start the local daemon
+compozy account login  # sign in once with Google or GitHub; later local work runs offline
 compozy session new --agent general --name first-run
 ```
 
@@ -274,13 +270,13 @@ compozy doctor -o json
 
 ## Documentation
 
-| Start                                                                 | Go deeper                                         | Reference                                                           |
-| --------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
-| [Installation](https://compozy.com/docs/getting-started/installation) | [Sessions](https://compozy.com/docs/sessions)     | [CLI](https://compozy.com/docs/cli)                                 |
-| [Quick Start](https://compozy.com/docs/getting-started/quick-start)   | [Loops](https://compozy.com/docs/loops)           | [HTTP API](https://compozy.com/docs/api)                            |
-| [Supported agents](https://compozy.com/docs/agents/providers)         | [Automation](https://compozy.com/docs/automation) | [SDKs](https://compozy.com/docs/sdk)                                |
-| [Guides](https://compozy.com/docs/guides)                             | [Extensions](https://compozy.com/docs/extensions) | [Configuration](https://compozy.com/docs/configuration/config-toml) |
-| [Use cases](https://compozy.com/docs/use-cases)                       | [Gateway](https://compozy.com/docs/gateway)       | [Changelog](https://compozy.com/changelog)                          |
+| Start                                                                 | Go deeper                                              | Reference                                                           |
+| --------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------- |
+| [Installation](https://compozy.com/docs/getting-started/installation) | [Sessions](https://compozy.com/docs/sessions)          | [CLI](https://compozy.com/docs/cli)                                 |
+| [Quick Start](https://compozy.com/docs/getting-started/quick-start)   | [Loops](https://compozy.com/docs/loops)                | [HTTP API](https://compozy.com/docs/api)                            |
+| [Supported agents](https://compozy.com/docs/agents/providers)         | [Automation](https://compozy.com/docs/automation)      | [SDKs](https://compozy.com/docs/sdk)                                |
+| [Guides](https://compozy.com/docs/guides)                             | [Extensions](https://compozy.com/docs/extensions)      | [Configuration](https://compozy.com/docs/configuration/config-toml) |
+| [Use cases](https://compozy.com/docs/use-cases)                       | [Remote Computers](https://compozy.com/docs/computers) | [Changelog](https://compozy.com/changelog)                          |
 
 > [!NOTE]
 > Coming from v0.2? That product has reached end of life and receives no further releases. Read
@@ -329,4 +325,6 @@ repository's private security channel, not a public issue.
 
 ## License
 
-CompozyOS is distributed under the [MIT License](LICENSE).
+CompozyOS, including the daemon, web app and shared Remote Computers protocol, is distributed under the MIT License. [MIT License](LICENSE)
+
+The source for Compozy Cloud uses the Functional Source License 1.1 with the MIT future license (FSL-1.1-MIT). This covers the cloud command, service and edge Worker. Each released version becomes available under MIT two years after release. [Cloud command](cmd/compozy-cloud/LICENSE) · [Cloud service](internal/cloud/LICENSE) · [Edge Worker](infra/cloud-edge/LICENSE)

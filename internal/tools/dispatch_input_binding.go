@@ -11,7 +11,7 @@ func (r *RuntimeRegistry) bindCallInput(
 	descriptor Descriptor,
 	req CallRequest,
 ) (CallRequest, error) {
-	if r.callInputBinder == nil {
+	if r.callInputBinder == nil || req.ForwardComputer != "" {
 		return req, nil
 	}
 	bound, err := r.callInputBinder.BindCallInput(ctx, scope, cloneDescriptor(descriptor), req.Input)

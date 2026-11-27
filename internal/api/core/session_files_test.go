@@ -23,7 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/apptoken"
 	"github.com/compozy/compozy/internal/projectfiles"
 	"github.com/compozy/compozy/internal/projectfiles/changes"
 	"github.com/compozy/compozy/internal/session"
@@ -374,7 +374,7 @@ func TestProjectFileContentReveal(t *testing.T) {
 					http.NoBody,
 				)
 				if tc.app {
-					request = request.WithContext(core.ContextWithAppToken(request.Context(), gateway.AppToken{}))
+					request = request.WithContext(core.ContextWithAppToken(request.Context(), apptoken.Token{}))
 				}
 				response := httptest.NewRecorder()
 				engine.ServeHTTP(response, request)
@@ -545,7 +545,7 @@ func TestProjectChangesReveal(t *testing.T) {
 				"/api/workspaces/workspace/sessions/sess-ok/changes"+suffix+"?path=.env&revision=x&reveal=true",
 				http.NoBody,
 			)
-			req = req.WithContext(core.ContextWithAppToken(req.Context(), gateway.AppToken{}))
+			req = req.WithContext(core.ContextWithAppToken(req.Context(), apptoken.Token{}))
 			response := httptest.NewRecorder()
 			engine.ServeHTTP(response, req)
 			if response.Code != 403 || !strings.Contains(response.Body.String(), "reveal_forbidden") ||

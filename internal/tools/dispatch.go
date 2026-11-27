@@ -34,6 +34,9 @@ func (r *RuntimeRegistry) dispatch(
 		descriptor: Descriptor{ID: req.ToolID},
 		started:    time.Now(),
 	}
+	if req.ToolID == ToolIDComputerSetupAnswer {
+		audit.input = nil
+	}
 	defer func() {
 		finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
@@ -57,6 +60,10 @@ func (r *RuntimeRegistry) dispatch(
 	if err := req.ToolID.Validate(); err != nil {
 		return ToolResult{}, invalidInputError(req.ToolID, "tool id is invalid", err)
 	}
+	req, err = splitComputerInput(req)
+	if err != nil {
+		return ToolResult{}, err
+	}
 	target, err := r.resolveDispatchTarget(ctx, scope, req)
 	target.audit = audit
 	if target.descriptor.ID != "" {
@@ -71,6 +78,9 @@ func (r *RuntimeRegistry) dispatch(
 			return ToolResult{}, normalizeToolError(req.ToolID, err)
 		}
 		return ToolResult{}, r.failDispatch(ctx, &target, req, started, err, ToolCallFailed)
+	}
+	if err := r.prepareComputerDispatch(ctx, scope, &target, &req, started); err != nil {
+		return ToolResult{}, err
 	}
 	// These synchronous catalog readers consume the admitted snapshot. Mutation handlers keep
 	// the original context so synthetic rows and post-mutation reads cannot reuse stale authority.
@@ -147,7 +157,7 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 	if err := checkPinnedResultView(target.descriptor, patchedReq); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
-	if err := r.authorizeBoundCallInput(ctx, scope, target.descriptor, patchedReq); err != nil {
+	if err := r.authorizeDispatchInput(ctx, scope, target.descriptor, patchedReq); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
 	if err := contextErr(ctx, target.descriptor.ID); err != nil {
@@ -184,6 +194,9 @@ func (r *RuntimeRegistry) invokeDispatchTarget(
 			return ToolResult{}, err
 		}
 		target.audit.invoked = true
+	}
+	if patchedReq.ForwardComputer != "" {
+		return r.invokeComputerCall(ctx, scope, target, patchedReq, started)
 	}
 	handlerReq := patchedReq
 	patchedReq.View, handlerReq.Input = resolveResultView(target.descriptor, patchedReq.Input)

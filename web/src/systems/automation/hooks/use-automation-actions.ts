@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import {
   createAutomationJob,
   createAutomationTrigger,
@@ -22,7 +23,12 @@ import { createdInProfileToast, useProfileReadScope } from "@/systems/profiles";
 interface AutomationIdParams {
   id: string;
   profile: string;
+  computerId?: ComputerId;
 }
+
+export type CreateAutomationJobVariables = CreateAutomationJobRequest & {
+  computerId?: ComputerId;
+};
 
 interface UpdateAutomationJobParams extends AutomationIdParams {
   data: UpdateAutomationJobRequest;
@@ -32,14 +38,19 @@ interface UpdateAutomationTriggerParams extends AutomationIdParams {
   data: UpdateAutomationTriggerRequest;
 }
 
-function invalidateJobQueries(queryClient: ReturnType<typeof useQueryClient>, id?: string) {
+function invalidateJobQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  id?: string,
+  computerId?: ComputerId
+) {
+  const keys = automationKeys.forComputer(normalizeComputerId(computerId));
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: automationKeys.jobs() }),
-    queryClient.invalidateQueries({ queryKey: automationKeys.runs() }),
+    queryClient.invalidateQueries({ queryKey: keys.jobs() }),
+    queryClient.invalidateQueries({ queryKey: keys.runs() }),
     ...(id
       ? [
-          queryClient.invalidateQueries({ queryKey: automationKeys.jobDetail(id) }),
-          queryClient.invalidateQueries({ queryKey: automationKeys.jobRunsFor(id) }),
+          queryClient.invalidateQueries({ queryKey: keys.jobDetail(id) }),
+          queryClient.invalidateQueries({ queryKey: keys.jobRunsFor(id) }),
         ]
       : []),
   ]);
@@ -77,10 +88,13 @@ export function useCreateAutomationJob() {
   const profile = useAutomationCreationProfile();
 
   return useMutation({
-    mutationFn: (data: CreateAutomationJobRequest) =>
-      createAutomationJob(data, profile.destination),
+    mutationFn: ({ computerId, ...data }: CreateAutomationJobVariables) =>
+      computerId
+        ? createAutomationJob(data, profile.destination, undefined, computerId)
+        : createAutomationJob(data, profile.destination),
     onSuccess: job => profile.notifyCreated(job.profile_name),
-    onSettled: () => invalidateJobQueries(queryClient),
+    onSettled: (_result, _error, variables) =>
+      invalidateJobQueries(queryClient, undefined, variables.computerId),
   });
 }
 
@@ -88,9 +102,12 @@ export function useUpdateAutomationJob() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data, profile }: UpdateAutomationJobParams) =>
-      updateAutomationJob(id, data, profile),
-    onSettled: (_result, _error, { id }) => invalidateJobQueries(queryClient, id),
+    mutationFn: ({ id, data, profile, computerId }: UpdateAutomationJobParams) =>
+      computerId
+        ? updateAutomationJob(id, data, profile, undefined, computerId)
+        : updateAutomationJob(id, data, profile),
+    onSettled: (_result, _error, { id, computerId }) =>
+      invalidateJobQueries(queryClient, id, computerId),
   });
 }
 
@@ -98,8 +115,12 @@ export function useDeleteAutomationJob() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, profile }: AutomationIdParams) => deleteAutomationJob(id, profile),
-    onSettled: (_result, _error, { id }) => invalidateJobQueries(queryClient, id),
+    mutationFn: ({ id, profile, computerId }: AutomationIdParams) =>
+      computerId
+        ? deleteAutomationJob(id, profile, undefined, computerId)
+        : deleteAutomationJob(id, profile),
+    onSettled: (_result, _error, { id, computerId }) =>
+      invalidateJobQueries(queryClient, id, computerId),
   });
 }
 
@@ -107,8 +128,12 @@ export function useTriggerAutomationJob() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, profile }: AutomationIdParams) => triggerAutomationJob(id, profile),
-    onSettled: (_result, _error, { id }) => invalidateJobQueries(queryClient, id),
+    mutationFn: ({ id, profile, computerId }: AutomationIdParams) =>
+      computerId
+        ? triggerAutomationJob(id, profile, undefined, computerId)
+        : triggerAutomationJob(id, profile),
+    onSettled: (_result, _error, { id, computerId }) =>
+      invalidateJobQueries(queryClient, id, computerId),
   });
 }
 

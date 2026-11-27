@@ -23,11 +23,11 @@ func (m *Manager) Start(ctx context.Context) error {
 
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
-	return m.startLocked(ctx)
+	return m.startLocked(ctx, nil, "", true)
 }
 
 // Unselected activation failures stay visible in snapshots while selected mutation errors propagate.
-func (m *Manager) startLocked(ctx context.Context, targets ...string) error {
+func (m *Manager) startLocked(ctx context.Context, targets []string, profileID string, enabled bool) error {
 	if err := m.prepareStart(ctx); err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (m *Manager) startLocked(ctx context.Context, targets ...string) error {
 
 	var errs []error
 	for infoIndex := range infos {
-		if err := m.startInstalledPackage(ctx, &infos[infoIndex]); err != nil {
+		if err := m.startInstalledPackage(ctx, &infos[infoIndex], profileID, enabled); err != nil {
 			if len(targets) == 0 || slices.Contains(targets, infos[infoIndex].Name) {
 				errs = append(errs, err)
 			}
@@ -268,6 +268,15 @@ func (m *Manager) Reload(ctx context.Context) error {
 
 // ReloadForExtensions retains unrelated activation failures in status without aborting the selected mutation.
 func (m *Manager) ReloadForExtensions(ctx context.Context, names []string) error {
+	return m.reloadForExtensions(ctx, names, "", true)
+}
+
+// ReloadForExtensionProfile keeps input refusals from other profiles in runtime status.
+func (m *Manager) ReloadForExtensionProfile(ctx context.Context, name, profileID string, enabled bool) error {
+	return m.reloadForExtensions(ctx, []string{name}, profileID, enabled)
+}
+
+func (m *Manager) reloadForExtensions(ctx context.Context, names []string, profileID string, enabled bool) error {
 	if ctx == nil {
 		return ErrContextRequired
 	}
@@ -278,6 +287,6 @@ func (m *Manager) ReloadForExtensions(ctx context.Context, names []string) error
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
 	stopErr := m.stopLocked(ctx, names...)
-	startErr := m.startLocked(ctx, names...)
+	startErr := m.startLocked(ctx, names, profileID, enabled)
 	return errors.Join(stopErr, startErr)
 }

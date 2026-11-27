@@ -54,7 +54,14 @@ func (p *MCPProvider) listProjection(ctx context.Context, scope Scope) ([]Descri
 		}
 		sourceDescriptors, sourceComplete, err := p.listSourceDescriptors(ctx, source, scope.ProfileID, timeout)
 		if err != nil {
-			return nil, false, err
+			if abortsAggregateListing(ctx) {
+				return nil, false, err
+			}
+			// One server's failure must not hide the tools of other MCP servers.
+			logIsolatedListingFailure(ctx, "mcp_source", sourceKey(source), err)
+			p.recordDiscoveryFailure(ctx, source, err)
+			complete = false
+			continue
 		}
 		complete = complete && sourceComplete
 		descriptors = append(descriptors, sourceDescriptors...)

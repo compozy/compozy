@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { ScriptApprovalsBellSection } from "@/systems/agent";
+import { HostedComputerMenu, useHostedBrowserContext } from "@/systems/computers";
 import type { WorktreeRemovalBatch } from "@/systems/workspace";
 import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
@@ -111,6 +112,20 @@ function MenubarLayoutStatus({ unbound }: { unbound: boolean }) {
       connectionStatus={connectionStatus}
       diagnostic={diagnostic}
       unbound={unbound}
+    />
+  );
+}
+
+function MenubarHostedComputerControl() {
+  const hosted = useHostedBrowserContext();
+  if (!hosted) return null;
+  return (
+    <HostedComputerMenu
+      computer={hosted.computer}
+      onSelectPeer={hosted.selectPeer}
+      onSignOut={hosted.signOut}
+      peers={hosted.peers}
+      reconnecting={hosted.reconnecting}
     />
   );
 }
@@ -264,6 +279,7 @@ function DesktopMenubarChrome({
           tooltip={scopeModel.toggleTooltip}
         />
       }
+      hostedControl={<MenubarHostedComputerControl />}
       workspaceMenu={trigger => (
         <WorkspaceMenu
           trigger={trigger}

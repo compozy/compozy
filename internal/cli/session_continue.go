@@ -265,10 +265,10 @@ func renderSessionDeriveHuman(record *SessionDeriveRecord) string {
 		{Label: "First prompt", Value: stringOrDash(derived.FirstPrompt)},
 	}
 	if derived.Replayed {
-		lines = append(lines, keyValue{Label: "Replayed", Value: "yes"})
+		lines = append(lines, keyValue{Label: "Replayed", Value: yesFlagName})
 	}
 	if derived.ChildDeleted {
-		lines = append(lines, keyValue{Label: "Child deleted", Value: "yes"})
+		lines = append(lines, keyValue{Label: "Child deleted", Value: yesFlagName})
 	}
 	var builder strings.Builder
 	builder.WriteString(headline)

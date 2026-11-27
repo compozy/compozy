@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import {
   cancelWorktreeExitAction,
   fetchWorktreeStatus,
@@ -17,6 +20,7 @@ import type { RunWorktreeExitActionParams } from "../types";
 
 interface WorktreeScopeOptions {
   enabled?: boolean;
+  computerId?: ComputerId;
 }
 
 export function useWorktreeDetail(
@@ -24,15 +28,21 @@ export function useWorktreeDetail(
   worktreeID: string,
   options: WorktreeScopeOptions = {}
 ) {
-  return useQuery(worktreeDetailOptions(workspaceID, worktreeID, options.enabled ?? true));
+  const scopedComputerId = useCurrentComputerId(options.computerId);
+  return useQuery(
+    worktreeDetailOptions(workspaceID, worktreeID, options.enabled ?? true, scopedComputerId)
+  );
 }
 
 export function useWorktreeStatus(
   workspaceID: string,
   worktreeID: string,
-  options: { enabled?: boolean; refresh?: boolean } = {}
+  options: { enabled?: boolean; refresh?: boolean; computerId?: ComputerId } = {}
 ) {
-  return useQuery(worktreeStatusOptions(workspaceID, worktreeID, options));
+  const scopedComputerId = useCurrentComputerId(options.computerId);
+  return useQuery(
+    worktreeStatusOptions(workspaceID, worktreeID, { ...options, computerId: scopedComputerId })
+  );
 }
 
 /**
@@ -47,26 +57,39 @@ export function useWorktreeExitPlan(
   options: WorktreeScopeOptions = {}
 ) {
   const queryClient = useQueryClient();
-  const query = useQuery(worktreeExitPlanOptions(workspaceID, worktreeID, options.enabled ?? true));
+  const scopedComputerId = useCurrentComputerId(options.computerId);
+  const query = useQuery(
+    worktreeExitPlanOptions(workspaceID, worktreeID, options.enabled ?? true, scopedComputerId)
+  );
   const settledAt = Math.max(query.dataUpdatedAt, query.errorUpdatedAt);
   const seenSettledAt = useRef(settledAt);
   useEffect(() => {
     if (settledAt === seenSettledAt.current) return;
     seenSettledAt.current = settledAt;
     void queryClient.invalidateQueries({
-      queryKey: workspaceKeys.worktreeStatus(workspaceID, worktreeID),
+      queryKey: workspaceKeys.forComputer(scopedComputerId).worktreeStatus(workspaceID, worktreeID),
       exact: true,
     });
-  }, [settledAt, queryClient, workspaceID, worktreeID]);
+  }, [settledAt, queryClient, scopedComputerId, workspaceID, worktreeID]);
   return query;
 }
 
-export function usePrepareWorktreeExitPlan(workspaceID: string, worktreeID: string) {
+export function usePrepareWorktreeExitPlan(
+  workspaceID: string,
+  worktreeID: string,
+  computerId?: ComputerId
+) {
   const queryClient = useQueryClient();
+  const scopedComputerId = useCurrentComputerId(computerId);
   return useMutation({
-    mutationFn: () => prepareWorktreeExitPlan(workspaceID, worktreeID),
+    mutationFn: () =>
+      isRemoteComputerId(scopedComputerId)
+        ? prepareWorktreeExitPlan(workspaceID, worktreeID, undefined, scopedComputerId)
+        : prepareWorktreeExitPlan(workspaceID, worktreeID),
     onSuccess: async plan => {
-      const queryKey = workspaceKeys.worktreeExit(workspaceID, worktreeID);
+      const queryKey = workspaceKeys
+        .forComputer(scopedComputerId)
+        .worktreeExit(workspaceID, worktreeID);
       await queryClient.cancelQueries({ queryKey, exact: true });
       queryClient.setQueryData(queryKey, plan);
     },
@@ -80,20 +103,22 @@ export function usePrepareWorktreeExitPlan(workspaceID: string, worktreeID: stri
 export function invalidateWorktreeExitScope(
   queryClient: QueryClient,
   workspaceID: string,
-  worktreeID: string
+  worktreeID: string,
+  computerId?: ComputerId
 ): Promise<unknown> {
+  const keys = workspaceKeys.forComputer(computerId);
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceID), exact: true }),
+    queryClient.invalidateQueries({ queryKey: keys.worktrees(workspaceID), exact: true }),
     queryClient.invalidateQueries({
-      queryKey: workspaceKeys.worktreeDetail(workspaceID, worktreeID),
+      queryKey: keys.worktreeDetail(workspaceID, worktreeID),
       exact: true,
     }),
     queryClient.invalidateQueries({
-      queryKey: workspaceKeys.worktreeStatus(workspaceID, worktreeID),
+      queryKey: keys.worktreeStatus(workspaceID, worktreeID),
       exact: true,
     }),
     queryClient.invalidateQueries({
-      queryKey: workspaceKeys.worktreeExit(workspaceID, worktreeID),
+      queryKey: keys.worktreeExit(workspaceID, worktreeID),
       exact: true,
     }),
   ]);
@@ -104,24 +129,46 @@ export function invalidateWorktreeExitScope(
  * daemon-side, so callers follow the per-worktree stream for progress and never
  * treat this resolution as completion.
  */
-export function useRunWorktreeExitAction(workspaceID: string, worktreeID: string) {
+export function useRunWorktreeExitAction(
+  workspaceID: string,
+  worktreeID: string,
+  computerId?: ComputerId
+) {
   const queryClient = useQueryClient();
+  const scopedComputerId = useCurrentComputerId(computerId);
 
   return useMutation({
     mutationFn: (params: RunWorktreeExitActionParams) =>
-      runWorktreeExitAction(workspaceID, worktreeID, params),
+      isRemoteComputerId(scopedComputerId)
+        ? runWorktreeExitAction(workspaceID, worktreeID, params, undefined, scopedComputerId)
+        : runWorktreeExitAction(workspaceID, worktreeID, params),
     // A refused action emits no stream frame, so its stale plan is reread here too.
-    onSettled: () => invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID),
+    onSettled: () =>
+      invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID, scopedComputerId),
   });
 }
 
-export function useCancelWorktreeExitAction(workspaceID: string, worktreeID: string) {
+export function useCancelWorktreeExitAction(
+  workspaceID: string,
+  worktreeID: string,
+  computerId?: ComputerId
+) {
   const queryClient = useQueryClient();
+  const scopedComputerId = useCurrentComputerId(computerId);
 
   return useMutation({
     mutationFn: (operationID: string) =>
-      cancelWorktreeExitAction(workspaceID, worktreeID, operationID),
-    onSuccess: () => invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID),
+      isRemoteComputerId(scopedComputerId)
+        ? cancelWorktreeExitAction(
+            workspaceID,
+            worktreeID,
+            operationID,
+            undefined,
+            scopedComputerId
+          )
+        : cancelWorktreeExitAction(workspaceID, worktreeID, operationID),
+    onSuccess: () =>
+      invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID, scopedComputerId),
   });
 }
 
@@ -129,15 +176,31 @@ export function useCancelWorktreeExitAction(workspaceID: string, worktreeID: str
  * Explicit operator refresh. `forge` is only ever true here — the forge tier is
  * never refreshed on mount, so one gesture costs at most one provider call.
  */
-export function useRefreshWorktreeStatus(workspaceID: string, worktreeID: string) {
+export function useRefreshWorktreeStatus(
+  workspaceID: string,
+  worktreeID: string,
+  computerId?: ComputerId
+) {
   const queryClient = useQueryClient();
+  const scopedComputerId = useCurrentComputerId(computerId);
 
   return useMutation({
     mutationFn: ({ forge = false }: { forge?: boolean } = {}) =>
-      fetchWorktreeStatus(workspaceID, worktreeID, { refresh: true, forge }),
+      isRemoteComputerId(scopedComputerId)
+        ? fetchWorktreeStatus(
+            workspaceID,
+            worktreeID,
+            { refresh: true, forge },
+            undefined,
+            scopedComputerId
+          )
+        : fetchWorktreeStatus(workspaceID, worktreeID, { refresh: true, forge }),
     onSuccess: status => {
-      queryClient.setQueryData(workspaceKeys.worktreeStatus(workspaceID, worktreeID), status);
-      return invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID);
+      queryClient.setQueryData(
+        workspaceKeys.forComputer(scopedComputerId).worktreeStatus(workspaceID, worktreeID),
+        status
+      );
+      return invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID, scopedComputerId);
     },
   });
 }

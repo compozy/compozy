@@ -177,6 +177,7 @@ const (
 )
 
 var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetValueKind{
+	"provider_usage.providers.agy.keychain_access":    configSetBool,
 	"provider_usage.providers.claude.keychain_access": configSetBool,
 	"daemon.socket":                                   configSetString,
 	"daemon.reload_timeouts.providers":                configSetDuration,
@@ -249,7 +250,6 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	"agents.heartbeat.session_health_hook_min_interval": configSetDuration,
 },
 	roleConfigSetPathKinds(),
-	gatewayConfigSetPathKinds(),
 	loopAndGoalConfigSetPathKinds(),
 	extensionConfigSetPathKinds(),
 	marketplaceConfigSetPathKinds(),

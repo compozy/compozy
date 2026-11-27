@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -138,26 +137,80 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 
 	ctx := t.Context()
 
-	t.Run("Should reject invalid descriptors introduced by a dynamic provider reindex", func(t *testing.T) {
+	t.Run("Should drop only the invalid descriptor introduced by a dynamic provider reindex", func(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDescriptor()
+		sibling := descriptorWithID(ToolIDTaskRead, "Read Task")
 		provider := registryTestProvider{
 			source: descriptor.Source,
 			list: func() []Descriptor {
-				return []Descriptor{descriptor}
+				return []Descriptor{descriptor, sibling}
 			},
 		}
 		registry, err := NewRegistry(WithProviders(provider))
 		if err != nil {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
-		if _, err := registry.DiagnosticProjection(t.Context(), Scope{}); err != nil {
+		views, err := registry.DiagnosticProjection(t.Context(), Scope{})
+		if err != nil {
 			t.Fatalf("DiagnosticProjection(initial) error = %v", err)
 		}
+		requireToolIDs(t, views, descriptor.ID, sibling.ID)
 		descriptor.InputSchema = json.RawMessage(`{"type":false}`)
-		_, err = registry.DiagnosticProjection(t.Context(), Scope{})
-		requireReason(t, err, ReasonSchemaInvalid)
+		views, err = registry.DiagnosticProjection(t.Context(), Scope{})
+		if err != nil {
+			t.Fatalf("DiagnosticProjection(invalid sibling) error = %v", err)
+		}
+		requireToolIDs(t, views, sibling.ID)
+	})
+
+	t.Run("Should keep native tools callable when a dynamic provider fails to list", func(t *testing.T) {
+		t.Parallel()
+
+		native := validDescriptor()
+		nativeProvider, err := NewNativeProvider(native.Source, NativeTool{
+			Descriptor: native,
+			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
+				return ToolResult{Structured: json.RawMessage(`{"ok":true}`)}, nil
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		healthy := descriptorWithID(ToolIDTaskRead, "Read Task")
+		broken := &scopedListingTestProvider{registryTestProvider: providerWithDescriptors(
+			SourceRef{Kind: SourceExtension, Owner: "broken"},
+		)}
+		broken.fail.Store(true)
+		registry, err := NewRegistry(WithProviders(
+			nativeProvider, broken, providerWithDescriptors(healthy.Source, healthy),
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+		views, err := registry.SessionProjection(t.Context(), Scope{})
+		if err != nil {
+			t.Fatalf("SessionProjection with a failed provider error = %v", err)
+		}
+		requireToolIDs(t, views, native.ID, healthy.ID)
+		result, err := registry.Call(t.Context(), Scope{ProfileID: "profile-a"},
+			CallRequest{ToolID: native.ID, Input: json.RawMessage(`{}`)})
+		if err != nil || string(result.Structured) != `{"ok":true}` {
+			t.Fatalf("native Call with a failed provider = %+v, %v", result, err)
+		}
+
+		// The caller's own cancellation still aborts the aggregate listing.
+		ctx, cancel := context.WithCancel(t.Context())
+		broken.fail.Store(false)
+		broken.beforeList = func(context.Context) error {
+			cancel()
+			return context.Canceled
+		}
+		if _, err := registry.SessionProjection(ctx, Scope{}); !errors.Is(err, context.Canceled) &&
+			!errors.Is(err, ErrToolCanceled) {
+			t.Fatalf("SessionProjection after caller cancellation error = %v, want the caller cancellation", err)
+		}
 	})
 
 	t.Run("Should recompute native conflicts and ordering when dynamic providers change", func(t *testing.T) {
@@ -436,13 +489,18 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 
 		descriptor := validDescriptor()
 		descriptor.ID = ToolID("compozy__" + longASCII(65))
-		provider := providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, descriptor)
+		sibling := descriptorWithID(ToolIDTaskRead, "Read Task")
+		provider := providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, descriptor, sibling)
 		registry, err := NewRegistry(WithProviders(provider))
 		if err != nil {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
-		_, err = registry.OperatorProjection(ctx, Scope{Operator: true})
-		requireReason(t, err, ReasonIDTooLong)
+		// The over length ID never reaches the projection; its valid sibling still does.
+		views, err := registry.OperatorProjection(ctx, Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("OperatorProjection() error = %v", err)
+		}
+		requireToolIDs(t, views, sibling.ID)
 	})
 }
 
@@ -515,6 +573,34 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 			t.Fatalf("conflicted session projection = %+v, %v", visible, err)
 		}
 	})
+	// Invariant: a policy projection built from a partial provider listing never enters the shared memo.
+	// Owner: registry projection memoization; canonical suite: TestRuntimeRegistryProjections.
+	t.Run("Should not memoize a policy projection built from a partial listing", func(t *testing.T) {
+		t.Parallel()
+		valid := descriptorWithID(ToolIDTaskRead, "Read Task")
+		invalid := descriptorWithID(ToolIDToolList, "List Tools")
+		invalid.InputSchema = json.RawMessage(`{"type":"not-a-schema-type"}`)
+		provider := &scopedListingTestProvider{
+			registryTestProvider: providerWithDescriptors(valid.Source, valid, invalid),
+		}
+		registry, err := NewRegistry(WithProviders(provider))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := WithCachedMCPProjection(WithProjectionListings(t.Context(), NewProjectionListings()))
+		scope := Scope{SessionID: "sess-a", WorkspaceID: "ws-1"}
+		before := provider.calls.Load()
+		for range 2 {
+			views, err := registry.PolicyProjection(ctx, scope, DefaultPolicyInputs())
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireToolIDs(t, views, valid.ID)
+		}
+		if calls := provider.calls.Load() - before; calls != 2 {
+			t.Fatalf("partial projection listed %d times across two passes, want 2", calls)
+		}
+	})
 	t.Run("Should reject changed schemas after a valid catalog was cached", func(t *testing.T) {
 		t.Parallel()
 		descriptor := validDescriptor()
@@ -530,9 +616,13 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 			}
 		}
 		descriptor.InputSchema = json.RawMessage(`{"type":"not-a-schema-type"}`)
+		// The cached valid catalog is not reused: the changed descriptor drops out of every scope.
 		for _, scope := range []Scope{{WorkspaceID: "first"}, {WorkspaceID: "second"}} {
-			_, err := registry.OperatorProjection(t.Context(), scope)
-			requireReason(t, err, ReasonSchemaInvalid)
+			views, err := registry.OperatorProjection(t.Context(), scope)
+			if err != nil {
+				t.Fatalf("OperatorProjection(%s) error = %v", scope.WorkspaceID, err)
+			}
+			requireToolIDs(t, views)
 		}
 	})
 	// Invariant: a visibility class and its view use the same native availability snapshot.
@@ -847,10 +937,12 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 
 		retry := WithProjectionListings(t.Context(), NewProjectionListings())
 		provider.fail.Store(true)
-		if _, err := registry.SessionProjection(retry, Scope{SessionID: "sess-a", WorkspaceID: "ws-1"}); err == nil ||
-			!strings.Contains(err.Error(), "listing failed") {
-			t.Fatalf("failed listing error = %v, want listing failed", err)
+		// A failed provider degrades only its own tools; the projection itself still succeeds.
+		failed, err := registry.SessionProjection(retry, Scope{SessionID: "sess-a", WorkspaceID: "ws-1"})
+		if err != nil {
+			t.Fatalf("failed listing error = %v, want the provider isolated", err)
 		}
+		requireToolIDs(t, failed)
 		provider.fail.Store(false)
 		project(retry, "sess-b", "ws-1")
 		if calls := provider.calls.Load(); calls != 5 {
@@ -966,9 +1058,9 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 				waiter := project(shared, registry, "sess-waiter")
 				synctest.Wait()
 				close(release)
-				if result := <-leader; result.err == nil ||
-					!strings.Contains(result.err.Error(), "leader listing failed") {
-					t.Fatalf("leader error = %v, want leader listing failed", result.err)
+				// The leader's failed listing leaves the provider out of its projection only.
+				if result := <-leader; result.err != nil || len(result.views) != 0 {
+					t.Fatalf("leader = %v, %v, want an empty projection without error", result.views, result.err)
 				}
 				result := <-waiter
 				if result.err != nil {

@@ -140,6 +140,7 @@ func automationJobParams(job automation.Job) (sqlcgen.InsertAutomationJobParams,
 		LoopName:         nullableAutomationString(loopTarget.loopName),
 		LoopInputs:       loopInputs,
 		LoopInputMapping: loopInputMapping,
+		LoopInputCommand: nullableAutomationString(loopTarget.inputCommand),
 		CreatedAt:        store.FormatTimestamp(job.CreatedAt),
 		UpdatedAt:        store.FormatTimestamp(job.UpdatedAt),
 	}, nil
@@ -157,6 +158,7 @@ func automationJobUpdateParams(job automation.Job) (sqlcgen.UpdateAutomationJobP
 		Retry: insert.Retry, FireLimit: insert.FireLimit, Source: insert.Source, TargetKind: insert.TargetKind,
 		LoopWorkspaceID: insert.LoopWorkspaceID, LoopName: insert.LoopName, LoopInputs: insert.LoopInputs,
 		LoopInputMapping: insert.LoopInputMapping,
+		LoopInputCommand: insert.LoopInputCommand,
 		UpdatedAt:        insert.UpdatedAt, ID: job.ID,
 	}, nil
 }
@@ -189,7 +191,8 @@ func automationJobFromGenerated(row sqlcgen.AutomationJob) (automation.Job, erro
 	}
 	loopTarget := automationLoopTargetRecord{
 		workspaceID: row.LoopWorkspaceID, loopName: row.LoopName,
-		inputsRaw: row.LoopInputs, inputMappingRaw: row.LoopInputMapping,
+		inputCommand: row.LoopInputCommand,
+		inputsRaw:    row.LoopInputs, inputMappingRaw: row.LoopInputMapping,
 	}
 	if err := decodeAutomationLoopTarget(loopTarget, job.TargetKind, &job.LoopTarget, "job.loop_target"); err != nil {
 		return automation.Job{}, err
@@ -256,6 +259,7 @@ func automationTriggerParams(trigger automation.Trigger) (sqlcgen.InsertAutomati
 		LoopName:            nullableAutomationString(loopTarget.loopName),
 		LoopInputs:          loopInputs,
 		LoopInputMapping:    loopInputMapping,
+		LoopInputCommand:    nullableAutomationString(loopTarget.inputCommand),
 		CreatedAt:           store.FormatTimestamp(trigger.CreatedAt),
 		UpdatedAt:           store.FormatTimestamp(trigger.UpdatedAt),
 	}, nil
@@ -275,6 +279,7 @@ func automationTriggerUpdateParams(trigger automation.Trigger) (sqlcgen.UpdateAu
 		TargetInstanceScope: insert.TargetInstanceScope,
 		LoopWorkspaceID:     insert.LoopWorkspaceID, LoopName: insert.LoopName, LoopInputs: insert.LoopInputs,
 		LoopInputMapping: insert.LoopInputMapping,
+		LoopInputCommand: insert.LoopInputCommand,
 		UpdatedAt:        insert.UpdatedAt, ID: trigger.ID,
 	}, nil
 }
@@ -309,7 +314,8 @@ func automationTriggerFromGenerated(row sqlcgen.AutomationTrigger) (automation.T
 	}
 	loopTarget := automationLoopTargetRecord{
 		workspaceID: row.LoopWorkspaceID, loopName: row.LoopName,
-		inputsRaw: row.LoopInputs, inputMappingRaw: row.LoopInputMapping,
+		inputCommand: row.LoopInputCommand,
+		inputsRaw:    row.LoopInputs, inputMappingRaw: row.LoopInputMapping,
 	}
 	if err := decodeAutomationLoopTarget(
 		loopTarget,
@@ -353,6 +359,7 @@ func automationTriggerOverlayFromGenerated(
 
 func automationSchedulerParams(state automation.SchedulerState) sqlcgen.UpsertAutomationSchedulerStateParams {
 	return sqlcgen.UpsertAutomationSchedulerStateParams{
+		HeldForSignIn: boolInt64(state.HeldForSignIn),
 		DeferredUntil: nullableAutomationTime(state.DeferredUntil),
 		JobID:         state.JobID,
 		NextRunAt:     nullableAutomationTime(state.NextRunAt),
@@ -373,6 +380,7 @@ func automationSchedulerParams(state automation.SchedulerState) sqlcgen.UpsertAu
 
 func automationSchedulerFromGenerated(row sqlcgen.AutomationSchedulerState) (automation.SchedulerState, error) {
 	state := automation.SchedulerState{
+		HeldForSignIn:             row.HeldForSignIn != 0,
 		JobID:                     row.JobID,
 		LastFireID:                strings.TrimSpace(row.LastFireID),
 		ScheduleHash:              strings.TrimSpace(row.ScheduleHash),
@@ -432,7 +440,8 @@ func automationJobFromHydrated(row sqlcgen.HydrateAutomationJobCatalogRow) (auto
 		Enabled: enabled, Retry: row.Retry, FireLimit: row.FireLimit, Source: row.Source,
 		TargetKind: row.TargetKind, LoopWorkspaceID: row.LoopWorkspaceID, LoopName: row.LoopName,
 		LoopInputs: row.LoopInputs, LoopInputMapping: row.LoopInputMapping,
-		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		LoopInputCommand: row.LoopInputCommand,
+		CreatedAt:        row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	})
 }
 
@@ -450,6 +459,7 @@ func automationTriggerFromHydrated(row sqlcgen.HydrateAutomationTriggerCatalogRo
 		WebhookID: row.WebhookID, EndpointSlug: row.EndpointSlug, WebhookSecretRef: row.WebhookSecretRef,
 		TargetKind: row.TargetKind, LoopWorkspaceID: row.LoopWorkspaceID, LoopName: row.LoopName,
 		LoopInputs: row.LoopInputs, LoopInputMapping: row.LoopInputMapping,
-		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		LoopInputCommand: row.LoopInputCommand,
+		CreatedAt:        row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	})
 }

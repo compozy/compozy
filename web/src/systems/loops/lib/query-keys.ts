@@ -1,3 +1,4 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import { normalizeOptionalText } from "../adapters/loops-api-errors";
 import { normalizeLoopCatalogFilter } from "./loops-list-query";
 import type {
@@ -55,7 +56,7 @@ export function loopAggregateFilterKey(workspaceIds?: readonly string[]): string
  * SSE/mutation invalidation can target a single loop, a workspace, or everything.
  */
 export const loopsKeys = {
-  all: ["loops"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "loops"),
 
   catalogRoot: () => [...loopsKeys.all, "catalog"] as const,
   catalogByWorkspace: (workspaceId: string) => [...loopsKeys.catalogRoot(), workspaceId] as const,
@@ -221,19 +222,32 @@ export const loopsKeys = {
  * `loopsKeys.nodeInventory` above, and the aggregate keys that extend them.
  */
 export const loopsPopulation = {
-  /** Scope, sort, page size, profile lens; not search text, kind, category or status. */
-  catalog: (key: readonly unknown[]): readonly unknown[] => [key[2], key[7], key[8], key[9]],
-  /** Scope, loop, status, live, page size, profile lens; not origin or origin session. */
-  runs: (key: readonly unknown[]): readonly unknown[] => [
-    key[2],
-    key[3],
+  /** Computer, scope, sort, page size, profile lens; not search text, kind, category or status. */
+  catalog: (key: readonly unknown[]): readonly unknown[] => [
+    key[1],
     key[4],
-    key[7],
+    key[9],
+    key[10],
+    key[11],
+  ],
+  /** Computer, scope, loop, status, live, page size, profile lens; not origin or origin session. */
+  runs: (key: readonly unknown[]): readonly unknown[] => [
+    key[1],
+    key[4],
+    key[5],
+    key[6],
+    key[9],
+    key[10],
+    key[11],
+  ],
+  /** Computer, scope, state, page size, profile lens; not the loop or run filters. */
+  nodeInventory: (key: readonly unknown[]): readonly unknown[] => [
+    key[1],
+    key[4],
+    key[5],
     key[8],
     key[9],
   ],
-  /** Scope, state, page size, profile lens; not the loop or run filters. */
-  nodeInventory: (key: readonly unknown[]): readonly unknown[] => [key[2], key[3], key[6], key[7]],
 };
 
 /**

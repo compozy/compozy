@@ -1,7 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { gatewayAccessStore } from "@/systems/gateway";
-
 import { WorkspaceProfilesHint } from "../workspace-profiles-hint";
 
 const HINTS = [
@@ -25,7 +23,6 @@ const meta: Meta<typeof WorkspaceProfilesHint> = {
   parameters: { layout: "fullscreen" },
   decorators: [
     Story => {
-      gatewayAccessStore.trigger.tierSignalled({ tier: "local" });
       return (
         <div className="relative h-screen bg-canvas">
           <Story />

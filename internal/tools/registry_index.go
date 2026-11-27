@@ -10,6 +10,9 @@ import (
 type registryIndex struct {
 	entries []*registryEntry
 	byID    map[ToolID]*registryEntry
+	// degraded marks an index built from a failed or partial provider listing; callers must not
+	// memoize it.
+	degraded bool
 }
 
 type registryEntry struct {
@@ -72,10 +75,17 @@ func (r *RuntimeRegistry) buildUncachedIndex(
 			}
 			continue
 		}
-		descriptors, err := r.listProvider(ctx, provider, providerIndex, scope)
+		descriptors, complete, err := r.listProvider(ctx, provider, providerIndex, scope)
 		if err != nil {
-			return nil, err
+			if abortsAggregateListing(ctx) {
+				return nil, err
+			}
+			logIsolatedListingFailure(ctx, "provider", sourceKey(provider.ID()), err)
+			index.degraded = true
+			continue
 		}
+		// A partial listing (failed MCP source, dropped descriptor) must not be memoized either.
+		index.degraded = index.degraded || !complete
 		for descriptorIndex := range descriptors {
 			descriptor := descriptors[descriptorIndex]
 			applyMCPReadAuthority(&descriptor, inputs.MCPReadOnlyTools)

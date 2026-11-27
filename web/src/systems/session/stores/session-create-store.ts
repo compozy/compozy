@@ -1,5 +1,6 @@
 import { createStoreLogic } from "@xstate/store";
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
 import type { TerminalQuote } from "@/systems/terminal/parts";
 
@@ -10,17 +11,20 @@ import {
   applySessionAgentSelection,
   DEFAULT_SESSION_AGENT_NAME,
   EMPTY_SESSION_CREATE_DRAFT,
+  markSessionDraftSent,
+  setSessionDraftComputer,
   type SessionCreateDialogDraft,
 } from "../lib/session-create-draft";
 import {
   ROOT_ENVIRONMENT_TARGET,
   type SessionEnvironmentTarget,
 } from "../lib/session-environment-target";
-import type { CreateSessionParams, SessionPayload } from "../types";
+import type { CreatedSessionPayload } from "../adapters/session-api";
+import type { CreateSessionParams } from "../types";
 
 interface SessionCreateNavigationTarget {
   attempt: number;
-  session: SessionPayload;
+  session: CreatedSessionPayload;
 }
 
 type SessionCreateOperation =
@@ -72,7 +76,9 @@ export interface SessionCreateTargetSeed {
 const NO_TARGET_SEED: SessionCreateTargetSeed = { project: null, profile: null };
 
 type SessionCreateStoreEvents = {
+  accountScopeEvicted: {};
   agentSelected: { agentName: string; workspaceId: string };
+  computerSelected: { computerId: ComputerId };
   /** The submit is waiting on the environment; the dialog stays open and editable. */
   environmentAwaited: SessionCreatePendingSubmit;
   /** The environment stopped being pending — ready, failed, or canceled. */
@@ -81,6 +87,7 @@ type SessionCreateStoreEvents = {
   dialogOpened: {
     agentName: string;
     workspaceId: string;
+    computerId?: ComputerId;
     /** Optional composer prompt supplied by the surface that opened creation. */
     pendingPrompt?: string;
     /** Preselects where the session will run; omitted opens at the workspace root. */
@@ -101,11 +108,11 @@ type SessionCreateStoreEvents = {
   submissionFailed: { attempt: number; message: string };
   submissionRequested: {
     agentName: string;
-    execute: () => Promise<SessionPayload>;
-    navigate: (session: SessionPayload) => Promise<void>;
+    execute: () => Promise<CreatedSessionPayload>;
+    navigate: (session: CreatedSessionPayload) => Promise<void>;
     workspaceId: string;
   };
-  sessionCreated: { attempt: number; session: SessionPayload };
+  sessionCreated: { attempt: number; session: CreatedSessionPayload };
   /**
    * Palette prompt fallback: same single-flight submitting state as the dialog,
    * without opening it or asking the dialog to navigate.
@@ -149,7 +156,13 @@ export const sessionCreateStoreLogic = createStoreLogic<
         // only way the operator can see what was chosen for them.
         mode: event.environment ? "advanced" : "simple",
         draft: {
-          ...applySessionAgentSelection(context.draft, agentName, event.workspaceId),
+          ...applySessionAgentSelection(
+            { ...context.draft, sent: false },
+            agentName,
+            event.workspaceId
+          ),
+          computerId: normalizeComputerId(event.computerId),
+          sent: false,
           // An opening that names its project starts at that project's root unless it names a
           // worktree too; an earlier opening's worktree may belong to another repository.
           ...(event.environment
@@ -194,6 +207,28 @@ export const sessionCreateStoreLogic = createStoreLogic<
       },
       submitError: null,
     }),
+    accountScopeEvicted: context => {
+      if (!isRemoteComputerId(context.draft.computerId)) return;
+      return {
+        ...context,
+        open: false,
+        draft: EMPTY_SESSION_CREATE_DRAFT,
+        operation: { status: "idle" },
+        pendingSubmit: null,
+        submitError: null,
+      };
+    },
+    computerSelected: (context, event) => {
+      if (context.operation.status !== "idle" || context.draft.sent) return;
+      const nextDraft = setSessionDraftComputer(context.draft, event.computerId);
+      if (nextDraft === context.draft) return;
+      return {
+        ...context,
+        draft: nextDraft,
+        pendingSubmit: null,
+        submitError: null,
+      };
+    },
     sessionNameChanged: (context, event) => ({
       ...context,
       draft: { ...context.draft, sessionName: event.sessionName },
@@ -243,6 +278,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
       });
       return {
         ...context,
+        draft: markSessionDraftSent(context.draft),
         attempt,
         operation: {
           agentName: event.agentName,
@@ -295,6 +331,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
       const attempt = context.attempt + 1;
       return {
         ...context,
+        draft: markSessionDraftSent(context.draft),
         attempt,
         operation: {
           agentName: event.agentName,

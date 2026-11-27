@@ -3,6 +3,7 @@ package spec
 import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -161,7 +162,7 @@ func loopGraphNodeSchema() *openapi3.Schema {
 		WithProperty("default", openapi3.NewStringSchema()).
 		WithProperty("criteria", openapi3.NewArraySchema().WithItems(loopGateCriterionSchema())).
 		WithProperty("verdict_policy", openapi3.NewStringSchema()).
-		WithProperty("on_result", loopFreeformObjectSchema()).
+		WithProperty("on_result", loopNodeOnResultSchema()).
 		WithProperty("max_revisions", openapi3.NewIntegerSchema()).
 		WithProperty("body", loopFreeformObjectSchema()).
 		WithProperty("contract", loopFreeformObjectSchema()).
@@ -296,4 +297,82 @@ func loopMetricSchema() *openapi3.Schema {
 
 func loopFreeformObjectSchema() *openapi3.Schema {
 	return openapi3.NewObjectSchema().WithAdditionalProperties(openapi3.NewSchema())
+}
+
+// loopOnResultSchema is the authored gate route map: a string action, an
+// optional forward target, or a terminal halt object.
+func loopOnResultSchema(actions []string, withRoute bool) *openapi3.Schema {
+	terminalValues := make([]string, 0, len(dsl.TerminalStateValues()))
+	for _, state := range dsl.TerminalStateValues() {
+		terminalValues = append(terminalValues, string(state))
+	}
+	nonHaltActions := make([]string, 0, len(actions))
+	for _, action := range actions {
+		if action != string(gate.RouteHalt) {
+			nonHaltActions = append(nonHaltActions, action)
+		}
+	}
+	variants := []*openapi3.SchemaRef{
+		{Value: openapi3.NewStringSchema().WithEnum(enumAsAny(actions)...)},
+	}
+	if withRoute {
+		routeObject := openapi3.NewObjectSchema().
+			WithProperty("route", openapi3.NewStringSchema().WithMinLength(1)).
+			WithoutAdditionalProperties()
+		routeObject.Required = []string{"route"}
+		variants = append(variants, &openapi3.SchemaRef{Value: routeObject})
+	}
+	actionObject := openapi3.NewObjectSchema().
+		WithProperty("action", openapi3.NewStringSchema().WithEnum(enumAsAny(nonHaltActions)...)).
+		WithoutAdditionalProperties()
+	actionObject.Required = []string{"action"}
+	haltObject := openapi3.NewObjectSchema().
+		WithProperty("action", openapi3.NewStringSchema().WithEnum(string(gate.RouteHalt))).
+		WithProperty("terminal_status", openapi3.NewStringSchema().WithEnum(enumAsAny(terminalValues)...)).
+		WithoutAdditionalProperties()
+	haltObject.Required = []string{"action"}
+	variants = append(variants,
+		&openapi3.SchemaRef{Value: actionObject},
+		&openapi3.SchemaRef{Value: haltObject},
+	)
+	return openapi3.NewObjectSchema().WithAdditionalProperties(&openapi3.Schema{OneOf: variants})
+}
+
+func loopNodeOnResultSchema() *openapi3.Schema {
+	return loopOnResultSchema([]string{
+		string(gate.RouteContinue),
+		string(gate.RouteRevise),
+		string(gate.RouteNextGeneration),
+		string(gate.RouteHalt),
+		string(gate.RouteEscalate),
+	}, true)
+}
+
+func loopContractOnResultSchema() *openapi3.Schema {
+	return loopOnResultSchema([]string{
+		string(gate.RouteContinue),
+		string(gate.RouteDone),
+		string(gate.RouteNextGeneration),
+		string(gate.RouteHalt),
+		string(gate.RouteEscalate),
+	}, false)
+}
+
+// customizeLoopContractSchema constrains the authored on_result map for both the
+// DSL contract and its public projection.
+func customizeLoopContractSchema(schema *openapi3.Schema) {
+	schema.Properties["on_result"] = &openapi3.SchemaRef{Value: loopContractOnResultSchema()}
+}
+
+// customizeLoopRunTerminalSchema restricts the terminal status to settled states.
+func customizeLoopRunTerminalSchema(schema *openapi3.Schema) {
+	schema.Properties["status"] = &openapi3.SchemaRef{Value: openapi3.NewStringSchema().WithEnum(
+		string(contract.LoopRunStatusDone),
+		string(contract.LoopRunStatusNoOp),
+		string(contract.LoopRunStatusBlocked),
+		string(contract.LoopRunStatusFailed),
+		string(contract.LoopRunStatusExhausted),
+		string(contract.LoopRunStatusStalled),
+		string(contract.LoopRunStatusCanceled),
+	)}
 }

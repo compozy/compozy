@@ -49,15 +49,14 @@ type extensionSearchPageRecord struct {
 }
 
 type extensionUpdateOptions struct {
-	Scope                string
-	WorkspaceID          string
-	Profile              string
-	Names                []string
-	All                  bool
-	CheckOnly            bool
-	Version              string
-	AllowUnverified      bool
-	ConfirmGatewayDigest string
+	Scope           string
+	WorkspaceID     string
+	Profile         string
+	Names           []string
+	All             bool
+	CheckOnly       bool
+	Version         string
+	AllowUnverified bool
 }
 
 type extensionPortableUpdateOutput struct {
@@ -133,8 +132,7 @@ func updateMarketplaceExtensions(
 		item, err := client.UpdateExtension(ctx, names[0], UpdateExtensionRequest{
 			Scope: options.Scope, WorkspaceID: options.WorkspaceID, Profile: options.Profile,
 			Version: strings.TrimSpace(options.Version), CheckOnly: options.CheckOnly,
-			AllowUnverified:      options.AllowUnverified && !options.CheckOnly,
-			ConfirmGatewayDigest: strings.TrimSpace(options.ConfirmGatewayDigest),
+			AllowUnverified: options.AllowUnverified && !options.CheckOnly,
 		})
 		if err != nil {
 			return nil, err

@@ -17,13 +17,15 @@ describe("agent query keys/options", () => {
   it("Should key the All projects catalog by Project-filter selection under the catalogs root", () => {
     const options = agentAggregateOptions(["ws_b", "@user"], { limit: 50 });
     expect(options.queryKey).toEqual([
+      "computer",
+      "local",
       "agents",
       "catalog",
       "@aggregate",
       "@user,ws_b",
       expect.objectContaining({ profile: "default", limit: 50 }),
     ]);
-    expect(options.queryKey.slice(0, 2)).toEqual(agentKeys.catalogs());
+    expect(options.queryKey.slice(0, 4)).toEqual(agentKeys.catalogs());
   });
 
   it("Should normalize catalog filters into a workspace-stable infinite key", () => {
@@ -35,6 +37,8 @@ describe("agent query keys/options", () => {
     });
 
     expect(options.queryKey).toEqual([
+      "computer",
+      "local",
       "agents",
       "catalog",
       "ws_alpha",
@@ -54,6 +58,8 @@ describe("agent query keys/options", () => {
     "Should nest soul/heartbeat keys under workspace and profile %s",
     profile => {
       expect(agentKeys.soul("coder", "ws_alpha", profile)).toEqual([
+        "computer",
+        "local",
         "agents",
         "detail",
         "coder",
@@ -68,6 +74,8 @@ describe("agent query keys/options", () => {
           profile,
         })
       ).toEqual([
+        "computer",
+        "local",
         "agents",
         "detail",
         "coder",

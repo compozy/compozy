@@ -1,4 +1,4 @@
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import { mcpDefinitionKey } from "@/systems/settings/lib/mcp-management-target";
 import {

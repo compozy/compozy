@@ -9,8 +9,14 @@
  * control-character delimiter they stay readable in a devtools cache view.
  */
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 function segment(value: string): string {
   return `${value.length}:${value}`;
+}
+
+function computerPrefix(computerId?: ComputerId): string {
+  return isRemoteComputerId(computerId) ? segment(normalizeComputerId(computerId)) : "";
 }
 
 /**
@@ -23,23 +29,28 @@ function segment(value: string): string {
  */
 const PANE_NAMESPACE = segment("terminal-pane");
 
-/** Identity of one `(workspace, profile)` view. */
-export function terminalScopeKey(workspaceId: string, profileKey: string): string {
-  return `${segment(workspaceId)}${segment(profileKey)}`;
+/** Identity of one `(computer, workspace, profile)` view. */
+export function terminalScopeKey(
+  workspaceId: string,
+  profileKey: string,
+  computerId?: ComputerId
+): string {
+  return `${computerPrefix(computerId)}${segment(workspaceId)}${segment(profileKey)}`;
 }
 
 /**
  * Identity of one terminal's buffer.
  *
- * Scoped by profile as well as workspace, so switching profile can never hand a
- * pane the buffer another profile's terminal was using.
+ * Scoped by computer and profile as well as workspace, so switching computer or
+ * profile can never hand a pane the buffer another terminal was using.
  */
 export function terminalInstanceKey(
   workspaceId: string,
   profileKey: string,
-  terminalId: string
+  terminalId: string,
+  computerId?: ComputerId
 ): string {
-  return `${PANE_NAMESPACE}${terminalScopeKey(workspaceId, profileKey)}${segment(terminalId)}`;
+  return `${PANE_NAMESPACE}${terminalScopeKey(workspaceId, profileKey, computerId)}${segment(terminalId)}`;
 }
 
 /**
@@ -49,16 +60,18 @@ export function terminalInstanceKey(
  * terminal, never a second owner of the app's buffer, and the app's scope sweep
  * must leave it alone. Scoped by the block that renders it as well as the
  * terminal, because the same terminal id can appear in two blocks — and, across
- * profiles, mean two different terminals.
+ * profiles or computers, mean two different terminals.
  */
 export function sessionPreviewInstanceKey(input: {
   blockId: string;
   terminalId: string;
   workspaceId?: string;
   profile?: string;
+  computerId?: ComputerId;
 }): string {
   return [
     segment("session-preview"),
+    computerPrefix(input.computerId),
     segment(input.blockId),
     segment(input.workspaceId ?? ""),
     segment(input.profile ?? ""),

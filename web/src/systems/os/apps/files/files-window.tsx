@@ -2,6 +2,8 @@ import { useEffect, useEffectEvent, useState } from "react";
 
 import { SkeletonRegion, SkeletonRows } from "@compozy/ui";
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import { ComputerScopeContext } from "@/lib/computer-scope-context";
 import { FilesAppNoProjects, FilesAppWindow } from "@/systems/files";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -17,26 +19,41 @@ const BARE_FILES_ROUTE = { pathname: FILES_APP_PATH, search: {} } as const;
 export function FilesWindow({ windowId }: { windowId: string }) {
   const route = useDesktop(state => state.windows[windowId]?.route ?? BARE_FILES_ROUTE);
   const { coordinator } = useOsShell();
+  const computerId: ComputerId = normalizeComputerId(
+    typeof route.search.computer === "string" ? route.search.computer : undefined
+  );
+  const isRemote = isRemoteComputerId(computerId);
   const workspaceId = matchFilesInstance(route.pathname);
   const { pending, rememberedWorkspace, workspaces } = useActiveWorkspace({
-    enabled: workspaceId === null,
+    enabled: workspaceId === null && !isRemote,
   });
   const rebind = (next: string) =>
     void coordinator.userRetarget(windowId, {
       app: "files",
-      instanceKey: next,
-      route: filesAppRoute(next),
+      instanceKey: isRemote ? `${computerId}:${next}` : next,
+      route: filesAppRoute(next, computerId),
     });
   // A Files window opened without a project (an agent `window_open`, or no projects yet) binds
   // to the active project. The window manager owns the binding, so this effect syncs it there.
   const fallback =
-    workspaceId === null ? (rememberedWorkspace?.id ?? workspaces[0]?.id ?? null) : null;
+    workspaceId === null && !isRemote
+      ? (rememberedWorkspace?.id ?? workspaces[0]?.id ?? null)
+      : null;
   const bindFallback = useEffectEvent((next: string) => rebind(next));
   useEffect(() => {
     if (fallback !== null) bindFallback(fallback);
   }, [fallback]);
   if (workspaceId !== null) {
-    return <FilesAppWindow key={workspaceId} workspaceId={workspaceId} onSwitchProject={rebind} />;
+    return (
+      <ComputerScopeContext value={computerId}>
+        <FilesAppWindow
+          key={`${computerId}:${workspaceId}`}
+          computerId={computerId}
+          workspaceId={workspaceId}
+          onSwitchProject={rebind}
+        />
+      </ComputerScopeContext>
+    );
   }
   if (pending || fallback !== null) {
     return (

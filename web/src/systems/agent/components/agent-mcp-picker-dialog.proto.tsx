@@ -1,4 +1,4 @@
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 import { MCP_PICKER_ROWS } from "../mocks/agent-mcp-panel-fixtures";
 import { AgentMCPPickerDialog } from "./agent-mcp-picker-dialog";
 

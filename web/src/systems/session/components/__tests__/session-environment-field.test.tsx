@@ -1,6 +1,7 @@
 // Suite: session environment field
 // Invariant (UT-132): the trigger truthfully names root, ready, new, and missing targets while
 // only ready worktrees are offered and its label/error are associated with the trigger.
+// A selected worktree displays one dropdown chevron.
 // Owning layer: session-create environment component. Canonical suite: this file.
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -19,6 +20,20 @@ const materialization = {
 };
 
 describe("SessionEnvironmentField", () => {
+  it("Should show one dropdown chevron for a selected worktree", () => {
+    render(
+      <SessionEnvironmentField
+        onChange={vi.fn()}
+        value={{ kind: "worktree", worktreeId: "wt_ready" }}
+        worktrees={[buildWorktreeFixture({ id: "wt_ready", name: "checkout", state: "ready" })]}
+      />
+    );
+
+    const trigger = screen.getByRole("button", { name: "Environment" });
+    expect(trigger).toHaveTextContent("checkout");
+    expect(trigger.querySelectorAll("svg[aria-hidden='true']")).toHaveLength(1);
+  });
+
   it("Should show New worktree as the selected intent and keep only ready rows selectable", () => {
     const onChange = vi.fn();
     render(

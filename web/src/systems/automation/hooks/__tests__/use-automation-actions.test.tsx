@@ -111,13 +111,17 @@ describe("automation mutation hooks", () => {
     });
 
     expect(triggerAutomationJob).toHaveBeenCalledWith("job_1", "marketing");
-    expect(invalidateSpy).toHaveBeenNthCalledWith(1, { queryKey: ["automation", "jobs"] });
-    expect(invalidateSpy).toHaveBeenNthCalledWith(2, { queryKey: ["automation", "runs"] });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
+      queryKey: ["computer", "local", "automation", "jobs"],
+    });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
+      queryKey: ["computer", "local", "automation", "runs"],
+    });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["automation", "jobs", "detail", "job_1"],
+      queryKey: ["computer", "local", "automation", "jobs", "detail", "job_1"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
-      queryKey: ["automation", "jobs", "runs", "job_1"],
+      queryKey: ["computer", "local", "automation", "jobs", "runs", "job_1"],
     });
   });
 
@@ -160,8 +164,12 @@ describe("automation mutation hooks", () => {
       expect.objectContaining({ name: "nightly-docs" }),
       "default"
     );
-    expect(invalidateSpy).toHaveBeenNthCalledWith(1, { queryKey: ["automation", "jobs"] });
-    expect(invalidateSpy).toHaveBeenNthCalledWith(2, { queryKey: ["automation", "runs"] });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
+      queryKey: ["computer", "local", "automation", "jobs"],
+    });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
+      queryKey: ["computer", "local", "automation", "runs"],
+    });
   });
 
   it("invalidates job detail and run queries after updating a job", async () => {
@@ -186,10 +194,10 @@ describe("automation mutation hooks", () => {
 
     expect(updateAutomationJob).toHaveBeenCalledWith("job_1", { enabled: false }, "marketing");
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["automation", "jobs", "detail", "job_1"],
+      queryKey: ["computer", "local", "automation", "jobs", "detail", "job_1"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
-      queryKey: ["automation", "jobs", "runs", "job_1"],
+      queryKey: ["computer", "local", "automation", "jobs", "runs", "job_1"],
     });
   });
 
@@ -215,10 +223,10 @@ describe("automation mutation hooks", () => {
 
     expect(deleteAutomationJob).toHaveBeenCalledWith("job_1", "marketing");
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["automation", "jobs", "detail", "job_1"],
+      queryKey: ["computer", "local", "automation", "jobs", "detail", "job_1"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
-      queryKey: ["automation", "jobs", "runs", "job_1"],
+      queryKey: ["computer", "local", "automation", "jobs", "runs", "job_1"],
     });
   });
 
@@ -244,14 +252,16 @@ describe("automation mutation hooks", () => {
 
     expect(deleteAutomationTrigger).toHaveBeenCalledWith("trg_1", "marketing");
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["automation", "triggers"],
+      queryKey: ["computer", "local", "automation", "triggers"],
     });
-    expect(invalidateSpy).toHaveBeenNthCalledWith(2, { queryKey: ["automation", "runs"] });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
+      queryKey: ["computer", "local", "automation", "runs"],
+    });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["automation", "triggers", "detail", "trg_1"],
+      queryKey: ["computer", "local", "automation", "triggers", "detail", "trg_1"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
-      queryKey: ["automation", "triggers", "runs", "trg_1"],
+      queryKey: ["computer", "local", "automation", "triggers", "runs", "trg_1"],
     });
   });
 
@@ -291,9 +301,11 @@ describe("automation mutation hooks", () => {
       "default"
     );
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["automation", "triggers"],
+      queryKey: ["computer", "local", "automation", "triggers"],
     });
-    expect(invalidateSpy).toHaveBeenNthCalledWith(2, { queryKey: ["automation", "runs"] });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
+      queryKey: ["computer", "local", "automation", "runs"],
+    });
   });
 
   it("Should name the returned owner after aggregate job and trigger creation", async () => {
@@ -354,10 +366,10 @@ describe("automation mutation hooks", () => {
 
     expect(updateAutomationTrigger).toHaveBeenCalledWith("trg_1", { enabled: false }, "marketing");
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["automation", "triggers", "detail", "trg_1"],
+      queryKey: ["computer", "local", "automation", "triggers", "detail", "trg_1"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
-      queryKey: ["automation", "triggers", "runs", "trg_1"],
+      queryKey: ["computer", "local", "automation", "triggers", "runs", "trg_1"],
     });
   });
 
@@ -379,13 +391,13 @@ describe("automation mutation hooks", () => {
     expect(acceptAutomationSuggestion).toHaveBeenCalledWith("ws_alpha", "suggestion_1");
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       exact: true,
-      queryKey: ["automation", "suggestions", "list", "ws_alpha", "pending"],
+      queryKey: ["computer", "local", "automation", "suggestions", "list", "ws_alpha", "pending"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
-      queryKey: ["automation", "suggestions", "list", "all"],
+      queryKey: ["computer", "local", "automation", "suggestions", "list", "all"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["automation", "jobs", "list"],
+      queryKey: ["computer", "local", "automation", "jobs", "list"],
     });
   });
 
@@ -425,10 +437,10 @@ describe("automation mutation hooks", () => {
     expect(invalidateSpy).toHaveBeenCalledTimes(2);
     expect(invalidateSpy).toHaveBeenCalledWith({
       exact: true,
-      queryKey: ["automation", "suggestions", "list", "ws_alpha", "pending"],
+      queryKey: ["computer", "local", "automation", "suggestions", "list", "ws_alpha", "pending"],
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: ["automation", "suggestions", "list", "all"],
+      queryKey: ["computer", "local", "automation", "suggestions", "list", "all"],
     });
   });
 });

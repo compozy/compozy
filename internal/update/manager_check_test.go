@@ -342,9 +342,9 @@ func TestManagerCheck(t *testing.T) {
 				return now
 			},
 		})
-		archiveName, err := archiveAssetName(manager.runtimeOS, manager.runtimeArch)
+		archiveName, err := ArchiveAssetName(manager.runtimeOS, manager.runtimeArch)
 		if err != nil {
-			t.Fatalf("archiveAssetName() error = %v", err)
+			t.Fatalf("ArchiveAssetName() error = %v", err)
 		}
 		manager.httpClient = &http.Client{
 			Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
@@ -1059,7 +1059,7 @@ func TestManagerCheck(t *testing.T) {
 				})
 				manager.operationStore.now = manager.now
 				archiveBody := createTarGzBinary(t, compozyBinaryName, []byte("new-runtime"), 0o755)
-				archiveName, err := archiveAssetName(manager.runtimeOS, manager.runtimeArch)
+				archiveName, err := ArchiveAssetName(manager.runtimeOS, manager.runtimeArch)
 				if err != nil {
 					t.Fatal(err)
 				}

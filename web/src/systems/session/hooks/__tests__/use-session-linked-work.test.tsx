@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "@compozy/ui";
+import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 
 import { SessionApiError } from "../../adapters/session-api-errors";
 import {
@@ -162,7 +163,9 @@ describe("useSessionLinkedWork", () => {
       {
         branch: first!.branch,
         repository: first!.repository,
-      }
+      },
+      undefined,
+      "local"
     );
     await act(async () => finish({ items: items.slice(1) }));
 
@@ -175,11 +178,18 @@ describe("useSessionLinkedWork", () => {
     expect(undo.label).toBe("Undo");
     act(() => undo.onClick());
     await waitFor(() =>
-      expect(addSessionWorkLink).toHaveBeenCalledWith(WORKSPACE, session.id, session.profile_name, {
-        branch: first!.branch,
-        repository: first!.repository,
-        pr_number: 951,
-      })
+      expect(addSessionWorkLink).toHaveBeenCalledWith(
+        WORKSPACE,
+        session.id,
+        session.profile_name,
+        {
+          branch: first!.branch,
+          repository: first!.repository,
+          pr_number: 951,
+        },
+        undefined,
+        "local"
+      )
     );
   });
 
@@ -197,7 +207,9 @@ describe("useSessionLinkedWork", () => {
       WORKSPACE,
       session.id,
       session.profile_name,
-      { branch: second!.branch, repository: second!.repository }
+      { branch: second!.branch, repository: second!.repository },
+      undefined,
+      "local"
     );
   });
 
@@ -260,7 +272,9 @@ describe("useSessionLinkedWork", () => {
       WORKSPACE,
       session.id,
       session.profile_name,
-      expect.objectContaining({ branch: first!.branch })
+      expect.objectContaining({ branch: first!.branch }),
+      undefined,
+      "local"
     );
   });
 
@@ -295,7 +309,9 @@ describe("useSessionLinkedWork", () => {
         WORKSPACE,
         session.id,
         session.profile_name,
-        expect.objectContaining({ branch: first!.branch })
+        expect.objectContaining({ branch: first!.branch }),
+        undefined,
+        "local"
       )
     );
   });
@@ -356,7 +372,8 @@ describe("useSessionLinkDialogModel", () => {
         WORKSPACE,
         session.id,
         expect.objectContaining({ q: "nothing in these titles", kind: "pull_requests", page: 1 }),
-        expect.anything()
+        expect.any(AbortSignal),
+        LOCAL_COMPUTER_ID
       )
     );
     await waitFor(() => {
@@ -385,7 +402,8 @@ describe("useSessionLinkDialogModel", () => {
       WORKSPACE,
       session.id,
       expect.objectContaining({ kind: "pull_requests", page: 2 }),
-      expect.anything()
+      expect.any(AbortSignal),
+      LOCAL_COMPUTER_ID
     );
     const { search } = result.current;
     expect(search.kind === "results" ? search.pullRequests : []).toEqual(

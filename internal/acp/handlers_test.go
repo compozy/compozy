@@ -271,7 +271,7 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 	proc.permissionTimeout = time.Second
-	active, err := proc.beginPrompt("turn-permission", 8)
+	active, err := proc.beginPrompt(t.Context(), "turn-permission", 8)
 	if err != nil {
 		t.Fatalf("beginPrompt() error = %v", err)
 	}
@@ -473,7 +473,7 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 			}
 		}()
 		proc.conn = acpsdk.NewConnection(proc.handleInbound, io.Discard, reader)
-		active, err := proc.beginPrompt("turn-permissions", 16)
+		active, err := proc.beginPrompt(t.Context(), "turn-permissions", 16)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -526,7 +526,7 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
-			active, err := proc.beginPrompt("turn-canceled", 2)
+			active, err := proc.beginPrompt(t.Context(), "turn-canceled", 2)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -634,7 +634,7 @@ func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 		proc.permissionTimeout = time.Nanosecond
-		active, err := proc.beginPrompt("turn-no-reject", 2)
+		active, err := proc.beginPrompt(t.Context(), "turn-no-reject", 2)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -669,7 +669,7 @@ func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 		proc.permissionTimeout = 25 * time.Millisecond
-		active, err := proc.beginPrompt("turn-timeout", 8)
+		active, err := proc.beginPrompt(t.Context(), "turn-timeout", 8)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}
@@ -727,7 +727,7 @@ func TestHandleInboundPermissionRequestHonorsDenyAllWithToolGateway(t *testing.T
 			return req, nil
 		},
 	)
-	active, err := proc.beginPrompt("turn-deny-all", 8)
+	active, err := proc.beginPrompt(t.Context(), "turn-deny-all", 8)
 	if err != nil {
 		t.Fatalf("beginPrompt() error = %v", err)
 	}
@@ -783,7 +783,7 @@ func TestHandleInboundPermissionRequestHonorsApproveAllWithToolGateway(t *testin
 			return req, nil
 		},
 	)
-	active, err := proc.beginPrompt("turn-approve-all", 8)
+	active, err := proc.beginPrompt(t.Context(), "turn-approve-all", 8)
 	if err != nil {
 		t.Fatalf("beginPrompt() error = %v", err)
 	}
@@ -841,7 +841,7 @@ func TestEmitPermissionEvent(t *testing.T) {
 			proc.emitPermissionEvent("session", "turn", "request", "Approve", "tool", "file", "", "provider", nil)
 		}
 		emit()
-		active, err := proc.beginPrompt("turn", 4)
+		active, err := proc.beginPrompt(t.Context(), "turn", 4)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -869,7 +869,7 @@ func TestEmitPermissionEvent(t *testing.T) {
 			t.Parallel()
 
 			proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
-			active, err := proc.beginPrompt("turn-permission-event", 4)
+			active, err := proc.beginPrompt(t.Context(), "turn-permission-event", 4)
 			if err != nil {
 				t.Fatalf("beginPrompt() error = %v", err)
 			}
@@ -1010,7 +1010,7 @@ func TestHandleInboundPermissionRequestAutoApprovesReadRequests(t *testing.T) {
 	t.Parallel()
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
-	active, err := proc.beginPrompt("turn-read", 8)
+	active, err := proc.beginPrompt(t.Context(), "turn-read", 8)
 	if err != nil {
 		t.Fatalf("beginPrompt() error = %v", err)
 	}
@@ -1060,11 +1060,13 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	proc.terminals.scope.SessionID = "compozy-session"
 	active, err := proc.beginPromptForRun(
+		t.Context(),
 		"turn-terminal-lifecycle",
 		"run-terminal-lifecycle",
 		17,
 		trace.SpanContext{},
 		8,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("beginPromptForRun() error = %v", err)
@@ -1275,7 +1277,7 @@ func TestHandleCreateTerminalStopsTerminalOnRegistrationFailure(t *testing.T) {
 		}
 
 		active, err := proc.beginPromptForRun(
-			"turn-terminal-create-failure", "run-terminal-create-failure", 1, trace.SpanContext{}, 4,
+			t.Context(), "turn-terminal-create-failure", "run-terminal-create-failure", 1, trace.SpanContext{}, 4, nil,
 		)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
@@ -1311,7 +1313,7 @@ func TestHandleReleaseTerminalReleasesExternalTerminal(t *testing.T) {
 			},
 		}
 
-		active, err := proc.beginPrompt("turn-terminal-release", 4)
+		active, err := proc.beginPrompt(t.Context(), "turn-terminal-release", 4)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}
@@ -1334,7 +1336,7 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 	t.Run("Should preserve late startup diagnostics without completing the tool twice", func(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-		active, err := proc.beginPrompt("turn-startup-late", 8)
+		active, err := proc.beginPrompt(t.Context(), "turn-startup-late", 8)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1379,7 +1381,7 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-				active, err := proc.beginPrompt("turn-startup", 8)
+				active, err := proc.beginPrompt(t.Context(), "turn-startup", 8)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -1424,7 +1426,7 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 			t.Run("Should emit a result for initial "+status+" status", func(t *testing.T) {
 				t.Parallel()
 				proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-				active, err := proc.beginPrompt("turn-startup", 2)
+				active, err := proc.beginPrompt(t.Context(), "turn-startup", 2)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -1459,7 +1461,7 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 	t.Run("Should discard invalid observations and emit sanitized Claude metadata", func(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-		active, err := proc.beginPrompt("turn-usage", 8)
+		active, err := proc.beginPrompt(t.Context(), "turn-usage", 8)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1516,7 +1518,7 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 				{Value: "ask"},
 			},
 		}}})
-		active, err := proc.beginPrompt("turn-update", 16)
+		active, err := proc.beginPrompt(t.Context(), "turn-update", 16)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}
@@ -1626,7 +1628,7 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 		t.Parallel()
 
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-		active, err := proc.beginPrompt("turn-tool-updates", 8)
+		active, err := proc.beginPrompt(t.Context(), "turn-tool-updates", 8)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}
@@ -1686,7 +1688,7 @@ func TestHandleSessionUpdateAvailableCommands(t *testing.T) {
 		t.Parallel()
 
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-		active, err := proc.beginPrompt("turn-commands", 4)
+		active, err := proc.beginPrompt(t.Context(), "turn-commands", 4)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}
@@ -1731,7 +1733,7 @@ func TestHandleSessionUpdateMarksToolCallAsPrecheckedAfterGatewayIntercept(t *te
 	t.Parallel()
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-	active, err := proc.beginPrompt("turn-prechecked", 4)
+	active, err := proc.beginPrompt(t.Context(), "turn-prechecked", 4)
 	if err != nil {
 		t.Fatalf("beginPrompt() error = %v", err)
 	}
@@ -2247,7 +2249,7 @@ func TestCompactionAdapterFixtures(t *testing.T) {
 				t.Fatal(err)
 			}
 			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-			active, err := proc.beginPrompt("turn-fixture", 16)
+			active, err := proc.beginPrompt(t.Context(), "turn-fixture", 16)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2307,7 +2309,7 @@ func TestCompactionAssembler(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-			active, err := proc.beginPrompt("turn-assembly", 32)
+			active, err := proc.beginPrompt(t.Context(), "turn-assembly", 32)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2331,7 +2333,7 @@ func TestCompactionAssembler(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 		total := compactionRetainedTerminalLimit + 1
-		active, err := proc.beginPrompt("turn-retention", 2*total+4)
+		active, err := proc.beginPrompt(t.Context(), "turn-retention", 2*total+4)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2366,7 +2368,7 @@ func TestCompactionAssembler(t *testing.T) {
 	t.Run("Should cap assembled summaries and scrub split claim tokens before emission", func(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-		active, err := proc.beginPrompt("turn-scrub", 16)
+		active, err := proc.beginPrompt(t.Context(), "turn-scrub", 16)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2404,7 +2406,7 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 	t.Run("Should classify chunk first as compaction and preserve unknown updates as system", func(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-		active, err := proc.beginPrompt("turn-discriminator", 16)
+		active, err := proc.beginPrompt(t.Context(), "turn-discriminator", 16)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2440,7 +2442,7 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 		var logs lockedBuffer
 		proc.logger = slog.New(slog.NewTextHandler(&logs, nil))
-		active, err := proc.beginPrompt("turn-unknown", 8)
+		active, err := proc.beginPrompt(t.Context(), "turn-unknown", 8)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2472,7 +2474,7 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 	t.Run("Should tolerate vendor fields and malformed optional scalar fields", func(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-		active, err := proc.beginPrompt("turn-tolerant", 8)
+		active, err := proc.beginPrompt(t.Context(), "turn-tolerant", 8)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2495,7 +2497,7 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 			t.Fatal(err)
 		}
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-		active, err := proc.beginPrompt("turn-legacy", 4)
+		active, err := proc.beginPrompt(t.Context(), "turn-legacy", 4)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2592,7 +2594,7 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		proc := &AgentProcess{}
-		active, err := proc.beginPrompt("turn-native", 16)
+		active, err := proc.beginPrompt(t.Context(), "turn-native", 16)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2634,7 +2636,7 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		proc := &AgentProcess{}
-		active, err := proc.beginPrompt("turn-native", 16)
+		active, err := proc.beginPrompt(t.Context(), "turn-native", 16)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2679,7 +2681,7 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 		proc := &AgentProcess{}
 		proc.claudeTasks.enabled.Store(true)
 		proc.bindSessionRoute("sess-claude")
-		active, err := proc.beginPrompt("turn-native", 32)
+		active, err := proc.beginPrompt(t.Context(), "turn-native", 32)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2757,7 +2759,7 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 			proc := &AgentProcess{}
 			proc.claudeTasks.enabled.Store(true)
 			proc.bindSessionRoute("sess-claude")
-			active, err := proc.beginPrompt("turn-native", 16)
+			active, err := proc.beginPrompt(t.Context(), "turn-native", 16)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2806,7 +2808,7 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 		proc := &AgentProcess{}
 		proc.claudeTasks.enabled.Store(true)
 		proc.bindSessionRoute("sess-claude")
-		active, err := proc.beginPrompt("turn-native", 4)
+		active, err := proc.beginPrompt(t.Context(), "turn-native", 4)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2816,7 +2818,7 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 		}
 		optedOut := &AgentProcess{}
 		optedOut.bindSessionRoute("sess-foreign")
-		idle, err := optedOut.beginPrompt("turn-native", 4)
+		idle, err := optedOut.beginPrompt(t.Context(), "turn-native", 4)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2835,7 +2837,7 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 	t.Run("Should keep attribution when a tool response is not a marker object", func(t *testing.T) {
 		t.Parallel()
 		proc := &AgentProcess{}
-		active, err := proc.beginPrompt("turn-native", 4)
+		active, err := proc.beginPrompt(t.Context(), "turn-native", 4)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2854,7 +2856,7 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 	t.Run("Should fall back to ordinary rendering for an unknown metadata shape", func(t *testing.T) {
 		t.Parallel()
 		proc := &AgentProcess{}
-		active, err := proc.beginPrompt("turn-native", 4)
+		active, err := proc.beginPrompt(t.Context(), "turn-native", 4)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2873,7 +2875,7 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 	t.Run("Should retain attribution-only tool refinements", func(t *testing.T) {
 		t.Parallel()
 		proc := &AgentProcess{}
-		active, err := proc.beginPrompt("turn-native", 4)
+		active, err := proc.beginPrompt(t.Context(), "turn-native", 4)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2955,7 +2957,7 @@ func TestInstancePermissionBeyondDefaultTimeout(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 			proc.permissionWaitResolver = func(string) time.Duration { return 12 * time.Hour }
-			active, err := proc.beginPrompt("instance-turn", 8)
+			active, err := proc.beginPrompt(t.Context(), "instance-turn", 8)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3003,7 +3005,7 @@ func TestPermissionRuleDecisionAttribution(t *testing.T) {
 	t.Run("Should not widen a once rule to an always-only provider option", func(t *testing.T) {
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 		proc.permissions.rules = []compozyconfig.PermissionRule{{Kind: "edit", Decision: "allow"}}
-		active, err := proc.beginPrompt("rule-once", 8)
+		active, err := proc.beginPrompt(t.Context(), "rule-once", 8)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3028,7 +3030,7 @@ func TestPermissionRuleDecisionAttribution(t *testing.T) {
 			t.Parallel()
 			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 			proc.permissions.rules = []compozyconfig.PermissionRule{{Kind: "edit", Decision: decision}}
-			active, err := proc.beginPrompt("rule-turn", 8)
+			active, err := proc.beginPrompt(t.Context(), "rule-turn", 8)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3069,7 +3071,7 @@ func TestExpiredPermissionRepeatSuppression(t *testing.T) {
 		shared := &PermissionDenials{}
 		first := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 		first.permissionDenials = shared
-		active, err := first.beginPrompt("first", 8)
+		active, err := first.beginPrompt(t.Context(), "first", 8)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3098,7 +3100,7 @@ func TestExpiredPermissionRepeatSuppression(t *testing.T) {
 
 		replacement := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 		replacement.permissionDenials = shared
-		next, err := replacement.beginPrompt("next", 8)
+		next, err := replacement.beginPrompt(t.Context(), "next", 8)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3128,7 +3130,7 @@ func TestExpiredPermissionRepeatSuppression(t *testing.T) {
 		shared := &PermissionDenials{}
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 		proc.permissionDenials = shared
-		active, err := proc.beginPrompt("disconnect", 8)
+		active, err := proc.beginPrompt(t.Context(), "disconnect", 8)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3256,7 +3258,7 @@ func TestHostedToolPermissionGates(t *testing.T) {
 			opts.MCPServers = []compozyconfig.MCPServer{{Name: "compozy-hosted-tools", Command: "my-server"}}
 		}
 		proc.setHostedToolIdentity(opts)
-		active, err := proc.beginPrompt("turn-hosted", 8)
+		active, err := proc.beginPrompt(t.Context(), "turn-hosted", 8)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3449,9 +3451,14 @@ func TestHostedToolPermissionGates(t *testing.T) {
 
 // beginPrompt starts an untraced prompt outside any run, for tests that drive a prompt directly.
 func (p *AgentProcess) beginPrompt(
+	ctx context.Context,
 	turnID string,
 	bufferSize int,
 	cancelFns ...context.CancelFunc,
 ) (*activePromptState, error) {
-	return p.beginPromptState(turnID, "", 0, trace.SpanContext{}, bufferSize, cancelFns...)
+	var cancel context.CancelFunc
+	if len(cancelFns) > 0 {
+		cancel = cancelFns[0]
+	}
+	return p.beginPromptState(ctx, turnID, "", 0, trace.SpanContext{}, bufferSize, cancel)
 }

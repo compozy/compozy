@@ -1,5 +1,6 @@
 import { use } from "react";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { OsShellContext } from "../contexts/os-shell-context";
@@ -10,10 +11,13 @@ import { filesOpenTarget, filesProjectForOpen } from "../lib/files-open-target";
  * policy (a tab of the focused window), an existing one is focused. Null outside the desktop
  * shell, where there is no window to open.
  */
-export function useOpenProjectFiles(): ((workspaceId: string) => void) | null {
+export function useOpenProjectFiles():
+  | ((workspaceId: string, computerId?: ComputerId) => void)
+  | null {
   const shell = use(OsShellContext);
   if (shell === null) return null;
-  return workspaceId => void shell.coordinator.userOpen(filesOpenTarget(workspaceId));
+  return (workspaceId, computerId) =>
+    void shell.coordinator.userOpen(filesOpenTarget(workspaceId, computerId));
 }
 
 /**

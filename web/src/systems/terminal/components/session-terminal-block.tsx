@@ -3,6 +3,8 @@
 import { TerminalView, type TerminalEngineLoader } from "@compozy/ui";
 import { useState } from "react";
 
+import type { ComputerId } from "@/lib/computer-scope";
+
 import { TerminalStoreProvider } from "../contexts/terminal-store-context";
 import {
   useTerminalAttachment,
@@ -39,7 +41,7 @@ export interface SessionTerminalBlockProps {
    * the profile reads as `terminal_not_found` — so the block paints the screen
    * the tool result recorded.
    */
-  scope?: { workspaceId: string; profile: string };
+  scope?: { workspaceId: string; profile: string; computerId?: ComputerId };
   exit?: TerminalExit | null;
   /** Test seam; the browser socket is the default. */
   socketFactory?: TerminalAttachmentSocketFactory;
@@ -84,7 +86,13 @@ function SessionTerminalBlockBody({
   const instanceId = sessionPreviewInstanceKey({
     blockId,
     terminalId,
-    ...(scope ? { workspaceId: scope.workspaceId, profile: scope.profile } : {}),
+    ...(scope
+      ? {
+          workspaceId: scope.workspaceId,
+          profile: scope.profile,
+          computerId: scope.computerId,
+        }
+      : {}),
   });
   // A run that has not ended is still producing bytes, and this is a view of
   // that terminal rather than a record of it — so while it runs, it streams.
@@ -98,6 +106,7 @@ function SessionTerminalBlockBody({
   useTerminalAttachment({
     workspaceId: scope?.workspaceId ?? "",
     terminalId,
+    computerId: scope?.computerId,
     scope: { profile: scope?.profile ?? "" },
     // Presentation only. Nothing in a transcript may write to the terminal.
     mode: "read",

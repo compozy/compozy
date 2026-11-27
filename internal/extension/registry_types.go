@@ -26,22 +26,19 @@ type ExtensionInfo struct {
 	Source  ExtensionSource
 	// Enabled is true when at least one active profile has no disabled exception
 	// for this extension; it is an effective runtime projection, not a global flag.
-	Enabled                  bool
-	ManifestPath             string
-	Format                   ExtensionFormat
-	IngestDiagnostics        []diagnosticcontract.DiagnosticItem
-	InstalledAt              time.Time
-	Capabilities             CapabilitiesConfig
-	Permissions              PermissionsConfig
-	Checksum                 string
-	lifecycleToken           string
-	RegistrySlug             *string
-	RegistryName             *string
-	RemoteVersion            *string
-	Provenance               ExtensionProvenance
-	GatewayRequirementDigest string
-	GatewayConfirmedBy       string
-	GatewayConfirmedAt       time.Time
+	Enabled           bool
+	ManifestPath      string
+	Format            ExtensionFormat
+	IngestDiagnostics []diagnosticcontract.DiagnosticItem
+	InstalledAt       time.Time
+	Capabilities      CapabilitiesConfig
+	Permissions       PermissionsConfig
+	Checksum          string
+	lifecycleToken    string
+	RegistrySlug      *string
+	RegistryName      *string
+	RemoteVersion     *string
+	Provenance        ExtensionProvenance
 }
 
 type installConfig struct {

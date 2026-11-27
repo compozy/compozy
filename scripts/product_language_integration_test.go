@@ -23,6 +23,11 @@ func TestProductLanguageGuard(t *testing.T) {
 			allowed: true,
 		},
 		{
+			name:    "Should accept approved Compozy Cloud, Compozy Pro, and Compozy, LLC proper names",
+			content: "Compozy, LLC operates Compozy Cloud and bills Compozy Pro subscriptions.\n",
+			allowed: true,
+		},
+		{
 			name: "Should accept public API declarations imports types and calls",
 			content: `import { Compozy, type ConnectOptions } from "@compozy/client";
 export { Compozy as Client } from "@compozy/client/node";
@@ -69,6 +74,10 @@ The API uses ` + "`Compozy.connect()` and `Compozy.start()`" + `.
 		{
 			name:    "Should reject product sentences beside technical exceptions",
 			content: "X-Compozy-Session-ID identifies a Compozy session.\n",
+		},
+		{
+			name:    "Should reject bare Compozy beside approved proper names",
+			content: "Compozy, LLC operates Compozy Cloud and Compozy Pro for Compozy.\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

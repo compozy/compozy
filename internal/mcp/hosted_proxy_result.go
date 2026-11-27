@@ -108,6 +108,12 @@ func finishHostedToolResult(
 		}
 		converted.Meta["compozy/resultTrust"] = result.Trust
 	}
+	if result.ComputerID != "" {
+		if converted.Meta == nil {
+			converted.Meta = sdkmcp.Meta{}
+		}
+		converted.Meta["computer_id"] = string(result.ComputerID)
+	}
 	if len(result.Artifacts) == 0 {
 		return converted, nil
 	}

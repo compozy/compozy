@@ -19,6 +19,7 @@ import {
   AutomationStartGlyph,
   type AutomationOverflowHandlers,
 } from "./automation-row-parts";
+import { ComputerMetaLabel } from "@/systems/computers";
 import { ProfileOwnerTag } from "@/systems/profiles";
 import { WorkspaceBadge } from "@/systems/workspace";
 
@@ -108,6 +109,12 @@ export function AutomationRow({ view, controls }: AutomationRowProps) {
               <>
                 <ListingRow.MetaDot />
                 <AutomationLastRunText view={view} />
+              </>
+            ) : null}
+            {view.computer ? (
+              <>
+                <ListingRow.MetaDot />
+                <ComputerMetaLabel name={view.computer.name} offline={view.computer.offline} />
               </>
             ) : null}
             {view.owner ? (

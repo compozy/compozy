@@ -73,21 +73,12 @@ func (e *cmdPaletteActionExecutor) ApprovalRequired(
 	return view.Decision.ApprovalRequired, nil
 }
 
-// cmdPaletteDeniedTools are operator-only instance setters a palette tool action never runs: palette
-// actions dispatch with operator scope and caller arguments override bound ones, so an agent calling
-// compozy__cmd_palette_invoke on a command bound to one could turn it on.
-var cmdPaletteDeniedTools = map[toolspkg.ToolID]struct{}{
-	toolspkg.ToolIDAgentInstanceSkillAutoApprove: {},
-	toolspkg.ToolIDAgentInstanceChecks:           {},
-}
-
 var errCmdPaletteToolDenied = errors.New("cmd palette: tool is not available as a palette action")
 
 func deniedCmdPaletteTool(action cmdpalette.Action) error {
-	if action.Kind != cmdpalette.ActionKindTool {
-		return nil
-	}
-	if _, denied := cmdPaletteDeniedTools[toolspkg.ToolID(action.Tool)]; denied {
+	// Palette tool actions run with operator scope even when called by an agent.
+	if action.Kind == cmdpalette.ActionKindTool &&
+		toolspkg.ToolID(action.Tool) == toolspkg.ToolIDAgentInstanceSkillAutoApprove {
 		return fmt.Errorf("%w: %s", errCmdPaletteToolDenied, action.Tool)
 	}
 	return nil

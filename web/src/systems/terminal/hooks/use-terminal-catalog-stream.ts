@@ -3,6 +3,7 @@
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
+import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import type { StreamEventSource } from "@/lib/ticketed-event-source";
 
 import {
@@ -34,6 +35,7 @@ export interface UseTerminalCatalogStreamOptions {
   workspaceId: string;
   /** The profile these terminals belong to, as the catalog key spells it. */
   profileKey: string;
+  computerId?: ComputerId;
   /** Reads the labeled aggregate without treating its cache key as a profile name. */
   allProfiles?: boolean;
   /** Concrete owners subscribed into the aggregate cache. */
@@ -67,11 +69,13 @@ function openTerminalCatalogStream(
   profileKey: string,
   streamProfile: string,
   aggregate: boolean,
-  eventSourceFactory: TerminalCatalogEventSourceFactory
+  eventSourceFactory: TerminalCatalogEventSourceFactory,
+  computerId?: ComputerId
 ): () => void {
-  const queryKey = terminalKeys.catalog({ workspaceId, profileKey });
-  const inputQueryKey = terminalKeys.inputRequests({ workspaceId, profileKey });
-  const recordingsKey = terminalKeys.recordings({ workspaceId, profileKey });
+  const keys = terminalKeys.forComputer(computerId);
+  const queryKey = keys.catalog({ workspaceId, profileKey });
+  const inputQueryKey = keys.inputRequests({ workspaceId, profileKey });
+  const recordingsKey = keys.recordings({ workspaceId, profileKey });
   let closed = false;
   const refreshCatalog = () => {
     void queryClient.invalidateQueries({ queryKey, exact: true });
@@ -147,7 +151,9 @@ function openTerminalCatalogStream(
   };
 
   const listeners = TERMINAL_STREAM_EVENTS.map(name => ({ name, listener: handleFrame(name) }));
-  const source = eventSourceFactory(terminalCatalogStreamPath(workspaceId, streamProfile));
+  const source = eventSourceFactory(
+    terminalCatalogStreamPath(workspaceId, streamProfile, computerId)
+  );
   const detach = () => {
     source.removeEventListener("open", handleOpen);
     for (const entry of listeners) {
@@ -185,12 +191,14 @@ function openTerminalCatalogStream(
 export function useTerminalCatalogStream({
   workspaceId,
   profileKey,
+  computerId,
   allProfiles = false,
   profiles = [],
   enabled = true,
   eventSourceFactory,
 }: UseTerminalCatalogStreamOptions): void {
   const queryClient = useQueryClient();
+  const normalizedComputerId = normalizeComputerId(computerId);
   const streamProfiles = allProfiles ? normalizeTerminalProfiles(profiles) : [profileKey];
   const streamProfileSignature = JSON.stringify(streamProfiles);
   const canConnect =
@@ -204,6 +212,7 @@ export function useTerminalCatalogStream({
     if (!canConnect) return undefined;
     const factory = eventSourceFactory ?? defaultEventSourceFactory;
     const leaseKey = JSON.stringify({
+      computerId: normalizedComputerId,
       workspaceId,
       profileKey,
       allProfiles,
@@ -219,7 +228,8 @@ export function useTerminalCatalogStream({
           profileKey,
           streamProfile,
           allProfiles,
-          factory
+          factory,
+          normalizedComputerId
         )
       );
       return () => {
@@ -230,6 +240,7 @@ export function useTerminalCatalogStream({
     allProfiles,
     canConnect,
     eventSourceFactory,
+    normalizedComputerId,
     profileKey,
     queryClient,
     streamProfileSignature,

@@ -36,7 +36,7 @@ type fileKeyProvider struct {
 	cached    []byte
 }
 
-// NewFileKeyProvider returns a non-interactive key provider backed by COMPOZY_VAULT_KEY or a 0600 key file.
+// NewFileKeyProvider returns a non-interactive key provider backed by COMPOZY_VAULT_KEY or a local key file.
 func NewFileKeyProvider(homeDir string, lookupEnv func(string) (string, bool)) KeyProvider {
 	if lookupEnv == nil {
 		lookupEnv = os.LookupEnv
@@ -126,14 +126,7 @@ func validateKeyFile(path string, info os.FileInfo) error {
 	if !mode.IsRegular() {
 		return fmt.Errorf("vault: key file %q must be a regular file", path)
 	}
-	if mode.Perm()&0o077 != 0 {
-		return fmt.Errorf(
-			"vault: key file %q permissions %o must not grant group or other permissions",
-			path,
-			mode.Perm(),
-		)
-	}
-	return nil
+	return validateKeyFilePermissions(path, mode.Perm())
 }
 
 func createKeyFile(path string) ([]byte, error) {

@@ -133,7 +133,7 @@ func (m *Manager) addPlannedTarget(
 }
 
 func plannedRuntimeState(plan operationPlan) (*RuntimeOperationState, error) {
-	digest, err := checksumForAsset(plan.downloaded.checksumsPath, plan.assets.archive.Name)
+	digest, err := ChecksumForAsset(plan.downloaded.checksumsPath, plan.assets.archive.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func (m *Manager) plannedAppState(ctx context.Context, plan operationPlan) (*App
 	if err != nil {
 		return nil, err
 	}
-	digest, err := checksumForAsset(plan.downloaded.checksumsPath, appAsset.Name)
+	digest, err := ChecksumForAsset(plan.downloaded.checksumsPath, appAsset.Name)
 	if err != nil {
 		return nil, err
 	}

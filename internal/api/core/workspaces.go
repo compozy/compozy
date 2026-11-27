@@ -73,11 +73,16 @@ func (h *BaseHandlers) ListWorkspaces(c *gin.Context) {
 	}
 
 	payload := make([]contract.WorkspacePayload, 0, len(workspaces))
+	includeRepository := c.Query("include_repository") == "true"
 	for _, workspace := range workspaces {
 		if (workspace.ArchivedAt != nil) != archived {
 			continue
 		}
-		payload = append(payload, WorkspacePayloadFromWorkspace(workspace))
+		entry := WorkspacePayloadFromWorkspace(workspace)
+		if includeRepository {
+			entry.RepositoryKey = h.workspaceRepositoryKey(c.Request.Context(), workspace)
+		}
+		payload = append(payload, entry)
 	}
 
 	c.JSON(http.StatusOK, contract.WorkspacesResponse{Workspaces: payload})

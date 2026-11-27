@@ -282,7 +282,7 @@ func (d *Daemon) GetRestartOperation(ctx context.Context, operationID string) (R
 		return RestartOperation{}, err
 	}
 	if operation.Status == RestartStatusReady {
-		if err := d.admission.Check(ctx); err != nil {
+		if err := d.admission.CheckRuntime(ctx); err != nil {
 			return RestartOperation{}, err
 		}
 	}

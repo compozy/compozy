@@ -106,6 +106,20 @@ func (s *daemonExtensionService) reloadExtensions(ctx context.Context, names ...
 	return s.reload(ctx)
 }
 
+func (s *daemonExtensionService) reloadExtensionProfile(
+	ctx context.Context, name, profileID string, enabled bool,
+) error {
+	if runtime, ok := s.runtime.(interface {
+		ReloadForExtensionProfile(context.Context, string, string, bool) error
+	}); ok {
+		return errors.Join(
+			runtime.ReloadForExtensionProfile(ctx, name, profileID, enabled),
+			s.syncExtensionConsumers(ctx),
+		)
+	}
+	return s.reloadExtensions(ctx, name)
+}
+
 func (s *daemonExtensionService) syncExtensionConsumers(ctx context.Context) error {
 	const waitError = "daemon: wait for extension consumer sync: %w"
 	if err := ctx.Err(); err != nil {
@@ -278,7 +292,7 @@ func (s *daemonExtensionService) payloadFromExtension(
 	if err := s.populateExtensionInputStatus(ctx, ext, profile.ID, &payload); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	if err := s.populateExtensionGatewayStatus(key, &payload); err != nil {
+	if err := s.populateExtensionDependencyStatus(ctx, ext, profile.ID, &payload); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := s.populateExtensionMCPDetails(ctx, key, profile, &payload); err != nil {
@@ -361,28 +375,4 @@ func extensionUpdatePayload(value extensionpkg.MarketplaceUpdateResult) contract
 		Warnings:       append([]contract.DiagnosticItem(nil), value.Warnings...),
 		Error:          value.Error,
 	}
-}
-
-func (s *daemonExtensionService) populateExtensionGatewayStatus(
-	key extensionpkg.InstanceKey,
-	payload *contract.ExtensionPayload,
-) error {
-	if strings.TrimSpace(payload.GatewayRequirementDigest) != "" {
-		if !payload.Dev {
-			key = extensionpkg.GlobalInstanceKey(key.Name)
-		}
-		confirmation, err := s.registry.GatewayConfirmation(key)
-		if err != nil {
-			return fmt.Errorf(
-				"daemon: load extension gateway confirmation for %q in workspace %q: %w",
-				key.Name,
-				key.WorkspaceID,
-				err,
-			)
-		}
-		payload.GatewayRequirementDigest = confirmation.Digest
-		payload.GatewayConfirmationRequired = confirmation.Digest != "" &&
-			(strings.TrimSpace(confirmation.ConfirmedBy) == "" || confirmation.ConfirmedAt.IsZero())
-	}
-	return nil
 }

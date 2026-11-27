@@ -23,7 +23,7 @@ func (m *Manager) Create(ctx context.Context, optsInput *CreateOpts) (_ *Session
 	if ctx == nil {
 		return nil, errors.New("session: create context is required")
 	}
-	if err := m.checkNewWorkAdmission(ctx); err != nil {
+	if err := m.checkSessionCreationAdmission(ctx); err != nil {
 		return nil, err
 	}
 	return m.createSession(ctx, &opts)

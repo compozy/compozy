@@ -1,0 +1,49 @@
+---
+title: "compozy computer"
+description: "Manage computers used by this controller"
+---
+
+## compozy computer
+
+Manage computers used by this controller
+
+### Options
+
+```
+  -h, --help   help for computer
+```
+
+### Options inherited from parent commands
+
+```
+      --computer string   Target a computer by name or ID
+      --json              Emit JSON output
+  -o, --output string     Output format: human, json, jsonl, or toon (default "human")
+      --profile string    Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                    | Description                                           |
+| ---------------------------------------------------------- | ----------------------------------------------------- |
+| [compozy computer add](/docs/cli/computer/add)             | Add a computer to this controller                     |
+| [compozy computer available](/docs/cli/computer/available) | List account computers available to add               |
+| [compozy computer disable](/docs/cli/computer/disable)     | Change whether this controller connects to a computer |
+| [compozy computer enable](/docs/cli/computer/enable)       | Change whether this controller connects to a computer |
+| [compozy computer list](/docs/cli/computer/list)           | List computers added to this controller               |
+| [compozy computer remove](/docs/cli/computer/remove)       | Remove a computer from this controller                |
+| [compozy computer routes](/docs/cli/computer/routes)       | List or remove a computer's learned routes            |
+| [compozy computer setup](/docs/cli/computer/setup)         | Manage an SSH computer setup                          |
+| [compozy computer status](/docs/cli/computer/status)       | Show a computer's connection and routes               |
+| [compozy computer update](/docs/cli/computer/update)       | Update a computer over SSH                            |

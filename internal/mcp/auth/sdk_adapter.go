@@ -40,7 +40,7 @@ func (s *Service) beginHostedOAuth(
 	if err != nil {
 		return LoginState{}, err
 	}
-	metadata := metadataFromAuthServer(asm)
+	metadata := prm.authServerMetadata(asm)
 	loginScopes := prm.loginScopes(cfg.Scopes)
 	client, err := s.resolveHostedRegistration(
 		ctx,
@@ -48,6 +48,7 @@ func (s *Service) beginHostedOAuth(
 		resourceURL,
 		redirectURL,
 		asm,
+		metadata,
 		loginScopes,
 	)
 	if err != nil {
@@ -370,6 +371,7 @@ func (s *Service) resolveHostedRegistration(
 	resourceURL string,
 	redirectURL string,
 	asm *oauthex.AuthServerMeta,
+	metadata Metadata,
 	loginScopes hostedLoginScopes,
 ) (hostedOAuthClient, error) {
 	if asm.ClientIDMetadataDocumentSupported {
@@ -401,7 +403,7 @@ func (s *Service) resolveHostedRegistration(
 			}
 		}
 	}
-	return s.dynamicClientRegistration(ctx, cfg, resourceURL, redirectURL, asm, loginScopes)
+	return s.dynamicClientRegistration(ctx, cfg, resourceURL, redirectURL, asm, metadata, loginScopes)
 }
 
 func (s *Service) validateCIMD(

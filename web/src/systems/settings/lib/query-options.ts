@@ -1,5 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
+import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import {
   getSettingsAttention,
   getSettingsCmdPalette,
@@ -133,10 +135,11 @@ export function settingsSkillsOptions(filter: SettingsSkillsFilter = {}) {
   });
 }
 
-export function settingsAutomationOptions() {
+export function settingsAutomationOptions(computerId?: ComputerId) {
+  const scopedComputerId = normalizeComputerId(computerId);
   return queryOptions({
-    queryKey: settingsKeys.section("automation"),
-    queryFn: ({ signal }) => getSettingsAutomation(signal),
+    queryKey: settingsKeys.forComputer(scopedComputerId).section("automation"),
+    queryFn: ({ signal }) => getSettingsAutomation(signal, scopedComputerId),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,
@@ -147,6 +150,9 @@ export function settingsProviderUsageOptions() {
   return queryOptions({
     queryKey: settingsKeys.section("provider-usage"),
     queryFn: ({ signal }) => getSettingsProviderUsage(signal),
+    // The local daemon can answer while the browser is offline. Reread on reconnect.
+    networkMode: "always",
+    refetchOnReconnect: true,
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

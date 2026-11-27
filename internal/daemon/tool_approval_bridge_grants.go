@@ -39,7 +39,7 @@ func (b *toolApprovalBridge) consumeDurableToolApproval(
 	if !found {
 		return false, nil
 	}
-	if terminalApprovalRequiresExactGrant(toolID) &&
+	if (terminalApprovalRequiresExactGrant(toolID) || call.ForwardComputer != "") &&
 		(grant.AgentName != key.AgentName || grant.InputDigest != key.InputDigest) {
 		return false, nil
 	}
@@ -145,7 +145,7 @@ func toolApprovalGrantKey(
 	if agentName == "" {
 		agentName = strings.TrimSpace(scope.AgentName)
 	}
-	inputDigest, err := toolApprovalInputDigest(call.Input, toolID)
+	inputDigest, err := toolApprovalCallDigest(call, toolID)
 	if err != nil {
 		return toolspkg.ApprovalGrantKey{}, err
 	}
@@ -160,6 +160,13 @@ func toolApprovalGrantKey(
 		return toolspkg.ApprovalGrantKey{}, err
 	}
 	return key, nil
+}
+
+func toolApprovalCallDigest(call toolspkg.CallRequest, toolID toolspkg.ToolID) (string, error) {
+	if call.ForwardComputer != "" {
+		return toolspkg.ApprovalInputDigest(call.Input, "")
+	}
+	return toolApprovalInputDigest(call.Input, toolID)
 }
 
 func terminalApprovalRequiresExactGrant(toolID toolspkg.ToolID) bool {

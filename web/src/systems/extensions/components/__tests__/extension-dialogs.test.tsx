@@ -27,7 +27,6 @@ vi.mock("../../hooks/use-extensions", () => ({
 }));
 
 import {
-  ExtensionGatewayConfirmDialog,
   ExtensionProvenanceDialog,
   RemoveExtensionDialog,
   VerifiedMark,
@@ -202,11 +201,15 @@ describe("RemoveExtensionDialog permanent removal", () => {
 describe("RemoveExtensionDialog", () => {
   it("Should show declared permissions without gating removal on unrelated state", async () => {
     const user = userEvent.setup();
-    render(<RemoveExtensionDialog extension={extensionFixtures[1]!} onOpenChange={vi.fn()} open />);
-
-    expect(screen.getByRole("note")).toHaveTextContent(
-      "Permissions removed: gateway/status, sessions/list"
+    render(
+      <RemoveExtensionDialog
+        extension={{ ...extensionFixtures[1]!, permissions: ["sessions/list"] }}
+        onOpenChange={vi.fn()}
+        open
+      />
     );
+
+    expect(screen.getByRole("note")).toHaveTextContent("Permissions removed: sessions/list");
     await user.type(screen.getByLabelText("Type to confirm"), "slack-notify");
     expect(screen.getByTestId("remove-extension-confirm")).toBeEnabled();
     expect(mocks.remove).not.toHaveBeenCalled();
@@ -315,32 +318,6 @@ describe("ExtensionProvenanceDialog", () => {
     expect(within(content).getByText("Verified")).toBeInTheDocument();
     expect(within(content).getByText("Operator:Web")).toBeInTheDocument();
     expect(within(content).getByText("sha256:otel-bridge-060")).toBeInTheDocument();
-  });
-});
-
-describe("ExtensionGatewayConfirmDialog", () => {
-  it("Should show the exact digest and preserve the update callback", async () => {
-    const user = userEvent.setup();
-    const onConfirm = vi.fn();
-    render(
-      <ExtensionGatewayConfirmDialog
-        digest="sha256:6f1c0a94d3b27e58"
-        error="confirmation rejected"
-        extensionName="dep-kit-ops"
-        onConfirm={onConfirm}
-        onOpenChange={vi.fn()}
-        open
-        pending={false}
-      />
-    );
-
-    expect(screen.getByText("confirmation rejected")).toBeInTheDocument();
-    expect(screen.getByText(/Updating dep-kit-ops/)).toBeInTheDocument();
-    expect(screen.getByTestId("extension-gateway-confirm-digest")).toHaveTextContent(
-      "sha256:6f1c0a94d3b27e58"
-    );
-    await user.click(screen.getByTestId("extension-gateway-confirm-accept"));
-    expect(onConfirm).toHaveBeenCalledOnce();
   });
 });
 

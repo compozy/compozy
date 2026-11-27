@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { createClientId } from "@/lib/client-id";
@@ -59,16 +60,24 @@ export function useOpenSideChat({
   onRefused: (message: string) => void;
 }) {
   const queryClient = useQueryClient();
+  const computerId = useCurrentComputerId();
+  const keys = sessionKeys.forComputer(computerId);
   const mutation = useMutation<OpenSessionSideResult, Error, { message: string; key: string }>({
     mutationFn: ({ message, key }) =>
-      openSessionSide(workspaceId, sessionId, { message, idempotency_key: key }),
+      openSessionSide(
+        workspaceId,
+        sessionId,
+        { message, idempotency_key: key },
+        undefined,
+        computerId
+      ),
     onSuccess: result => {
       const side = result.session;
-      if (side) queryClient.setQueryData(sessionKeys.detail(workspaceId, side.id), side);
+      if (side) queryClient.setQueryData(keys.detail(workspaceId, side.id), side);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({
-        predicate: query => isSessionSidesQuery(query.queryKey, sessionId),
+        predicate: query => isSessionSidesQuery(query.queryKey, sessionId, computerId),
       });
     },
   });

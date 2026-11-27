@@ -5,12 +5,16 @@
  * envelope before exposing generated terminal contract types.
  */
 
-import { apiBaseUrl, clientID, daemonFetch } from "@/lib/api-client";
-import type { ZodType } from "zod";
+import {
+  clientID,
+  computerApiBaseUrl,
+  computerApiPath,
+  daemonFetch,
+  type ComputerId,
+} from "@/lib/api-client";
 
 import {
   terminalAttachTicketResponseSchema,
-  terminalErrorEnvelopeSchema,
   terminalExitResponseSchema,
   terminalInputAnswerResponseSchema,
   terminalInputRejectResponseSchema,
@@ -22,11 +26,7 @@ import {
   terminalResponseSchema,
   terminalSignalResponseSchema,
   terminalWaitResponseSchema,
-  terminalErrorCodeSchema,
-  type TerminalErrorCode,
-  type TerminalErrorDetails,
 } from "../lib/terminal-contract-schema";
-
 import type {
   CreateTerminalInput,
   TerminalAttachMode,
@@ -38,138 +38,37 @@ import type {
   TerminalInputRequestProjection,
   TerminalJournalFilters,
   TerminalJournalPage,
+  TerminalProfileScopeParams,
   TerminalReadResult,
   TerminalReadView,
   TerminalRecording,
-  TerminalProfileScopeParams,
   TerminalScopeParams,
   TerminalSignal,
   TerminalViewerIdentity,
   TerminalWaitResult,
   TerminalWaitUntil,
 } from "../types";
+import {
+  parseTerminalResponse,
+  readTerminalBody,
+  terminalResourceURL,
+  terminalResponseError,
+  terminalScopeQuery,
+  terminalViewerHeaders,
+  terminalWorkspaceRoot,
+  withTerminalQuery,
+} from "./terminal-api-http";
 
-/**
- * Carries the daemon's machine code beside the message.
- *
- * Terminal domain refusals use the frozen code set. Transport failures keep
- * the same envelope with truthful generic codes such as `invalid_request` or
- * `service_unavailable`, so callers may branch only when `domainCode` exists.
- */
-export class TerminalApiError extends Error {
-  public readonly details: Readonly<TerminalErrorDetails> | undefined;
-  public readonly domainCode: TerminalErrorCode | undefined;
-
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code: string,
-    details?: Readonly<TerminalErrorDetails>
-  ) {
-    super(message);
-    this.name = "TerminalApiError";
-    this.details = details ? Object.freeze({ ...details }) : undefined;
-    const parsedDomainCode = terminalErrorCodeSchema.safeParse(code);
-    this.domainCode = parsedDomainCode.success ? parsedDomainCode.data : undefined;
-  }
-}
-
-const TERMINAL_PROTOCOL_ERROR_MESSAGE = "The daemon returned an invalid terminal response.";
-
-export class TerminalProtocolError extends Error {
-  constructor(public readonly status: number) {
-    super(TERMINAL_PROTOCOL_ERROR_MESSAGE);
-    this.name = "TerminalProtocolError";
-  }
-}
-
-function workspaceRoot(workspaceId: string): string {
-  return `${apiBaseUrl}/api/workspaces/${encodeURIComponent(workspaceId)}/terminals`;
-}
-
-function terminalURL(workspaceId: string, terminalId: string, suffix = ""): string {
-  return `${workspaceRoot(workspaceId)}/${encodeURIComponent(terminalId)}${suffix}`;
-}
-
-/**
- * Builds the query the daemon expects. `profile` and `all_profiles` are
- * mutually exclusive — sending both is `profile_selection_conflict` — so the
- * aggregate selector wins only where a caller explicitly asked for it.
- */
-export function terminalScopeQuery(scope: TerminalScopeParams): URLSearchParams {
-  const query = new URLSearchParams();
-  if (scope.all_profiles) {
-    query.set("all_profiles", "true");
-  } else if (scope.profile) {
-    query.set("profile", scope.profile);
-  }
-  return query;
-}
-
-function withQuery(url: string, query: URLSearchParams): string {
-  const serialized = query.toString();
-  return serialized === "" ? url : `${url}?${serialized}`;
-}
-
-/** Serializes viewer proof using its registration partition, independently of the terminal destination. */
-function terminalViewerHeaders(viewer: TerminalViewerIdentity): Record<string, string> {
-  return {
-    "X-Compozy-Client-Token": viewer.attachmentToken,
-    ...(viewer.workspaceId ? { "X-Compozy-Client-Workspace": viewer.workspaceId } : {}),
-  };
-}
-
-/** Attributes terminal requests to this browser, maps domain failures, and validates successful payloads. */
-async function parseTerminalResponse<Result>(
-  url: string,
-  schema: ZodType<Result>,
-  init?: RequestInit
-): Promise<Result> {
-  const response = await daemonFetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Compozy-Client-ID": clientID,
-      ...init?.headers,
-    },
-  });
-  const body = await readBody(response);
-  if (!response.ok) {
-    throw terminalResponseError(response, body);
-  }
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) throw new TerminalProtocolError(response.status);
-  return parsed.data;
-}
-
-function terminalResponseError(response: Response, body: unknown): TerminalApiError {
-  const parsed = terminalErrorEnvelopeSchema.safeParse(body);
-  if (!parsed.success) throw new TerminalProtocolError(response.status);
-  return new TerminalApiError(
-    parsed.data.error.message,
-    response.status,
-    parsed.data.error.code,
-    parsed.data.error.details
-  );
-}
-
-async function readBody(response: Response): Promise<unknown> {
-  const text = await response.text();
-  if (text.trim() === "") return undefined;
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    throw new TerminalProtocolError(response.status);
-  }
-}
+export { TerminalApiError, TerminalProtocolError, terminalScopeQuery } from "./terminal-api-http";
 
 export async function fetchTerminals(
   workspaceId: string,
   scope: TerminalScopeParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalInfo[]> {
   const payload = await parseTerminalResponse(
-    withQuery(workspaceRoot(workspaceId), terminalScopeQuery(scope)),
+    withTerminalQuery(terminalWorkspaceRoot(workspaceId, computerId), terminalScopeQuery(scope)),
     terminalListResponseSchema,
     { method: "GET", signal }
   );
@@ -183,13 +82,14 @@ export async function fetchTerminals(
 export async function fetchTerminalsAggregate(
   workspaceIds: readonly string[],
   scope: TerminalScopeParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalInfo[]> {
   const query = terminalScopeQuery(scope);
   query.set("all_workspaces", "true");
   for (const id of workspaceIds) query.append("workspace_ids", id);
   const payload = await parseTerminalResponse(
-    withQuery(`${apiBaseUrl}/api/terminals`, query),
+    withTerminalQuery(`${computerApiBaseUrl(computerId)}/api/terminals`, query),
     terminalListResponseSchema,
     { method: "GET", signal }
   );
@@ -200,11 +100,12 @@ export async function fetchTerminal(
   workspaceId: string,
   terminalId: string,
   scope: TerminalProfileScopeParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalInfo> {
-  const url = terminalURL(workspaceId, terminalId);
+  const url = terminalResourceURL(workspaceId, terminalId, "", computerId);
   const payload = await parseTerminalResponse(
-    withQuery(url, terminalScopeQuery({ profile: scope.profile })),
+    withTerminalQuery(url, terminalScopeQuery({ profile: scope.profile })),
     terminalResponseSchema,
     { method: "GET", signal }
   );
@@ -216,16 +117,20 @@ export async function createTerminal(
   workspaceId: string,
   input: CreateTerminalInput,
   scope: TerminalProfileScopeParams,
-  viewer: TerminalViewerIdentity,
-  signal?: AbortSignal
+  viewer?: TerminalViewerIdentity | null,
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalInfo> {
   const payload = await parseTerminalResponse(
-    withQuery(workspaceRoot(workspaceId), terminalScopeQuery({ profile: scope.profile })),
+    withTerminalQuery(
+      terminalWorkspaceRoot(workspaceId, computerId),
+      terminalScopeQuery({ profile: scope.profile })
+    ),
     terminalResponseSchema,
     {
       method: "POST",
-      body: JSON.stringify({ ...input, client_id: viewer.id }),
-      headers: terminalViewerHeaders(viewer),
+      body: JSON.stringify({ ...input, ...(viewer ? { client_id: viewer.id } : {}) }),
+      headers: viewer ? terminalViewerHeaders(viewer) : undefined,
       signal,
     }
   );
@@ -237,11 +142,12 @@ export async function closeTerminal(
   terminalId: string,
   scope: TerminalProfileScopeParams,
   terminalSignal?: TerminalSignal,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalExit | null> {
-  const url = terminalURL(workspaceId, terminalId);
+  const url = terminalResourceURL(workspaceId, terminalId, "", computerId);
   const payload = await parseTerminalResponse(
-    withQuery(url, terminalScopeQuery({ profile: scope.profile })),
+    withTerminalQuery(url, terminalScopeQuery({ profile: scope.profile })),
     terminalExitResponseSchema,
     {
       method: "DELETE",
@@ -263,11 +169,12 @@ export async function mintTerminalAttachTicket(
   mode: TerminalAttachMode,
   scope: TerminalProfileScopeParams,
   viewer?: TerminalViewerIdentity | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalAttachTicket> {
-  const url = terminalURL(workspaceId, terminalId, "/attach-ticket");
+  const url = terminalResourceURL(workspaceId, terminalId, "/attach-ticket", computerId);
   return parseTerminalResponse(
-    withQuery(url, terminalScopeQuery({ profile: scope.profile })),
+    withTerminalQuery(url, terminalScopeQuery({ profile: scope.profile })),
     terminalAttachTicketResponseSchema,
     {
       method: "POST",
@@ -292,7 +199,8 @@ export async function readTerminal(
   terminalId: string,
   params: TerminalReadParams,
   scope: TerminalProfileScopeParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalReadResult> {
   const query = terminalScopeQuery({ profile: scope.profile });
   query.set("view", params.view);
@@ -301,8 +209,8 @@ export async function readTerminal(
   if (params.from !== undefined) query.set("from", String(params.from));
   if (params.to !== undefined) query.set("to", String(params.to));
   if (params.grep) query.set("grep", params.grep);
-  const url = terminalURL(workspaceId, terminalId, "/read");
-  return parseTerminalResponse(withQuery(url, query), terminalReadResponseSchema, {
+  const url = terminalResourceURL(workspaceId, terminalId, "/read", computerId);
+  return parseTerminalResponse(withTerminalQuery(url, query), terminalReadResponseSchema, {
     method: "GET",
     signal,
   });
@@ -313,11 +221,12 @@ export async function signalTerminal(
   terminalId: string,
   signal: TerminalSignal,
   scope: TerminalProfileScopeParams,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<void> {
-  const url = terminalURL(workspaceId, terminalId, "/signal");
+  const url = terminalResourceURL(workspaceId, terminalId, "/signal", computerId);
   await parseTerminalResponse(
-    withQuery(url, terminalScopeQuery({ profile: scope.profile })),
+    withTerminalQuery(url, terminalScopeQuery({ profile: scope.profile })),
     terminalSignalResponseSchema,
     { method: "POST", body: JSON.stringify({ signal }), signal: abortSignal }
   );
@@ -328,11 +237,12 @@ export async function waitTerminal(
   terminalId: string,
   condition: { until: TerminalWaitUntil; pattern?: string; timeout_ms?: number },
   scope: TerminalProfileScopeParams,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalWaitResult> {
-  const url = terminalURL(workspaceId, terminalId, "/wait");
+  const url = terminalResourceURL(workspaceId, terminalId, "/wait", computerId);
   return parseTerminalResponse(
-    withQuery(url, terminalScopeQuery({ profile: scope.profile })),
+    withTerminalQuery(url, terminalScopeQuery({ profile: scope.profile })),
     terminalWaitResponseSchema,
     { method: "POST", body: JSON.stringify(condition), signal: abortSignal }
   );
@@ -342,20 +252,31 @@ export async function fetchTerminalInputRequestProjection(
   workspaceId: string,
   scope: TerminalScopeParams,
   terminalId?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalInputRequestProjection> {
   const query = terminalScopeQuery(scope);
   if (terminalId) query.set("terminal_id", terminalId);
   const payload = await parseTerminalResponse(
-    withQuery(`${workspaceRoot(workspaceId)}/input-requests`, query),
+    withTerminalQuery(`${terminalWorkspaceRoot(workspaceId, computerId)}/input-requests`, query),
     terminalInputRequestsResponseSchema,
     { method: "GET", signal }
   );
   return payload;
 }
 
-function inputRequestRoot(workspaceId: string, terminalId: string, requestId: string): string {
-  return terminalURL(workspaceId, terminalId, `/input-requests/${encodeURIComponent(requestId)}`);
+function inputRequestRoot(
+  workspaceId: string,
+  terminalId: string,
+  requestId: string,
+  computerId?: ComputerId
+): string {
+  return terminalResourceURL(
+    workspaceId,
+    terminalId,
+    `/input-requests/${encodeURIComponent(requestId)}`,
+    computerId
+  );
 }
 
 /**
@@ -368,11 +289,12 @@ export async function answerTerminalInputRequest(
   requestId: string,
   input: string,
   scope: TerminalProfileScopeParams,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalInputAnswerResult> {
   return parseTerminalResponse(
-    withQuery(
-      `${inputRequestRoot(workspaceId, terminalId, requestId)}/answer`,
+    withTerminalQuery(
+      `${inputRequestRoot(workspaceId, terminalId, requestId, computerId)}/answer`,
       terminalScopeQuery({ profile: scope.profile })
     ),
     terminalInputAnswerResponseSchema,
@@ -386,11 +308,12 @@ export async function rejectTerminalInputRequest(
   requestId: string,
   reason: string,
   scope: TerminalProfileScopeParams,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalInputRejectResult> {
   return parseTerminalResponse(
-    withQuery(
-      `${inputRequestRoot(workspaceId, terminalId, requestId)}/reject`,
+    withTerminalQuery(
+      `${inputRequestRoot(workspaceId, terminalId, requestId, computerId)}/reject`,
       terminalScopeQuery({ profile: scope.profile })
     ),
     terminalInputRejectResponseSchema,
@@ -403,11 +326,12 @@ export async function controlTerminalRecording(
   terminalId: string,
   action: "start" | "stop",
   scope: TerminalProfileScopeParams,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalRecording> {
-  const url = terminalURL(workspaceId, terminalId, "/recording");
+  const url = terminalResourceURL(workspaceId, terminalId, "/recording", computerId);
   const payload = await parseTerminalResponse(
-    withQuery(url, terminalScopeQuery({ profile: scope.profile })),
+    withTerminalQuery(url, terminalScopeQuery({ profile: scope.profile })),
     terminalRecordingResponseSchema,
     { method: "POST", body: JSON.stringify({ action }), signal: abortSignal }
   );
@@ -419,7 +343,8 @@ export async function fetchTerminalJournal(
   filters: TerminalJournalFilters,
   scope: TerminalScopeParams,
   cursor?: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<TerminalJournalPage> {
   const query = terminalScopeQuery(scope);
   if (filters.actor) query.set("actor", filters.actor);
@@ -429,7 +354,7 @@ export async function fetchTerminalJournal(
   if (filters.limit !== undefined) query.set("limit", String(filters.limit));
   if (cursor) query.set("cursor", cursor);
   return parseTerminalResponse(
-    withQuery(`${workspaceRoot(workspaceId)}/journal`, query),
+    withTerminalQuery(`${terminalWorkspaceRoot(workspaceId, computerId)}/journal`, query),
     terminalJournalResponseSchema,
     { method: "GET", signal }
   );
@@ -440,10 +365,11 @@ export async function fetchTerminalRecording(
   workspaceId: string,
   recordingId: string,
   scope: TerminalProfileScopeParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<string> {
-  const url = withQuery(
-    `${workspaceRoot(workspaceId)}/recordings/${encodeURIComponent(recordingId)}`,
+  const url = withTerminalQuery(
+    `${terminalWorkspaceRoot(workspaceId, computerId)}/recordings/${encodeURIComponent(recordingId)}`,
     terminalScopeQuery({ profile: scope.profile })
   );
   const response = await daemonFetch(url, {
@@ -452,7 +378,7 @@ export async function fetchTerminalRecording(
     headers: { "X-Compozy-Client-ID": clientID },
   });
   if (!response.ok) {
-    const body = await readBody(response);
+    const body = await readTerminalBody(response);
     throw terminalResponseError(response, body);
   }
   return response.text();
@@ -469,7 +395,8 @@ export function terminalStreamPath(
     rows?: number;
     afterSeq?: bigint;
     flow: "drop" | "ack";
-  }
+  },
+  computerId?: ComputerId
 ): string {
   const query = new URLSearchParams({
     ticket: params.ticket,
@@ -479,5 +406,8 @@ export function terminalStreamPath(
   if (params.cols !== undefined) query.set("cols", String(params.cols));
   if (params.rows !== undefined) query.set("rows", String(params.rows));
   if (params.afterSeq !== undefined) query.set("after_seq", String(params.afterSeq));
-  return `/api/workspaces/${encodeURIComponent(workspaceId)}/terminals/${encodeURIComponent(terminalId)}/stream?${query.toString()}`;
+  return computerApiPath(
+    computerId,
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/terminals/${encodeURIComponent(terminalId)}/stream?${query.toString()}`
+  );
 }

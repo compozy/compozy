@@ -1,4 +1,0 @@
-{
-    "title": "Connect",
-    "pages": ["index", "add", "export", "import", "list", "remove", "ssh", "use"]
-}

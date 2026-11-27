@@ -7,6 +7,7 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -26,7 +27,7 @@ func (a loopCoordinatorRunActivator) ActivateCoordinatorRun(ctx context.Context,
 		a.logFailure(run, "derive coordinator activation actor", err)
 		return
 	}
-	activationCtx, cancel := context.WithTimeout(ctx, taskpkg.DefaultRunLeaseDuration)
+	activationCtx, cancel := context.WithTimeout(store.WithoutMutationCommitGuard(ctx), taskpkg.DefaultRunLeaseDuration)
 	defer cancel()
 	if _, err := a.state.tasks.coordinatorBackstop.RunLoopCoordinatorBackstop(
 		activationCtx,

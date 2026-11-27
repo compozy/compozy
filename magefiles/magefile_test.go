@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"maps"
 	"os"
@@ -258,35 +259,6 @@ func TestProductionSourceLineLimit(t *testing.T) {
 	})
 }
 
-func TestGatewayBoundaryRules(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should enforce every forbidden gateway dependency in the active boundary set", func(t *testing.T) {
-		t.Parallel()
-
-		want := map[string]bool{
-			"internal/daemon":       false,
-			"internal/api/contract": false,
-			"internal/api/core":     false,
-			"internal/api/httpapi":  false,
-			"internal/api/udsapi":   false,
-			"internal/cli":          false,
-		}
-		for _, rule := range directImportBoundaries() {
-			if rule.importer == "internal/gateway" {
-				if _, exists := want[rule.imported]; exists {
-					want[rule.imported] = true
-				}
-			}
-		}
-		for imported, present := range want {
-			if !present {
-				t.Fatalf("active gateway boundary rule for %q is missing", imported)
-			}
-		}
-	})
-}
-
 func TestDependencyClosureBoundaries(t *testing.T) {
 	t.Parallel()
 
@@ -295,34 +267,35 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 
 		rules := []dependencyClosureRule{{
 			root:            "./fixture",
-			allowedPrefixes: []string{compozyModulePath + "internal/gateway/contract"},
+			allowedPrefixes: []string{compozyModulePath + "internal/remotehost/contract"},
 			forbiddenPrefixes: []string{
-				compozyModulePath + "internal/gateway",
+				compozyModulePath + "internal/remotehost",
 				compozyModulePath + "internal/store",
 				compozyModulePath + "internal/extension",
 			},
 		}}
-		violations, err := inspectDependencyClosures(rules, func(root string) ([]string, error) {
+		listDependencies := func(_ context.Context, root string) ([]string, error) {
 			if root != "./fixture" {
 				t.Fatalf("dependency root = %q, want ./fixture", root)
 			}
 			return []string{
 				"fmt",
-				compozyModulePath + "internal/gateway/contract",
+				compozyModulePath + "internal/remotehost/contract",
 				compozyModulePath + "internal/extensionprotocol",
 				compozyModulePath + "internal/store/globaldb",
 				compozyModulePath + "internal/extension/contract",
-				compozyModulePath + "internal/gateway",
-				compozyModulePath + "internal/gateway/experimental",
+				compozyModulePath + "internal/remotehost",
+				compozyModulePath + "internal/remotehost/experimental",
 			}, nil
-		})
+		}
+		violations, err := inspectDependencyClosures(t.Context(), rules, listDependencies)
 		if err != nil {
 			t.Fatalf("inspectDependencyClosures() error = %v", err)
 		}
 		want := []dependencyClosureViolation{
 			{root: "./fixture", dependency: compozyModulePath + "internal/extension/contract"},
-			{root: "./fixture", dependency: compozyModulePath + "internal/gateway"},
-			{root: "./fixture", dependency: compozyModulePath + "internal/gateway/experimental"},
+			{root: "./fixture", dependency: compozyModulePath + "internal/remotehost"},
+			{root: "./fixture", dependency: compozyModulePath + "internal/remotehost/experimental"},
 			{root: "./fixture", dependency: compozyModulePath + "internal/store/globaldb"},
 		}
 		if !slices.Equal(violations, want) {
@@ -333,9 +306,18 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 	t.Run("Should fail closed when dependency listing fails", func(t *testing.T) {
 		t.Parallel()
 
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
 		_, err := inspectDependencyClosures(
+			ctx,
 			[]dependencyClosureRule{{root: "./fixture"}},
-			func(string) ([]string, error) { return nil, errors.New("go list failed") },
+			func(listingCtx context.Context, _ string) ([]string, error) {
+				cancel()
+				if !errors.Is(listingCtx.Err(), context.Canceled) {
+					t.Fatalf("dependency listing context error = %v, want %v", listingCtx.Err(), context.Canceled)
+				}
+				return nil, errors.New("go list failed")
+			},
 		)
 		if err == nil || !strings.Contains(err.Error(), "go list failed") {
 			t.Fatalf("inspectDependencyClosures() error = %v, want go list failure", err)

@@ -30,6 +30,7 @@ import type { SessionPayload, SessionRepairQuery } from "../types";
 import { useActiveWorkspace, workspaceBadgeIdentity } from "@/systems/workspace";
 import { useProfileReadScope } from "@/systems/profiles";
 import { sessionStartedToast } from "../lib/session-create-target";
+import { isAutoComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
 import { useAbortableMutationRequest } from "./use-abortable-mutation-request";
 import {
@@ -74,8 +75,11 @@ export function useRenameSession() {
   });
 }
 
-/** A create request plus the profile that owns it; omitted files into the acting profile. */
-export type CreateSessionVariables = CreateSessionParams & { profile?: string };
+/** A create request plus the profile and target computer that own it. */
+export type CreateSessionVariables = CreateSessionParams & {
+  profile?: string;
+  computerId?: ComputerId;
+};
 
 export function useCreateSession() {
   const queryClient = useQueryClient();
@@ -85,9 +89,16 @@ export function useCreateSession() {
   const { breadthMode, registeredWorkspaces } = useActiveWorkspace();
 
   return useMutation({
-    mutationFn: ({ profile, ...params }: CreateSessionVariables) =>
-      createSession(params, profile ?? destination),
-    onSuccess: session => {
+    mutationFn: ({ profile, computerId, ...params }: CreateSessionVariables) =>
+      computerId && !isAutoComputerId(computerId)
+        ? createSession(params, profile ?? destination, undefined, computerId)
+        : createSession(params, profile ?? destination),
+    onSuccess: (session, variables) => {
+      const scopedComputerId = normalizeComputerId(
+        session.computer_id ??
+          (isAutoComputerId(variables.computer) ? undefined : variables.computerId)
+      );
+      const keys = sessionKeys.forComputer(scopedComputerId);
       // Only while an axis is aggregated: a scoped view already shows where the
       // session is, so announcing it there would be noise. Here it is the
       // guardrail that makes a misfile visible immediately (ADR-003).
@@ -103,9 +114,14 @@ export function useCreateSession() {
       }
       // A User session reads and lists through `@user`.
       const workspaceId = requireWorkspace(session.workspace_id ?? "");
-      queryClient.setQueryData(sessionKeys.detail(workspaceId, session.id), session);
-      void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, session.id) });
-      void invalidateWorkspaceSessionCatalog(queryClient, workspaceId);
+      queryClient.setQueryData(keys.detail(workspaceId, session.id), session);
+      void queryClient.invalidateQueries({ queryKey: keys.detail(workspaceId, session.id) });
+      if (scopedComputerId === "local") {
+        void invalidateWorkspaceSessionCatalog(queryClient, workspaceId);
+      } else {
+        void queryClient.invalidateQueries({ queryKey: keys.workspaceLists(workspaceId) });
+        void queryClient.invalidateQueries({ queryKey: keys.workspaceLists("") });
+      }
     },
   });
 }

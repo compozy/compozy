@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { isRemoteComputerId, normalizeComputerId } from "@/lib/computer-scope";
 import {
   ensureRouteQueryData,
   resolveActiveWorkspaceSelection,
@@ -42,10 +43,21 @@ export type AgentSessionRouteLoaderData =
 export async function prefetchAgentSessionRoute({
   queryClient,
   sessionId,
+  computerId,
+  workspaceHint,
 }: {
   queryClient: QueryClient;
   sessionId: string;
+  computerId?: string;
+  workspaceHint?: string;
 }): Promise<AgentSessionRouteLoaderData> {
+  const scopedComputerId = normalizeComputerId(computerId);
+  if (isRemoteComputerId(scopedComputerId)) {
+    return {
+      status: "loaded",
+      workspaceId: workspaceHint?.trim() || "@user",
+    };
+  }
   const ownership = sessionRouteOwnership(await resolveActiveWorkspaceSelection(queryClient));
   if (!ownership) {
     return { status: "not-found" };

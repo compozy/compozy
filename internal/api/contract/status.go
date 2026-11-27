@@ -39,19 +39,18 @@ type DaemonReadinessPayload struct {
 
 // DaemonStatusPayload is the shared daemon status response payload.
 type DaemonStatusPayload struct {
-	Status         string                `json:"status"`
-	PID            int                   `json:"pid"`
-	StartedAt      time.Time             `json:"started_at"`
-	Socket         string                `json:"socket"`
-	HTTPHost       string                `json:"http_host"`
-	HTTPPort       int                   `json:"http_port"`
-	UserHomeDir    string                `json:"user_home_dir"`
-	ActiveSessions int                   `json:"active_sessions"`
-	TotalSessions  int                   `json:"total_sessions"`
-	Version        string                `json:"version,omitempty"`
-	MinAppVersion  string                `json:"min_app_version"`
-	Gateway        *GatewayStatusPayload `json:"gateway,omitzero"`
-	SchemaStreams  []SchemaStreamStatus  `json:"schema_streams"`
+	Status         string               `json:"status"`
+	PID            int                  `json:"pid"`
+	StartedAt      time.Time            `json:"started_at"`
+	Socket         string               `json:"socket"`
+	HTTPHost       string               `json:"http_host"`
+	HTTPPort       int                  `json:"http_port"`
+	UserHomeDir    string               `json:"user_home_dir"`
+	ActiveSessions int                  `json:"active_sessions"`
+	TotalSessions  int                  `json:"total_sessions"`
+	Version        string               `json:"version,omitempty"`
+	MinAppVersion  string               `json:"min_app_version"`
+	SchemaStreams  []SchemaStreamStatus `json:"schema_streams"`
 	// Readiness is absent from daemons that predate lifecycle phases.
 	Readiness *DaemonReadinessPayload `json:"readiness,omitzero"`
 }

@@ -3,6 +3,9 @@ import { useEffect, useReducer, useRef, useState } from "react";
 
 import type { DiffViewerContents } from "@compozy/ui";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import type { ComputerId } from "@/lib/computer-scope";
+
 import {
   getSessionChangeContents,
   getSessionChangePatches,
@@ -30,6 +33,7 @@ export type SessionChangeNote = "too_large" | "sensitive" | "no_content";
 export interface UseSessionChangesInput {
   workspaceId: string;
   sessionId: string;
+  computerId?: ComputerId;
   scope?: SessionChangesScope;
   base?: string;
   /** Sensitive paths the operator revealed; their patches are fetched with `reveal=true`. */
@@ -66,13 +70,14 @@ class StalePatchError extends Error {
 }
 
 function detailRequest(
-  input: Pick<UseSessionChangesInput, "workspaceId" | "sessionId">,
+  input: Pick<UseSessionChangesInput, "workspaceId" | "sessionId" | "computerId">,
   summary: SessionChangesSummary
 ): SessionChangesDetailRequest {
   const scope = summary.scope === "uncommitted" ? "uncommitted" : "branch";
   return {
     workspaceId: input.workspaceId,
     sessionId: input.sessionId,
+    computerId: input.computerId,
     scope,
     ...(scope === "branch" && summary.base.ref ? { base: summary.base.ref } : {}),
     revision: summary.revision,
@@ -85,10 +90,12 @@ function detailRequest(
  */
 export function useSessionChanges(input: UseSessionChangesInput): SessionChangesModel {
   const { workspaceId, sessionId, scope, base, revealed } = input;
+  const computerId = useCurrentComputerId(input.computerId);
   const query = useQuery({
     ...sessionChangesOptions({
       workspaceId,
       sessionId,
+      computerId,
       ...(scope ? { scope } : {}),
       ...(base ? { base } : {}),
     }),
@@ -130,11 +137,11 @@ export function useSessionChanges(input: UseSessionChangesInput): SessionChanges
     };
   }, [fence]);
 
-  const request = summary ? detailRequest({ workspaceId, sessionId }, summary) : null;
+  const request = summary ? detailRequest({ workspaceId, sessionId, computerId }, summary) : null;
   // Batchers live per summary revision; they are created on first load, outside render.
   const [batchers] = useState(() => new Map<string, ReturnType<typeof createPatchBatcher>>());
   const batcherFor = (detail: SessionChangesDetailRequest, reveal: boolean) => {
-    const key = `${workspaceId}|${sessionId}|${detail.scope}|${detail.base ?? ""}|${detail.revision}|${reveal}`;
+    const key = `${computerId}|${workspaceId}|${sessionId}|${detail.scope}|${detail.base ?? ""}|${detail.revision}|${reveal}`;
     let batcher = batchers.get(key);
     if (!batcher) {
       if (batchers.size > 4) batchers.clear();

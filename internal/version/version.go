@@ -9,8 +9,10 @@ var (
 	Commit        = "unknown"
 	BuildDate     = "unknown"
 	MinAppVersion = "0.0.0"
-	mu            sync.RWMutex
-	overrideMu    sync.Mutex
+	// SignInRequired is stamped by release builds. Treat it as read-only at runtime.
+	SignInRequired = "false"
+	mu             sync.RWMutex
+	overrideMu     sync.Mutex
 )
 
 // Info describes the current build metadata.

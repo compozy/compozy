@@ -9,7 +9,6 @@ import {
   type ProfileRow,
 } from "../lib/profile-rows";
 import { openProfileDialog } from "../stores/profile-dialog-store";
-import { useGatewayAccessTier } from "@/systems/gateway";
 
 export interface ProfileSwitcherModel {
   rows: ProfileRow[];
@@ -36,7 +35,6 @@ export function useProfileSwitcher(): ProfileSwitcherModel {
   const profiles = useProfiles();
   const view = useActiveProfileView();
   const switchProfile = useSwitchProfile();
-  const tier = useGatewayAccessTier();
 
   const all = profiles.data ?? [];
   const activeName = view.kind === "profile" ? view.profile : PERMANENT_PROFILE;
@@ -48,13 +46,13 @@ export function useProfileSwitcher(): ProfileSwitcherModel {
     quiet: isQuiet(all),
     archivedCount: archivedProfiles(all).length,
     selectProfile: name => {
-      if (tier === "local") switchProfile.mutate({ kind: "profile", profile: name });
+      switchProfile.mutate({ kind: "profile", profile: name });
     },
     selectAggregate: () => switchProfile.mutate({ kind: "aggregate" }),
     create: () => {
-      if (tier === "local") openProfileDialog({ flow: "create" });
+      openProfileDialog({ flow: "create" });
     },
-    manageable: tier === "local" && !profiles.isLoading && !profiles.isError,
+    manageable: !profiles.isLoading && !profiles.isError,
     isLoading: profiles.isLoading,
     error: profiles.error instanceof Error ? profiles.error : null,
     retry: () => void profiles.refetch(),

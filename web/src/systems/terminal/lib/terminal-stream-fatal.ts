@@ -6,6 +6,8 @@
  * Everything else (network, expired tickets, daemon restarts) stays retryable.
  */
 
+import { isRemoteRejectionCode } from "@/lib/remote-error-copy";
+
 import { TerminalApiError } from "../adapters/terminal-api";
 import type { TerminalErrorCode } from "./terminal-contract-schema";
 
@@ -16,7 +18,11 @@ const TERMINAL_GONE_CODES = new Set<TerminalErrorCode>([
   "terminal_not_interactive",
 ]);
 
-export function terminalStreamFatalCode(cause: unknown): TerminalErrorCode | null {
-  if (!(cause instanceof TerminalApiError) || cause.domainCode === undefined) return null;
-  return TERMINAL_GONE_CODES.has(cause.domainCode) ? cause.domainCode : null;
+export function terminalStreamFatalCode(cause: unknown): string | null {
+  if (!(cause instanceof TerminalApiError)) return null;
+  if (cause.domainCode !== undefined && TERMINAL_GONE_CODES.has(cause.domainCode)) {
+    return cause.domainCode;
+  }
+  if (isRemoteRejectionCode(cause.code)) return cause.code;
+  return null;
 }

@@ -20,7 +20,7 @@ import { projectAutomationTarget } from "../../lib/automation-target";
 import { RailSection } from "./automation-rail-section";
 import { automationLocationLabel, type AutomationView } from "../../lib/automation-view";
 import type { AutomationJob, AutomationTrigger } from "../../types";
-import { ingressReachabilityCopy } from "@/systems/gateway";
+import { ingressReachabilityCopy } from "../../lib/ingress-copy";
 import { AgentIdentityChip } from "@/systems/agent/components/agent-identity-mark";
 
 const SOURCE_COPY = {

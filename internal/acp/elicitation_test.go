@@ -13,6 +13,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestElicitationFormAnswersThroughOperator(t *testing.T) {
@@ -302,9 +303,8 @@ func TestElicitationDeclinesWithoutAnAnswer(t *testing.T) {
 		{
 			name:    "Should decline a timed-out question instead of hanging the turn",
 			timeout: 20 * time.Millisecond,
-			asker: func(ctx context.Context, _ toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
-				<-ctx.Done()
-				return toolspkg.ClarifyAnswer{}, ctx.Err()
+			asker: func(context.Context, toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+				return toolspkg.ClarifyAnswer{}, context.DeadlineExceeded
 			},
 		},
 		{
@@ -342,6 +342,33 @@ func TestElicitationDeclinesWithoutAnAnswer(t *testing.T) {
 				t.Fatalf("action = %q, want decline", response.Decline.Action)
 			}
 		})
+	}
+}
+
+func TestElicitationIgnoresPermissionTimeout(t *testing.T) {
+	t.Parallel()
+
+	params := json.RawMessage(`{
+		"sessionId":"sess-direct",
+		"mode":"form",
+		"message":"Questions",
+		"requestedSchema":{"type":"object","properties":{"q0":{"type":"string"}}}
+	}`)
+	proc := newElicitationTestProcess(t)
+	proc.permissionTimeout = time.Nanosecond
+	proc.elicitationAsker = func(ctx context.Context, _ toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+		if _, ok := ctx.Deadline(); ok {
+			t.Fatal("clarification context has a permission deadline")
+		}
+		return toolspkg.ClarifyAnswer{Text: "answered"}, nil
+	}
+
+	result, reqErr := proc.handleCreateElicitation(t.Context(), params)
+	if reqErr != nil {
+		t.Fatalf("handleCreateElicitation() error = %+v", reqErr)
+	}
+	if response := result.(acpsdk.UnstableCreateElicitationResponse); response.Accept == nil {
+		t.Fatalf("response = %+v, want accepted answer", response)
 	}
 }
 
@@ -384,6 +411,51 @@ func TestElicitationCancelsWithTheTurn(t *testing.T) {
 			t.Fatalf("action = %q, want cancel", response.Cancel.Action)
 		}
 	})
+
+	t.Run("Should cancel an ACP question while its request context remains live", func(t *testing.T) {
+		t.Parallel()
+
+		params := json.RawMessage(`{
+			"sessionId":"sess-direct",
+			"mode":"form",
+			"message":"Questions",
+			"requestedSchema":{"type":"object","properties":{"q0":{"type":"string"}}}
+		}`)
+		proc := newElicitationTestProcess(t)
+		cancelTurnOnClarification(t, proc)
+
+		result, reqErr := proc.handleCreateElicitation(t.Context(), params)
+		if reqErr != nil {
+			t.Fatalf("handleCreateElicitation() error = %+v", reqErr)
+		}
+		response := result.(acpsdk.UnstableCreateElicitationResponse)
+		if response.Cancel == nil || response.Cancel.Action != "cancel" {
+			t.Fatalf("response = %+v, want cancel", response)
+		}
+	})
+}
+
+func cancelTurnOnClarification(t *testing.T, proc *AgentProcess) {
+	t.Helper()
+	turnCtx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	active, err := proc.beginPromptState(turnCtx, "clarifying-turn", "", 0, trace.SpanContext{}, 1, cancel)
+	if err != nil {
+		t.Fatalf("beginPromptState() error = %v", err)
+	}
+	t.Cleanup(func() { proc.endPrompt(active) })
+	proc.elicitationAsker = func(ctx context.Context, _ toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+		if !proc.cancelCurrentPrompt() {
+			t.Fatal("no active turn to cancel")
+		}
+		select {
+		case <-ctx.Done():
+			return toolspkg.ClarifyAnswer{}, toolspkg.ErrClarifyCanceled
+		case <-time.After(5 * time.Second):
+			t.Fatal("clarification remained pending after the turn was canceled")
+			return toolspkg.ClarifyAnswer{}, context.DeadlineExceeded
+		}
+	}
 }
 
 func TestElicitationRejectsUnrenderableForms(t *testing.T) {
@@ -685,7 +757,10 @@ func TestAgyInteractionPermissionAsksOperator(t *testing.T) {
 		return proc
 	}
 	answering := func(asked *toolspkg.ClarifyQuestion, answer toolspkg.ClarifyAnswer) ElicitationAsker {
-		return func(_ context.Context, question toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+		return func(ctx context.Context, question toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+			if _, ok := ctx.Deadline(); ok {
+				t.Fatal("clarification context has a permission deadline")
+			}
 			*asked = question
 			return answer, nil
 		}
@@ -753,6 +828,21 @@ func TestAgyInteractionPermissionAsksOperator(t *testing.T) {
 		}
 		if response.Outcome.Selected == nil || response.Outcome.Selected.OptionId != "bun" || asked.Question != title {
 			t.Fatalf("outcome = %+v asked = %+v, want the operator's answer under triage", response.Outcome, asked)
+		}
+	})
+
+	t.Run("Should cancel an Antigravity question while its request context remains live", func(t *testing.T) {
+		t.Parallel()
+
+		proc := newAgyProcess(t, compozyconfig.PermissionModeApproveReads)
+		cancelTurnOnClarification(t, proc)
+
+		response, err := proc.handleRequestPermission(t.Context(), request)
+		if err != nil {
+			t.Fatalf("handleRequestPermission() error = %v", err)
+		}
+		if response.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
+			t.Fatalf("outcome = %+v, want canceled", response.Outcome)
 		}
 	})
 

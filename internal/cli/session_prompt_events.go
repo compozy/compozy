@@ -184,7 +184,7 @@ func (flags *sessionPromptCommandFlags) run(deps commandDeps) func(*cobra.Comman
 		if err != nil {
 			return err
 		}
-		return writeCommandOutput(cmd, sessionPromptBundle(record))
+		return writeCommandOutput(cmd, sessionPromptCommandBundle(record, deps.computerTarget))
 	}
 }
 

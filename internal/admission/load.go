@@ -27,6 +27,7 @@ type LoadSnapshot struct {
 	LogicalCPUs    int
 	Load1          float64
 	NormalizedLoad float64
+	Memory         MemorySnapshot
 	SampledAt      time.Time
 	Waiting        int
 	Deferred       uint64
@@ -36,7 +37,7 @@ type LoadSnapshot struct {
 // LoadMonitorConfig configures host-load-aware admission.
 type LoadMonitorConfig struct {
 	// Threshold is the 1-minute load average divided by logical CPUs above which
-	// background work waits. Zero disables the monitor entirely.
+	// background work waits. Zero disables CPU load sampling and admission waits.
 	Threshold float64
 	// MaxWait bounds how long one background admission waits before proceeding.
 	MaxWait time.Duration
@@ -45,9 +46,10 @@ type LoadMonitorConfig struct {
 	Logger   *slog.Logger
 
 	// Sample and LogicalCPUs are test seams; nil/zero use the platform source.
-	Sample      func() (float64, error)
-	LogicalCPUs int
-	Now         func() time.Time
+	Sample       func() (float64, error)
+	SampleMemory func() (MemorySnapshot, error)
+	LogicalCPUs  int
+	Now          func() time.Time
 }
 
 // LoadMonitor samples host load and holds background admissions while the host is saturated.
@@ -71,6 +73,9 @@ func NewLoadMonitor(cfg LoadMonitorConfig) *LoadMonitor {
 	if cfg.Sample == nil {
 		cfg.Sample = sampleLoadAverage
 	}
+	if cfg.SampleMemory == nil {
+		cfg.SampleMemory = sampleHostMemory
+	}
 	if cfg.LogicalCPUs <= 0 {
 		cfg.LogicalCPUs = runtime.NumCPU()
 	}
@@ -93,8 +98,7 @@ func NewLoadMonitor(cfg LoadMonitorConfig) *LoadMonitor {
 	}
 }
 
-// Start takes a baseline sample and starts the sampling goroutine. A zero
-// threshold or an unsupported platform leaves the monitor permanently idle.
+// Start takes a baseline sample and starts the sampling goroutine.
 func (m *LoadMonitor) Start(ctx context.Context) error {
 	if m == nil {
 		return nil
@@ -112,19 +116,14 @@ func (m *LoadMonitor) Start(ctx context.Context) error {
 	}
 	m.started = true
 	m.mu.Unlock()
-	if m.cfg.Threshold == 0 {
-		return nil
-	}
-	if !m.sample() {
-		return nil
-	}
+	sampleCPU := m.sample(m.cfg.Threshold > 0)
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	done := make(chan struct{})
 	m.mu.Lock()
 	m.cancel = cancel
 	m.done = done
 	m.mu.Unlock()
-	go m.run(runCtx, done)
+	go m.run(runCtx, done, sampleCPU)
 	return nil
 }
 
@@ -204,7 +203,7 @@ func (m *LoadMonitor) Wait(ctx context.Context) error {
 	return err
 }
 
-func (m *LoadMonitor) run(ctx context.Context, done chan<- struct{}) {
+func (m *LoadMonitor) run(ctx context.Context, done chan<- struct{}, sampleCPU bool) {
 	defer close(done)
 	ticker := time.NewTicker(m.cfg.Interval)
 	defer ticker.Stop()
@@ -213,37 +212,39 @@ func (m *LoadMonitor) run(ctx context.Context, done chan<- struct{}) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if !m.sample() {
-				return
-			}
+			sampleCPU = m.sample(sampleCPU)
 		}
 	}
 }
 
 // sample records one observation and reports whether sampling should continue.
-func (m *LoadMonitor) sample() bool {
-	load, err := m.cfg.Sample()
+func (m *LoadMonitor) sample(sampleCPU bool) bool {
+	memory, memoryErr := m.cfg.SampleMemory()
+	if memoryErr != nil {
+		memory = MemorySnapshot{}
+	}
+	var load float64
+	var err error
+	if sampleCPU {
+		load, err = m.cfg.Sample()
+	}
 	if err != nil {
-		m.mu.Lock()
-		m.snapshot.Supported = false
-		m.snapshot.Pressured = false
-		m.releaseLocked()
-		m.mu.Unlock()
+		sampleCPU = false
 		if errors.Is(err, ErrLoadAverageUnsupported) {
 			m.logger.Debug("admission: host load sampling unsupported; load-aware admission disabled")
 		} else {
 			m.logger.Warn("admission: host load sampling failed; load-aware admission disabled", "error", err)
 		}
-		return false
 	}
 	normalized := load / float64(m.cfg.LogicalCPUs)
-	pressured := normalized > m.cfg.Threshold
+	pressured := sampleCPU && normalized > m.cfg.Threshold
 
 	m.mu.Lock()
 	wasPressured := m.snapshot.Pressured
-	m.snapshot.Supported = true
+	m.snapshot.Supported = sampleCPU
 	m.snapshot.Load1 = load
 	m.snapshot.NormalizedLoad = normalized
+	m.snapshot.Memory = memory
 	m.snapshot.SampledAt = m.cfg.Now().UTC()
 	m.snapshot.Pressured = pressured
 	switch {
@@ -263,7 +264,7 @@ func (m *LoadMonitor) sample() bool {
 			"logical_cpus", m.cfg.LogicalCPUs,
 		)
 	}
-	return true
+	return sampleCPU
 }
 
 func (m *LoadMonitor) releaseLocked() {

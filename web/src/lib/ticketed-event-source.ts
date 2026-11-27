@@ -1,4 +1,6 @@
-import { acquireStreamTicket, appendStreamTicket } from "./gateway-stream-auth";
+import { reportAccountGateSignal } from "./account-gate-signal";
+import { acquireHostedStreamTicket, appendHostedStreamTicket } from "./hosted-stream-auth";
+import { isHostedBrowserMode } from "./hosted-browser-auth";
 import { WebSocketEventSource } from "./web-socket-event-source";
 
 /**
@@ -31,7 +33,7 @@ const RECONNECT_STABLE_MS = RECONNECT_MAX_MS;
  * Opens a live event stream for the page's own origin.
  *
  * On a local same-origin session this is a native `EventSource` with its native
- * reconnect behaviour left untouched. On a remote gateway session the ticket is
+ * reconnect behaviour left untouched. On a hosted browser session the ticket is
  * single-use, so native reconnect would replay a spent credential and be
  * rejected: the facade closes the socket on error and reopens it with a freshly
  * minted ticket instead. Consumers see the same `open` / `error` sequence
@@ -52,6 +54,10 @@ class TicketedEventSource implements StreamEventSource {
 
   private readonly listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
   private readonly forwarders = new Map<string, EventListener>();
+  private readonly onSignInRequiredFrame: EventListener = () => {
+    reportAccountGateSignal({ kind: "sign_in_required", code: "sign_in_required" });
+    this.close();
+  };
   private native: (StreamEventSource & { readonly url: string }) | null = null;
   private attachedTypes = new Set<string>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -129,7 +135,6 @@ class TicketedEventSource implements StreamEventSource {
     this.controller = controller;
     let authorizedUrl: string;
     try {
-      const ticket = await acquireStreamTicket(controller.signal);
       const resumeUrl =
         this.options.resumeWithLastEventId && this.lastEventId !== ""
           ? appendEventCursor(
@@ -138,11 +143,16 @@ class TicketedEventSource implements StreamEventSource {
               this.options.transport === "websocket" ? "last_event_id" : "after_sequence"
             )
           : this.url;
-      authorizedUrl = ticket === null ? resumeUrl : appendStreamTicket(resumeUrl, ticket);
+      if (isHostedBrowserMode()) {
+        const ticket = await acquireHostedStreamTicket(resumeUrl, controller.signal);
+        authorizedUrl = appendHostedStreamTicket(resumeUrl, ticket);
+      } else {
+        authorizedUrl = resumeUrl;
+      }
     } catch {
       // A failed mint is indistinguishable from a dropped stream to consumers:
       // report the error and retry on the same backoff curve. An ended session
-      // is reported separately by the access signal, not by this path.
+      // is reported separately by the hosted access boundary, not by this path.
       this.handleFailure();
       return;
     }
@@ -166,6 +176,7 @@ class TicketedEventSource implements StreamEventSource {
       this.onerror?.(event);
       this.handleNativeError(native);
     };
+    native.addEventListener("sign_in_required", this.onSignInRequiredFrame);
     for (const type of this.listeners.keys()) {
       this.attachedTypes.add(type);
       native.addEventListener(type, this.forwarderFor(type));
@@ -180,6 +191,10 @@ class TicketedEventSource implements StreamEventSource {
    */
   private handleNativeError(native: StreamEventSource & { readonly url: string }): void {
     if (this.closed || this.native !== native) return;
+    if (native instanceof WebSocketEventSource && native.closedForAccess) {
+      this.close();
+      return;
+    }
     if (this.options.transport !== "websocket" && !isTicketedUrl(native.url)) return;
     this.teardownNative();
     this.scheduleReconnect();
@@ -234,6 +249,7 @@ class TicketedEventSource implements StreamEventSource {
     native.onmessage = null;
     native.onerror = null;
     native.onopen = null;
+    native.removeEventListener("sign_in_required", this.onSignInRequiredFrame);
     for (const type of this.attachedTypes) {
       native.removeEventListener(type, this.forwarderFor(type));
     }
@@ -250,7 +266,7 @@ class TicketedEventSource implements StreamEventSource {
 }
 
 function isTicketedUrl(url: string): boolean {
-  return url.includes("ticket=");
+  return url.includes("ticket=") || url.includes("remote_ticket=");
 }
 
 function appendEventCursor(url: string, cursor: string, parameter: string): string {

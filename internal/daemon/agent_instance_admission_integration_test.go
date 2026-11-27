@@ -410,7 +410,7 @@ func TestInstanceSkillApprovalIntegration(t *testing.T) {
 			proposed.Review.Lesson == nil || proposed.Review.Lesson.Confidence != "high" {
 			t.Fatalf("proposal: %+v", proposed)
 		}
-		uds := gatewayDaemonUDSClient(d.homePaths.DaemonSocket)
+		uds := daemonIntegrationUDSClient(d.homePaths.DaemonSocket)
 		t.Cleanup(uds.CloseIdleConnections)
 		var detailBodies []string
 		for _, transport := range []struct {
@@ -637,7 +637,7 @@ func runSkillInstallStartupReconcile(t *testing.T, removeAgent bool) {
 	if err := os.WriteFile(filepath.Join(target, "SKILL.md"), skillBody, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	staged, err := agentinstance.SkillTreeDigest(target)
+	staged, err := agentinstance.SkillTreeDigest(t.Context(), target)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1865,7 +1865,7 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	uds := gatewayDaemonUDSClient(d.homePaths.DaemonSocket)
+	uds := daemonIntegrationUDSClient(d.homePaths.DaemonSocket)
 	t.Cleanup(uds.CloseIdleConnections)
 	for _, transport := range []struct {
 		name, base string

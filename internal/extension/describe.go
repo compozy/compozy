@@ -1,7 +1,6 @@
 package extensionpkg
 
 import (
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -74,22 +73,19 @@ func DescribeExtensionForProfile(
 		Contents:    extensionSnapshotContentsForProfile(ext, profileName),
 		MCPServers:  extensionServerPayloads(ext, profileName),
 		Inputs:      []contract.ExtensionInputStatePayload{}, MissingInputs: []string{},
-		Origin:                   extensionOriginPayload(ext.Info.Provenance),
-		Profile:                  profileName,
-		WorkspaceID:              ext.Status.WorkspaceID,
-		Version:                  ext.Info.Version,
-		Type:                     extensionType(ext.Manifest, &ext.Info),
-		Format:                   string(normalizeExtensionFormat(ext.Info.Format)),
-		Source:                   ext.Info.Source.String(),
-		Enabled:                  ext.Info.Enabled,
-		State:                    state,
-		Capabilities:             append([]string(nil), ext.Info.Capabilities.Provides...),
-		Permissions:              append([]string(nil), ext.Info.Permissions.Requires...),
-		RequiresEnv:              requiresEnv,
-		MissingEnv:               missingEnv,
-		GatewayRequirementDigest: ext.Info.GatewayRequirementDigest,
-		GatewayConfirmationRequired: strings.TrimSpace(ext.Info.GatewayRequirementDigest) != "" &&
-			(strings.TrimSpace(ext.Info.GatewayConfirmedBy) == "" || ext.Info.GatewayConfirmedAt.IsZero()),
+		Origin:              extensionOriginPayload(ext.Info.Provenance),
+		Profile:             profileName,
+		WorkspaceID:         ext.Status.WorkspaceID,
+		Version:             ext.Info.Version,
+		Type:                extensionType(ext.Manifest, &ext.Info),
+		Format:              string(normalizeExtensionFormat(ext.Info.Format)),
+		Source:              ext.Info.Source.String(),
+		Enabled:             ext.Info.Enabled,
+		State:               state,
+		Capabilities:        append([]string(nil), ext.Info.Capabilities.Provides...),
+		Permissions:         append([]string(nil), ext.Info.Permissions.Requires...),
+		RequiresEnv:         requiresEnv,
+		MissingEnv:          missingEnv,
 		PID:                 ext.Status.PID,
 		UptimeSeconds:       uptimeSeconds,
 		Health:              extensionHealth(ext.Manifest, &ext.Info, ext.Status, daemonRunning),

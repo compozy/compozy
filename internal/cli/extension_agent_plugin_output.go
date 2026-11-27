@@ -235,17 +235,28 @@ func extensionInstallResultBundle(
 	item *ExtensionRecord, report *extensionpkg.ValidationReport, enable bool,
 ) outputBundle {
 	bundle := extensionInstallSuccessBundle(item, report)
-	if !enable {
+	installed := item.InstallDependenciesInstalled
+	if !enable && len(installed) == 0 {
 		return bundle
 	}
-	response := contract.InstallExtensionResponse{Extension: *item, EnableError: item.InstallEnableError}
+	// The response envelope carries enable_error and the experimental dependencies_installed.
+	response := contract.InstallExtensionResponse{
+		Extension: *item, EnableError: item.InstallEnableError, DependenciesInstalled: installed,
+	}
 	bundle.jsonValue = response
 	bundle.jsonl = func(cmd *cobra.Command) error { return writeJSONLine(cmd, response) }
-	if item.InstallEnableError == nil {
+	if enable && item.InstallEnableError == nil {
 		baseHuman := bundle.human
 		bundle.human = func() (string, error) {
 			text, err := baseHuman()
 			return fmt.Sprintf("Installed %s %s and turned it on.\n%s", item.Name, item.Version, text), err
+		}
+	}
+	if len(installed) > 0 {
+		baseHuman := bundle.human
+		bundle.human = func() (string, error) {
+			text, err := baseHuman()
+			return fmt.Sprintf("Installed dependencies first: %s.\n%s", strings.Join(installed, ", "), text), err
 		}
 	}
 	return bundle

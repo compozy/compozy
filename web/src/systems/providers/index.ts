@@ -12,11 +12,12 @@ export {
   listProviders,
   probeProviderAuth,
 } from "./adapters/providers-api";
-export { providerKeys } from "./lib/query-keys";
+export { providerKeys, providerKeysFor } from "./lib/query-keys";
 export {
   providerDetailOptions,
   providerListOptions,
   type ProviderDetailOptionsArgs,
+  type ProviderListOptionsArgs,
 } from "./lib/query-options";
 export { useProvider, useProviders } from "./hooks/use-providers";
 export { providerReviewer, type ProviderReviewer } from "./lib/provider-reviewer";

@@ -1,0 +1,131 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
+package api
+
+import (
+	"fmt"
+	"maps"
+	"mime"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/compozy/compozy/internal/cloud/auth"
+)
+
+const (
+	accountWriteLimit  = 60
+	accountWriteWindow = time.Minute
+	CodeRateLimited    = "rate_limited"
+)
+
+type accountWindow struct {
+	endsAt time.Time
+	used   int
+}
+
+type AccountLimiter struct {
+	mu        sync.Mutex
+	windows   map[string]accountWindow
+	nextSweep time.Time
+	now       func() time.Time
+}
+
+func LimitSignIn(
+	service *auth.Service, scope auth.SignInRate, next http.HandlerFunc,
+	rejectPage func(http.ResponseWriter, *http.Request, error),
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := service.LimitSignIn(r, scope); err != nil {
+			if rejectPage != nil {
+				w.Header().Add("Vary", "Accept")
+				if prefersSignInHTML(r.Header.Values("Accept")) {
+					rejectPage(w, r, err)
+					return
+				}
+			}
+			WriteAuthError(w, err)
+			return
+		}
+		next(w, r)
+	}
+}
+
+func prefersSignInHTML(accept []string) bool {
+	var html, json float64
+	for _, field := range accept {
+		for item := range strings.SplitSeq(field, ",") {
+			media, params, err := mime.ParseMediaType(item)
+			if err != nil {
+				continue
+			}
+			quality := 1.0
+			if value, ok := params["q"]; ok {
+				quality, err = strconv.ParseFloat(value, 64)
+				if err != nil || !(quality > 0 && quality <= 1) {
+					continue
+				}
+			}
+			switch media {
+			case "text/html":
+				html = max(html, quality)
+			case jsonType:
+				json = max(json, quality)
+			}
+		}
+	}
+	return html > json
+}
+
+func NewAccountLimiter(now func() time.Time) *AccountLimiter {
+	return &AccountLimiter{windows: make(map[string]accountWindow), now: now}
+}
+
+// AccountWrites must run after the route authenticates the account.
+func (l *AccountLimiter) AccountWrites(
+	account func(*http.Request) (string, bool), next http.Handler,
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			next.ServeHTTP(w, r)
+			return
+		}
+		id, ok := account(r)
+		if !ok || id == "" {
+			WriteError(w, http.StatusUnauthorized, "unauthorized", "Account authentication required.")
+			return
+		}
+		if retry := l.RetryAfter(id); retry > 0 {
+			setRetryAfter(w, retry)
+			WriteError(w, http.StatusTooManyRequests, CodeRateLimited,
+				fmt.Sprintf("Too many requests. Try again in %d seconds.", retry))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RetryAfter charges one authenticated write and returns its retry delay if limited.
+func (l *AccountLimiter) RetryAfter(accountID string) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := l.now()
+	if !now.Before(l.nextSweep) {
+		maps.DeleteFunc(l.windows, func(_ string, window accountWindow) bool { return !now.Before(window.endsAt) })
+		l.nextSweep = now.Add(accountWriteWindow)
+	}
+	window := l.windows[accountID]
+	if !now.Before(window.endsAt) {
+		window = accountWindow{endsAt: now.Add(accountWriteWindow)}
+	}
+	if window.used >= accountWriteLimit {
+		return int((window.endsAt.Sub(now) + time.Second - 1) / time.Second)
+	}
+	window.used++
+	l.windows[accountID] = window
+	return 0
+}

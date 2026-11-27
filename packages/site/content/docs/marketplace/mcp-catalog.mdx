@@ -54,6 +54,16 @@ vendor entry defaults to `workspace`; Context7 is the global exception. For a ho
 OAuth, install first and then use the daemon-owned login flow. The manifest's `registration = "dynamic"`
 does not accept a copied client secret or a manual OAuth endpoint template.
 
+GitHub accepts any token the GitHub API accepts, including a personal access token or the token
+from an authenticated GitHub CLI. Store either one in the Vault:
+
+```bash
+gh auth token | compozy extension secrets set github --env GITHUB_PERSONAL_ACCESS_TOKEN --value-stdin
+```
+
+Without a stored value, the daemon uses `GITHUB_PERSONAL_ACCESS_TOKEN` from its own environment.
+The server process does not run `gh` itself, so store the token again after the CLI rotates it.
+
 ## Curation sources
 
 The package definitions retain the curated provider endpoints and pinned distributions. For example,

@@ -84,7 +84,7 @@ func (i sessionEventQueryInput) eventQuery(id toolspkg.ToolID) (store.EventQuery
 	archive := store.EventArchiveUnarchived
 	switch strings.TrimSpace(i.Archive) {
 	case "", nativeFilterActiveValue:
-	case "archived":
+	case string(store.EventArchiveArchived):
 		archive = store.EventArchiveArchived
 	case nativeFilterAllValue:
 		archive = store.EventArchiveAll

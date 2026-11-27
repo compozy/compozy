@@ -136,6 +136,13 @@ func (s *daemonLoopAPIService) GetLoopRun(
 	if err != nil {
 		return contract.LoopRunResponse{}, err
 	}
+	terminalCauses, err := s.loopRunTerminalCauses(ctx, []looppkg.Run{*run})
+	if err != nil {
+		return contract.LoopRunResponse{}, err
+	}
+	if cause, ok := terminalCauses[run.ID]; ok {
+		applyLoopRunTerminalCause(&payload, cause)
+	}
 	watchEvents, err := loopWatchEventsReadModel(*run, &executedDefinition, generations)
 	if err != nil {
 		return contract.LoopRunResponse{}, err

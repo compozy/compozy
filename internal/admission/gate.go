@@ -34,6 +34,7 @@ type Gate struct {
 	draining atomic.Bool
 	booting  atomic.Bool
 	load     atomic.Pointer[LoadMonitor]
+	signIn   atomic.Pointer[func() error]
 }
 
 type bootOwnerKey struct{}
@@ -79,6 +80,23 @@ func (g *Gate) SetLoadMonitor(monitor *LoadMonitor) {
 	g.load.Store(monitor)
 }
 
+func (g *Gate) SetSignInCheck(check func() error) {
+	if check == nil {
+		g.signIn.Store(nil)
+		return
+	}
+	g.signIn.Store(&check)
+}
+
+func (g *Gate) CheckSignIn() error {
+	if g != nil {
+		if check := g.signIn.Load(); check != nil {
+			return (*check)()
+		}
+	}
+	return nil
+}
+
 // State returns the current admission state.
 func (g *Gate) State() State {
 	if g != nil && (g.draining.Load() || g.booting.Load()) {
@@ -110,6 +128,14 @@ func (g *Gate) Check(ctx context.Context) error {
 }
 
 func (g *Gate) checkState(ctx context.Context) error {
+	if err := g.CheckRuntime(ctx); err != nil {
+		return err
+	}
+	return g.CheckSignIn()
+}
+
+// CheckRuntime reports lifecycle admission for runtime management requests.
+func (g *Gate) CheckRuntime(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

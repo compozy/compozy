@@ -287,7 +287,7 @@ func TestEndPromptClearsActivePromptWhileEmitterIsBackpressured(t *testing.T) {
 	t.Parallel()
 
 	proc := &AgentProcess{}
-	active, err := proc.beginPrompt("turn-1", 1)
+	active, err := proc.beginPrompt(t.Context(), "turn-1", 1)
 	if err != nil {
 		t.Fatalf("beginPrompt() error = %v", err)
 	}
@@ -371,7 +371,7 @@ func TestEmitPromptEventDefersToolResultUntilToolCall(t *testing.T) {
 		t.Parallel()
 
 		proc := &AgentProcess{}
-		active, err := proc.beginPrompt("turn-1", 4)
+		active, err := proc.beginPrompt(t.Context(), "turn-1", 4)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}
@@ -404,7 +404,7 @@ func TestEmitPromptEventFlushesDeferredToolResultsBeforeDone(t *testing.T) {
 		t.Parallel()
 
 		proc := &AgentProcess{}
-		active, err := proc.beginPrompt("turn-1", 4)
+		active, err := proc.beginPrompt(t.Context(), "turn-1", 4)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}
@@ -430,7 +430,7 @@ func TestEmitPromptEventCoalescesRedundantToolCalls(t *testing.T) {
 		t.Parallel()
 
 		proc := &AgentProcess{}
-		active, err := proc.beginPrompt("turn-1", 2)
+		active, err := proc.beginPrompt(t.Context(), "turn-1", 2)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}
@@ -480,7 +480,7 @@ func TestEmitPromptEventCoalescesRedundantToolCalls(t *testing.T) {
 		t.Parallel()
 
 		proc := &AgentProcess{}
-		active, err := proc.beginPrompt("turn-1", 8)
+		active, err := proc.beginPrompt(t.Context(), "turn-1", 8)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}
@@ -531,7 +531,7 @@ func TestEmitPromptEventCoalescesRedundantToolCalls(t *testing.T) {
 		t.Parallel()
 
 		proc := &AgentProcess{}
-		active, err := proc.beginPrompt("turn-1", 2)
+		active, err := proc.beginPrompt(t.Context(), "turn-1", 2)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}
@@ -556,7 +556,7 @@ func TestEmitPromptEventDeferredToolResultsStayBounded(t *testing.T) {
 		t.Parallel()
 
 		proc := &AgentProcess{}
-		active, err := proc.beginPrompt("turn-1", 8)
+		active, err := proc.beginPrompt(t.Context(), "turn-1", 8)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
 		}
@@ -589,7 +589,7 @@ func TestEmitPromptEventDeferredToolResultsStayBounded(t *testing.T) {
 	t.Run("Should preserve accepted deferred results before terminating a saturated prompt", func(t *testing.T) {
 		t.Parallel()
 		proc := &AgentProcess{SessionID: "sess-deferred"}
-		active, err := proc.beginPrompt("turn-1", maxPendingToolResults*2)
+		active, err := proc.beginPrompt(t.Context(), "turn-1", maxPendingToolResults*2)
 		if err != nil {
 			t.Fatal(err)
 		}

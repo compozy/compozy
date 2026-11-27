@@ -1,12 +1,16 @@
 package tools
 
+import "github.com/compozy/compozy/internal/remoteproto"
+
 // ToolExecutionMetadata holds optional dispatch behavior without growing copied descriptors.
 type ToolExecutionMetadata struct {
-	OutputViews                *ResultViews `json:"output_views,omitempty"`
-	ReservedWorkspacePartition bool         `json:"reserved_workspace_partition,omitempty"`
-	MaxResultBytes             int64        `json:"max_result_bytes,omitempty"`
-	Idempotent                 bool         `json:"idempotent,omitempty"`
-	InputErrorCode             ErrorCode    `json:"input_error_code,omitempty"`
+	OutputViews                *ResultViews      `json:"output_views,omitempty"`
+	ReservedWorkspacePartition bool              `json:"reserved_workspace_partition,omitempty"`
+	MaxResultBytes             int64             `json:"max_result_bytes,omitempty"`
+	Idempotent                 bool              `json:"idempotent,omitempty"`
+	InputErrorCode             ErrorCode         `json:"input_error_code,omitempty"`
+	RemoteScope                remoteproto.Scope `json:"remote_scope,omitempty"`
+	computerInput              *computerInputProjection
 }
 
 func NewToolExecutionMetadata(

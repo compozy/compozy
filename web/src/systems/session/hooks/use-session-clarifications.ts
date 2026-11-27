@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { answerSessionClarification } from "../adapters/session-clarification-api";
@@ -12,7 +13,12 @@ export function useSessionClarifications(
   options: { enabled?: boolean; refetchInterval?: number | false } = {}
 ) {
   return useQuery({
-    ...sessionClarificationsOptions(workspaceId, id, options.enabled ?? true),
+    ...sessionClarificationsOptions(
+      workspaceId,
+      id,
+      options.enabled ?? true,
+      useCurrentComputerId()
+    ),
     refetchInterval: options.refetchInterval ?? false,
   });
 }
@@ -29,16 +35,18 @@ export interface AnswerClarificationVariables {
  */
 export function useAnswerSessionClarification(workspaceId: string, id: string) {
   const queryClient = useQueryClient();
+  const computerId = useCurrentComputerId();
+  const keys = sessionKeys.forComputer(computerId);
   return useMutation<AnswerClarificationResult, Error, AnswerClarificationVariables>({
     mutationFn: ({ requestId, body }) =>
-      answerSessionClarification(workspaceId, id, requestId, body),
+      answerSessionClarification(workspaceId, id, requestId, body, undefined, computerId),
     onSettled: () => {
       void queryClient.invalidateQueries({
-        queryKey: sessionKeys.clarifications(workspaceId, id),
+        queryKey: keys.clarifications(workspaceId, id),
         exact: true,
       });
       void queryClient.invalidateQueries({
-        queryKey: sessionKeys.transcript(workspaceId, id),
+        queryKey: keys.transcript(workspaceId, id),
         exact: true,
       });
     },

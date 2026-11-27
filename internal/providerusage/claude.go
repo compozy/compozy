@@ -9,10 +9,13 @@ import (
 	"time"
 )
 
-// KeychainSupported reports whether the daemon host has the Claude Keychain source.
-func KeychainSupported() bool { return runtime.GOOS == "darwin" }
+// KeychainSupported reports whether the daemon host supports macOS Keychain reads.
+func KeychainSupported() bool { return runtime.GOOS == keychainPlatform }
 
-const claudeProviderID = "claude"
+const (
+	claudeProviderID = "claude"
+	keychainPlatform = "darwin"
+)
 
 type KeychainReader interface {
 	// Background reads reject known prompting states and bound any check/read race.

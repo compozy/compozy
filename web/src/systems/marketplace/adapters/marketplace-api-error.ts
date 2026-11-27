@@ -11,6 +11,7 @@ export class MarketplaceApiError extends Error {
   public readonly inputId: string | undefined;
   public readonly requiredInputs: readonly string[] | undefined;
   public readonly inputDefinitions: ExtensionOperationErrorMetadata["inputDefinitions"];
+  public readonly dependenciesInstalled: readonly string[] | undefined;
   constructor(
     message: string,
     public readonly status: number,
@@ -26,6 +27,7 @@ export class MarketplaceApiError extends Error {
     this.inputId = metadata.inputId;
     this.requiredInputs = metadata.requiredInputs;
     this.inputDefinitions = metadata.inputDefinitions;
+    this.dependenciesInstalled = metadata.dependenciesInstalled;
   }
 }
 

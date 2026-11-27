@@ -42,7 +42,7 @@ func (s *daemonExtensionService) Dev(
 		return contract.ExtensionPayload{}, err
 	}
 	err = s.lifecycle.withInstance(ctx, key, func() error {
-		return s.linkDevelopmentExtension(ctx, runtime, key, generation, req, actor, profile, &item)
+		return s.linkDevelopmentExtension(ctx, runtime, key, generation, actor, profile, &item)
 	})
 	return item, err
 }
@@ -52,7 +52,6 @@ func (s *daemonExtensionService) linkDevelopmentExtension(
 	runtime extensionDevRuntime,
 	key extensionpkg.InstanceKey,
 	generation extensionpkg.DevelopmentGeneration,
-	req contract.DevLinkExtensionRequest,
 	actor taskpkg.ActorContext,
 	profile extensionpkg.ProfileLens,
 	item *contract.ExtensionPayload,
@@ -65,18 +64,9 @@ func (s *daemonExtensionService) linkDevelopmentExtension(
 	if err != nil {
 		return err
 	}
-	staged, err := runtime.StageDevelopmentLink(ctx, key, generation.OriginPath, generation.GenerationHash)
+	_, err = runtime.StageDevelopmentLink(ctx, key, generation.OriginPath, generation.GenerationHash)
 	if err != nil {
 		return err
-	}
-	var confirmation *extensionpkg.GatewayConfirmation
-	if devCandidateConfirmationRequired(staged, generation.GatewayRequirementDigest) {
-		confirmation, err = s.confirmDevCandidateGateway(
-			key, generation.GatewayRequirementDigest, req.ConfirmGatewayDigest, actor,
-		)
-		if err != nil {
-			return errors.Join(err, s.restoreStagedDevLink(key, snapshot))
-		}
 	}
 	extension, err := runtime.ActivateDevelopmentLink(ctx, key)
 	if err != nil {
@@ -90,12 +80,6 @@ func (s *daemonExtensionService) linkDevelopmentExtension(
 		return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, allocations, err)
 	}
 	events := make([]extensionpkg.LifecycleEvent, 0, 2)
-	if confirmation != nil {
-		events = append(events, extensionpkg.LifecycleEvent{
-			Type: eventspkg.ExtensionGatewayConfirmed, ExtensionName: key.Name,
-			WorkspaceID: key.WorkspaceID, Digest: confirmation.Digest, ConfirmedBy: confirmation.ConfirmedBy,
-		})
-	}
 	events = append(events, extensionpkg.LifecycleEvent{
 		Type: eventspkg.ExtensionDevLinked, ExtensionName: item.Name,
 		WorkspaceID: item.WorkspaceID, ExtensionGeneration: item.GenerationHash,
@@ -150,11 +134,11 @@ func (s *daemonExtensionService) reloadDevLocked(
 	if snapshot == nil {
 		return contract.ExtensionPayload{}, fmt.Errorf("%w: %s", extensionpkg.ErrExtensionNotDevLinked, key.Name)
 	}
-	generation, confirmation, err := s.inspectDevReloadCandidate(ctx, runtime, key, snapshot, req, actor)
+	generation, err := s.inspectDevReloadCandidate(ctx, runtime, key, snapshot, req)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	return s.applyDevReload(ctx, runtime, key, snapshot, generation, confirmation, actor)
+	return s.applyDevReload(ctx, runtime, key, snapshot, generation, actor)
 }
 
 func (s *daemonExtensionService) inspectDevReloadCandidate(
@@ -163,8 +147,7 @@ func (s *daemonExtensionService) inspectDevReloadCandidate(
 	key extensionpkg.InstanceKey,
 	snapshot *extensionpkg.DevLink,
 	req contract.ReloadExtensionRequest,
-	actor taskpkg.ActorContext,
-) (extensionpkg.DevelopmentGeneration, *extensionpkg.GatewayConfirmation, error) {
+) (extensionpkg.DevelopmentGeneration, error) {
 	generation, err := runtime.InspectDevelopmentGeneration(
 		ctx,
 		key.WorkspaceID,
@@ -172,29 +155,17 @@ func (s *daemonExtensionService) inspectDevReloadCandidate(
 		req.GenerationHash,
 	)
 	if err != nil {
-		return extensionpkg.DevelopmentGeneration{}, nil, err
+		return extensionpkg.DevelopmentGeneration{}, err
 	}
 	if generation.Name != strings.TrimSpace(key.Name) {
-		return extensionpkg.DevelopmentGeneration{}, nil, fmt.Errorf(
+		return extensionpkg.DevelopmentGeneration{}, fmt.Errorf(
 			"%w: generation manifest name %q does not match %q",
 			extensionpkg.ErrExtensionGenerationInvalid,
 			generation.Name,
 			strings.TrimSpace(key.Name),
 		)
 	}
-	if !devCandidateConfirmationRequired(snapshot, generation.GatewayRequirementDigest) {
-		return generation, nil, nil
-	}
-	confirmation, err := s.confirmDevCandidateGateway(
-		key,
-		generation.GatewayRequirementDigest,
-		req.ConfirmGatewayDigest,
-		actor,
-	)
-	if err != nil {
-		return extensionpkg.DevelopmentGeneration{}, nil, err
-	}
-	return generation, confirmation, nil
+	return generation, nil
 }
 
 func (s *daemonExtensionService) applyDevReload(
@@ -203,12 +174,11 @@ func (s *daemonExtensionService) applyDevReload(
 	key extensionpkg.InstanceKey,
 	snapshot *extensionpkg.DevLink,
 	generation extensionpkg.DevelopmentGeneration,
-	confirmation *extensionpkg.GatewayConfirmation,
 	actor taskpkg.ActorContext,
 ) (contract.ExtensionPayload, error) {
 	allocations, err := s.snapshotMCPAllocations(ctx, key, extensionMCPWorkspaceAllocations)
 	if err != nil {
-		return contract.ExtensionPayload{}, errors.Join(err, s.restoreDevGatewayConfirmation(key, snapshot))
+		return contract.ExtensionPayload{}, err
 	}
 	ext, err := runtime.ReloadExtension(ctx, key, generation.GenerationHash)
 	if err != nil {
@@ -216,7 +186,7 @@ func (s *daemonExtensionService) applyDevReload(
 			Type: eventspkg.ExtensionReloadFailed, ExtensionName: key.Name,
 			WorkspaceID: key.WorkspaceID, ExtensionGeneration: generation.GenerationHash,
 		})
-		return contract.ExtensionPayload{}, errors.Join(err, eventErr, s.restoreDevGatewayConfirmation(key, snapshot))
+		return contract.ExtensionPayload{}, errors.Join(err, eventErr)
 	}
 	if err := s.syncExtensionConsumers(ctx); err != nil {
 		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, allocations, err)
@@ -229,7 +199,7 @@ func (s *daemonExtensionService) applyDevReload(
 	if err != nil {
 		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, allocations, err)
 	}
-	if err := s.recordDevReloadEvents(ctx, actor, key, item.GenerationHash, confirmation); err != nil {
+	if err := s.recordDevReloadEvents(ctx, actor, key, item.GenerationHash); err != nil {
 		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, allocations, err)
 	}
 	s.evictExtensionMCPHealth(key.Name, key.WorkspaceID)
@@ -241,15 +211,8 @@ func (s *daemonExtensionService) recordDevReloadEvents(
 	actor taskpkg.ActorContext,
 	key extensionpkg.InstanceKey,
 	generationHash string,
-	confirmation *extensionpkg.GatewayConfirmation,
 ) error {
 	events := make([]extensionpkg.LifecycleEvent, 0, 2)
-	if confirmation != nil {
-		events = append(events, extensionpkg.LifecycleEvent{
-			Type: eventspkg.ExtensionGatewayConfirmed, ExtensionName: key.Name,
-			WorkspaceID: key.WorkspaceID, Digest: confirmation.Digest, ConfirmedBy: confirmation.ConfirmedBy,
-		})
-	}
 	events = append(events, extensionpkg.LifecycleEvent{
 		Type: eventspkg.ExtensionReloadCompleted, ExtensionName: key.Name,
 		WorkspaceID: key.WorkspaceID, ExtensionGeneration: generationHash,

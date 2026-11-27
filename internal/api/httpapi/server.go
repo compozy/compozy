@@ -88,6 +88,9 @@ type Server struct {
 	agentSync             core.AgentDefinitionSync
 	contextWindowResolver core.ContextWindowResolver
 	modelCatalog          core.ModelCatalogService
+	account               core.AccountService
+	remote                core.RemoteHostService
+	computers             core.ComputersService
 	providerUsage         core.ProviderUsageService
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService
@@ -301,13 +304,7 @@ func New(opts ...Option) (*Server, error) {
 	server.staticSource = staticSource.source
 	server.handlers = newHandlers(server.handlerConfig(staticSource.fs))
 	ginutil.QuietDebug(func() {
-		registerGatewayChallengeRoute(
-			server.engine,
-			server.surfaceSet,
-			server.gatewayTier,
-			server.gatewayChallenges,
-		)
-		RegisterSurfaceRoutes(server.engine, server.handlers, server.surfaceSet)
+		RegisterRoutes(server.engine, server.handlers)
 	})
 	server.routeTemplates = ginutil.RouteTemplates(server.engine)
 

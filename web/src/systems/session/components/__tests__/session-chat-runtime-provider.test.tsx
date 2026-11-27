@@ -14,8 +14,12 @@ import {
 import { StrictMode, Suspense, use, useEffect, useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { observeGatewayAccess, type GatewayAccessSignal } from "@/lib/gateway-access-signal";
-import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
+import {
+  resetHostedBrowserAuth,
+  setHostedBrowserMode,
+  observeHostedBrowserAccess,
+  type HostedBrowserSignal,
+} from "@/lib/hosted-browser-auth";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { createSessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { toast, Toaster } from "@compozy/ui";
@@ -766,7 +770,6 @@ describe("SessionChatRuntimeProvider", () => {
     null;
   let lastPromptMessageID = "";
   let promptResponseSequence = 0;
-  let streamTickets: string[] = [];
   let settledInteractions: SessionInteractionRecord[] = [];
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -792,40 +795,10 @@ describe("SessionChatRuntimeProvider", () => {
     goalCommandFailureReason = null;
     lastPromptMessageID = "";
     promptResponseSequence = 0;
-    streamTickets = [];
     settledInteractions = [];
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const requestURL = getRequestURL(input);
       const pathname = requestURL.pathname;
-
-      if (pathname === "/api/status") {
-        return jsonResponse(
-          {},
-          {
-            headers: {
-              "Content-Type": "application/json",
-              "X-Compozy-Gateway-Tier": streamTickets.length > 0 ? "private" : "local",
-            },
-          }
-        );
-      }
-
-      if (pathname === "/api/gateway/stream-tickets") {
-        const ticket = streamTickets.shift();
-        if (ticket) {
-          return jsonResponse(
-            { ticket, expires_at: "2026-08-07T00:00:00Z" },
-            {
-              status: 201,
-              headers: {
-                "Content-Type": "application/json",
-                "X-Compozy-Gateway-Tier": "private",
-              },
-            }
-          );
-        }
-        throw new Error("Remote stream ticket requested without a queued test ticket");
-      }
 
       if (pathname === "/api/sessions") {
         return jsonResponse({
@@ -1003,13 +976,13 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     vi.stubGlobal("fetch", fetchMock);
-    resetGatewayStreamAuth();
+    resetHostedBrowserAuth();
   });
 
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
-    resetGatewayStreamAuth();
+    resetHostedBrowserAuth();
     vi.unstubAllGlobals();
     act(() => {
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: primarySessionFixture.id });
@@ -1526,8 +1499,8 @@ describe("SessionChatRuntimeProvider", () => {
     }
   );
 
-  it("Should mint a fresh gateway ticket for every remote prompt", async () => {
-    streamTickets = ["prompt-ticket-one", "prompt-ticket-two"];
+  it("Should authorize each hosted prompt with DPoP and no stream ticket", async () => {
+    setHostedBrowserMode(true);
     const user = userEvent.setup();
     renderSessionThread({ eventSourceFactory: url => new FakeSessionEventSource(url) });
 
@@ -1541,11 +1514,20 @@ describe("SessionChatRuntimeProvider", () => {
     await user.click(screen.getByTestId("composer-send-button"));
     await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(2));
 
-    const promptTickets = fetchMock.mock.calls
-      .map(([input]) => getRequestURL(input as RequestInfo | URL))
-      .filter(url => url.pathname.endsWith("/prompt"))
-      .map(url => url.searchParams.get("ticket"));
-    expect(promptTickets).toEqual(["prompt-ticket-one", "prompt-ticket-two"]);
+    const proofs = fetchMock.mock.calls
+      .filter(([input]) => getRequestURL(input as RequestInfo | URL).pathname.endsWith("/prompt"))
+      .map(([input, init]) => {
+        expect(getRequestURL(input as RequestInfo | URL).searchParams.has("remote_ticket")).toBe(
+          false
+        );
+        return new Headers(
+          init?.headers ?? (input instanceof Request ? input.headers : undefined)
+        ).get("DPoP");
+      });
+    expect(proofs).toHaveLength(2);
+    expect(proofs[0]).toBeTruthy();
+    expect(proofs[1]).toBeTruthy();
+    expect(proofs[0]).not.toEqual(proofs[1]);
   });
 
   // Invariant: a user prompt preempts optional model-catalog reads so browser
@@ -1827,21 +1809,20 @@ describe("SessionChatRuntimeProvider", () => {
   });
 
   it("Should report a revoked device response from the prompt transport", async () => {
-    streamTickets = ["prompt-ticket"];
+    setHostedBrowserMode(true);
     promptResponsePromise = Promise.resolve(
       jsonResponse(
-        { error: "Device revoked", code: "gateway_device_revoked" },
+        { error: "Device revoked", code: "device_revoked" },
         {
           status: 401,
           headers: {
             "Content-Type": "application/json",
-            "X-Compozy-Gateway-Tier": "private",
           },
         }
       )
     );
-    const signals: GatewayAccessSignal[] = [];
-    const unsubscribe = observeGatewayAccess(signal => signals.push(signal));
+    const signals: HostedBrowserSignal[] = [];
+    const unsubscribe = observeHostedBrowserAccess(signal => signals.push(signal));
     const user = userEvent.setup();
 
     try {
@@ -1850,7 +1831,7 @@ describe("SessionChatRuntimeProvider", () => {
       await setComposerText("Prompt from a revoked device");
       await user.click(screen.getByTestId("composer-send-button"));
 
-      await waitFor(() => expect(signals).toEqual(["revoked"]));
+      await waitFor(() => expect(signals).toEqual([{ kind: "device_removed" }]));
       // The refusal returns the draft; let that settle before cleanup unmounts the composer.
       await waitFor(() => expect(composerText()).toBe("Prompt from a revoked device"));
     } finally {
@@ -2134,29 +2115,48 @@ describe("SessionChatRuntimeProvider", () => {
     );
   });
 
-  it("Should keep the draft as unconfirmed, not refused, when a closed runtime's prompt gets a 5xx", async () => {
-    const answer = createDeferred<Response>();
-    promptResponsePromise = answer.promise;
-    render(<Toaster duration={5_000} />);
-    const user = userEvent.setup();
-    const first = renderSessionThread();
+  it.each(["generic 504", "stalled 504"])(
+    "Should restore the draft as unconfirmed after a %s from a closed runtime's prompt",
+    async response => {
+      const answer = createDeferred<Response>();
+      const cancelBody = vi.fn();
+      promptResponsePromise = answer.promise;
+      render(<Toaster duration={5_000} />);
+      const user = userEvent.setup();
+      const first = renderSessionThread();
 
-    await screen.findByTestId("composer-input");
-    await setComposerText("Maybe recorded");
-    await user.click(screen.getByTestId("composer-send-button"));
-    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+      await screen.findByTestId("composer-input");
+      await setComposerText("Maybe recorded");
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
 
-    first.unmount();
-    answer.resolve(jsonResponse({ error: "gateway timeout" }, { status: 504 }));
-    expect(
-      await screen.findByText("Couldn't confirm the message was sent. Your draft was kept.")
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/Message not sent/)).not.toBeInTheDocument();
+      first.unmount();
+      if (response === "stalled 504") {
+        const deadline = new AbortController();
+        const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValueOnce(deadline.signal);
+        onTestFinished(() => timeout.mockRestore());
+        answer.resolve(
+          new Response(new ReadableStream({ cancel: cancelBody }), {
+            status: 504,
+            headers: { "content-type": "application/json" },
+          })
+        );
+        await waitFor(() => expect(timeout).toHaveBeenCalled());
+        deadline.abort();
+      } else {
+        answer.resolve(jsonResponse({ error: "gateway timeout" }, { status: 504 }));
+      }
+      expect(
+        await screen.findByText("Couldn't confirm the message was sent. Your draft was kept.")
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Message not sent/)).not.toBeInTheDocument();
+      if (response === "stalled 504") expect(cancelBody).toHaveBeenCalledOnce();
 
-    renderSessionThread();
-    await screen.findByTestId("composer-input");
-    await waitFor(() => expect(composerText()).toBe("Maybe recorded"));
-  });
+      renderSessionThread();
+      await screen.findByTestId("composer-input");
+      await waitFor(() => expect(composerText()).toBe("Maybe recorded"));
+    }
+  );
 
   it("Should consume the draft when a prompt left by a closed runtime is accepted", async () => {
     const acceptance = createDeferred<Response>();
@@ -2372,6 +2372,46 @@ describe("SessionChatRuntimeProvider", () => {
     await waitFor(() => expect(composerText()).toBe("Check Sentry now"));
     expect(unconfirmed).toEqual([]);
   });
+
+  it.each([false, true])(
+    "Should restore the draft after an explicit rebind timeout (runtime closed: %s)",
+    async runtimeClosed => {
+      const answer = createDeferred<Response>();
+      promptResponsePromise = answer.promise;
+      render(<Toaster duration={5_000} />);
+      const unconfirmed: string[] = [];
+      const user = userEvent.setup();
+      const first = renderSessionThread({
+        onUnconfirmedSend: messageId => unconfirmed.push(messageId),
+      });
+
+      await screen.findByTestId("composer-input");
+      await setComposerText("The next step after release");
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+      if (runtimeClosed) first.unmount();
+      answer.resolve(
+        jsonResponse(
+          {
+            error:
+              "The provider session took too long to reload. Retry, or use Continue/Fork to keep the transcript on a fresh provider thread. Your message wasn't sent. (session_rebind_timeout)",
+            code: "session_rebind_timeout",
+            retryable: true,
+          },
+          { status: 504 }
+        )
+      );
+
+      expect(
+        await screen.findByText(
+          "Message not sent: The provider session took too long to reload. Retry, or use Continue/Fork to keep the transcript on a fresh provider thread. Your draft was kept."
+        )
+      ).toBeInTheDocument();
+      if (runtimeClosed) renderSessionThread();
+      await waitFor(() => expect(composerText()).toBe("The next step after release"));
+      expect(unconfirmed).toEqual([]);
+    }
+  );
 
   it("Should name the daemon's reason when it refuses a prompt", async () => {
     promptResponsePromise = Promise.resolve(

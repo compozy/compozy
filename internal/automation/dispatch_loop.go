@@ -105,6 +105,15 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 		return d.finishRun(ctx, scheduledRun, RunCancelled, nil)
 	}
 
+	inputs, skipped, inputErr := d.resolveLoopInputsForFire(ctx, req, target, scheduledRun)
+	if inputErr != nil {
+		return d.finishRun(ctx, scheduledRun, classifyLoopInputError(inputErr), inputErr)
+	}
+	if skipped {
+		scheduledRun.Metadata = loopInputSkipMetadata(scheduledRun.Metadata)
+		return d.finishRun(ctx, scheduledRun, RunCancelled, nil)
+	}
+
 	actor, err := loopTargetActorContext(req, scheduledRun.ID)
 	if err != nil {
 		return d.finishRun(ctx, scheduledRun, RunFailed, err)
@@ -123,7 +132,7 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 			WorkspaceID:     strings.TrimSpace(target.WorkspaceID),
 			LoopName:        strings.TrimSpace(target.LoopName),
 			Kind:            req.loopStartKind(),
-			Inputs:          cloneJSONMap(target.Inputs),
+			Inputs:          inputs,
 			InputMapping:    cloneStringMap(target.InputMapping),
 			TriggerPayload:  cloneJSONMap(req.envelopeData()),
 			Actor:           actor,
@@ -136,10 +145,7 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 		},
 	)
 	if err != nil {
-		if req.CatchUp && errors.Is(err, ErrLoopConcurrencyConflict) {
-			scheduledRun.Metadata = loopCatchUpFailureMetadata(req, "loop_concurrency_conflict")
-		}
-		return d.finishRun(ctx, scheduledRun, classifyDispatchError(err), err)
+		return d.finishLoopStartFailure(ctx, req, scheduledRun, err)
 	}
 	if strings.TrimSpace(result.RunID) == "" {
 		return d.finishRun(ctx, scheduledRun, RunFailed, errors.New("automation: loop starter returned empty run id"))
@@ -154,6 +160,22 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 	}
 	d.dispatchPostFireHook(ctx, req, *delegatedRun)
 	return delegatedRun, nil
+}
+
+func (d *Dispatcher) finishLoopStartFailure(
+	ctx context.Context,
+	req DispatchRequest,
+	scheduledRun *Run,
+	runErr error,
+) (*Run, error) {
+	if req.CatchUp && errors.Is(runErr, ErrLoopConcurrencyConflict) {
+		scheduledRun.Metadata = loopCatchUpFailureMetadata(
+			scheduledRun.Metadata,
+			req,
+			"loop_concurrency_conflict",
+		)
+	}
+	return d.finishRun(ctx, scheduledRun, classifyDispatchError(runErr), runErr)
 }
 
 func loopSuppressionMetadata(existing map[string]any, suppressedCount int) map[string]any {
@@ -177,11 +199,17 @@ func loopAdmissionEventKey(envelope *ActivationEnvelope) string {
 	return strings.TrimSpace(value)
 }
 
-func loopCatchUpFailureMetadata(req DispatchRequest, reason string) map[string]any {
-	metadata := map[string]any{
-		"catch_up": true,
-		"reason":   strings.TrimSpace(reason),
+func loopCatchUpFailureMetadata(
+	existing map[string]any,
+	req DispatchRequest,
+	reason string,
+) map[string]any {
+	metadata := cloneJSONMap(existing)
+	if metadata == nil {
+		metadata = make(map[string]any, 5)
 	}
+	metadata["catch_up"] = true
+	metadata["reason"] = strings.TrimSpace(reason)
 	if req.CatchUpPolicy != "" {
 		metadata["catch_up_policy"] = string(req.CatchUpPolicy)
 	}

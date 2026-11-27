@@ -1,7 +1,7 @@
 import "./landing.css";
 
 import { LazyMotion, domMax } from "motion/react";
-import { definePrototype } from "@compozy/proto";
+import { definePrototype } from "@protohq/cli";
 
 import { BuiltIn } from "./built-in";
 import { Comparison, FinalCta, Install, SiteFooter } from "./sections-close";

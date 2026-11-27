@@ -1,3 +1,10 @@
+import {
+  computerQueryKey,
+  LOCAL_COMPUTER_ID,
+  normalizeComputerId,
+  type ComputerId,
+} from "@/lib/computer-scope";
+
 import type {
   SettingsApplyRecordsFilter,
   SettingsAttentionFilter,
@@ -23,8 +30,21 @@ function normalizeText(value?: string | null): string {
 
 export type SettingsSectionKey = SettingsSectionName | SettingsSectionSlug;
 
+export function settingsKeysFor(computerId: ComputerId = LOCAL_COMPUTER_ID) {
+  const all = computerQueryKey(normalizeComputerId(computerId), "settings");
+  const sections = () => [...all, "section"] as const;
+  const section = (name: SettingsSectionKey) => [...sections(), name] as const;
+
+  return {
+    all,
+    sections,
+    section,
+  };
+}
+
 export const settingsKeys = {
-  all: ["settings"] as const,
+  forComputer: settingsKeysFor,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "settings"),
 
   sections: () => [...settingsKeys.all, "section"] as const,
   section: (section: SettingsSectionKey) => [...settingsKeys.sections(), section] as const,

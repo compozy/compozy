@@ -1,4 +1,5 @@
 import {
+  ArchiveX,
   ArrowDownAZ,
   CalendarPlus,
   CircleAlert,
@@ -21,6 +22,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -114,6 +116,11 @@ export interface SessionViewOptionsMenuProps {
   /** "Show automation runs" (#1355); absent where a surface has no such filter. */
   showAutomation?: boolean;
   onShowAutomationChange?: (show: boolean) => void;
+  /**
+   * "Archive stopped" over the list's scope: its label names the scope, and it is disabled while
+   * a run for that scope is in flight. Absent where the list has no single profile and scope.
+   */
+  archiveStopped?: { label: string; running: boolean; onSelect: () => void };
   /** Prefix of every item's test id. */
   testId: string;
   className?: string;
@@ -137,6 +144,7 @@ export function SessionViewOptionsMenu({
   onHideChildrenChange,
   showAutomation = false,
   onShowAutomationChange,
+  archiveStopped,
   testId,
   className,
 }: SessionViewOptionsMenuProps) {
@@ -213,6 +221,19 @@ export function SessionViewOptionsMenu({
           showAutomation={showAutomation}
           testId={testId}
         />
+        {archiveStopped ? (
+          <>
+            <DropdownMenuSeparator className={SECTION_DIVIDER} />
+            <DropdownMenuItem
+              data-testid={`${testId}-archive-stopped`}
+              disabled={archiveStopped.running}
+              onClick={archiveStopped.onSelect}
+            >
+              <Icon as={ArchiveX} size="sm" />
+              {archiveStopped.label}
+            </DropdownMenuItem>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

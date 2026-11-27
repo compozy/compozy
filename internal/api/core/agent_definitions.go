@@ -409,7 +409,7 @@ func (h *BaseHandlers) logAgentMutation(
 ) {
 	attributes := []any{
 		handlersOperationKey, "agent." + operation,
-		"agent_name", entry.Def.Name,
+		agentNameKey, entry.Def.Name,
 		"origin", entry.Origin,
 		workspaceIDKey, entry.WorkspaceID,
 		"duration_ms", time.Since(startedAt).Milliseconds(),
@@ -428,7 +428,7 @@ func (h *BaseHandlers) logAgentDeleteMutation(
 	h.Logger.Info(
 		"api: agent definition mutation completed",
 		handlersOperationKey, "agent.delete",
-		"agent_name", entry.Def.Name,
+		agentNameKey, entry.Def.Name,
 		"origin", entry.Origin,
 		"workspace_id", entry.WorkspaceID,
 		"duration_ms", time.Since(startedAt).Milliseconds(),

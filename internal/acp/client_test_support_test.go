@@ -114,6 +114,9 @@ func startHelperProcess(
 	opts.InputOnly = overrides.InputOnly
 	opts.LeanEnvironment = overrides.LeanEnvironment
 	opts.SetExecutionPolicy(overrides.ExecutionPolicyValue())
+	if overrides.PermissionPolicy != nil {
+		opts.PermissionPolicy.ElicitationAsker = overrides.PermissionPolicy.ElicitationAsker
+	}
 
 	proc, err := driver.Start(testutil.Context(t), opts)
 	if err != nil {
@@ -990,6 +993,8 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 				"reason_codes": []string{"mcp_auth_required"},
 			},
 		}
+	case "cooperative_cancel_question":
+		return a.promptWithCancelableQuestion(ctx, params.SessionId)
 	case "block_prompt_until_cancel", "cooperative_cancel_ignored", "concurrent_steering",
 		"steering_injected", "steering_pending", "steering_failed", "steering_idle":
 		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
@@ -1233,6 +1238,30 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 	return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}, nil
 }
 
+func (a *helperACPAgent) promptWithCancelableQuestion(
+	ctx context.Context,
+	sessionID acpsdk.SessionId,
+) (acpsdk.PromptResponse, error) {
+	response, err := a.conn.RequestPermission(context.WithoutCancel(ctx), acpsdk.RequestPermissionRequest{
+		SessionId: sessionID,
+		ToolCall:  acpsdk.ToolCallUpdate{ToolCallId: "interaction_1", Title: new("Proceed?")},
+		Options: []acpsdk.PermissionOption{
+			{OptionId: "yes", Name: "Yes", Kind: acpsdk.PermissionOptionKindAllowOnce},
+		},
+	})
+	if err != nil {
+		return acpsdk.PromptResponse{}, err
+	}
+	if response.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
+		return acpsdk.PromptResponse{}, fmt.Errorf(
+			"expected the client to cancel the question, got %+v",
+			response.Outcome,
+		)
+	}
+	<-ctx.Done()
+	return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonCancelled}, nil
+}
+
 func (a *helperACPAgent) SetSessionMode(
 	ctx context.Context,
 	_ acpsdk.SetSessionModeRequest,
@@ -1306,6 +1335,13 @@ func (a *helperACPAgent) SetSessionConfigOption(
 		if a.scenario == "config_options_reject_speed" && configID == "speed" {
 			return acpsdk.SetSessionConfigOptionResponse{}, errors.New("provider rejected speed")
 		}
+		if a.scenario == "model_specific_config_options" && a.filePath == "late-reasoning" &&
+			configID == "model" && value == "other-model" {
+			options := helperModelConfigOptions(string(value))
+			a.configOptions = options
+			go a.announceModelReasoning(context.WithoutCancel(ctx), request.ValueId.SessionId, string(value))
+			return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: options}, nil
+		}
 		if (a.scenario == "model_specific_config_options" || a.scenario == "runtime_config_options") &&
 			configID == "model" {
 			configOptions := append(
@@ -1353,6 +1389,27 @@ func (a *helperACPAgent) SetSessionConfigOption(
 	return acpsdk.SetSessionConfigOptionResponse{
 		ConfigOptions: append([]acpsdk.SessionConfigOption(nil), a.configOptions...),
 	}, nil
+}
+
+func (a *helperACPAgent) announceModelReasoning(ctx context.Context, sessionID acpsdk.SessionId, model string) {
+	select {
+	case <-time.After(200 * time.Millisecond):
+	case <-a.conn.Done():
+		return
+	}
+	options := append(
+		helperModelConfigOptions(model),
+		helperSelectConfigOption("reasoning_effort", "Reasoning effort", "none", "none", "max"),
+	)
+	a.setHelperConfigOptions(options)
+	if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+		SessionId: sessionID,
+		Update: acpsdk.SessionUpdate{ConfigOptionUpdate: &acpsdk.SessionConfigOptionUpdate{
+			ConfigOptions: options,
+		}},
+	}); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
 }
 
 func (a *helperACPAgent) setHelperConfigOptions(options []acpsdk.SessionConfigOption) {

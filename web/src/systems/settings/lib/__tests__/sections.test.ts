@@ -27,7 +27,8 @@ describe("settings sections metadata", () => {
       "skills",
       "mcp",
       "automation",
-      "gateway",
+      "computers",
+      "account",
       "shortcuts",
       "palette",
       "attention",
@@ -44,7 +45,7 @@ describe("settings sections metadata", () => {
     const operator = SETTINGS_SECTIONS.filter(section => section.group === "operator").map(
       section => section.slug
     );
-    expect(operator).toEqual(["shortcuts", "palette", "attention", "observability"]);
+    expect(operator).toEqual(["account", "shortcuts", "palette", "attention", "observability"]);
   });
 
   it("provides nested paths rooted under the settings shell", () => {
@@ -84,8 +85,9 @@ describe("settings sections metadata", () => {
     expect(findSettingsSection("defaults")).toBeUndefined();
   });
 
-  it("Should resolve the retired Defaults slug to General and nothing else", () => {
+  it("Should resolve retired slugs to their replacements and nothing else", () => {
     expect(retiredSettingsSectionReplacement("defaults")).toBe("general");
+    expect(retiredSettingsSectionReplacement("gateway")).toBe("computers");
     expect(retiredSettingsSectionReplacement("general")).toBeNull();
     expect(retiredSettingsSectionReplacement("toString")).toBeNull();
   });
@@ -93,6 +95,9 @@ describe("settings sections metadata", () => {
   it("Should resolve a settings window route to its section, following retired and unknown slugs", () => {
     expect(settingsSectionSlugFromPathname("/settings/providers")).toBe("providers");
     expect(settingsSectionSlugFromPathname("/settings/defaults")).toBe("general");
+    expect(settingsSectionSlugFromPathname("/settings/gateway")).toBe("computers");
+    expect(settingsSectionSlugFromPathname("/settings/computers")).toBe("computers");
+    expect(settingsSectionSlugFromPathname("/settings/account")).toBe("account");
     expect(settingsSectionSlugFromPathname("/settings")).toBe("general");
     expect(settingsSectionSlugFromPathname("/settings/not-a-section")).toBe("general");
     expect(settingsSectionSlugFromPathname("/settings/constructor")).toBe("general");

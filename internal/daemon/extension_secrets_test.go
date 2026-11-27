@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1544,4 +1545,630 @@ type extensionInputApplyFailure struct {
 
 func (s extensionInputApplyFailure) Apply(context.Context, extensioninput.Instance, []extensioninput.Mutation) error {
 	return s.err
+}
+
+// Invariant: subprocess-bound inputs persist as instance env bindings (non-secret values included),
+// keep their binding across partial updates, roll back with the plan, and re-check their type on read.
+// Owner: daemon input persistence. Canonical suite: TestExtensionInputBinder.
+func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
+	t.Parallel()
+	const projectValue = "acme-project-41"
+	key, profile := extensionpkg.GlobalInstanceKey("kit"), extensionDefaultProfileLens()
+	instance := extensioninput.Instance{Extension: key.Name, ProfileID: profile.ID}
+	projectRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "PROJECT_ID")
+	newService := func(t *testing.T) (*daemonExtensionService, *globaldb.ExtensionEnvRepo, *extensionSecretVaultFake) {
+		t.Helper()
+		secretVault := newExtensionSecretVaultFake()
+		service, bindings := newExtensionSecretsTestService(t, nil, secretVault)
+		service.getenv = func(string) string { return "" }
+		return service, bindings, secretVault
+	}
+	commit := func(
+		t *testing.T, service *daemonExtensionService, manifest *extensionpkg.Manifest,
+		values map[string]extensioninput.Value,
+	) {
+		t.Helper()
+		binder := extensionInputBinder{service: service}
+		err := service.lifecycle.withInstance(testutil.Context(t), key, func() error {
+			plan, err := binder.Prepare(testutil.Context(t), key, profile, manifest, values)
+			if err != nil {
+				return err
+			}
+			_, err = binder.Commit(testutil.Context(t), plan)
+			return err
+		})
+		if err != nil {
+			t.Fatalf("Prepare/Commit() error = %v", err)
+		}
+	}
+	initialValues := map[string]extensioninput.Value{
+		"project": {Value: json.RawMessage(`"` + projectValue + `"`)},
+		"region":  {Value: json.RawMessage(`"eu-west"`)},
+	}
+	bindingsByName := func(t *testing.T, bindings *globaldb.ExtensionEnvRepo) map[string]extensionpkg.EnvBinding {
+		t.Helper()
+		listed, err := bindings.ListEnvBindings(testutil.Context(t), key.Name, profile.ID, "")
+		if err != nil {
+			t.Fatalf("ListEnvBindings() error = %v", err)
+		}
+		return extensionBindingsByName(listed)
+	}
+
+	t.Run("Should store non-secret subprocess values as instance env bindings", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		commit(t, service, manifest, initialValues)
+		bound := bindingsByName(t, bindings)
+		if bound["PROJECT_ID"].InputID != "project" || bound["PROJECT_ID"].Inactive ||
+			bound["REGION"].InputID != "region" || bound["REGION"].Inactive {
+			t.Fatalf("bindings = %#v, want active input bindings", bound)
+		}
+		if secretVault.value(projectRef) != projectValue {
+			t.Fatal("project value was not stored as an instance-owned Vault secret")
+		}
+		rows, err := service.inputs.List(testutil.Context(t), instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if _, exists := rows["project"]; exists || string(rows["region"].Value) != `"eu-west"` {
+			t.Fatalf("rows = %#v, want only the server-consumed typed row", rows)
+		}
+		state, err := service.inputReader().load(testutil.Context(t), instance, manifest)
+		if err != nil {
+			t.Fatalf("load() error = %v", err)
+		}
+		if state.Values["project"].Type != "identifier" {
+			t.Fatalf("project state type = %q, want identifier", state.Values["project"].Type)
+		}
+		ready := extensionpkg.InputReadiness(manifest, state, service.getenv)
+		if len(ready.MissingEnv) != 0 || len(ready.InvalidInputs) != 0 {
+			t.Fatalf("readiness = %#v, want ready", ready)
+		}
+		commit(t, service, manifest, map[string]extensioninput.Value{"region": {Value: json.RawMessage(`"us-east"`)}})
+		if project := bindingsByName(t, bindings)["PROJECT_ID"]; project.Inactive || project.InputID != "project" {
+			t.Fatalf("project binding after partial update = %#v, want active", project)
+		}
+	})
+
+	// Install refuses through this gate before acquiring any state (extension_inputs_required).
+	t.Run("Should refuse install with every missing subprocess and MCP input", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, _ := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		manifest.Inputs = append(manifest.Inputs, extensionpkg.ManifestInput{
+			ID: "workspace", Prompt: "Workspace", Type: "identifier", Required: true,
+			Binding: marketplace.InputBinding{Type: "url_query", Name: "ws"},
+		})
+		manifest.Resources.MCPServers["remote"] = extensionpkg.MCPServerConfig{
+			Transport: "http", URL: "https://example.com/mcp?ws=",
+		}
+		_, err := extensionInputBinder{service: service}.Prepare(testutil.Context(t), key, profile, manifest, nil)
+		required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
+		if !ok || !slices.Equal(required.MissingInputs, []string{"project", "region", "workspace"}) ||
+			len(required.InputDefinitions) != 3 {
+			t.Fatalf("Prepare() error = %#v, want every missing input with its definition", err)
+		}
+		if bound := bindingsByName(t, bindings); len(bound) != 0 {
+			t.Fatalf("refused install wrote bindings: %#v", bound)
+		}
+	})
+
+	t.Run("Should roll back bindings and Vault values when a later write fails", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		injected := errors.New("injected input transaction failure")
+		service.inputs = extensionInputApplyFailure{Store: service.inputs, err: injected}
+		binder := extensionInputBinder{service: service}
+		err := service.lifecycle.withInstance(testutil.Context(t), key, func() error {
+			plan, err := binder.Prepare(
+				testutil.Context(t),
+				key,
+				profile,
+				extensionSubprocessInputManifest(),
+				initialValues,
+			)
+			if err != nil {
+				return err
+			}
+			_, err = binder.Commit(testutil.Context(t), plan)
+			return err
+		})
+		if !errors.Is(err, injected) {
+			t.Fatalf("Commit() error = %v, want injected failure", err)
+		}
+		if bound := bindingsByName(t, bindings); len(bound) != 0 {
+			t.Fatalf("bindings after rollback = %#v, want none", bound)
+		}
+		if secretVault.value(projectRef) != "" {
+			t.Fatal("rollback left the project value in Vault")
+		}
+	})
+
+	t.Run("Should keep the Vault cause behind the sanitized preparation diagnostic", func(t *testing.T) {
+		t.Parallel()
+		service, _, secretVault := newService(t)
+		secretVault.failMetadataAt = 1
+		_, err := extensionInputBinder{service: service}.Prepare(
+			testutil.Context(t), key, profile, extensionSubprocessInputManifest(), initialValues,
+		)
+		invalid, ok := errors.AsType[*extensionpkg.InputValidationError](err)
+		if !ok || invalid.InputID != "project" || !errors.Is(err, errInjectedSecretMetadata) ||
+			!errors.Is(err, extensionpkg.ErrExtensionInputInvalid) {
+			t.Fatalf("Prepare() error = %#v, want project validation error carrying the Vault cause", err)
+		}
+		if strings.Contains(err.Error(), errInjectedSecretMetadata.Error()) {
+			t.Fatalf("Prepare() error = %q, want the cause kept out of the public diagnostic", err)
+		}
+	})
+
+	t.Run("Should accept a secrets set binding for a subprocess input", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		secretVault.seed(projectRef, "extension", projectValue)
+		if err := bindings.PutEnvBinding(testutil.Context(t), extensionpkg.EnvBinding{
+			ExtensionName: key.Name, ProfileID: profile.ID, EnvName: "PROJECT_ID",
+			SecretRef: projectRef, Kind: extensionpkg.ExtensionEnvBindingKind,
+		}); err != nil {
+			t.Fatalf("PutEnvBinding() error = %v", err)
+		}
+		manifest := extensionSubprocessInputManifest()
+		manifest.Inputs = manifest.Inputs[:1]
+		state, err := service.inputReader().load(testutil.Context(t), instance, manifest)
+		if err != nil {
+			t.Fatalf("load() error = %v", err)
+		}
+		described := extensionpkg.DescribeInputState(manifest, state, service.getenv)
+		if len(described) != 1 || !described[0].Set || described[0].Type != "identifier" {
+			t.Fatalf("DescribeInputState() = %#v, want set identifier", described)
+		}
+	})
+
+	t.Run("Should let a secrets set change of a dual-consumer binding outrank its typed row [R-5]", func(t *testing.T) {
+		t.Parallel()
+		service, _, secretVault := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		manifest.Inputs[1].Type = "boolean"
+		commit(t, service, manifest, map[string]extensioninput.Value{
+			"project": {Value: json.RawMessage(`"` + projectValue + `"`)},
+			"region":  {Value: json.RawMessage(`true`)},
+		})
+		rows, err := service.inputs.List(testutil.Context(t), instance)
+		if err != nil || string(rows["region"].Value) != `true` {
+			t.Fatalf("region typed row = %#v error %v, want true", rows["region"], err)
+		}
+		regionRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "REGION")
+		// `secrets set --env REGION` rewrites the canonical binding value without touching the typed row.
+		secretVault.seed(regionRef, extensionpkg.ExtensionEnvBindingKind, "false")
+		state, err := service.inputReader().load(testutil.Context(t), instance, manifest)
+		if err != nil {
+			t.Fatalf("load() error = %v", err)
+		}
+		if got := string(state.Values["region"].Value); got != `false` {
+			t.Fatalf("region state value = %s, want the binding's false", got)
+		}
+		secretVault.seed(regionRef, extensionpkg.ExtensionEnvBindingKind, "not-a-boolean")
+		state, err = service.inputReader().load(testutil.Context(t), instance, manifest)
+		if err != nil {
+			t.Fatalf("load() error = %v", err)
+		}
+		ready := extensionpkg.InputReadiness(manifest, state, service.getenv)
+		if !slices.Equal(ready.InvalidInputs, []string{"region"}) || !slices.Contains(ready.MissingEnv, "REGION") {
+			t.Fatalf("readiness = %#v, want region invalid and blocking", ready)
+		}
+		if setup := extensionpkg.DescribeInputSetup(manifest, state, service.getenv); !slices.Equal(
+			setup.Invalid, []string{"region"},
+		) {
+			t.Fatalf("setup invalid = %#v, want region", setup.Invalid)
+		}
+	})
+
+	// An input that gains a subprocess target keeps its stored value: Prepare mints the env binding
+	// from the active typed row when the request omits the input (F-1, rule 5a).
+	t.Run("Should carry a typed row forward into the binding of a newly subprocess-bound input", func(t *testing.T) {
+		t.Parallel()
+		regionRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "REGION")
+		serverOnlyRegion := func() *extensionpkg.Manifest {
+			manifest := extensionSubprocessInputManifest()
+			manifest.RequiresEnv, manifest.DeclaredRequiresEnv = []string{"PROJECT_ID"}, []string{"PROJECT_ID"}
+			return manifest
+		}
+		subprocessOnlyRegion := extensionSubprocessInputManifest()
+		subprocessOnlyRegion.Resources.MCPServers = map[string]extensionpkg.MCPServerConfig{}
+		for _, tc := range []struct {
+			name    string
+			updated *extensionpkg.Manifest
+			wantRow bool
+		}{
+			{name: "dual consumer", updated: extensionSubprocessInputManifest(), wantRow: true},
+			{name: "subprocess only", updated: subprocessOnlyRegion},
+		} {
+			t.Run("Should bind the stored value for a "+tc.name+" update", func(t *testing.T) {
+				t.Parallel()
+				service, bindings, secretVault := newService(t)
+				commit(t, service, serverOnlyRegion(), initialValues)
+				if _, bound := bindingsByName(t, bindings)["REGION"]; bound {
+					t.Fatal("a server-only input was stored as an env binding")
+				}
+				commit(t, service, tc.updated, nil)
+				region := bindingsByName(t, bindings)["REGION"]
+				if region.InputID != "region" || region.Inactive || secretVault.value(regionRef) != "eu-west" {
+					t.Fatalf("region binding = %#v, want the carried value bound and active", region)
+				}
+				rows, err := service.inputs.List(testutil.Context(t), instance)
+				if err != nil {
+					t.Fatalf("List() error = %v", err)
+				}
+				if row := rows["region"]; row.Active != tc.wantRow || string(row.Value) != `"eu-west"` {
+					t.Fatalf("region row = %#v, want active=%v with the stored value", row, tc.wantRow)
+				}
+				state, err := service.inputReader().load(testutil.Context(t), instance, tc.updated)
+				if err != nil {
+					t.Fatalf("load() error = %v", err)
+				}
+				if ready := extensionpkg.InputReadiness(tc.updated, state, service.getenv); len(ready.MissingEnv) != 0 {
+					t.Fatalf("readiness = %#v, want ready", ready)
+				}
+			})
+		}
+	})
+
+	// The reverse move keeps the value too: an input that loses its subprocess target takes its typed row
+	// from the env binding before the binding retires, and the Vault value stays retained.
+	t.Run("Should carry a binding back into the typed row of an input that loses its subprocess target",
+		func(t *testing.T) {
+			t.Parallel()
+			regionRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "REGION")
+			for _, required := range []bool{true, false} {
+				t.Run(fmt.Sprintf("Should keep the stored value when required=%v", required), func(t *testing.T) {
+					t.Parallel()
+					subprocessOnly := extensionSubprocessInputManifest()
+					subprocessOnly.Resources.MCPServers = map[string]extensionpkg.MCPServerConfig{}
+					serverOnly := extensionSubprocessInputManifest()
+					serverOnly.RequiresEnv, serverOnly.DeclaredRequiresEnv = []string{
+						"PROJECT_ID",
+					}, []string{
+						"PROJECT_ID",
+					}
+					subprocessOnly.Inputs[1].Required, serverOnly.Inputs[1].Required = required, required
+					service, bindings, secretVault := newService(t)
+					commit(t, service, subprocessOnly, initialValues)
+					if rows, err := service.inputs.List(testutil.Context(t), instance); err != nil || len(rows) != 0 {
+						t.Fatalf("rows = %#v error %v, want the subprocess-only value in its binding only", rows, err)
+					}
+					commit(t, service, serverOnly, nil)
+					rows, err := service.inputs.List(testutil.Context(t), instance)
+					if err != nil {
+						t.Fatalf("List() error = %v", err)
+					}
+					if row := rows["region"]; !row.Active || row.Type != "string" || string(row.Value) != `"eu-west"` {
+						t.Fatalf("region row = %#v, want the carried value active", row)
+					}
+					region := bindingsByName(t, bindings)["REGION"]
+					if !region.Inactive || secretVault.value(regionRef) != "eu-west" {
+						t.Fatalf("region binding = %#v, want it retired with its Vault value retained", region)
+					}
+					state, err := service.inputReader().load(testutil.Context(t), instance, serverOnly)
+					if err != nil {
+						t.Fatalf("load() error = %v", err)
+					}
+					if setup := extensionpkg.DescribeInputSetup(
+						serverOnly,
+						state,
+						service.getenv,
+					); len(
+						setup.Missing,
+					) != 0 {
+						t.Fatalf("setup missing = %#v, want region set from the carried row", setup.Missing)
+					}
+				})
+			}
+		})
+
+	// A former dual consumer keeps the binding value that `secrets set` wrote, not its older typed row (R-5).
+	t.Run("Should carry a rewritten binding over an older typed row when the subprocess target is removed",
+		func(t *testing.T) {
+			t.Parallel()
+			regionRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "REGION")
+			serverOnly := extensionSubprocessInputManifest()
+			serverOnly.RequiresEnv, serverOnly.DeclaredRequiresEnv = []string{"PROJECT_ID"}, []string{"PROJECT_ID"}
+			service, bindings, secretVault := newService(t)
+			commit(t, service, extensionSubprocessInputManifest(), initialValues)
+			secretVault.seed(regionRef, extensionpkg.ExtensionEnvBindingKind, "us-east")
+			commit(t, service, serverOnly, nil)
+			rows, err := service.inputs.List(testutil.Context(t), instance)
+			if err != nil {
+				t.Fatalf("List() error = %v", err)
+			}
+			if row := rows["region"]; !row.Active || string(row.Value) != `"us-east"` {
+				t.Fatalf("region row = %#v, want the rewritten binding value active", row)
+			}
+			if region := bindingsByName(t, bindings)["REGION"]; !region.Inactive {
+				t.Fatalf("region binding = %#v, want it retired", region)
+			}
+		})
+
+	// A binding name another input owned does not suppress the carry of the input that now binds it.
+	t.Run("Should carry a typed row into an env name released by a removed input", func(t *testing.T) {
+		t.Parallel()
+		serverOnly := extensionSubprocessInputManifest()
+		serverOnly.RequiresEnv, serverOnly.DeclaredRequiresEnv = []string{"PROJECT_ID"}, []string{"PROJECT_ID"}
+		renamed := extensionSubprocessInputManifest()
+		renamed.Inputs = []extensionpkg.ManifestInput{{
+			ID: "region", Prompt: "Region", Type: "string", Required: true,
+			Binding: marketplace.InputBinding{Type: "env", Name: "PROJECT_ID"},
+		}}
+		renamed.RequiresEnv, renamed.DeclaredRequiresEnv = []string{"PROJECT_ID"}, []string{"PROJECT_ID"}
+		renamed.Resources.MCPServers = map[string]extensionpkg.MCPServerConfig{}
+		service, bindings, secretVault := newService(t)
+		commit(t, service, serverOnly, initialValues)
+		commit(t, service, renamed, nil)
+		bound := bindingsByName(t, bindings)["PROJECT_ID"]
+		if bound.InputID != "region" || bound.Inactive || secretVault.value(projectRef) != "eu-west" {
+			t.Fatalf("PROJECT_ID binding = %#v, want region's carried value bound and active", bound)
+		}
+	})
+
+	t.Run("Should report a stored value that fails a changed manifest type as invalid", func(t *testing.T) {
+		t.Parallel()
+		service, _, _ := newService(t)
+		commit(t, service, extensionSubprocessInputManifest(), initialValues)
+		changed := extensionSubprocessInputManifest()
+		changed.Inputs[0].Type = "boolean"
+		state, err := service.inputReader().load(testutil.Context(t), instance, changed)
+		if err != nil {
+			t.Fatalf("load() error = %v", err)
+		}
+		ready := extensionpkg.InputReadiness(changed, state, service.getenv)
+		if !slices.Equal(ready.InvalidInputs, []string{"project"}) || !slices.Contains(ready.MissingEnv, "PROJECT_ID") {
+			t.Fatalf("readiness = %#v, want project invalid and blocking", ready)
+		}
+		requiredErr := ready.RequiredError(changed)
+		described, err := json.Marshal(extensionpkg.DescribeInputState(changed, state, service.getenv))
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		required, ok := errors.AsType[*extensionpkg.InputsRequiredError](requiredErr)
+		if !ok || !slices.Equal(required.InvalidInputs, []string{"project"}) {
+			t.Fatalf("RequiredError() = %#v, want project reported as an invalid required input", requiredErr)
+		}
+		if strings.Contains(requiredErr.Error(), projectValue) || bytes.Contains(described, []byte(projectValue)) {
+			t.Fatalf("invalid input leaked its value: %v %s", requiredErr, described)
+		}
+	})
+
+	// An unset removes the input value everywhere it is stored; a later write of another input neither
+	// resurrects it nor reports it as changed (BUG-20261122-unset-input-binding-resurrected).
+	t.Run("Should keep an unset dual-consumer input unset across later writes", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		runtime, ok := service.runtime.(*fakeExtensionRuntime)
+		if !ok {
+			t.Fatal("extension runtime is not a fakeExtensionRuntime")
+		}
+		runtime.getExt.Manifest = manifest
+		ctx := testutil.Context(t)
+		regionRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "REGION")
+		commit(t, service, manifest, initialValues)
+
+		if err := service.deleteExtensionSecretForProfileInstance(ctx, key, profile.ID, "REGION"); err != nil {
+			t.Fatalf("deleteExtensionSecretForProfileInstance() error = %v", err)
+		}
+		rows, err := service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if _, exists := rows["region"]; exists || secretVault.value(regionRef) != "" {
+			t.Fatalf("unset left the region value behind: rows=%#v", rows)
+		}
+		state, err := service.inputReader().load(ctx, instance, manifest)
+		if err != nil {
+			t.Fatalf("load() error = %v", err)
+		}
+		if setup := extensionpkg.DescribeInputSetup(manifest, state, service.getenv); !slices.Equal(
+			setup.Missing, []string{"region"},
+		) {
+			t.Fatalf("setup missing after unset = %#v, want region", setup.Missing)
+		}
+
+		changedAfter := func(t *testing.T, values map[string]extensioninput.Value) []string {
+			t.Helper()
+			binder := extensionInputBinder{service: service, partial: true}
+			var changed []string
+			err := service.lifecycle.withInstance(ctx, key, func() error {
+				plan, err := binder.Prepare(ctx, key, profile, manifest, values)
+				if err != nil {
+					return err
+				}
+				changed = plannedInputChanges(plan)
+				_, err = binder.Commit(ctx, plan)
+				return err
+			})
+			if err != nil {
+				t.Fatalf("Prepare/Commit() error = %v", err)
+			}
+			return changed
+		}
+		changed := changedAfter(t, map[string]extensioninput.Value{"project": {Value: json.RawMessage(`"other-41"`)}})
+		if !slices.Equal(changed, []string{"project"}) {
+			t.Fatalf("changed = %#v, want only the named project", changed)
+		}
+		if _, bound := bindingsByName(t, bindings)["REGION"]; bound || secretVault.value(regionRef) != "" {
+			t.Fatal("a later write re-bound the unset region value")
+		}
+
+		// `secrets set` after the unset binds the input again; it stays the input's own binding.
+		if _, err := service.setExtensionSecretsForProfileInstance(ctx, key, profile.ID,
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "REGION", Value: new("ap-south")},
+			}}); err != nil {
+			t.Fatalf("setExtensionSecretsForProfileInstance() error = %v", err)
+		}
+		if region := bindingsByName(t, bindings)["REGION"]; region.InputID != "region" {
+			t.Fatalf("secrets set binding = %#v, want it linked to the region input", region)
+		}
+		changed = changedAfter(t, map[string]extensioninput.Value{"project": {Value: json.RawMessage(`"third-41"`)}})
+		if !slices.Equal(changed, []string{"project"}) {
+			t.Fatalf("changed after secrets set = %#v, want only the named project", changed)
+		}
+		if secretVault.value(regionRef) != "ap-south" {
+			t.Fatal("a later write changed the secrets set region value")
+		}
+	})
+
+	t.Run("Should discard subprocess input values on removal so a reinstall starts from defaults", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		ctx := testutil.Context(t)
+		regionRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "REGION")
+		commit(t, service, manifest, initialValues)
+
+		scopes := []extensionpkg.InstallationScope{{ProfileID: profile.ID}}
+		retirement, err := service.retireExtensionBindingScopes(ctx, key.Name, scopes)
+		if err != nil {
+			t.Fatalf("retireExtensionBindingScopes() error = %v", err)
+		}
+		rows, err := service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if _, exists := rows["region"]; exists || secretVault.value(regionRef) != "" {
+			t.Fatalf("removal kept the region value: rows=%#v", rows)
+		}
+		_, err = extensionInputBinder{service: service}.Prepare(ctx, key, profile, manifest,
+			map[string]extensioninput.Value{"project": {Value: json.RawMessage(`"` + projectValue + `"`)}})
+		required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
+		if !ok || !slices.Equal(required.MissingInputs, []string{"region"}) {
+			t.Fatalf("reinstall Prepare() error = %v, want region missing instead of carried forward", err)
+		}
+
+		// A compensated removal restores the input row with the bindings.
+		if err := retirement.rollback(ctx, service); err != nil {
+			t.Fatalf("rollback() error = %v", err)
+		}
+		rows, err = service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if string(rows["region"].Value) != `"eu-west"` || bindingsByName(t, bindings)["REGION"].InputID != "region" {
+			t.Fatalf("rollback rows=%#v, want the region row and binding restored", rows)
+		}
+	})
+
+	t.Run("Should keep the typed row of an input whose binding is inactive on removal", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, _ := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		ctx := testutil.Context(t)
+		commit(t, service, manifest, initialValues)
+		region := bindingsByName(t, bindings)["REGION"]
+		region.Inactive = true
+		if err := bindings.PutEnvBinding(ctx, region); err != nil {
+			t.Fatalf("PutEnvBinding() error = %v", err)
+		}
+
+		scopes := []extensionpkg.InstallationScope{{ProfileID: profile.ID}}
+		if _, err := service.retireExtensionBindingScopes(ctx, key.Name, scopes); err != nil {
+			t.Fatalf("retireExtensionBindingScopes() error = %v", err)
+		}
+		rows, err := service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if string(rows["region"].Value) != `"eu-west"` {
+			t.Fatalf("removal rows=%#v, want the region row an inactive binding no longer mirrors", rows)
+		}
+	})
+
+	t.Run("Should unset the typed row of the input the binding stores after a manifest rebind", func(t *testing.T) {
+		t.Parallel()
+		service, _, _ := newService(t)
+		ctx := testutil.Context(t)
+		commit(t, service, extensionSubprocessInputManifest(), initialValues)
+		rows, err := service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		zone := rows["region"]
+		if err := service.inputs.Apply(
+			ctx,
+			instance,
+			[]extensioninput.Mutation{{InputID: "zone", After: &zone}},
+		); err != nil {
+			t.Fatalf("Apply(zone) error = %v", err)
+		}
+		updated := extensionSubprocessInputManifest()
+		updated.Inputs[1].ID = "zone"
+		updated.Resources.MCPServers["server"].Env["REGION"] = "zone"
+		runtime, ok := service.runtime.(*fakeExtensionRuntime)
+		if !ok {
+			t.Fatal("extension runtime is not a fakeExtensionRuntime")
+		}
+		runtime.getExt.Manifest = updated
+
+		if err := service.deleteExtensionSecretForProfileInstance(ctx, key, profile.ID, "REGION"); err != nil {
+			t.Fatalf("deleteExtensionSecretForProfileInstance() error = %v", err)
+		}
+		rows, err = service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if _, exists := rows["region"]; exists {
+			t.Fatalf("unset kept the row of the stored region link: rows=%#v", rows)
+		}
+		if _, exists := rows["zone"]; !exists {
+			t.Fatalf("unset deleted the row of the manifest's current zone input: rows=%#v", rows)
+		}
+	})
+
+	t.Run("Should refuse a foreign Vault ref for an env binding linked to a typed input", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		runtime, ok := service.runtime.(*fakeExtensionRuntime)
+		if !ok {
+			t.Fatal("extension runtime is not a fakeExtensionRuntime")
+		}
+		runtime.getExt.Manifest = manifest
+		ctx := testutil.Context(t)
+		commit(t, service, manifest, initialValues)
+		before := bindingsByName(t, bindings)["REGION"]
+		foreignRef := vault.ExtensionProfileSecretRef(key.Name, "another-profile", "", "REGION")
+		secretVault.seed(foreignRef, "extension-env", "foreign-region")
+
+		_, err := service.setExtensionSecretsForProfileInstance(ctx, key, profile.ID,
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "REGION", VaultRef: &foreignRef},
+			}})
+		if !errors.Is(err, extensionpkg.ErrExtensionEnvBindingInvalid) {
+			t.Fatalf("foreign input-linked ref error = %v, want ErrExtensionEnvBindingInvalid", err)
+		}
+		if after := bindingsByName(t, bindings)["REGION"]; after.SecretRef != before.SecretRef {
+			t.Fatalf("refused bind changed the region binding: %#v", after)
+		}
+	})
+}
+
+func extensionSubprocessInputManifest() *extensionpkg.Manifest {
+	return &extensionpkg.Manifest{
+		Name: "kit",
+		Inputs: []extensionpkg.ManifestInput{
+			{
+				ID: "project", Prompt: "Project", Type: "identifier", Required: true,
+				Binding: marketplace.InputBinding{Type: "env", Name: "PROJECT_ID"},
+			},
+			{
+				ID: "region", Prompt: "Region", Type: "string", Required: true,
+				Binding: marketplace.InputBinding{Type: "env", Name: "REGION"},
+			},
+		},
+		RequiresEnv:         []string{"PROJECT_ID", "REGION"},
+		DeclaredRequiresEnv: []string{"PROJECT_ID", "REGION"},
+		MinCompozyVersion:   "0.7.9",
+		Resources: extensionpkg.ResourcesConfig{MCPServers: map[string]extensionpkg.MCPServerConfig{
+			"server": {Command: "server", Env: map[string]string{"REGION": "region"}},
+		}},
+	}
 }

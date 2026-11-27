@@ -765,6 +765,194 @@ func TestEvaluatorPlacementRouting(t *testing.T) {
 	})
 }
 
+func TestEvaluatorAuthoredTerminalStatus(t *testing.T) {
+	t.Parallel()
+
+	failing := commandRunnerFunc(func(context.Context, CommandRequest) (CommandResult, error) {
+		return CommandResult{ExitCode: 1}, nil
+	})
+	evaluate := func(t *testing.T, runtimeGate Gate, placement Placement, contract *dsl.Contract) Verdict {
+		t.Helper()
+		verdict, err := NewEvaluator(WithCommandRunner(failing)).Evaluate(
+			t.Context(),
+			runtimeGate,
+			GateInput{Placement: placement, Contract: contract},
+		)
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v", err)
+		}
+		return verdict
+	}
+
+	t.Run("Should settle an in-body fail as blocked when authored", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := commandGate("cmd", "verify", "")
+		runtimeGate.OnResult = map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "blocked"},
+		}
+		verdict := evaluate(t, runtimeGate, PlacementInBody, nil)
+		if verdict.Route.Action != RouteHalt || verdict.Route.TerminalStatus != terminalBlocked {
+			t.Fatalf("route = %#v, want halt/blocked", verdict.Route)
+		}
+	})
+
+	t.Run("Should settle a definition-of-done fail as blocked when authored", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := commandGate("cmd", "verify", "")
+		runtimeGate.OnResult = map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "blocked"},
+		}
+		verdict := evaluate(t, runtimeGate, PlacementDefinitionOfDone, nil)
+		if verdict.Route.Action != RouteHalt || verdict.Route.TerminalStatus != terminalBlocked {
+			t.Fatalf("route = %#v, want halt/blocked", verdict.Route)
+		}
+	})
+
+	t.Run("Should honor an authored failed terminal status", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := commandGate("cmd", "verify", "")
+		runtimeGate.OnResult = map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "failed"},
+		}
+		verdict := evaluate(t, runtimeGate, PlacementInBody, nil)
+		if verdict.Route.Action != RouteHalt || verdict.Route.TerminalStatus != terminalFailed {
+			t.Fatalf("route = %#v, want halt/failed", verdict.Route)
+		}
+	})
+
+	t.Run("Should keep the failed default when the key is absent", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := commandGate("cmd", "verify", "")
+		runtimeGate.OnResult = map[string]any{"fail": "halt"}
+		verdict := evaluate(t, runtimeGate, PlacementInBody, nil)
+		if verdict.Route.Action != RouteHalt || verdict.Route.TerminalStatus != terminalFailed {
+			t.Fatalf("route = %#v, want halt/failed", verdict.Route)
+		}
+	})
+
+	t.Run("Should ignore an unknown terminal status", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := commandGate("cmd", "verify", "")
+		runtimeGate.OnResult = map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "exploded"},
+		}
+		verdict := evaluate(t, runtimeGate, PlacementInBody, nil)
+		if verdict.Route.Action != RouteRevise {
+			t.Fatalf("route = %#v, want the default revise", verdict.Route)
+		}
+	})
+
+	t.Run("Should ignore a status outside contract terminal states", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := commandGate("cmd", "verify", "")
+		runtimeGate.OnResult = map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "failed"},
+		}
+		contract := &dsl.Contract{ContractLifecycleState: &dsl.ContractLifecycleState{
+			TerminalStates: []dsl.TerminalState{dsl.TerminalBlocked},
+		}}
+		verdict := evaluate(t, runtimeGate, PlacementInBody, contract)
+		if verdict.Route.Action != RouteRevise {
+			t.Fatalf("route = %#v, want the default revise", verdict.Route)
+		}
+	})
+
+	t.Run("Should accept a status declared by contract terminal states", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := commandGate("cmd", "verify", "")
+		runtimeGate.OnResult = map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "blocked"},
+		}
+		contract := &dsl.Contract{ContractLifecycleState: &dsl.ContractLifecycleState{
+			TerminalStates: []dsl.TerminalState{dsl.TerminalBlocked},
+		}}
+		verdict := evaluate(t, runtimeGate, PlacementInBody, contract)
+		if verdict.Route.Action != RouteHalt || verdict.Route.TerminalStatus != terminalBlocked {
+			t.Fatalf("route = %#v, want halt/blocked", verdict.Route)
+		}
+	})
+
+	t.Run("Should tolerate a nil contract lifecycle state", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := commandGate("cmd", "verify", "")
+		runtimeGate.OnResult = map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "blocked"},
+		}
+		verdict := evaluate(t, runtimeGate, PlacementInBody, &dsl.Contract{})
+		if verdict.Route.Action != RouteHalt || verdict.Route.TerminalStatus != terminalBlocked {
+			t.Fatalf("route = %#v, want halt/blocked", verdict.Route)
+		}
+	})
+
+	t.Run("Should reject terminal status on a non-halt action", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := commandGate("cmd", "verify", "")
+		runtimeGate.OnResult = map[string]any{
+			"fail": map[string]any{"action": "revise", "terminal_status": "blocked"},
+		}
+		verdict := evaluate(t, runtimeGate, PlacementInBody, nil)
+		if verdict.Route.Action != RouteRevise {
+			t.Fatalf("route = %#v, want the default revise", verdict.Route)
+		}
+	})
+
+	t.Run("Should honor contract on_result through GateFromContract", func(t *testing.T) {
+		t.Parallel()
+
+		contract := validContract()
+		contract.Verification = []dsl.GateCriterion{{
+			ID: "cmd", Type: dsl.CriterionCommand, Check: "verify",
+		}}
+		contract.ContractLifecycleState = &dsl.ContractLifecycleState{
+			TerminalStates: []dsl.TerminalState{dsl.TerminalBlocked, dsl.TerminalFailed},
+		}
+		contract.OnResult = map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "blocked"},
+		}
+		runtimeGate := GateFromContract("contract", contract, 5)
+		verdict := evaluate(t, runtimeGate, PlacementDefinitionOfDone, &contract)
+		if verdict.Route.Action != RouteHalt || verdict.Route.TerminalStatus != terminalBlocked {
+			t.Fatalf("route = %#v, want halt/blocked", verdict.Route)
+		}
+	})
+
+	t.Run("Should keep next_generation when contract on_result is absent", func(t *testing.T) {
+		t.Parallel()
+
+		contract := validContract()
+		contract.Verification = []dsl.GateCriterion{{
+			ID: "cmd", Type: dsl.CriterionCommand, Check: "verify",
+		}}
+		runtimeGate := GateFromContract("contract", contract, 5)
+		verdict := evaluate(t, runtimeGate, PlacementDefinitionOfDone, &contract)
+		if verdict.Route.Action != RouteNextGeneration {
+			t.Fatalf("route = %#v, want the default next_generation", verdict.Route)
+		}
+	})
+
+	t.Run("Should reject mixing route and action fields", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := commandGate("cmd", "verify", "")
+		runtimeGate.OnResult = map[string]any{
+			"fail": map[string]any{"route": "repair", "action": "halt"},
+		}
+		verdict := evaluate(t, runtimeGate, PlacementInBody, nil)
+		if verdict.Route.Action != RouteRevise {
+			t.Fatalf("route = %#v, want the default revise", verdict.Route)
+		}
+	})
+}
+
 func TestEvaluatorRouteOverrides(t *testing.T) {
 	t.Parallel()
 

@@ -96,7 +96,7 @@ func prepareExtensionProfileRead(cmd *cobra.Command, deps commandDeps, client wo
 		return nil
 	}
 	profiles := optionalProfileResolutionClient(client)
-	if err := prepareProfileReadSelection(cmd, deps, profiles, client, false); err != nil {
+	if err := prepareProfileReadSelection(cmd, deps, profiles, client); err != nil {
 		return fmt.Errorf("cli: resolve extension profile: %w", err)
 	}
 	return nil
@@ -125,14 +125,19 @@ func confirmExtensionUnverifiedInstall(cmd *cobra.Command, allowUnverified bool,
 	if !allowUnverified || yes {
 		return nil
 	}
+	return promptExtensionUnverifiedConsent(cmd, "--allow-unverified",
+		"This extension checksum is unverified. Continue with allow_unverified? [y/N] ")
+}
+
+// promptExtensionUnverifiedConsent asks before an unverified install in human output; structured output needs --yes.
+func promptExtensionUnverifiedConsent(cmd *cobra.Command, flag, message string) error {
 	mode, err := resolveOutputFormat(cmd)
 	if err != nil {
 		return err
 	}
 	if mode != OutputHuman {
-		return errors.New("cli: --allow-unverified requires --yes for structured output")
+		return fmt.Errorf("cli: %s requires --yes for structured output", flag)
 	}
-	message := "This extension checksum is unverified. Continue with allow_unverified? [y/N] "
 	if _, err := fmt.Fprint(cmd.ErrOrStderr(), message); err != nil {
 		return fmt.Errorf("cli: write extension trust prompt: %w", err)
 	}

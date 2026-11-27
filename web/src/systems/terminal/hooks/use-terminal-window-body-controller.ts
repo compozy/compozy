@@ -1,5 +1,7 @@
 "use client";
 
+import type { ComputerId } from "@/lib/computer-scope";
+
 import type { TerminalInfo, TerminalViewerIdentity } from "../types";
 import type { TerminalWindowActions } from "../lib/terminal-window-actions";
 import type { TerminalAttachmentSocketFactory } from "./use-terminal-attachment";
@@ -12,6 +14,7 @@ export interface UseTerminalWindowBodyControllerOptions {
   terminal: TerminalInfo;
   workspaceId: string;
   profile: string;
+  computerId?: ComputerId;
   viewer?: TerminalViewerIdentity | null;
   readOnly: boolean;
   socketFactory?: TerminalAttachmentSocketFactory;
@@ -29,6 +32,7 @@ export function useTerminalWindowBodyController({
   terminal,
   workspaceId,
   profile,
+  computerId,
   viewer,
   readOnly,
   socketFactory,
@@ -39,6 +43,7 @@ export function useTerminalWindowBodyController({
     terminal,
     workspaceId,
     profile,
+    computerId,
     viewer,
     socketFactory,
     readOnly,

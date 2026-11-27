@@ -7,6 +7,270 @@ import (
 	"time"
 )
 
+// BrowserStreamTicketResponse is a daemon API value.
+type BrowserStreamTicketResponse struct {
+	Ticket    string    `json:"ticket"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// Budget is a daemon API value.
+type Budget struct {
+	Tokens       int32          `json:"tokens"`
+	WallClockSec int32          `json:"wall_clock_sec"`
+	OnExceeded   BudgetExceeded `json:"on_exceeded,omitempty"`
+}
+
+// BudgetExceeded is a daemon API value.
+type BudgetExceeded string
+
+// BulkForceTaskRunItemPayload is a daemon API value.
+type BulkForceTaskRunItemPayload struct {
+	RunID string          `json:"run_id"`
+	OK    bool            `json:"ok"`
+	Run   *TaskRunPayload `json:"run,omitzero"`
+	Error *ErrorPayload   `json:"error,omitzero"`
+}
+
+// BulkForceTaskRunRequest is a daemon API value.
+type BulkForceTaskRunRequest struct {
+	RunIDs   []string        `json:"run_ids"`
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// BulkForceTaskRunResponse is a daemon API value.
+type BulkForceTaskRunResponse struct {
+	Results []BulkForceTaskRunItemPayload `json:"results"`
+}
+
+// BusyInputState is a daemon API value.
+type BusyInputState struct {
+	DefaultMode     string            `json:"default_mode"`
+	SteerCapability SteerCapability   `json:"steer_capability"`
+	SteerDelivery   SteerDeliveryMode `json:"steer_delivery,omitempty"`
+}
+
+// CancelTaskRequest is a daemon API value.
+type CancelTaskRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// CancelTaskRunRequest is a daemon API value.
+type CancelTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// CancelWorktreeExitActionRequest is a daemon API value.
+type CancelWorktreeExitActionRequest struct {
+	OperationID string `json:"op_id"`
+}
+
+// CatalogMeta is a daemon API value.
+type CatalogMeta struct {
+	UseWhen  string   `json:"use_when,omitempty"`
+	Keywords []string `json:"keywords,omitempty"`
+	Category string   `json:"category,omitempty"`
+}
+
+// Change is a daemon API value.
+type Change struct {
+	Kind          string          `json:"kind,omitempty"`
+	Plan          string          `json:"plan,omitempty"`
+	PaymentIssue  *bool           `json:"payment_issue,omitempty"`
+	EvictRemote   bool            `json:"evict_remote,omitzero"`
+	Approval      *ApprovalResult `json:"approval,omitempty"`
+	ApprovalID    string          `json:"approval_id,omitempty"`
+	ComputerID    ComputerID      `json:"computer_id,omitempty"`
+	DeviceID      DeviceID        `json:"device_id,omitempty"`
+	SecurityEpoch uint64          `json:"security_epoch,omitzero"`
+}
+
+// ChangeBasePayload is a daemon API value.
+type ChangeBasePayload struct {
+	Ref          string `json:"ref"`
+	Source       string `json:"source"`
+	MergeBaseSHA string `json:"merge_base_sha"`
+}
+
+// ChangeBaseRefPayload is a daemon API value.
+type ChangeBaseRefPayload struct {
+	Ref       string `json:"ref"`
+	Kind      string `json:"kind"`
+	IsDefault bool   `json:"is_default,omitzero"`
+	Source    string `json:"source,omitempty"`
+}
+
+// ChangeHeadPayload is a daemon API value.
+type ChangeHeadPayload struct {
+	Branch string `json:"branch"`
+	SHA    string `json:"sha"`
+}
+
+// ChangePatchPayload is a daemon API value.
+type ChangePatchPayload struct {
+	Path        string `json:"path"`
+	Patch       string `json:"patch,omitempty"`
+	TooLarge    bool   `json:"too_large,omitzero"`
+	Sensitive   bool   `json:"sensitive,omitzero"`
+	Fingerprint string `json:"fingerprint"`
+}
+
+// ChangeSet is a daemon API value.
+type ChangeSet struct {
+	TabIDs         []TabID                 `json:"tab_ids,omitempty"`
+	TabSplit       []TabID                 `json:"tab_split,omitempty"`
+	TabUnsplit     []TabID                 `json:"tab_unsplit,omitempty"`
+	DesktopIDs     []DesktopID             `json:"desktop_ids,omitempty"`
+	WindowIDs      []WindowID              `json:"window_ids,omitempty"`
+	GroupIDs       []GroupID               `json:"group_ids,omitempty"`
+	NodeIDs        []WindowmanagerNodeID   `json:"node_ids,omitempty"`
+	ClientIDs      []WindowmanagerClientID `json:"client_ids,omitempty"`
+	StackGrouped   []WindowmanagerNodeID   `json:"stack_grouped,omitempty"`
+	StackUngrouped []WindowmanagerNodeID   `json:"stack_ungrouped,omitempty"`
+}
+
+// ChangeSidePayload is a daemon API value.
+type ChangeSidePayload struct {
+	Text      *string `json:"text,omitempty"`
+	Sensitive bool    `json:"sensitive,omitzero"`
+}
+
+// ChangeTotalsPayload is a daemon API value.
+type ChangeTotalsPayload struct {
+	Files     int  `json:"files"`
+	Additions int  `json:"additions"`
+	Deletions int  `json:"deletions"`
+	Partial   bool `json:"partial,omitzero"`
+}
+
+// CheckInProposalSummary is a daemon API value.
+type CheckInProposalSummary struct {
+	AutoAccepted int64 `json:"auto_accepted"`
+	Waiting      int64 `json:"waiting"`
+}
+
+// CheckInToolCall is a daemon API value.
+type CheckInToolCall struct {
+	Seq         int64  `json:"seq"`
+	ToolID      string `json:"tool_id"`
+	Backend     string `json:"backend"`
+	MCPServer   string `json:"mcp_server,omitempty"`
+	Access      string `json:"access"`
+	Decision    string `json:"decision"`
+	DenyReason  string `json:"deny_reason,omitempty"`
+	Outcome     string `json:"outcome"`
+	Effect      string `json:"effect"`
+	ErrorCode   string `json:"error_code,omitempty"`
+	ArgsPreview string `json:"args_preview,omitempty"`
+	DurationMS  int64  `json:"duration_ms"`
+}
+
+// CheckInToolSummary is a daemon API value.
+type CheckInToolSummary struct {
+	Total       int64 `json:"total"`
+	WritesDone  int64 `json:"writes_done"`
+	WritesMaybe int64 `json:"writes_maybe"`
+	Denied      int64 `json:"denied"`
+}
+
+// CheckInsPolicy is a daemon API value.
+type CheckInsPolicy struct {
+	AllowWrites   []string `json:"allow_writes,omitempty"`
+	MaxToolCalls  *int     `json:"max_tool_calls,omitempty"`
+	MaxWriteCalls *int     `json:"max_write_calls,omitempty"`
+}
+
+// ChecksState is a daemon API value.
+type ChecksState string
+
+// Chip is a daemon API value.
+type Chip struct {
+	ID       string            `json:"id"`
+	Label    string            `json:"label"`
+	Count    *int              `json:"count,omitempty"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
+}
+
+// ClarificationAnswerRequest is a daemon API value.
+type ClarificationAnswerRequest struct {
+	ChoiceIndex *int   `json:"choice_index,omitzero"`
+	Text        string `json:"text,omitempty"`
+}
+
+// ClarificationPendingPayload is a daemon API value.
+type ClarificationPendingPayload struct {
+	RequestID string     `json:"request_id"`
+	SessionID string     `json:"session_id"`
+	AgentName string     `json:"agent_name"`
+	Question  string     `json:"question"`
+	Choices   []string   `json:"choices,omitempty"`
+	AskedAt   time.Time  `json:"asked_at"`
+	Deadline  *time.Time `json:"deadline"`
+}
+
+// ClarificationsResponse is a daemon API value.
+type ClarificationsResponse struct {
+	Clarifications []ClarificationPendingPayload `json:"clarifications"`
+}
+
+// ClarifyAnswer is a daemon API value.
+type ClarifyAnswer struct {
+	Choice   *int   `json:"choice"`
+	Text     string `json:"text"`
+	Fallback bool   `json:"fallback"`
+}
+
+// ClearTaskBlockRequest is a daemon API value.
+type ClearTaskBlockRequest struct {
+	Note string `json:"note,omitempty"`
+}
+
+// ClientID is a daemon API value.
+type ClientID string
+
+// ClientKind is a daemon API value.
+type ClientKind string
+
+// CmdPaletteCatalogChangedEvent is a daemon API value.
+type CmdPaletteCatalogChangedEvent struct {
+	ProfileLens     ProfileLens `json:"profile_lens"`
+	Workspace       WorkspaceID `json:"workspace"`
+	CatalogRevision string      `json:"catalog_revision"`
+}
+
+// CmdPaletteClient is a daemon API value.
+type CmdPaletteClient struct {
+	ClientID   ClientID    `json:"client_id"`
+	Kind       string      `json:"kind"`
+	Workspace  WorkspaceID `json:"workspace"`
+	AttachedAt time.Time   `json:"attached_at"`
+}
+
+// CmdPaletteCommand is a daemon API value.
+type CmdPaletteCommand struct {
+	ID                 CommandID       `json:"id"`
+	Title              string          `json:"title"`
+	Source             string          `json:"source"`
+	Section            string          `json:"section"`
+	Icon               string          `json:"icon"`
+	Keywords           []string        `json:"keywords,omitempty"`
+	Available          bool            `json:"available"`
+	Reason             string          `json:"reason,omitempty"`
+	Bindings           []string        `json:"bindings"`
+	Alias              *string         `json:"alias"`
+	Destructive        bool            `json:"destructive"`
+	Confirmation       *Confirmation   `json:"confirmation,omitzero"`
+	Arguments          []Argument      `json:"arguments"`
+	Action             Action          `json:"action"`
+	Execution          ExecutionPolicy `json:"execution"`
+	When               []Predicate     `json:"when,omitempty"`
+	AvailabilityExempt bool            `json:"availability_exempt"`
+	GlobalShortcut     *GlobalShortcut `json:"global_shortcut,omitzero"`
+}
+
 // CmdPaletteCommandsResponse is a daemon API value.
 type CmdPaletteCommandsResponse struct {
 	ProfileLens     ProfileLens         `json:"profile_lens"`
@@ -157,293 +421,22 @@ type CompleteTaskRunRequest struct {
 	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
 }
 
-// ConcurrencyPolicy is a daemon API value.
-type ConcurrencyPolicy string
-
-// ConfigApplyRecordPayload is a daemon API value.
-type ConfigApplyRecordPayload struct {
-	ID                string                  `json:"id"`
-	DesiredConfigHash string                  `json:"desired_config_hash"`
-	ActiveConfigHash  string                  `json:"active_config_hash"`
-	Generation        int64                   `json:"generation"`
-	Actor             string                  `json:"actor"`
-	WriteTarget       SettingsWriteTargetKind `json:"write_target,omitempty"`
-	WritePath         string                  `json:"write_path,omitempty"`
-	DiffClass         SettingsApplyLifecycle  `json:"diff_class"`
-	Status            ConfigApplyStatus       `json:"status"`
-	Lifecycle         SettingsApplyLifecycle  `json:"lifecycle"`
-	NextAction        SettingsApplyNextAction `json:"next_action"`
-	Diagnostics       []DiagnosticItem        `json:"diagnostics,omitempty"`
-	CreatedAt         time.Time               `json:"created_at"`
-	AppliedAt         *time.Time              `json:"applied_at,omitempty"`
-	UpdatedAt         time.Time               `json:"updated_at"`
-}
-
-// ConfigApplyRecordsResponse is a daemon API value.
-type ConfigApplyRecordsResponse struct {
-	Entries []ConfigApplyRecordPayload `json:"entries"`
-}
-
-// ConfigApplyStatus is a daemon API value.
-type ConfigApplyStatus string
-
-// ConfigLayerDiagnosticPayload is a daemon API value.
-type ConfigLayerDiagnosticPayload struct {
-	Code    string `json:"code"`
-	Layer   string `json:"layer"`
-	Profile string `json:"profile"`
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
-
-// ConfigRuntimeStatusPayload is a daemon API value.
-type ConfigRuntimeStatusPayload struct {
-	Status          string                         `json:"status"`
-	Validated       bool                           `json:"validated"`
-	ValidationError string                         `json:"validation_error,omitempty"`
-	HomeDir         string                         `json:"home_dir,omitempty"`
-	ConfigFile      string                         `json:"config_file,omitempty"`
-	RestartRequired bool                           `json:"restart_required"`
-	ApplyState      string                         `json:"apply_state"`
-	Diagnostics     []ConfigLayerDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-// Confirmation is a daemon API value.
-type Confirmation struct {
-	Title   string `json:"title"`
-	Body    string `json:"body,omitempty"`
-	Confirm string `json:"confirm"`
-}
-
-// ContextBundle is a daemon API value.
-type ContextBundle struct {
-	Task               Reference           `json:"task"`
-	LatestEventSeq     int64               `json:"latest_event_seq"`
-	CurrentRun         *RunSummary         `json:"current_run,omitzero"`
-	PriorAttempts      []RunSummary        `json:"prior_attempts"`
-	RecentEvents       []TimelineItem      `json:"recent_events"`
-	HandoffSummary     string              `json:"handoff_summary,omitempty"`
-	Limits             RuntimeLimits       `json:"limits"`
-	ExecutionProfile   *ExecutionProfile   `json:"execution_profile,omitzero"`
-	ReviewContinuation *ReviewContinuation `json:"review_continuation,omitzero"`
-	ReviewHistory      []RunReviewSummary  `json:"review_history"`
-}
-
-// ContextKey is a daemon API value.
-type ContextKey string
-
-// ContinueSessionRequest is a daemon API value.
-type ContinueSessionRequest struct {
-	AgentName           string                         `json:"agent_name"`
-	Runtime             *PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
-	Route               int                            `json:"route,omitzero"`
-	Name                string                         `json:"name,omitempty"`
-	Message             string                         `json:"message,omitempty"`
-	IdempotencyKey      string                         `json:"idempotency_key"`
-	ExpectedEpoch       *int64                         `json:"expected_epoch,omitzero"`
-	ExpectedGeneration  *int64                         `json:"expected_generation,omitzero"`
-	ExpectedMaxSequence *int64                         `json:"expected_max_sequence,omitzero"`
-}
-
-// Contract is a daemon API value.
-type Contract struct {
-	Goal             string             `json:"goal"`
-	DefinitionOfDone string             `json:"definition_of_done"`
-	Constraints      []string           `json:"constraints,omitempty"`
-	Boundaries       []string           `json:"boundaries,omitempty"`
-	StopWhen         StopWhenSpec       `json:"stop_when,omitzero"`
-	Verification     []GateCriterion    `json:"verification,omitempty"`
-	IterationCap     int                `json:"iteration_cap"`
-	NoProgress       NoProgress         `json:"no_progress"`
-	Budget           Budget             `json:"budget"`
-	RuntimeDefaults  *RuntimeDefaults   `json:"runtime_defaults,omitzero"`
-	RuntimeRules     []RuntimeRule      `json:"runtime_rules,omitempty"`
-	TerminalStates   []DslTerminalState `json:"terminal_states,omitempty"`
-	OnDone           []EffectSpec       `json:"on_done,omitempty"`
-	OnNoOp           []EffectSpec       `json:"on_noop,omitempty"`
-	OnBlocked        []EffectSpec       `json:"on_blocked,omitempty"`
-	OnFailed         []EffectSpec       `json:"on_failed,omitempty"`
-	OnExhausted      []EffectSpec       `json:"on_exhausted,omitempty"`
-	OnStalled        []EffectSpec       `json:"on_stalled,omitempty"`
-	OnCanceled       []EffectSpec       `json:"on_canceled,omitempty"`
-}
-
-// CoordinatorConfigPayload is a daemon API value.
-type CoordinatorConfigPayload struct {
-	Enabled                       bool                    `json:"enabled"`
-	AgentName                     string                  `json:"agent_name"`
-	Provider                      string                  `json:"provider,omitempty"`
-	Model                         string                  `json:"model,omitempty"`
-	DefaultTTLSeconds             int64                   `json:"default_ttl_seconds"`
-	MaxChildren                   int                     `json:"max_children"`
-	MaxActiveSessionsPerWorkspace int                     `json:"max_active_sessions_per_workspace"`
-	Source                        CoordinatorConfigSource `json:"source"`
-	WorkspaceID                   string                  `json:"workspace_id,omitempty"`
-}
-
-// CoordinatorConfigSource is a daemon API value.
-type CoordinatorConfigSource string
-
-// CoordinatorMode is a daemon API value.
-type CoordinatorMode string
-
-// CoordinatorProfile is a daemon API value.
-type CoordinatorProfile struct {
-	Mode      CoordinatorMode `json:"mode"`
-	AgentName string          `json:"agent_name,omitempty"`
-	Provider  string          `json:"provider,omitempty"`
-	Model     string          `json:"model,omitempty"`
-	Guidance  string          `json:"guidance,omitempty"`
-}
-
-// CopyEffect is a daemon API value.
-type CopyEffect struct {
-	Content string `json:"content"`
-}
-
-// CostSource is a daemon API value.
-type CostSource string
-
-// CostStatus is a daemon API value.
-type CostStatus string
-
-// CountedCursorPagePayload is a daemon API value.
-type CountedCursorPagePayload struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-	Total      int    `json:"total"`
-	Limit      int    `json:"limit"`
-}
-
-// CreateAgentPayload is a daemon API value.
-type CreateAgentPayload struct {
-	MCPServers         []AgentMCPServerInput               `json:"mcp_servers,omitempty"`
-	DisplayName        *string                             `json:"display_name,omitempty"`
-	Description        *string                             `json:"description,omitempty"`
-	Kind               string                              `json:"kind,omitempty"`
-	Appearance         map[string]any                      `json:"appearance,omitempty"`
-	Label              string                              `json:"label,omitempty"`
-	ResolvedAppearance map[string]any                      `json:"resolved_appearance,omitempty"`
-	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	AutoCompactWindow  *int                                `json:"auto_compact_window,omitempty"`
-	LeanEnvironment    *bool                               `json:"lean_environment,omitempty"`
-	Name               string                              `json:"name"`
-	Provider           string                              `json:"provider,omitempty"`
-	Command            string                              `json:"command,omitempty"`
-	Model              string                              `json:"model,omitempty"`
-	ReasoningEffort    Effort                              `json:"reasoning_effort,omitempty"`
-	Speed              Speed                               `json:"speed,omitempty"`
-	ACPOptions         []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	Tools              []string                            `json:"tools,omitempty"`
-	Toolsets           []string                            `json:"toolsets,omitempty"`
-	DenyTools          []string                            `json:"deny_tools,omitempty"`
-	SessionApproval    string                              `json:"session_approval,omitempty"`
-	PermissionRules    []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
-	WorkspaceAccess    string                              `json:"workspace_access,omitempty"`
-	Permissions        SettingsPermissionMode              `json:"permissions,omitempty"`
-	CategoryPath       []string                            `json:"category_path,omitempty"`
-	Skills             *CreateAgentSkillsConfig            `json:"skills,omitzero"`
-	FallbackChain      []AgentFallbackRoutePayload         `json:"fallback_chain,omitempty"`
-	Prompt             string                              `json:"prompt"`
-}
-
-// CreateAgentRequest is a daemon API value.
-type CreateAgentRequest struct {
-	Scope     AgentCreateScope   `json:"scope"`
-	Workspace string             `json:"workspace,omitempty"`
-	Agent     CreateAgentPayload `json:"agent"`
-}
-
-// CreateAgentSkillsConfig is a daemon API value.
-type CreateAgentSkillsConfig struct {
-	Disabled []string `json:"disabled,omitempty"`
-}
-
-// CreateAppTokenRequest is a daemon API value.
-type CreateAppTokenRequest struct {
-	Name    string   `json:"name"`
-	Origins []string `json:"origins,omitempty"`
-}
-
-// CreateJobRequest is a daemon API value.
-type CreateJobRequest struct {
-	Scope       Scope            `json:"scope"`
-	Name        string           `json:"name"`
-	TargetKind  TargetKind       `json:"target_kind,omitempty"`
-	AgentName   string           `json:"agent_name"`
-	WorkspaceID string           `json:"workspace_id,omitempty"`
-	Prompt      string           `json:"prompt"`
-	Schedule    ScheduleSpec     `json:"schedule"`
-	Task        *JobTaskConfig   `json:"task,omitempty"`
-	LoopTarget  *LoopTarget      `json:"loop_target,omitempty"`
-	Enabled     *bool            `json:"enabled,omitempty"`
-	Retry       *RetryConfig     `json:"retry,omitempty"`
-	FireLimit   *FireLimitConfig `json:"fire_limit,omitempty"`
-}
-
-// CreateLoopRequest is a daemon API value.
-type CreateLoopRequest struct {
-	Definition   *LoopDefinitionDocument `json:"definition,omitzero"`
-	ForkFromName string                  `json:"fork_from_name,omitempty"`
-}
-
-// CreateProfileRequest is a daemon API value.
-type CreateProfileRequest struct {
-	Name     string            `json:"name"`
-	Color    string            `json:"color,omitempty"`
-	Icon     string            `json:"icon,omitempty"`
-	Emoji    string            `json:"emoji,omitempty"`
-	Activate *ProfileSelection `json:"activate,omitzero"`
-}
-
-// CreateSessionFolderRequest is a daemon API value.
-type CreateSessionFolderRequest struct {
-	Name string `json:"name"`
-}
-
-// CreateSessionRequest is a daemon API value.
-type CreateSessionRequest struct {
-	Scope           string                     `json:"scope,omitempty"`
-	AgentName       string                     `json:"agent_name,omitempty"`
-	Name            string                     `json:"name,omitempty"`
-	Workspace       string                     `json:"workspace,omitempty"`
-	WorkspacePath   string                     `json:"workspace_path,omitempty"`
-	Worktree        string                     `json:"worktree,omitempty"`
-	NewWorktree     *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
-	ParentSessionID string                     `json:"parent_session_id,omitempty"`
-	LineageKind     string                     `json:"lineage_kind,omitempty"`
-	FolderID        string                     `json:"folder_id,omitempty"`
-}
-
-// CreateSupportBundleRequest is a daemon API value.
-type CreateSupportBundleRequest struct {
-	Yes           bool  `json:"yes"`
-	IncludeStatus *bool `json:"include_status,omitzero"`
-}
-
-// CreateTaskBlockRequest is a daemon API value.
-type CreateTaskBlockRequest struct {
-	Kind      BlockKind       `json:"kind"`
-	Reason    string          `json:"reason"`
-	Details   json.RawMessage `json:"details,omitempty"`
-	ExpiresAt *time.Time      `json:"expires_at,omitempty"`
-	RunID     string          `json:"run_id,omitempty"`
-}
-
-// CreateTaskChildRequest is a daemon API value.
-type CreateTaskChildRequest struct {
-	ID                 string          `json:"id,omitempty"`
-	Identifier         string          `json:"identifier,omitempty"`
-	Scope              TaskScope       `json:"scope"`
-	Workspace          string          `json:"workspace,omitempty"`
-	Title              string          `json:"title"`
-	Description        string          `json:"description,omitempty"`
-	Priority           Priority        `json:"priority,omitempty"`
-	MaxAttempts        *int            `json:"max_attempts,omitzero"`
-	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitzero"`
-	Draft              bool            `json:"draft,omitzero"`
-	ApprovalPolicy     ApprovalPolicy  `json:"approval_policy,omitempty"`
-	Owner              *Ownership      `json:"owner,omitempty"`
-	WakeCreator        *bool           `json:"wake_creator,omitzero"`
-	Metadata           json.RawMessage `json:"metadata,omitempty"`
+// Computer is a daemon API value.
+type Computer struct {
+	ID                  ComputerID          `json:"id"`
+	AccountID           string              `json:"account_id"`
+	Name                string              `json:"name"`
+	Enabled             bool                `json:"enabled"`
+	Status              string              `json:"status"`
+	PlanState           string              `json:"plan_state"`
+	Version             string              `json:"version"`
+	Platform            string              `json:"platform"`
+	RouteInUse          *ComputerRouteInUse `json:"route_in_use"`
+	Routes              []ComputerRoute     `json:"routes"`
+	Scopes              []Scope             `json:"scopes"`
+	Diagnosis           *ComputerDiagnosis  `json:"diagnosis"`
+	Protocol            *ProtocolRange      `json:"protocol"`
+	LoadBalancingWeight int                 `json:"load_balancing_weight"`
+	AddedAt             time.Time           `json:"added_at"`
+	LastConnectedAt     *time.Time          `json:"last_connected_at"`
 }

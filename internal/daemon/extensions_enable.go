@@ -3,72 +3,61 @@ package daemon
 import (
 	"context"
 	"slices"
-	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-func (s *daemonExtensionService) enableUnlocked(
-	ctx context.Context, name string, req contract.EnableExtensionRequest, actor taskpkg.ActorContext,
-) (contract.ExtensionEnableResult, error) {
-	return s.enableTargetUnlocked(
-		ctx, name, req, actor, extensionMutationTarget{profile: extensionDefaultProfileLens()},
-	)
-}
-
 func (s *daemonExtensionService) enableTargetUnlocked(
-	ctx context.Context, name string, req contract.EnableExtensionRequest, actor taskpkg.ActorContext,
+	ctx context.Context, name string, actor taskpkg.ActorContext,
 	target extensionMutationTarget,
+	additionalTargets ...extensionMutationTarget,
 ) (contract.ExtensionEnableResult, error) {
 	var result contract.ExtensionEnableResult
-	info, getErr := s.registry.Get(name)
+	previous, getErr := s.registry.IsEnabledForProfileContext(ctx, name, extensionDefaultProfileLens().ID)
 	if getErr != nil {
 		return result, getErr
 	}
-	snapshot := snapshotGlobalExtensionLifecycle(info)
 	preview, previewErr := s.previewExtensionTarget(ctx, name, target)
 	if previewErr != nil {
 		return result, previewErr
 	}
 	if len(preview.MissingInputs) > 0 || len(preview.MissingEnv) > 0 {
-		return result, &extensionpkg.InputsRequiredError{
-			MissingInputs: slices.Clone(preview.MissingInputs), MissingEnv: slices.Clone(preview.MissingEnv),
+		err := &extensionpkg.InputsRequiredError{MissingInputs: preview.MissingInputs, MissingEnv: preview.MissingEnv}
+		return result, extensionEnablementInputError(err, target.scope.WorkspaceID, actor.Scope.Operator)
+	}
+	for _, extra := range additionalTargets {
+		item, err := s.installedTargetStatus(ctx, name, extra)
+		if err != nil {
+			return result, err
+		}
+		if !item.Dev && (len(item.MissingInputs) > 0 || len(item.MissingEnv) > 0) {
+			err := &extensionpkg.InputsRequiredError{MissingInputs: item.MissingInputs, MissingEnv: item.MissingEnv}
+			return result, extensionEnablementInputError(err, extra.scope.WorkspaceID, actor.Scope.Operator)
 		}
 	}
 	if len(preview.AgentConflicts) > 0 {
 		return result, &extensionpkg.AgentConflictError{Agents: slices.Clone(preview.AgentConflicts)}
 	}
-	confirmation, confirmErr := s.confirmGatewayForEnable(
-		extensionpkg.GlobalInstanceKey(name),
-		preview.GatewayRequirementDigest,
-		strings.TrimSpace(req.ConfirmGatewayDigest),
-		actor,
-	)
-	if confirmErr != nil {
-		return result, confirmErr
-	}
 	if enableErr := s.registry.Enable(name); enableErr != nil {
-		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, enableErr)
+		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, previous, enableErr)
 	}
-	if reloadErr := s.reloadExtensions(ctx, name); reloadErr != nil {
-		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, reloadErr)
+	if reloadErr := s.reloadExtensionProfile(ctx, name, extensionDefaultProfileLens().ID, true); reloadErr != nil {
+		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, previous, reloadErr)
 	}
 	item, statusErr := s.installedTargetStatus(ctx, name, target)
 	if statusErr != nil {
-		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, statusErr)
+		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, previous, statusErr)
 	}
 	automationStarted := slices.Clone(preview.AutomationStarting)
 	result = contract.ExtensionEnableResult{Extension: item, AutomationStarted: automationStarted}
 	if eventErr := s.recordExtensionEnableEvents(
 		ctx,
 		actor,
-		target.key(name),
-		confirmation,
 		&result,
 	); eventErr != nil {
-		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, eventErr)
+		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, previous, eventErr)
 	}
 	return result, nil
 }

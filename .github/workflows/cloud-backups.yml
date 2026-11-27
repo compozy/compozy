@@ -1,0 +1,55 @@
+name: Compozy Cloud backups
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+    - cron: "37 2 * * *"
+  workflow_dispatch:
+    inputs:
+      target:
+        type: choice
+        options: [staging, production]
+        default: staging
+      kind:
+        type: choice
+        options: [security-events, dump]
+        default: security-events
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Back up cloud data
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(github.event_name == 'schedule' && '["staging","production"]' || format('["{0}"]', inputs.target)) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: cloud-backups-${{ matrix.target }}
+    concurrency:
+      group: cloud-backups-${{ matrix.target }}
+      cancel-in-progress: false
+    env:
+      COMPOZY_CLOUD_ENV: ${{ matrix.target }}
+      COMPOZY_CLOUD_NEON_DIRECT_URL: ${{ secrets.COMPOZY_CLOUD_NEON_DIRECT_URL }}
+      COMPOZY_CLOUD_R2_ENDPOINT: ${{ vars.COMPOZY_CLOUD_R2_ENDPOINT }}
+      COMPOZY_CLOUD_R2_BACKUP_BUCKET: ${{ vars.COMPOZY_CLOUD_R2_BACKUP_BUCKET }}
+      COMPOZY_CLOUD_R2_ACCESS_KEY_ID: ${{ secrets.COMPOZY_CLOUD_R2_ACCESS_KEY_ID }}
+      COMPOZY_CLOUD_R2_SECRET_ACCESS_KEY: ${{ secrets.COMPOZY_CLOUD_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-go
+        if: github.event.schedule == '23 * * * *' || inputs.kind == 'security-events'
+        with:
+          go-version: "1.27.3"
+      - name: Ship the append-only security log
+        if: github.event.schedule == '23 * * * *' || inputs.kind == 'security-events'
+        run: go run ./cmd/compozy-cloud backup security-events
+      - name: Upload the nightly Postgres dump
+        if: github.event.schedule == '37 2 * * *' || inputs.kind == 'dump'
+        run: bash .github/scripts/cloud-backup-dump.sh

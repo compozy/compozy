@@ -129,6 +129,8 @@ export interface DraftShellProps {
   overlay?: ReactNode;
   /** Wraps the system bar's bell in its popover, as `DesktopMenubar` does. */
   wrapBellTrigger?: OsMenuBarProps["wrapBellTrigger"];
+  /** Root sizing override, e.g. `h-full` when the shell sits inside a browser frame. */
+  className?: string;
 }
 
 /** Topbar, rail, desk and one window around a surface, as in the running product. */
@@ -146,9 +148,15 @@ export function DraftShell({
   children,
   overlay,
   wrapBellTrigger,
+  className,
 }: DraftShellProps) {
   return (
-    <div className="relative grid h-dvh w-full grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden bg-rail text-fg">
+    <div
+      className={cn(
+        "relative grid h-dvh w-full grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden bg-rail text-fg",
+        className
+      )}
+    >
       <OsMenuBar
         className="col-span-full"
         commandShortcutLabel="⌘K"

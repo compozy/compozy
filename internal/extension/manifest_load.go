@@ -198,13 +198,22 @@ func loadManifestTOMLContent(path string, data []byte) (*Manifest, error) {
 	var doc manifestDocument
 	meta, err := toml.Decode(string(data), &doc)
 	if err != nil {
-		if parseErr, ok := errors.AsType[toml.ParseError](err); ok &&
-			strings.HasPrefix(parseErr.LastKey, manifestResourcesKey+".") {
-			if field, found := jsonUnknownFieldMessage(parseErr.Message); found {
-				return nil, unknownManifestFieldError(parseErr.LastKey + "." + field)
+		decodeErr := &ManifestDecodeError{path: path, cause: err}
+		if parseErr, ok := errors.AsType[toml.ParseError](err); ok {
+			if strings.HasPrefix(parseErr.LastKey, manifestResourcesKey+".") {
+				if field, found := jsonUnknownFieldMessage(parseErr.Message); found {
+					return nil, unknownManifestFieldError(parseErr.LastKey + "." + field)
+				}
 			}
+			// The decoder measures offsets from the first byte after the byte order mark.
+			source := bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
+			if bytes.HasPrefix(data, []byte("\xff\xfe")) || bytes.HasPrefix(data, []byte("\xfe\xff")) {
+				source = data[2:]
+			}
+			decodeErr.line = parseErr.Position.Line
+			decodeErr.column = sourceColumn(source, parseErr.Position.Start)
 		}
-		return nil, fmt.Errorf("extension: decode manifest %q: %w", path, err)
+		return nil, decodeErr
 	}
 	if err := rejectUnsupportedManifestTOML(meta.Undecoded()); err != nil {
 		return nil, err
@@ -272,7 +281,7 @@ func rejectUnsupportedManifestTOML(keys []toml.Key) error {
 			key[0] == legacyManifestNetworkParticipationKey {
 			return legacyManifestSectionError(key[0])
 		}
-		if key[0] == manifestResourcesKey {
+		if key[0] == manifestResourcesKey || key[0] == manifestRequiresKey {
 			return unknownManifestFieldError(key.String())
 		}
 	}
@@ -348,7 +357,7 @@ func legacyManifestSectionError(section string) error {
 	if section == legacyManifestNetworkParticipationKey {
 		return &ManifestValidationError{
 			Field:   section,
-			Message: "[network_participation] was removed; rebuild with [gateway] and confirm its requirement digest",
+			Message: "[network_participation] was removed; see https://compozy.com/docs/computers",
 		}
 	}
 	return &ManifestValidationError{

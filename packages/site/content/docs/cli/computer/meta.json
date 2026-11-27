@@ -1,0 +1,16 @@
+{
+    "title": "Computer",
+    "pages": [
+        "index",
+        "available",
+        "disable",
+        "enable",
+        "list",
+        "remove",
+        "routes",
+        "status",
+        "update",
+        "add",
+        "setup"
+    ]
+}

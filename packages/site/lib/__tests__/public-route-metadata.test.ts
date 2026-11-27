@@ -149,6 +149,10 @@ describe("public route metadata", () => {
     }
 
     expect(urls).toContain(absoluteUrl("/"));
+    expect(urls).toContain(absoluteUrl("/pricing/"));
+    expect(urls).toContain(absoluteUrl("/legal/terms/"));
+    expect(urls).toContain(absoluteUrl("/legal/privacy/"));
+    expect(urls).toContain(absoluteUrl("/legal/refunds/"));
     expect(urls).toContain(absoluteUrl("/docs/how-to-use-these-docs/"));
     expect(urls).toContain(absoluteUrl("/docs/use-cases/prepare-a-project-workspace/"));
     expect(urls).toContain(absoluteUrl("/docs/loops/reference/grammar/"));

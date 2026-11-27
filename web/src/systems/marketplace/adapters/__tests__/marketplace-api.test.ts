@@ -155,6 +155,27 @@ describe("marketplace acquisition transport", () => {
     });
   });
 
+  it("Should retain the dependencies a failed install already completed", async () => {
+    mockJsonResponse(
+      {
+        code: "extension_inputs_required",
+        dependency: "acme-log",
+        dependencies_installed: ["acme-core", "acme-net"],
+        error: "inputs required",
+      },
+      { status: 422 }
+    );
+
+    await expect(
+      installMarketplaceExtension({
+        enable: true,
+        ref: "compozy/kit",
+        replace: false,
+        source: "curated",
+      })
+    ).rejects.toMatchObject({ dependenciesInstalled: ["acme-core", "acme-net"], status: 422 });
+  });
+
   // Invariant: install consent and input remediation retain structured daemon evidence at the HTTP boundary.
   it("Should send the approved digest and inputs and preserve a source-changed refusal", async () => {
     const listedDigest = "a".repeat(64);

@@ -16,8 +16,9 @@ Manage the CompozyOS daemon
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --computer string   Target a computer by name or ID
+      --json              Emit JSON output
+  -o, --output string     Output format: human, json, jsonl, or toon (default "human")
 ```
 
 ## Output Formats
@@ -37,5 +38,6 @@ This command displays human-readable help and its subcommand list. The inherited
 | ------------------------------------------------------ | --------------------------------------------------------------------- |
 | [compozy daemon bootstrap](/docs/cli/daemon/bootstrap) | Resolve, provision, and start the desktop runtime                     |
 | [compozy daemon profile](/docs/cli/daemon/profile)     | Capture a runtime profile over the local daemon socket (experimental) |
+| [compozy daemon restart](/docs/cli/daemon/restart)     | Restart the local CompozyOS daemon                                    |
 | [compozy daemon start](/docs/cli/daemon/start)         | Start the CompozyOS daemon                                            |
 | [compozy daemon stop](/docs/cli/daemon/stop)           | Stop the CompozyOS daemon                                             |

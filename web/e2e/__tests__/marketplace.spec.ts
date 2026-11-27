@@ -482,7 +482,6 @@ test.describe("Marketplace plugin catalog by category", () => {
           added.then(() => "added" as const),
           summary.waitFor({ state: "visible" }).then(() => "review" as const),
         ]);
-        // A remote server published through the gateway is a gate of its own.
         if (settled === "review")
           await appPage.getByTestId("extension-install-summary-confirm").click();
         const response = await added;

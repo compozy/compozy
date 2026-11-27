@@ -117,8 +117,9 @@ two rows until you need them.
     [hooks](/docs/hooks).
   </GroupRow>
   <GroupRow name="Operations">
-    Running the daemon well: [operations](/docs/operations) and every
-    [configuration](/docs/configuration) surface, from `config.toml` to file locations.
+    Running the daemon well: [operations](/docs/operations), [Computers](/docs/computers),
+    [Account](/docs/account/sign-in), and every [configuration](/docs/configuration) surface, from
+    `config.toml` to file locations.
   </GroupRow>
   <GroupRow name="Reference">
     Generated from the runtime, never paraphrased: the [CLI reference](/docs/cli) and the [API
@@ -186,13 +187,13 @@ automation, extensibility, an OS shell, and optional Live coordination. That int
 model is a different lane from a channel-native assistant, hosted gateway, standalone agent
 framework, or tool protocol.
 
-| Operating model                             | Best fit                                                                                                                | Where CompozyOS differs                                                                                             |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Personal assistant or channel-native helper | You want one assistant persona inside chat tools and user-facing channels.                                              | CompozyOS focuses on durable work, shared state, policy, and coordination across agents.                            |
-| Hosted or multi-tenant gateway              | You need a centralized hosted control plane and shared tenancy.                                                         | CompozyOS is local-first and self-managed on the machine doing the work.                                            |
-| Agent framework                             | You want to build custom reasoning graphs or orchestration from application code.                                       | CompozyOS manages existing agent CLIs and also owns deterministic Loops, tasks, and runtime state.                  |
-| Tool protocol only                          | You need an agent to call tools and read resources.                                                                     | MCP integrates into CompozyOS; tool access is one part of a system that also owns execution, state, and governance. |
-| Agent operating system                      | You want loops, triggers, permissions, automation, and supervision built in instead of assembled and maintained by you. | This is CompozyOS's primary lane.                                                                                   |
+| Operating model                             | Best fit                                                                                                                | Where CompozyOS differs                                                                                                                  |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Personal assistant or channel-native helper | You want one assistant persona inside chat tools and user-facing channels.                                              | CompozyOS focuses on durable work, shared state, policy, and coordination across agents.                                                 |
+| Hosted or multi-tenant gateway              | You need a centralized hosted control plane and shared tenancy.                                                         | Agents run on your own computers; Compozy Cloud only handles sign-in, plans, and connections between them, and never sees your sessions. |
+| Agent framework                             | You want to build custom reasoning graphs or orchestration from application code.                                       | CompozyOS manages existing agent CLIs and also owns deterministic Loops, tasks, and runtime state.                                       |
+| Tool protocol only                          | You need an agent to call tools and read resources.                                                                     | MCP integrates into CompozyOS; tool access is one part of a system that also owns execution, state, and governance.                      |
+| Agent operating system                      | You want loops, triggers, permissions, automation, and supervision built in instead of assembled and maintained by you. | This is CompozyOS's primary lane.                                                                                                        |
 
 Most alternatives optimize for one of these lanes: assistant surface, hosted gateway, framework for
 custom orchestration, or protocol for tool access. CompozyOS connects those operational concerns
@@ -222,4 +223,4 @@ product, with a coordination wire boundary that does not have to stay CompozyOS-
 
 - **Not an agent framework.** CompozyOS does not ask you to rebuild your agents as chains, graphs, or wrapper abstractions.
 - **Not an API wrapper.** The point is to keep real agent CLIs intact, not to flatten them into thin model calls.
-- **Not a hosted control plane.** CompozyOS is local-first. The runtime lives on your machine and keeps data close to the workspace.
+- **Not a hosted runtime.** CompozyOS runs agents on your own computers, where your prompts, files, and transcripts stay. Compozy Cloud only handles sign-in, plans, and connections between your computers, and never sees your sessions.

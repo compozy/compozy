@@ -186,6 +186,8 @@ describe("loop query-options", () => {
 
   it("Should key each option by its workspace-scoped query key", () => {
     expect(loopsCatalogOptions("ws_a").queryKey).toEqual([
+      "computer",
+      "local",
       "loops",
       "catalog",
       "ws_a",
@@ -198,12 +200,16 @@ describe("loop query-options", () => {
       "",
     ]);
     expect(loopDetailOptions("ws_a", "delivery").queryKey).toEqual([
+      "computer",
+      "local",
       "loops",
       "detail",
       "ws_a",
       "delivery",
     ]);
     expect(loopRunDetailOptions("ws_a", "run_1").queryKey).toEqual([
+      "computer",
+      "local",
       "loops",
       "run-detail",
       "ws_a",
@@ -242,7 +248,17 @@ describe("loop query-options", () => {
 
   it("Should default the request inventory to pending and page by cursor", () => {
     const options = loopRequestsOptions("ws_a");
-    expect(options.queryKey).toEqual(["loops", "requests", "ws_a", "pending", "", "50", ""]);
+    expect(options.queryKey).toEqual([
+      "computer",
+      "local",
+      "loops",
+      "requests",
+      "ws_a",
+      "pending",
+      "",
+      "50",
+      "",
+    ]);
     expect(options.initialPageParam).toBeUndefined();
     expect(options.enabled).toBe(true);
     expect(loopRequestsOptions("").enabled).toBe(false);
@@ -252,6 +268,8 @@ describe("loop query-options", () => {
   it("Should key the loops badge per breadth and profile and disable it without a workspace", () => {
     const workspace = { kind: "workspace", workspaceId: "ws_a" } as const;
     expect(loopRequestAttentionOptions(workspace, { profile: "default" }).queryKey).toEqual([
+      "computer",
+      "local",
       "loops",
       "requests",
       "ws_a",
@@ -264,6 +282,8 @@ describe("loop query-options", () => {
       params: { all_workspaces: true, workspace_ids: ["ws_b", "@user"] },
     };
     expect(loopRequestAttentionOptions(aggregate, { all_profiles: true }).queryKey).toEqual([
+      "computer",
+      "local",
       "loops",
       "requests",
       "@all",
@@ -283,7 +303,7 @@ describe("loop query-options", () => {
   it("Should key All projects runs and definitions apart from any workspace and by their filter", () => {
     const params: LoopAggregateBreadth = { all_workspaces: true, workspace_ids: ["ws_b", "ws_a"] };
     const runs = loopRunsListOptions({ kind: "aggregate", params }, { origin: "session" });
-    expect(runs.queryKey.slice(0, 3)).toEqual(["loops", "runs", "@all"]);
+    expect(runs.queryKey.slice(0, 5)).toEqual(["computer", "local", "loops", "runs", "@all"]);
     expect(runs.queryKey.at(-1)).toBe("ws_a,ws_b");
     expect(runs.refetchInterval).toBe(15_000);
     // A workspace target shares the workspace roster's cache entry exactly.
@@ -291,7 +311,14 @@ describe("loop query-options", () => {
       loopRunsOptions("ws_a").queryKey
     );
     const catalog = loopsAggregateOptions(params, { q: " triage " });
-    expect(catalog.queryKey.slice(0, 4)).toEqual(["loops", "catalog", "@all", "triage"]);
+    expect(catalog.queryKey.slice(0, 6)).toEqual([
+      "computer",
+      "local",
+      "loops",
+      "catalog",
+      "@all",
+      "triage",
+    ]);
     expect(catalog.queryKey.at(-1)).toBe("ws_a,ws_b");
   });
 
@@ -306,6 +333,8 @@ describe("loop query-options", () => {
 
   it("Should gate the request detail read on workspace, run, and node", () => {
     expect(loopRequestDetailOptions("ws_a", "run_1", 3, "ask_node", 1).queryKey).toEqual([
+      "computer",
+      "local",
       "loops",
       "requests",
       "detail",
@@ -331,6 +360,8 @@ describe("loop query-options", () => {
     expect(options.refetchOnWindowFocus).toBe(false);
     expect(options.refetchInterval).toBeUndefined();
     expect(options.queryKey).toEqual([
+      "computer",
+      "local",
       "loops",
       "run-reads",
       "ws_a",
@@ -359,6 +390,8 @@ describe("loop query-options", () => {
   it("Should stop polling the briefing once the run is terminal", () => {
     const options = loopRunBriefingOptions("ws_a", "run_1");
     expect(options.queryKey).toEqual([
+      "computer",
+      "local",
       "loops",
       "run-reads",
       "ws_a",
@@ -383,6 +416,8 @@ describe("loop query-options", () => {
     const options = loopRunRosterOptions("ws_a", "run_1", { state: "failed" });
     // The page size is normalized into the key, so two page sizes are two caches.
     expect(options.queryKey).toEqual([
+      "computer",
+      "local",
       "loops",
       "run-reads",
       "ws_a",

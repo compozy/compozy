@@ -11,6 +11,7 @@ import {
   renderHook,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
@@ -78,17 +79,26 @@ beforeEach(() => {
   io.install.mockResolvedValue({ extension: extensionFixtures[0] });
   io.update.mockResolvedValue(undefined);
   io.toggle.mockResolvedValue({});
-  // A gateway requirement is a gate, so these cases exercise the review dialog; the inline Add
-  // cases (UT-027) answer with a gate-free preview instead.
+  // A required input exercises install review. Inline Add uses a preview without inputs.
   io.preview.mockImplementation(async (request: { ref: string }) => ({
-    inputs: [],
+    inputs: [installRegion],
     declared_profiles: [{ create: false, credentials: [], name: "default" }],
-    gateway_requirement_digest: GATEWAY_DIGEST,
     name: request.ref.split("/").pop(),
     placements: [],
   }));
 });
-const GATEWAY_DIGEST = "sha256:gateway-fixture";
+const installRegion = {
+  id: "install_region",
+  prompt: "Install region",
+  type: "identifier",
+  required: true,
+  binding: { type: "url_query", name: "region" },
+};
+const installRegionInput = { install_region: { value: "eu" } };
+
+async function fillInstallRegion() {
+  fireEvent.change(await screen.findByLabelText("Install region"), { target: { value: "eu" } });
+}
 
 const verified = marketplaceCatalogFixture.items[0]!;
 const unverified = marketplaceCatalogFixture.items[1]!;
@@ -575,6 +585,7 @@ describe("useMarketplaceActionController", () => {
     setup([verified]);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await fillInstallRegion();
     await user.click(await screen.findByRole("button", { name: "Add" }));
     await waitFor(() =>
       expect(io.success).toHaveBeenCalledWith(
@@ -588,10 +599,9 @@ describe("useMarketplaceActionController", () => {
 
   it("Should pin preview and confirmed install to the listed digest and show the installed destination", async () => {
     io.preview.mockResolvedValueOnce({
-      inputs: [],
+      inputs: [installRegion],
       declared_profiles: [{ create: true, credentials: [], name: "observability" }],
       name: "otel-bridge",
-      gateway_requirement_digest: "sha256:network",
       placements: [],
     });
     setup([verified]);
@@ -612,11 +622,12 @@ describe("useMarketplaceActionController", () => {
     };
     expect(io.preview).toHaveBeenCalledWith(request);
     expect(io.install).not.toHaveBeenCalled();
+    await fillInstallRegion();
     await user.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() =>
       expect(io.install).toHaveBeenCalledWith({
         ...request,
-        confirm_gateway_digest: "sha256:network",
+        inputs: installRegionInput,
       })
     );
     await waitFor(() =>
@@ -658,6 +669,7 @@ describe("useMarketplaceActionController", () => {
       );
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await fillInstallRegion();
     await user.click(await screen.findByRole("button", { name: "Add" }));
     await waitFor(() => expect(io.preview).toHaveBeenCalledTimes(2));
     expect(reads).toBe(1);
@@ -668,6 +680,7 @@ describe("useMarketplaceActionController", () => {
     expect(io.error).toHaveBeenCalledWith("The acquired package changed", {
       description: "extension_source_changed",
     });
+    await fillInstallRegion();
     await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() => expect(io.install).toHaveBeenCalledTimes(2));
@@ -724,6 +737,7 @@ describe("useMarketplaceActionController", () => {
       setup([verified]);
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: "Run 0" }));
+      await fillInstallRegion();
       await user.click(await screen.findByRole("button", { name: "Add" }));
       await waitFor(() =>
         expect(io.error).toHaveBeenLastCalledWith(
@@ -752,6 +766,7 @@ describe("useMarketplaceActionController", () => {
       start.click();
       start.click();
     });
+    await fillInstallRegion();
     const confirm = await screen.findByRole("button", { name: "Add" });
     expect(io.preview).toHaveBeenCalledTimes(1);
     act(() => {
@@ -766,13 +781,14 @@ describe("useMarketplaceActionController", () => {
     expect(io.success).toHaveBeenCalledTimes(1);
   });
 
-  it("Should close a failed gateway confirmation attempt and retain its error code [UT-038]", async () => {
+  it("Should close a failed install review and retain its error code [UT-038]", async () => {
     io.install.mockRejectedValueOnce(
       new MarketplaceApiError("The source is unreachable", 503, "source_unreachable")
     );
     setup([verified]);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await fillInstallRegion();
     await user.click(await screen.findByRole("button", { name: "Add" }));
     await waitFor(() =>
       expect(io.error).toHaveBeenCalledWith("The source is unreachable", {
@@ -797,6 +813,7 @@ describe("useMarketplaceActionController", () => {
     setup([verified]);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Run 0" }));
+    await fillInstallRegion();
     await user.click(await screen.findByRole("button", { name: "Add" }));
     expect(await screen.findByTestId("extension-trust-dialog")).toBeVisible();
     expect(io.install).toHaveBeenCalledTimes(1);
@@ -819,13 +836,14 @@ describe("useMarketplaceActionController", () => {
         name: `Add ${unverified.install_slug!.split("/").pop()}`,
       })
     ).toBeVisible();
+    await fillInstallRegion();
     await user.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() =>
       expect(io.install).toHaveBeenCalledWith({
         profile: "default",
         scope: "global",
         allow_unverified: true,
-        confirm_gateway_digest: GATEWAY_DIGEST,
+        inputs: installRegionInput,
         enable: true,
         expected_digest: unverified.digest_sha256,
         ref: unverified.install_slug,
@@ -903,33 +921,6 @@ describe("useMarketplaceActionController", () => {
     );
     expect(io.install).not.toHaveBeenCalled();
   });
-  it("Should resume a refused update with the exact gateway digest", async () => {
-    io.update.mockRejectedValueOnce(
-      new ExtensionsApiError("gateway confirmation required", 409, "daemon", {
-        code: "extension_gateway_confirmation_required",
-        currentDigest: "sha256:quick-update",
-      })
-    );
-    setup([
-      { ...verified, installed: true, installed_name: "manifest-otel", update_available: true },
-    ]);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Run 0" }));
-    expect(await screen.findByTestId("extension-gateway-confirm-dialog")).toBeVisible();
-    await user.click(screen.getByTestId("extension-gateway-confirm-accept"));
-    await waitFor(() =>
-      expect(io.update).toHaveBeenLastCalledWith("manifest-otel", {
-        profile: "default",
-        scope: "global",
-        allow_unverified: false,
-        version: verified.version,
-        confirm_gateway_digest: "sha256:quick-update",
-      })
-    );
-    await waitFor(() =>
-      expect(screen.queryByTestId("extension-gateway-confirm-dialog")).not.toBeInTheDocument()
-    );
-  });
   it.each(["default", "captured"])(
     "Should keep pending actions and toggle on the installed profile %s",
     async profile => {
@@ -962,7 +953,6 @@ describe("useMarketplaceActionController", () => {
       await waitFor(() => expect(toggle).not.toHaveAttribute("aria-disabled", "true"));
       await user.click(toggle);
       await waitFor(() => expect(io.toggle).toHaveBeenCalledWith("local-kit", profile, true));
-      expect(screen.queryByTestId("extension-gateway-confirm-dialog")).not.toBeInTheDocument();
     }
   );
   it("Should require fresh consent for an unverified installed-row update", async () => {
@@ -1053,13 +1043,14 @@ describe("useMarketplaceActionController", () => {
       await screen.findByRole("heading", {
         name: `Add ${portable.install_slug!.split("/").pop()}`,
       });
+      await fillInstallRegion();
       await user.click(screen.getByRole("button", { name: "Add" }));
       await waitFor(() =>
         expect(io.install).toHaveBeenCalledWith({
           profile: "default",
           scope: "global",
           allow_unverified: true,
-          confirm_gateway_digest: GATEWAY_DIGEST,
+          inputs: installRegionInput,
           enable: true,
           expected_digest: portable.digest_sha256,
           ref: portable.install_slug,
@@ -1072,7 +1063,7 @@ describe("useMarketplaceActionController", () => {
   );
 });
 
-// Invariant: input/gateway recovery retries the same scoped update without losing prior fields or consent.
+// Invariant: input recovery retries the same scoped update without losing prior fields or consent.
 // Owner: Marketplace update controller; canonical suite: marketplace-action-controller.test.tsx.
 // Invariant: Add installs and enables in one call, opening review only when a gate decides, and an
 // enable failure stays on the row with Retry (US-005, ADR-003).
@@ -1090,7 +1081,7 @@ describe("Add", () => {
       expected_digest: verified.digest_sha256,
       ref: verified.install_slug,
     });
-    expect(io.install.mock.calls[0]![0]).not.toHaveProperty("confirm_gateway_digest");
+    expect(io.install.mock.calls[0]![0]).not.toHaveProperty("inputs");
     expect(await screen.findByRole("status", { name: "Announcement" })).toHaveTextContent(
       `${verified.name} added · Ready`
     );
@@ -1332,6 +1323,256 @@ describe("Add", () => {
   });
 });
 
+// T-20 [US-014]: Add previews dependencies, gates each one in order, and installs them jointly.
+// Invariant: no dependency is installed without its own consent; a cancel or too-old dependency sends nothing.
+describe("Add with dependencies", () => {
+  const CORE_DIGEST = "a".repeat(64);
+  const UTIL_DIGEST = "e".repeat(64);
+  const LOG_DIGEST = "c".repeat(64);
+  const blockedCore = {
+    missing: {},
+    version_unmet: {
+      installed_version: "0.3.0",
+      retry_command: "compozy extension update acme-core --scope global",
+    },
+    // An installed dependency no update reaches: the daemon names no command (G-7).
+    not_updatable: { state: "version_unmet", installed_version: "0.3.0" },
+    // A missing dependency whose source only offers a version below min_version (G-4).
+    source_too_old: { state: "version_unmet", version: "0.3.5" },
+    // A different copy another profile uses; dependency installs never replace it (G-3).
+    installed_elsewhere: {
+      installed_version: "0.3.0",
+      retry_command: "compozy extension update acme-core --scope global --profile other",
+    },
+    // Another cell's copy no command can bring to min_version.
+    elsewhere_no_command: { state: "installed_elsewhere", installed_version: "0.3.0" },
+  } as const;
+  const dependencyPreview = (
+    state:
+      | "missing"
+      | "version_unmet"
+      | "not_updatable"
+      | "source_too_old"
+      | "installed_elsewhere"
+      | "elsewhere_no_command" = "missing"
+  ) => ({
+    name: "kit",
+    inputs: [],
+    declared_profiles: [],
+    placements: [],
+    dependencies: [
+      {
+        name: "acme-core",
+        source: "github",
+        ref: "acme/core",
+        min_version: "0.4.0",
+        required_by: ["acme-net", "kit"],
+        depth: 2,
+        state,
+        version: "0.5.1",
+        digest_sha256: CORE_DIGEST,
+        consent_required: true,
+        ...blockedCore[state],
+      },
+      {
+        name: "acme-net",
+        source: "curated",
+        ref: "acme/net",
+        required_by: ["kit"],
+        depth: 1,
+        state: "disabled",
+        installed_version: "1.0.0",
+        registry_tier: "unverified",
+      },
+      {
+        name: "acme-util",
+        source: "github",
+        ref: "acme/util",
+        required_by: ["kit"],
+        depth: 1,
+        state: "missing",
+        version: "1.0.0",
+        digest_sha256: UTIL_DIGEST,
+        consent_required: true,
+      },
+      {
+        name: "acme-log",
+        source: "curated",
+        ref: "acme/log",
+        required_by: ["kit"],
+        depth: 1,
+        state: "missing",
+        version: "2.0.0",
+        digest_sha256: LOG_DIGEST,
+        registry_tier: "community",
+      },
+      {
+        name: "acme-met",
+        source: "curated",
+        ref: "acme/met",
+        required_by: ["kit"],
+        depth: 1,
+        state: "met",
+      },
+    ],
+  });
+
+  it("Should list Also installs, confirm each dependency gate in order, and send per-dependency consent", async () => {
+    io.preview.mockResolvedValueOnce(dependencyPreview());
+    io.install.mockResolvedValueOnce({
+      dependencies_installed: ["acme-core", "acme-net"],
+      extension: extensionFixtures[0],
+    });
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+
+    const section = await screen.findByRole("region", { name: "Also installs" });
+    expect(within(section).getByTestId("extension-install-dependency-acme-core")).toHaveTextContent(
+      "Not verified"
+    );
+    const net = within(section).getByTestId("extension-install-dependency-acme-net");
+    expect(net).toHaveTextContent("Turns on");
+    // A disabled unverified dependency keeps its tier and shows its installed version (B-7).
+    expect(net).toHaveTextContent("Not verified");
+    expect(net).toHaveTextContent("1.0.0");
+    expect(within(section).getByTestId("extension-install-dependency-acme-log")).toHaveTextContent(
+      "Checked by CompozyOS"
+    );
+    expect(within(section).queryByTestId("extension-install-dependency-acme-met")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByTestId("extension-trust-dialog")).toHaveTextContent(
+      "Install acme-core?"
+    );
+    expect(screen.queryByTestId("extension-install-summary-dialog")).toBeNull();
+    await user.click(screen.getByTestId("extension-trust-confirm"));
+    expect(await screen.findByTestId("extension-trust-dialog")).toHaveTextContent(
+      "Install acme-util?"
+    );
+    expect(io.install).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("extension-trust-confirm"));
+
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    const request = io.install.mock.calls[0]![0];
+    expect(request).toMatchObject({
+      enable: true,
+      expected_digest: verified.digest_sha256,
+      with_dependencies: true,
+      dependencies: {
+        "acme-core": { expected_digest: CORE_DIGEST, allow_unverified: true },
+        "acme-util": { expected_digest: UTIL_DIGEST, allow_unverified: true },
+        "acme-log": { expected_digest: LOG_DIGEST },
+      },
+    });
+    // No blanket consent: the dependent's own request keeps allow_unverified off.
+    expect(request.allow_unverified).toBe(false);
+    expect(request.dependencies).not.toHaveProperty("acme-met");
+    await waitFor(() =>
+      expect(io.success).toHaveBeenCalledWith(
+        `${verified.name} added with acme-core, acme-net`,
+        expect.anything()
+      )
+    );
+  });
+
+  it("Should name the dependencies a failed Add already installed", async () => {
+    io.preview.mockResolvedValueOnce(dependencyPreview());
+    io.install.mockRejectedValueOnce(
+      new MarketplaceApiError(
+        "acme-log failed to install",
+        422,
+        "extension_inputs_required",
+        false,
+        {
+          dependenciesInstalled: ["acme-core", "acme-net"],
+        }
+      )
+    );
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+    await screen.findByRole("region", { name: "Also installs" });
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(await screen.findByTestId("extension-trust-confirm"));
+    await user.click(await screen.findByTestId("extension-trust-confirm"));
+
+    await waitFor(() =>
+      expect(io.error).toHaveBeenCalledWith("acme-log failed to install", {
+        description: "Installed first: acme-core, acme-net · extension_inputs_required",
+      })
+    );
+    expect(io.success).not.toHaveBeenCalled();
+  });
+
+  it("Should abort the whole Add when a dependency gate is canceled", async () => {
+    io.preview.mockResolvedValueOnce(dependencyPreview());
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+    await screen.findByRole("region", { name: "Also installs" });
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    const gate = await screen.findByTestId("extension-trust-dialog");
+    expect(gate).toHaveTextContent("Install acme-core?");
+    await user.click(within(gate).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByTestId("extension-trust-dialog")).toBeNull());
+    expect(screen.queryByTestId("extension-install-summary-dialog")).toBeNull();
+    expect(io.install).not.toHaveBeenCalled();
+  });
+
+  it("Should block Add with update guidance when a dependency is too old", async () => {
+    io.preview.mockResolvedValueOnce(dependencyPreview("version_unmet"));
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+
+    const row = await screen.findByTestId("extension-install-dependency-acme-core");
+    expect(row).toHaveTextContent(
+      "Update acme-core to 0.4.0 or later first: run compozy extension update acme-core --scope global"
+    );
+    const add = screen.getByRole("button", { name: "Add" });
+    expect(add).toBeDisabled();
+    await user.click(add);
+    expect(screen.queryByTestId("extension-trust-dialog")).toBeNull();
+    expect(io.install).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["source_too_old", "Its source has no version of acme-core at 0.4.0 or later"],
+    [
+      "not_updatable",
+      "No update of acme-core reaches 0.4.0. Reinstall it from a source with 0.4.0 or later first",
+    ],
+    [
+      "elsewhere_no_command",
+      "Another profile or workspace uses a different copy of acme-core. Reinstall it there from a source with 0.4.0 or later first",
+    ],
+    [
+      "installed_elsewhere",
+      "Another profile or workspace uses a different copy of acme-core. Run compozy extension update acme-core --scope global --profile other first",
+    ],
+  ] as const)(
+    "Should block Add without update or consent prompts when acme-core is %s",
+    async (state, guidance) => {
+      io.preview.mockResolvedValueOnce(dependencyPreview(state));
+      renderRow(verified);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+
+      const row = await screen.findByTestId("extension-install-dependency-acme-core");
+      expect(row).toHaveTextContent(guidance);
+      expect(row).not.toHaveTextContent("Update acme-core to");
+      const add = screen.getByRole("button", { name: "Add" });
+      expect(add).toBeDisabled();
+      await user.click(add);
+      expect(screen.queryByTestId("extension-trust-dialog")).toBeNull();
+      expect(io.install).not.toHaveBeenCalled();
+    }
+  );
+});
+
 describe("Marketplace update recovery", () => {
   const definitions = [
     {
@@ -1342,15 +1583,9 @@ describe("Marketplace update recovery", () => {
       binding: { type: "url_query", name: "region" },
     },
   ];
-  it("Should preserve scope and prior inputs across gateway and input confirmation", async () => {
+  it("Should preserve scope and prior inputs across input confirmation", async () => {
     const mutate = vi
       .fn()
-      .mockRejectedValueOnce(
-        new ExtensionsApiError("Confirm gateway", 409, "daemon", {
-          code: "extension_gateway_confirmation_required",
-          currentDigest: "a".repeat(64),
-        })
-      )
       .mockRejectedValueOnce(
         new ExtensionsApiError("Configure", 422, "daemon", {
           code: "extension_inputs_required",
@@ -1374,23 +1609,18 @@ describe("Marketplace update recovery", () => {
     await act(async () => {
       await result.current.runUpdate("Kit", request, action => action());
     });
-    expect(result.current.recovery?.kind).toBe("gateway");
-    await act(async () => {
-      result.current.confirm();
-    });
-    expect(result.current.recovery?.kind).toBe("inputs");
+    expect(result.current.recovery?.definitions).toEqual(definitions);
     act(() => result.current.confirm({}));
-    expect(mutate).toHaveBeenCalledTimes(2);
+    expect(mutate).toHaveBeenCalledTimes(1);
     await act(async () => {
       result.current.confirm({ region: "eu" });
       result.current.confirm({ region: "eu" });
     });
-    expect(mutate).toHaveBeenCalledTimes(3);
+    expect(mutate).toHaveBeenCalledTimes(2);
     expect(mutate).toHaveBeenLastCalledWith({
       ...request,
       body: {
         ...request.body,
-        confirm_gateway_digest: "a".repeat(64),
         inputs: { ...request.body.inputs, region: { value: "eu" } },
       },
     });
@@ -1449,12 +1679,12 @@ describe("Marketplace update recovery", () => {
       result.current.dismiss();
     });
     expect(result.current.pending).toBe(true);
-    expect(result.current.recovery?.kind).toBe("inputs");
+    expect(result.current.recovery?.definitions).toEqual(definitions);
     await act(async () => {
       rejectUpdate(new Error("publication failed"));
     });
     expect(result.current.pending).toBe(false);
-    expect(result.current.recovery?.kind).toBe("inputs");
+    expect(result.current.recovery?.definitions).toEqual(definitions);
     act(() => result.current.dismiss());
     expect(result.current.recovery).toBeNull();
   });

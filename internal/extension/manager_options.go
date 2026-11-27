@@ -109,6 +109,13 @@ func WithEnvBindingStore(store EnvBindingStore) Option {
 	}
 }
 
+// WithInputRowReader lets the launch gate treat an active typed row of a dual-consumer input as set.
+func WithInputRowReader(reader InputRowReader) Option {
+	return func(manager *Manager) {
+		manager.inputRows = reader
+	}
+}
+
 // WithProfileNameResolver binds profile-scoped subprocesses to canonical profile names.
 func WithProfileNameResolver(resolver ProfileNameResolver) Option {
 	return func(manager *Manager) {

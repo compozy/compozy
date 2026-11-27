@@ -6,15 +6,21 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	webassets "github.com/compozy/compozy-web-assets"
 	"github.com/gin-gonic/gin"
+
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/ginutil"
+	"github.com/compozy/compozy/internal/remoteproto"
 )
 
 const webDistDirEnvVar = "COMPOZY_WEB_DIST_DIR"
@@ -33,6 +39,20 @@ func newStaticFS() (staticSourceFS, error) {
 		return newLocalStaticFS(override)
 	}
 	return newEmbeddedStaticFS()
+}
+
+func NewHostedAppHandler(logger *slog.Logger, startedAt time.Time) (http.Handler, error) {
+	source, err := newStaticFS()
+	if err != nil {
+		return nil, err
+	}
+	handlers := &Handlers{
+		BaseHandlers: &core.BaseHandlers{Logger: logger, StartedAt: startedAt},
+		staticFS:     source.fs,
+	}
+	router := ginutil.NewEngine()
+	router.NoRoute(handlers.serveStaticRoute)
+	return router, nil
 }
 
 func newEmbeddedStaticFS() (staticSourceFS, error) {
@@ -123,6 +143,9 @@ func (h *Handlers) resolveStaticAsset(requestPath string) (string, bool) {
 	}
 
 	asset := strings.TrimPrefix(path.Clean("/"+strings.TrimSpace(requestPath)), "/")
+	if asset == "manifest.webmanifest" {
+		asset = "site.webmanifest"
+	}
 	if asset == "." || asset == "" {
 		return "index.html", true
 	}
@@ -153,6 +176,12 @@ func (h *Handlers) serveAsset(c *gin.Context, asset string) {
 	modified := cmp.Or(info.ModTime(), h.StartedAt)
 	c.Header("Content-Security-Policy", productionContentSecurityPolicy)
 	c.Header("Cache-Control", staticCacheControl(cleanAsset))
+	if c.Request.URL.Path == remoteproto.BrowserCallbackPath {
+		c.Header("Cache-Control", "no-store")
+	}
+	if strings.HasSuffix(cleanAsset, ".webmanifest") {
+		c.Header("Content-Type", "application/manifest+json")
+	}
 
 	if seeker, ok := file.(io.ReadSeeker); ok {
 		http.ServeContent(c.Writer, c.Request, path.Base(asset), modified, seeker)

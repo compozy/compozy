@@ -1,7 +1,7 @@
 import "../landing/landing.css";
 
 import { LazyMotion, domMax } from "motion/react";
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 import { useState } from "react";
 
 import { SiteFooter } from "../landing/sections-close";

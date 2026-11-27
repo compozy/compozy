@@ -1,3 +1,5 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { isRemoteComputerId } from "@/lib/computer-scope";
 import { useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -40,6 +42,10 @@ export function useSessionGoalHeader(
 ) {
   const { enabled = true, onPrefillComposer, stream = true, readOnly = false } = options;
   const queryClient = useQueryClient();
+  const computerId = useCurrentComputerId();
+  const remote = isRemoteComputerId(computerId);
+  const keys = sessionKeys.forComputer(computerId);
+  const goalKey = keys.goal(workspaceId, sessionId);
   const query = useSessionGoal(workspaceId, sessionId, enabled);
   const feedback = useSessionGoalFeedback(sessionId);
   const submitting = useRef(false);
@@ -56,23 +62,21 @@ export function useSessionGoalHeader(
             : undefined;
 
   useLoopStream(workspaceId, snapshot?.run_id ?? "", {
-    enabled: enabled && snapshot?.live === true && stream,
+    enabled: enabled && snapshot?.live === true && stream && !remote,
     onEvent: frame => {
       if (frame.kind === "goal_turn_started") {
         const payload = frame.payload as Record<string, unknown> | undefined;
         const turn = typeof payload?.turn === "number" ? payload.turn : null;
         if (turn !== null) {
-          queryClient.setQueryData<SessionGoalResponse>(
-            sessionKeys.goal(workspaceId, sessionId),
-            current =>
-              current?.goal
-                ? { goal: { ...current.goal, turns_used: Math.max(current.goal.turns_used, turn) } }
-                : current
+          queryClient.setQueryData<SessionGoalResponse>(goalKey, current =>
+            current?.goal
+              ? { goal: { ...current.goal, turns_used: Math.max(current.goal.turns_used, turn) } }
+              : current
           );
         }
       }
       if (frame.kind === "goal_status_changed" || frame.kind === "status_changed") {
-        void queryClient.invalidateQueries({ queryKey: sessionKeys.goal(workspaceId, sessionId) });
+        void queryClient.invalidateQueries({ queryKey: goalKey });
       }
     },
   });
@@ -82,21 +86,29 @@ export function useSessionGoalHeader(
     if (next.outcome !== "error")
       sessionStore.trigger.goalCommandReported({ sessionId, result: next });
     if (next.snapshot !== null || next.outcome === "cleared") {
-      queryClient.setQueryData<SessionGoalResponse>(sessionKeys.goal(workspaceId, sessionId), {
+      queryClient.setQueryData<SessionGoalResponse>(goalKey, {
         goal: next.snapshot,
       });
     }
-    void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) });
-    void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, sessionId) });
+    if (!remote) {
+      void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) });
+    }
+    void queryClient.invalidateQueries({ queryKey: keys.detail(workspaceId, sessionId) });
   };
 
   const mutation = useMutation({
     mutationFn: async (action: GoalControlAction) => {
       // An older read must not replace the control's acknowledged state.
-      await queryClient.cancelQueries({ queryKey: sessionKeys.goal(workspaceId, sessionId) });
+      await queryClient.cancelQueries({ queryKey: goalKey });
       const operation = action === "approve" ? "resume" : action;
-      const next = await mutateSessionGoal(workspaceId, sessionId, { operation });
-      await queryClient.cancelQueries({ queryKey: sessionKeys.goal(workspaceId, sessionId) });
+      const next = await mutateSessionGoal(
+        workspaceId,
+        sessionId,
+        { operation },
+        undefined,
+        computerId
+      );
+      await queryClient.cancelQueries({ queryKey: goalKey });
       applyResult(next);
       if (next.outcome === "error") {
         throw new Error(
@@ -104,7 +116,7 @@ export function useSessionGoalHeader(
         );
       }
       // A terminal frame can race the HTTP response; reread after installing its receipt.
-      void queryClient.invalidateQueries({ queryKey: sessionKeys.goal(workspaceId, sessionId) });
+      void queryClient.invalidateQueries({ queryKey: goalKey });
       return next;
     },
     onSettled: () => {

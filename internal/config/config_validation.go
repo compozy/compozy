@@ -78,9 +78,6 @@ func (c *Config) validateCore() error {
 	if err := c.Roles.Validate("roles", c); err != nil {
 		return err
 	}
-	if err := c.Gateway.Validate(); err != nil {
-		return err
-	}
 	if err := rejectConfiguredMCPReferences(c.MCPServers); err != nil {
 		return err
 	}
@@ -89,7 +86,7 @@ func (c *Config) validateCore() error {
 			return err
 		}
 	}
-	return nil
+	return errors.Join(c.Computers.Validate(), c.Remote.Validate())
 }
 
 func (c *Config) validateProviders() error {

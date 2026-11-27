@@ -29,6 +29,8 @@ export interface SessionListThreadListProps {
   onSelectSession: (session: SessionListTarget) => void;
   /** Bulk selection; absent where the list is read-only (grouped lists). */
   selection?: SessionRowSelection;
+  /** Rows whose computer has no bound lifecycle or folder mutations. */
+  readOnly?: boolean;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
   /** Shown in place of the threads when none survive the filter; `null` shows nothing. */
@@ -45,6 +47,7 @@ export function SessionListThreadList({
   onThreadBranchChange,
   onSelectSession,
   selection,
+  readOnly = false,
   sessionActions,
   testIdPrefix,
   emptyMessage,
@@ -68,7 +71,8 @@ export function SessionListThreadList({
         <SessionListThread
           key={thread.session.id}
           session={thread.session}
-          layoutFor={rowLayout}
+          layoutFor={readOnly ? undefined : rowLayout}
+          showActions={!readOnly}
           childSessions={thread.childSessions}
           currentSessionId={currentSessionId}
           owner={ownerOf?.(thread.session)}

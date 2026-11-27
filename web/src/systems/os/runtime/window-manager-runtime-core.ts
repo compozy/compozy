@@ -88,12 +88,13 @@ export abstract class WindowManagerRuntimeCore {
         return;
       }
       if (!this.binding) return;
+      const snapshotKey = windowManagerKeys.snapshot(
+        this.binding.workspaceId,
+        this.binding.profileId
+      );
       if (
-        key[0] === windowManagerKeys.all[0] &&
-        key[1] === windowManagerKeys.all[1] &&
-        key[2] === "snapshot" &&
-        key[3] === this.binding.workspaceId &&
-        key[4] === this.binding.profileId
+        key.length === snapshotKey.length &&
+        key.every((part: unknown, index: number) => part === snapshotKey[index])
       ) {
         this.publish();
       }

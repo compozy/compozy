@@ -147,6 +147,96 @@ func TestRestartContinuationRetainedFailure(t *testing.T) {
 	}
 }
 
+// Invariant: only a maintenance or agent-command boundary blocks restart continuation. A boundary that
+// carries a queue ordering such as after_turn, recorded for reply-watch and subagent wakes, continues.
+// Owner: session manager; restart capture and qualification. The ACP boundary is fake; checkpoints and
+// admissions use SQLite.
+func TestRestartContinuationBoundaryDelivery(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		delivery   string
+		wantResume bool
+	}{
+		{
+			name:       "Should continue a turn whose boundary carries the after_turn queue ordering",
+			delivery:   store.SessionInputDeliveryAfterTurn,
+			wantResume: true,
+		},
+		{
+			name:     "Should skip a maintenance turn as a maintenance command",
+			delivery: string(PromptDeliveryMaintenance),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			admissions := openManagerInputQueueStore(t)
+			h := newHarness(
+				t,
+				WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}),
+				WithSessionPromptAdmissionStore(admissions),
+				WithSessionInputQueueStore(admissions),
+			)
+			registerManagerInputQueueWorkspace(t, admissions, h)
+			target, err := h.manager.Create(t.Context(), new(CreateOpts{
+				AgentName: "coder", Name: "session", Workspace: h.workspaceID,
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			registerManagerInputQueueSession(t, admissions, h, target)
+			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+			source := make(chan acp.AgentEvent)
+			h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				// The boundary is recorded before the provider prompt; stamp the delivery a
+				// persisted checkpoint from an earlier dispatch may carry.
+				target.mu.Lock()
+				defer target.mu.Unlock()
+				if target.restartBoundary == nil {
+					return nil, errors.New("restart boundary not recorded before the provider prompt")
+				}
+				target.restartBoundary.Delivery = tc.delivery
+				return source, nil
+			}
+			stream, err := h.manager.PromptWithOpts(t.Context(), target.ID, PromptOpts{Message: "finish the work"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.PrepareDaemonShutdown(t.Context(), true); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.StopWithCause(t.Context(), target.ID, CauseShutdown, "daemon restart"); err != nil {
+				t.Fatal(err)
+			}
+			close(source)
+			collectEvents(t, stream)
+			h.driver.mu.Lock()
+			h.driver.promptHook = nil
+			h.driver.mu.Unlock()
+			infos, err := h.manager.ListAll(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.CaptureRestartInterruptions(t.Context(), infos); err != nil {
+				t.Fatal(err)
+			}
+
+			simulateDaemonRestart(h.manager)
+			resumed, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID)
+			if resumed != tc.wantResume {
+				t.Fatalf("resumed = %t, want %t; error %v", resumed, tc.wantResume, err)
+			}
+			if tc.wantResume {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if !errors.Is(err, ErrRestartContinuationSkipped) || !strings.Contains(err.Error(), "maintenance_command") {
+				t.Fatalf("continuation error = %v, want maintenance_command skip", err)
+			}
+		})
+	}
+}
+
 // Invariant: resuming a crashed session keeps its crash stop classification for display but clears
 // the retained failure once a runtime is bound, in memory and in persisted metadata.
 // Owner: session manager; resume activation.

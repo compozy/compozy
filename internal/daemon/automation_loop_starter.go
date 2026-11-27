@@ -22,6 +22,8 @@ type automationLoopStarter struct {
 	resolver       looppkg.DefinitionResolver
 	inputEntities  looppkg.InputEntityCatalog
 	runtimeCatalog looppkg.WorkspaceRuntimeCatalog
+	workspaces     workspacepkg.RuntimeResolver
+	commandTimeout time.Duration
 }
 
 type automationLoopService interface {
@@ -84,6 +86,8 @@ func newAutomationLoopStarter(
 		resolver:       resolver,
 		inputEntities:  inputEntities,
 		runtimeCatalog: runtimeCatalog,
+		workspaces:     workspaceResolver,
+		commandTimeout: automationLoopInputCommandTimeout,
 	}, nil
 }
 

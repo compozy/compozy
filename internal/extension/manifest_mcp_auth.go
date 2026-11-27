@@ -9,6 +9,9 @@ import (
 	"github.com/compozy/compozy/internal/mcppolicy"
 )
 
+// mcpAuthMethodOAuth is the manifest MCP auth method that requires an operator login.
+const mcpAuthMethodOAuth = "oauth"
+
 func cloneManifestMCPAuth(auth *MCPServerAuthConfig) *MCPServerAuthConfig {
 	if auth == nil {
 		return nil
@@ -49,7 +52,7 @@ func validateManifestMCPAuth(server MCPServerConfig, field string) error {
 			return fmt.Errorf("method none must not declare OAuth fields")
 		}
 		return nil
-	case "oauth":
+	case mcpAuthMethodOAuth:
 		if server.Transport != forgeURLSchemeHTTP {
 			return fmt.Errorf("OAuth requires http transport")
 		}

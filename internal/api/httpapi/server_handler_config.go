@@ -10,6 +10,8 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 	config := s.handlerDependencies()
 	config.sessionChanges = s.sessionChanges
 	config.telemetryStatus = s.telemetryStatus
+	config.ingress = s.ingress
+	config.migrationNotices = s.migrationNotices
 	config.staticFS = staticFS
 	config.boundHost = s.host
 	config.httpPort = s.port
@@ -55,6 +57,7 @@ func (s *Server) handlerDependencies() handlerConfig {
 		agentSync:             s.agentSync,
 		contextWindowResolver: s.contextWindowResolver,
 		modelCatalog:          s.modelCatalog,
+		account:               s.account, remote: s.remote, computers: s.computers,
 		providerUsage:         s.providerUsage,
 		marketplaceCatalog:    s.marketplaceCatalog,
 		agentContext:          s.agentContext,
@@ -78,13 +81,7 @@ func (s *Server) handlerDependencies() handlerConfig {
 		deadEntities:          s.deadEntities,
 		appTokens:             s.appTokens,
 		openAPI:               s.openAPI,
-		gateway:               s.gateway,
-		gatewayAdmission:      s.gatewayAdmission,
-		deviceAuth:            s.deviceAuth,
-		authLimiter:           s.authLimiter,
-		pairingLimiter:        s.pairingLimiter,
 		ingressLimiter:        s.ingressLimiter,
-		surfaceSet:            s.surfaceSet,
 		homePaths:             s.homePaths,
 		config:                s.config,
 		logger:                s.logger,

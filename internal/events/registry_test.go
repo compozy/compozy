@@ -258,7 +258,7 @@ func TestRegistryMetadata(t *testing.T) {
 		}
 	})
 
-	t.Run("Should UT-150 expose every canonical gateway lifecycle event", func(t *testing.T) {
+	t.Run("Should register the webhook ingress lifecycle events", func(t *testing.T) {
 		t.Parallel()
 
 		for _, test := range []struct {
@@ -266,26 +266,17 @@ func TestRegistryMetadata(t *testing.T) {
 			family  string
 			outcome Outcome
 		}{
-			{name: GatewayExposureChanged, family: "gateway.exposure", outcome: OutcomeInfo},
-			{name: GatewayConsentRecorded, family: "gateway.consent", outcome: OutcomeSuccess},
-			{name: GatewayDevicePaired, family: "gateway.device", outcome: OutcomeSuccess},
-			{name: GatewayDeviceRevoked, family: "gateway.device", outcome: OutcomeWarning},
-			{name: GatewayDeviceRemoved, family: "gateway.device", outcome: OutcomeWarning},
-			{name: GatewayProviderStateChanged, family: "gateway.provider", outcome: OutcomeInfo},
-			{name: GatewayEndpointVerified, family: "gateway.endpoint", outcome: OutcomeSuccess},
-			{name: GatewayEndpointRejected, family: "gateway.endpoint", outcome: OutcomeFailure},
-			{name: GatewayIngressBound, family: "gateway.ingress", outcome: OutcomeSuccess},
-			{name: GatewayIngressUnbound, family: "gateway.ingress", outcome: OutcomeWarning},
-			{name: GatewayAuditRun, family: "gateway.audit", outcome: OutcomeInfo},
+			{name: IngressBound, family: "ingress", outcome: OutcomeSuccess},
+			{name: IngressUnbound, family: "ingress", outcome: OutcomeWarning},
 		} {
 			metadata, ok := Lookup(test.name)
 			if !ok {
 				t.Fatalf("Lookup(%q) = false", test.name)
 			}
-			if metadata.Family != test.family || metadata.Component != ComponentGateway ||
+			if metadata.Family != test.family || metadata.Component != ComponentIngress ||
 				metadata.Outcome != test.outcome || !metadata.GlobalScope || !metadata.EmitsToLogs ||
 				metadata.NotificationEligible {
-				t.Fatalf("gateway metadata for %q = %#v", test.name, metadata)
+				t.Fatalf("ingress metadata for %q = %#v", test.name, metadata)
 			}
 		}
 	})

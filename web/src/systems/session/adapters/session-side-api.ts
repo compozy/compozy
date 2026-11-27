@@ -1,4 +1,5 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
+import { apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 import { throwSessionRequestError } from "./session-api-errors";
@@ -22,9 +23,10 @@ export async function openSessionSide(
   workspaceId: string,
   sessionId: string,
   body: OpenSessionSideRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<OpenSessionSideResult> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/sides",
     {
       body,
@@ -42,9 +44,10 @@ export async function fetchSessionSides(
   workspaceId: string,
   sessionId: string,
   options: { archived?: boolean } = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionSidesResponse> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/sides",
     {
       params: {

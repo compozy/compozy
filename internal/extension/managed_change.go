@@ -64,13 +64,6 @@ func reinstallExtensionInfo(
 			return fmt.Errorf("extension: restore disabled state for %q: %w", info.Name, err)
 		}
 	}
-	if err := registry.RestoreGatewayConfirmation(GlobalInstanceKey(info.Name), GatewayConfirmation{
-		Digest:      info.GatewayRequirementDigest,
-		ConfirmedBy: info.GatewayConfirmedBy,
-		ConfirmedAt: info.GatewayConfirmedAt,
-	}); err != nil {
-		return fmt.Errorf("extension: restore gateway confirmation for %q: %w", info.Name, err)
-	}
 	return nil
 }
 

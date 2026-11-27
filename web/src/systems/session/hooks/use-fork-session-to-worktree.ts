@@ -1,5 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import type { ComputerId } from "@/lib/computer-scope";
+
 import { forkSessionToWorktree } from "../adapters/session-worktree-api";
 import { sessionKeys } from "../lib/query-keys";
 import type { ForkSessionToWorktreeParams } from "../types";
@@ -11,12 +14,20 @@ import type { ForkSessionToWorktreeParams } from "../types";
  * lists need rereading. Each confirmation produces exactly one fork — the
  * mutation is never fired speculatively.
  */
-export function useForkSessionToWorktree(workspaceId: string, sessionId: string) {
+export function useForkSessionToWorktree(
+  workspaceId: string,
+  sessionId: string,
+  computerId?: ComputerId
+) {
   const queryClient = useQueryClient();
+  const scopedComputerId = useCurrentComputerId(computerId);
 
   return useMutation({
     mutationFn: (params: ForkSessionToWorktreeParams) =>
-      forkSessionToWorktree(workspaceId, sessionId, params),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }),
+      forkSessionToWorktree(workspaceId, sessionId, params, undefined, scopedComputerId),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: sessionKeys.forComputer(scopedComputerId).lists(),
+      }),
   });
 }

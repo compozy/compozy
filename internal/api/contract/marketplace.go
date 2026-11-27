@@ -156,11 +156,14 @@ type MarketplaceServerPayload struct {
 	WorkspaceID string          `json:"workspace_id,omitempty"`
 }
 
+// ExtensionInputStatePayload reports one input's readiness. Set keeps its readiness meaning (true for
+// daemon_env too); State is the setup classification clients key prompting and UI off.
 type ExtensionInputStatePayload struct {
 	ID     string `json:"id"`
 	Type   string `json:"type"`
 	Set    bool   `json:"set"`
 	Active bool   `json:"active"`
+	State  string `json:"state,omitempty"`
 }
 
 type MarketplaceCategoryCount struct {

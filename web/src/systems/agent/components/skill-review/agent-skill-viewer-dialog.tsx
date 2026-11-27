@@ -192,6 +192,13 @@ function FileView({ file }: { file: SkillReviewFile }) {
       </div>
       {invisible ? <InvisibleCharactersNotice /> : null}
       {readHides ? <HiddenTextNotice onReadSource={() => setChosen("source")} /> : null}
+      {file.baseRedacted ? (
+        <Alert variant="warning">
+          <AlertDescription>
+            The diff may hide changes to redacted text in the installed file.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <FileBody file={file} mode={mode} read={read} />
     </div>
   );

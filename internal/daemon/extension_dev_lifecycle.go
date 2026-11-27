@@ -40,7 +40,6 @@ func (s *daemonExtensionService) rollbackDevLifecycle(
 			snapshot.BundleGeneration,
 		)
 		rollbackErr = errors.Join(rollbackErr, err)
-		rollbackErr = errors.Join(rollbackErr, s.restoreDevGatewayConfirmation(key, snapshot))
 		_, err = runtime.ActivateDevelopmentLink(rollbackCtx, key)
 		rollbackErr = errors.Join(rollbackErr, err)
 	}
@@ -59,31 +58,6 @@ func (s *daemonExtensionService) rollbackDevLifecycle(
 	return errors.Join(cause, rollbackErr)
 }
 
-func (s *daemonExtensionService) restoreStagedDevLink(
-	key extensionpkg.InstanceKey,
-	snapshot *extensionpkg.DevLink,
-) error {
-	if snapshot == nil {
-		err := s.registry.UnlinkDev(key.Name, key.WorkspaceID)
-		if errors.Is(err, extensionpkg.ErrExtensionNotDevLinked) {
-			return nil
-		}
-		return err
-	}
-	if _, err := s.registry.LinkDev(extensionpkg.DevLinkRequest{
-		Name:                     snapshot.ExtensionName,
-		WorkspaceID:              snapshot.WorkspaceID,
-		OriginPath:               snapshot.OriginPath,
-		GenerationHash:           snapshot.BundleGeneration,
-		GatewayRequirementDigest: snapshot.GatewayRequirementDigest,
-		Format:                   snapshot.Format,
-		IngestDiagnostics:        snapshot.IngestDiagnostics,
-	}); err != nil {
-		return err
-	}
-	return s.restoreDevGatewayConfirmation(key, snapshot)
-}
-
 func (s *daemonExtensionService) rollbackDevRemoval(
 	ctx context.Context,
 	runtime extensionDevRuntime,
@@ -97,18 +71,4 @@ func (s *daemonExtensionService) rollbackDevRemoval(
 		s.rollbackDevLifecycle(ctx, runtime, key, snapshot, nil, cause),
 		retirementErr,
 	)
-}
-
-func (s *daemonExtensionService) restoreDevGatewayConfirmation(
-	key extensionpkg.InstanceKey,
-	snapshot *extensionpkg.DevLink,
-) error {
-	if snapshot == nil {
-		return nil
-	}
-	return s.registry.RestoreGatewayConfirmation(key, extensionpkg.GatewayConfirmation{
-		Digest:      snapshot.GatewayRequirementDigest,
-		ConfirmedBy: snapshot.GatewayConfirmedBy,
-		ConfirmedAt: snapshot.GatewayConfirmedAt,
-	})
 }

@@ -1,0 +1,4 @@
+{
+    "title": "Remote",
+    "pages": ["index", "disable", "enable", "link", "status", "unlink", "cloud-route", "devices"]
+}

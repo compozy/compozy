@@ -35,7 +35,7 @@ func rejectTranscriptBackwardCursor(c *gin.Context) error {
 }
 
 func parseSessionTranscriptQuery(c *gin.Context) (transcript.PageQuery, error) {
-	for _, name := range []string{"after_sequence", "since", "type", "agent_name", "turn_id"} {
+	for _, name := range []string{"after_sequence", "since", "type", agentNameKey, "turn_id"} {
 		if _, ok := c.GetQuery(name); ok {
 			return transcript.PageQuery{}, fmt.Errorf("%s is not supported on /transcript", name)
 		}

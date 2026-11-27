@@ -4,8 +4,16 @@ import { settingsKeys } from "../query-keys";
 
 describe("settingsKeys", () => {
   it("builds stable section keys", () => {
-    expect(settingsKeys.section("general")).toEqual(["settings", "section", "general"]);
+    expect(settingsKeys.section("general")).toEqual([
+      "computer",
+      "local",
+      "settings",
+      "section",
+      "general",
+    ]);
     expect(settingsKeys.section("hooks-extensions")).toEqual([
+      "computer",
+      "local",
       "settings",
       "section",
       "hooks-extensions",
@@ -14,6 +22,8 @@ describe("settingsKeys", () => {
 
   it("isolates persona, attention, and palette keys by profile", () => {
     expect(settingsKeys.personaSection({ scope: "profile", profile: "marketing" })).toEqual([
+      "computer",
+      "local",
       "settings",
       "section",
       "persona",
@@ -22,6 +32,8 @@ describe("settingsKeys", () => {
       "marketing",
     ]);
     expect(settingsKeys.cmdPaletteSection({ scope: "profile", profile: "marketing" })).toEqual([
+      "computer",
+      "local",
       "settings",
       "section",
       "cmd-palette",
@@ -30,6 +42,8 @@ describe("settingsKeys", () => {
       "marketing",
     ]);
     expect(settingsKeys.attentionSection({ scope: "profile", profile: "marketing" })).toEqual([
+      "computer",
+      "local",
       "settings",
       "section",
       "attention",
@@ -49,12 +63,29 @@ describe("settingsKeys", () => {
 
   it("isolates provider collection keys from section keys", () => {
     const detail = settingsKeys.providerDetail("openai");
-    expect(detail).toEqual(["settings", "collection", "providers", "detail", "openai"]);
-    expect(settingsKeys.providersList()).toEqual(["settings", "collection", "providers", "list"]);
+    expect(detail).toEqual([
+      "computer",
+      "local",
+      "settings",
+      "collection",
+      "providers",
+      "detail",
+      "openai",
+    ]);
+    expect(settingsKeys.providersList()).toEqual([
+      "computer",
+      "local",
+      "settings",
+      "collection",
+      "providers",
+      "list",
+    ]);
   });
 
   it("isolates layered hooks collection keys", () => {
     expect(settingsKeys.hooksList()).toEqual([
+      "computer",
+      "local",
       "settings",
       "collection",
       "hooks",
@@ -64,6 +95,8 @@ describe("settingsKeys", () => {
       "",
     ]);
     expect(settingsKeys.hooksList({ scope: "profile", profile: "marketing" })).toEqual([
+      "computer",
+      "local",
       "settings",
       "collection",
       "hooks",
@@ -76,6 +109,8 @@ describe("settingsKeys", () => {
 
   it("scopes MCP list keys by scope, workspace, and profile identity", () => {
     expect(settingsKeys.mcpList()).toEqual([
+      "computer",
+      "local",
       "settings",
       "collection",
       "mcp-servers",
@@ -86,6 +121,8 @@ describe("settingsKeys", () => {
     ]);
 
     expect(settingsKeys.mcpList({ scope: "user" })).toEqual([
+      "computer",
+      "local",
       "settings",
       "collection",
       "mcp-servers",
@@ -96,6 +133,8 @@ describe("settingsKeys", () => {
     ]);
 
     expect(settingsKeys.mcpList({ scope: "workspace", workspace_id: "ws_alpha" })).toEqual([
+      "computer",
+      "local",
       "settings",
       "collection",
       "mcp-servers",
@@ -106,6 +145,8 @@ describe("settingsKeys", () => {
     ]);
 
     expect(settingsKeys.mcpList({ scope: "profile", profile: "marketing" })).toEqual([
+      "computer",
+      "local",
       "settings",
       "collection",
       "mcp-servers",
@@ -117,13 +158,21 @@ describe("settingsKeys", () => {
   });
 
   it("builds restart keys that include the operation id", () => {
-    expect(settingsKeys.restartRoot()).toEqual(["settings", "restart"]);
-    expect(settingsKeys.restartStatus("op_001")).toEqual(["settings", "restart", "op_001"]);
+    expect(settingsKeys.restartRoot()).toEqual(["computer", "local", "settings", "restart"]);
+    expect(settingsKeys.restartStatus("op_001")).toEqual([
+      "computer",
+      "local",
+      "settings",
+      "restart",
+      "op_001",
+    ]);
   });
 
   it("builds apply record keys from normalized filters", () => {
-    expect(settingsKeys.applyRoot()).toEqual(["settings", "apply"]);
+    expect(settingsKeys.applyRoot()).toEqual(["computer", "local", "settings", "apply"]);
     expect(settingsKeys.applyRecords({ status: "blocked", actor: " http ", limit: 8 })).toEqual([
+      "computer",
+      "local",
       "settings",
       "apply",
       "records",

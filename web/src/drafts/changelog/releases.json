@@ -1088,7 +1088,7 @@
             ],
             "refactors": [
                 {
-                    "text": "Replace the in-repo prototype gallery with @compozy/proto",
+                    "text": "Replace the in-repo prototype gallery with the Proto CLI",
                     "prs": ["1092"]
                 },
                 { "text": "Align @compozy/ui with the bnui contract", "prs": ["1126"] }

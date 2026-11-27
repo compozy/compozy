@@ -3,6 +3,7 @@ import { useEffect, useState, type RefObject } from "react";
 
 import type { DiffViewerHandle } from "@compozy/ui";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { copyFilePath, fileViewerTarget } from "@/systems/files";
 import { useShellFocusedSessionId } from "@/systems/os";
 
@@ -94,10 +95,12 @@ export function useSessionChangesView({
   const [collapsed, setCollapsed] = useState<Readonly<Record<string, boolean>>>({});
   const [narrowTreeOpen, setNarrowTreeOpen] = useState(false);
   const narrow = useNarrowSessionWindow(rootRef);
-  const openInFiles = useOpenInFilesApp({ workspaceId, sessionId });
+  const computerId = useCurrentComputerId();
+  const openInFiles = useOpenInFilesApp({ workspaceId, sessionId, computerId });
   const changes = useSessionChanges({
     workspaceId,
     sessionId,
+    computerId,
     ...(review.scope ? { scope: review.scope } : {}),
     ...(review.base ? { base: review.base } : {}),
     revealed,
@@ -110,7 +113,7 @@ export function useSessionChangesView({
     windowFocused: useShellFocusedSessionId() === sessionId,
     onRefresh: changes.refresh,
   });
-  const bases = useQuery(sessionChangeBasesOptions(workspaceId, sessionId, ""));
+  const bases = useQuery(sessionChangeBasesOptions(workspaceId, sessionId, "", computerId));
   const [baseOpen, setBaseOpen] = useBaseSelectorOpen(changes.errorCode);
   const { missingBase, dismissMissingBase } = useMissingBaseFallback(
     changes.errorCode,

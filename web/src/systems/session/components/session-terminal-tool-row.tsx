@@ -2,6 +2,9 @@ import { Button, ToolCallRow, formatDuration } from "@compozy/ui";
 import { ArrowUpRight } from "@compozy/ui/icons";
 import { Suspense, lazy, use, useState } from "react";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import { findComputerById, useComputers } from "@/systems/computers";
 import { OsShellContext, type OsShellHandle, useTerminalHostShortcut } from "@/systems/os";
 import type { TerminalInfo } from "@/systems/terminal/parts";
 import { itemBindingSearch } from "@/systems/workspace";
@@ -31,7 +34,7 @@ const SessionTerminalBlock = lazy(async () => {
   return { default: Block };
 });
 
-type TerminalScope = { workspaceId: string; profile: string };
+type TerminalScope = { workspaceId: string; profile: string; computerId?: ComputerId };
 
 export interface SessionTerminalToolRowProps {
   message: UIMessage;
@@ -143,6 +146,12 @@ function TerminalToolRowView({
 }: TerminalToolRowViewProps) {
   const [ownExpanded, setOwnExpanded] = useState(defaultExpanded);
   const isHostShortcut = useTerminalHostShortcut();
+  const computerId = useCurrentComputerId(scope?.computerId);
+  const isRemote = isRemoteComputerId(computerId);
+  const computers = useComputers({ enabled: isRemote });
+  const remoteComputer = isRemote ? findComputerById(computers.computers, computerId) : undefined;
+  const canOperateTerminal =
+    !isRemote || Boolean(remoteComputer?.scopes.includes("terminal:operate"));
   const { run, outcome, title, registryTool, verb, statText, live } = terminalRowPresentation(
     message,
     facts,
@@ -178,8 +187,9 @@ function TerminalToolRowView({
         statLabel={statText || undefined}
         stat={statText ? <span className="text-subtle">{statText}</span> : undefined}
         actions={
-          shell ? (
+          shell && canOperateTerminal ? (
             <OpenTerminalAction
+              computerId={computerId}
               shell={shell}
               terminalId={facts.terminalId}
               workspaceId={scope?.workspaceId ?? workspaceId}
@@ -219,10 +229,12 @@ function TerminalToolRowView({
 }
 
 function OpenTerminalAction({
+  computerId,
   shell,
   terminalId,
   workspaceId,
 }: {
+  computerId: ComputerId;
   shell: OsShellHandle;
   terminalId: string;
   /** The session's project: binds the window so All projects resolves it, live or reaped. */
@@ -239,7 +251,10 @@ function OpenTerminalAction({
           instanceKey: terminalId,
           route: {
             pathname: `/terminal/${encodeURIComponent(terminalId)}`,
-            search: workspaceId === undefined ? {} : itemBindingSearch(workspaceId),
+            search: {
+              ...(workspaceId === undefined ? {} : itemBindingSearch(workspaceId)),
+              ...(isRemoteComputerId(computerId) ? { computer: computerId } : {}),
+            },
           },
         });
       }}

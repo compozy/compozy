@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 
+import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import { loopTargetWorkspaceId, retryDraftForStrategy } from "../lib/automation-drafts";
 import { useAutomationTimeZone } from "./use-automation-time-zone";
 import {
@@ -8,6 +9,7 @@ import {
   automationFormScope,
   automationFormEvent,
   automationFormSentenceDraft,
+  setAutomationFormComputer,
   setAutomationFormDoes,
   setAutomationFormEvent,
   setAutomationFormStart,
@@ -161,7 +163,8 @@ export function useAutomationForm({
   const resolvedWorkspaces = resolveWorkspaceOptions(workspaces, activeWorkspaceId);
   const workspaceName = (id: string) => resolvedWorkspaces.find(item => item.id === id)?.name;
 
-  const timeZone = useAutomationTimeZone();
+  const computerId = normalizeComputerId(draft.computerId);
+  const timeZone = useAutomationTimeZone(computerId);
   const identityOf = useAgentIdentityResolverView({
     workspace: draft.workspace_id || null,
     profile,
@@ -277,6 +280,10 @@ export function useAutomationForm({
     optionsDefaultOpen: optionsOpenByDefault(draft, mode, retry.strategy),
 
     onName: (name: string) => patch({ name }),
+    onComputerChange: (nextComputerId: ComputerId) => {
+      if (mode !== "create") return;
+      onChange(setAutomationFormComputer(draft, nextComputerId));
+    },
     onStart: handleStart,
     onDoes: handleDoes,
 

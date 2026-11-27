@@ -2,7 +2,10 @@ import type { ReactNode } from "react";
 
 import { SESSION_LIST_BAR_CLASS } from "../../lib/session-list-bar-class";
 import type { SessionListGroupBy, SessionListSort } from "../../lib/session-list-preferences";
-import { SessionViewOptionsMenu } from "../session-view-options-menu";
+import {
+  SessionViewOptionsMenu,
+  type SessionViewOptionsMenuProps,
+} from "../session-view-options-menu";
 import { SessionListCreateMenu } from "./session-list-create-menu";
 import type { SessionListShelf } from "../../lib/session-list-shelf";
 import type { SessionFoldAll } from "../../lib/session-sidebar-scope";
@@ -38,6 +41,8 @@ export interface SessionListToolbarProps {
   newFolderUnavailable?: string | null;
   /** Replaces the plain `+`: the live list's menu with Add always-on agent. */
   createMenu?: ReactNode;
+  /** "Archive stopped" over the list's scope, in View options. */
+  archiveStopped?: SessionViewOptionsMenuProps["archiveStopped"];
   testIdPrefix: string;
 }
 
@@ -72,6 +77,7 @@ export function SessionListToolbar({
   onNewFolder,
   newFolderUnavailable,
   createMenu,
+  archiveStopped,
   testIdPrefix,
 }: SessionListToolbarProps) {
   return (
@@ -94,6 +100,7 @@ export function SessionListToolbar({
         testId={testIdPrefix}
       />
       <SessionViewOptionsMenu
+        archiveStopped={archiveStopped}
         groupBy={groupBy}
         groupByOptions={groupByOptions}
         onGroupByChange={onGroupByChange}

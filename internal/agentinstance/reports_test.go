@@ -10,6 +10,15 @@ import (
 )
 
 func TestSkillDraftBoundary(t *testing.T) {
+	t.Run("Should return cancellation before reading a skill review draft", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		review := SkillReview{DraftPath: filepath.Join(t.TempDir(), "missing.json")}
+		if _, err := ReadSkillReviewContents(ctx, review); !errors.Is(err, context.Canceled) {
+			t.Fatalf("ReadSkillReviewContents() = %v, want context cancellation", err)
+		}
+	})
 	t.Run("Should keep drafts outside scan roots and detect changed bytes", func(t *testing.T) {
 		t.Parallel()
 		base := t.TempDir()
@@ -25,14 +34,14 @@ func TestSkillDraftBoundary(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		loaded, err := ReadSkillDraft(path, digest)
+		loaded, err := ReadSkillDraft(t.Context(), path, digest)
 		if err != nil || loaded.Name != draft.Name || len(loaded.Files) != 1 {
 			t.Fatalf("read draft: %+v %v", loaded, err)
 		}
 		if err := os.WriteFile(path, []byte(`{}`), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := ReadSkillDraft(path, digest); !errors.Is(err, ErrSkillReviewInvalid) {
+		if _, err := ReadSkillDraft(t.Context(), path, digest); !errors.Is(err, ErrSkillReviewInvalid) {
 			t.Fatalf("changed draft: %v", err)
 		}
 	})

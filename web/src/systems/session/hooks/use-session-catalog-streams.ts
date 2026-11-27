@@ -164,17 +164,25 @@ function createSubagentListReconciler(queryClient: QueryClient) {
   };
 }
 
+function isLocalSessionsKey(key: QueryKey): boolean {
+  return (
+    key.length >= sessionKeys.all.length &&
+    sessionKeys.all.every((segment, index) => key[index] === segment)
+  );
+}
+
 function isSessionMonitorsQuery(query: { queryKey: QueryKey }): boolean {
   const key = query.queryKey;
-  return key[0] === sessionKeys.all[0] && key.at(-1) === "monitors" && key.includes("detail");
+  return isLocalSessionsKey(key) && key.at(-1) === "monitors" && key.includes("detail");
 }
 
 function isSessionProcessesQuery(query: { queryKey: QueryKey }): boolean {
   const key = query.queryKey;
+  const base = sessionKeys.all.length;
   return (
-    key[0] === sessionKeys.all[0] &&
-    ((key[3] === "detail" && key[5] === "processes") ||
-      key[1] === sessionKeys.processesLeftRunning()[1])
+    isLocalSessionsKey(key) &&
+    ((key[base + 2] === "detail" && key[base + 4] === "processes") ||
+      key[base] === sessionKeys.processesLeftRunning()[base])
   );
 }
 
@@ -219,12 +227,13 @@ function openSessionCatalogStream(
     // So can a side chat change: every side list rereads.
     void queryClient.invalidateQueries({ predicate: query => isSessionSidesQuery(query.queryKey) });
     // A location-change event can fall outside the bounded replay window.
+    const base = sessionKeys.all.length;
     const files = {
       predicate: ({ queryKey: key }: { queryKey: QueryKey }) =>
-        key[0] === sessionKeys.all[0] &&
-        key[1] === "workspace" &&
-        key[3] === "detail" &&
-        key[5] === "files",
+        isLocalSessionsKey(key) &&
+        key[base] === "workspace" &&
+        key[base + 2] === "detail" &&
+        key[base + 4] === "files",
     };
     void queryClient.cancelQueries(files).then(() => queryClient.invalidateQueries(files));
   };
@@ -248,18 +257,19 @@ function openSessionCatalogStream(
     reconciler.wake(payload.workspace_id, payload);
     if (payload.kind === "layout") {
       const ids = new Set<string>();
+      const base = sessionKeys.all.length;
       for (const query of queryClient.getQueryCache().findAll({ queryKey: sessionKeys.all })) {
         const key = query.queryKey;
         const data = query.state.data as SessionPayload | undefined;
         if (
-          key[1] === "workspace" &&
-          key[2] === payload.workspace_id &&
-          key[3] === "detail" &&
-          key.length === 5
+          key[base] === "workspace" &&
+          key[base + 1] === payload.workspace_id &&
+          key[base + 2] === "detail" &&
+          key.length === base + 4
         )
-          ids.add(key[4] as string);
-        if (key[1] === "by-id" && data?.workspace_id === payload.workspace_id)
-          ids.add(key[2] as string);
+          ids.add(key[base + 3] as string);
+        if (key[base] === "by-id" && data?.workspace_id === payload.workspace_id)
+          ids.add(key[base + 1] as string);
       }
       for (const id of ids) sessionReads.wake(id, { ...payload, session_id: id });
       return;

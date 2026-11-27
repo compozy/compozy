@@ -13,6 +13,7 @@ vi.mock("@tanstack/react-router", () => ({
 import { routeBeforeLoad } from "@/test/route-options";
 
 import { Route as RetiredDefaultsRoute } from "../defaults";
+import { Route as RetiredGatewayRoute } from "../gateway";
 import { Route } from "../index";
 
 const beforeLoad = routeBeforeLoad(Route);
@@ -29,5 +30,13 @@ describe("RetiredDefaultsRedirect", () => {
     // Invariant: bookmarks and window routes naming /settings/defaults never 404 (#814).
     expect(() => routeBeforeLoad(RetiredDefaultsRoute)()).toThrow();
     expect(redirectMock).toHaveBeenCalledWith({ to: "/settings/general", replace: true });
+  });
+});
+
+describe("RetiredGatewayRedirect", () => {
+  it("Should replace old Remote access (/settings/gateway) links with Computers", () => {
+    // Invariant: bookmarks and window routes naming /settings/gateway redirect to /settings/computers (U1, U10).
+    expect(() => routeBeforeLoad(RetiredGatewayRoute)()).toThrow();
+    expect(redirectMock).toHaveBeenCalledWith({ to: "/settings/computers", replace: true });
   });
 });

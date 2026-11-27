@@ -17,6 +17,8 @@ import {
 } from "@compozy/ui";
 import { Check, ChevronDown } from "@compozy/ui/icons";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+
 import { sessionChangeBasesOptions } from "../../lib/session-changes-query";
 
 export interface BaseRefSelectorProps {
@@ -43,8 +45,9 @@ export function BaseRefSelector({
 }: BaseRefSelectorProps) {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query.trim());
+  const computerId = useCurrentComputerId();
   const bases = useQuery({
-    ...sessionChangeBasesOptions(workspaceId, sessionId, deferredQuery),
+    ...sessionChangeBasesOptions(workspaceId, sessionId, deferredQuery, computerId),
     enabled: open,
   });
   const refs = bases.data?.refs ?? [];

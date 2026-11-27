@@ -3,7 +3,6 @@ import {
   HOMEBREW_INSTALL_COMMAND,
   NPM_INSTALL_COMMAND,
   VERIFIED_INSTALLER_COMMAND,
-  goInstallCommand,
 } from "@/lib/release/install-commands";
 import type { Platform } from "@/lib/release/download-offer";
 
@@ -13,25 +12,20 @@ export interface InstallMethod {
   note: string;
 }
 
-/** `tag` pins the Go command to the release on the page; unknown releases install the latest. */
-export function installMethods(tag: string | null): InstallMethod[] {
-  return [
-    {
-      id: "Installer",
-      command: VERIFIED_INSTALLER_COMMAND,
-      note: "macOS and Linux. Checks the release signature before it installs.",
-    },
-    {
-      id: "Homebrew",
-      command: HOMEBREW_INSTALL_COMMAND,
-      note: "macOS and Linux. Homebrew owns the updates.",
-    },
-    { id: "npm", command: NPM_INSTALL_COMMAND, note: "npm owns the updates." },
-    tag
-      ? { id: "Go", command: goInstallCommand(tag), note: "Pinned to this release." }
-      : { id: "Go", command: goInstallCommand("latest"), note: "The latest release." },
-  ];
-}
+/** Official terminal install methods (ADR-014 §3; source builds live in the contributor guide). */
+export const INSTALL_METHODS: readonly InstallMethod[] = [
+  {
+    id: "Installer",
+    command: VERIFIED_INSTALLER_COMMAND,
+    note: "macOS and Linux. Checks the release signature before it installs.",
+  },
+  {
+    id: "Homebrew",
+    command: HOMEBREW_INSTALL_COMMAND,
+    note: "macOS and Linux. Homebrew owns the updates.",
+  },
+  { id: "npm", command: NPM_INSTALL_COMMAND, note: "npm owns the updates." },
+];
 
 export interface Step {
   title: string;
@@ -43,8 +37,8 @@ const START: Step = {
   body: "Pick a project and the agent you already use. Your sign-in stays with that agent.",
 };
 const OPEN: Step = {
-  title: "Open the app",
-  body: "It starts the runtime it carries inside. A clean first run doesn't need a network connection.",
+  title: "Open the app and sign in",
+  body: "It starts the bundled runtime and asks you to sign in once with Google or GitHub. Local work continues offline after that.",
 };
 
 export const STEPS: Record<Platform, readonly Step[]> = {
@@ -67,8 +61,8 @@ export const STEPS: Record<Platform, readonly Step[]> = {
       body: "There's no desktop app for Windows yet. Put compozy somewhere on your PATH.",
     },
     {
-      title: "Run the setup",
-      body: "One interactive step in your terminal prepares the local runtime.",
+      title: "Run setup and sign in",
+      body: "Run compozy install and compozy account login to prepare the local runtime. First sign-in needs the internet; later use works offline.",
     },
     START,
   ],

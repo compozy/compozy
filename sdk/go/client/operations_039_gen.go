@@ -4,323 +4,219 @@ package client
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
-// UpdateMarketplaceSourceParams carries the path, query, and header parameters.
-type UpdateMarketplaceSourceParams struct {
-	Name string `url:"name"`
-}
-
-// UpdateMarketplaceSource Enable or disable a plugin marketplace source Experimental: pin the exact SDK version.
-func (c *Client) UpdateMarketplaceSource(ctx context.Context, params UpdateMarketplaceSourceParams, body UpdateMarketplaceSourceRequest) (*MarketplaceSourceResponse, error) {
-	path := "/api/marketplace/sources/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out MarketplaceSourceResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+// AsSessionAttentionEventPayload decodes this payload as SessionAttentionEventPayload.
+func (f StreamSessionCatalogFrame) AsSessionAttentionEventPayload() (*SessionAttentionEventPayload, error) {
+	var out SessionAttentionEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// UpdateProfileParams carries the path, query, and header parameters.
-type UpdateProfileParams struct {
-	Name string `url:"name"`
-}
-
-// UpdateProfile Update profile identity
-func (c *Client) UpdateProfile(ctx context.Context, params UpdateProfileParams, body UpdateProfileRequest) (*Profile, error) {
-	path := "/api/profiles/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out Profile
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+// AsOperatorNotificationEventPayload decodes this payload as OperatorNotificationEventPayload.
+func (f StreamSessionCatalogFrame) AsOperatorNotificationEventPayload() (*OperatorNotificationEventPayload, error) {
+	var out OperatorNotificationEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// UpdateSessionPresenceParams carries the path, query, and header parameters.
-type UpdateSessionPresenceParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
+// AsAgentInstancePayload decodes this payload as AgentInstancePayload.
+func (f StreamSessionCatalogFrame) AsAgentInstancePayload() (*AgentInstancePayload, error) {
+	var out AgentInstancePayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
-// UpdateSessionPresence Update operator session presence
-func (c *Client) UpdateSessionPresence(ctx context.Context, params UpdateSessionPresenceParams, body SessionPresenceRequest) (*SessionPresenceResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/presence"
+// StreamSessionCatalog Stream session catalog changes across workspaces
+func (c *Client) StreamSessionCatalog(ctx context.Context, params StreamSessionCatalogParams) (*Stream[StreamSessionCatalogFrame], error) {
+	path := "/api/sessions/catalog-stream"
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	if params.LastEventIDQuery != nil {
+		query.Set("last_event_id", *params.LastEventIDQuery)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[StreamSessionCatalogFrame](ctx, c, "GET", path, headers, nil, "streamSessionCatalog")
+}
+
+// StreamSettingsObservabilityLogTail Stream daemon log output for the observability settings screen
+func (c *Client) StreamSettingsObservabilityLogTail(ctx context.Context) (*Stream[SettingsLogTailEventPayload], error) {
+	path := "/api/settings/observability/log-tail"
+	return newStream[SettingsLogTailEventPayload](ctx, c, "GET", path, nil, nil, "streamSettingsObservabilityLogTail")
+}
+
+// StreamTaskParams carries the path, query, and header parameters.
+type StreamTaskParams struct {
+	ID            string  `url:"id"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
+// StreamTask Stream task-native live events for one task
+func (c *Client) StreamTask(ctx context.Context, params StreamTaskParams) (*Stream[TaskStreamEventPayload], error) {
+	path := "/api/tasks/{id}/stream"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[TaskStreamEventPayload](ctx, c, "GET", path, nil, nil, "streamTask")
+}
+
+// StreamTerminalCatalogParams carries the path, query, and header parameters.
+type StreamTerminalCatalogParams struct {
+	WorkspaceID      string  `url:"workspace_id"`
+	LastEventID      *string `url:"Last-Event-ID"`
+	LastEventIDQuery *string `url:"last_event_id"`
+	Profile          *string `url:"profile"`
+	AllProfiles      *bool   `url:"all_profiles"`
+}
+
+// StreamTerminalCatalog Stream the workspace terminal catalog
+func (c *Client) StreamTerminalCatalog(ctx context.Context, params StreamTerminalCatalogParams) (*Stream[TerminalCatalogSnapshot], error) {
+	path := "/api/workspaces/{workspace_id}/terminals/stream"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
 	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionPresenceResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsAttentionParams carries the path, query, and header parameters.
-type UpdateSettingsAttentionParams struct {
-	Scope   *string `url:"scope"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateSettingsAttention Update the operator attention settings section
-func (c *Client) UpdateSettingsAttention(ctx context.Context, params UpdateSettingsAttentionParams, body UpdateSettingsAttentionRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/attention"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
+	if params.LastEventIDQuery != nil {
+		query.Set("last_event_id", *params.LastEventIDQuery)
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
+	return newStream[TerminalCatalogSnapshot](ctx, c, "GET", path, headers, nil, "streamTerminalCatalog")
 }
 
-// UpdateSettingsAutomation Update the automation settings section
-func (c *Client) UpdateSettingsAutomation(ctx context.Context, body UpdateSettingsAutomationRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/automation"
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
+// StreamTerminalsAggregateParams carries the path, query, and header parameters.
+type StreamTerminalsAggregateParams struct {
+	AllWorkspaces    *bool     `url:"all_workspaces"`
+	WorkspaceIds     *[]string `url:"workspace_ids"`
+	LastEventID      *string   `url:"Last-Event-ID"`
+	LastEventIDQuery *string   `url:"last_event_id"`
+	Profile          *string   `url:"profile"`
+	AllProfiles      *bool     `url:"all_profiles"`
 }
 
-// UpdateSettingsCmdPaletteParams carries the path, query, and header parameters.
-type UpdateSettingsCmdPaletteParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UpdateSettingsCmdPalette Update command-palette settings
-func (c *Client) UpdateSettingsCmdPalette(ctx context.Context, params UpdateSettingsCmdPaletteParams, body UpdateSettingsCmdPaletteRequest) (*SettingsCmdPaletteResponse, error) {
-	path := "/api/settings/cmd-palette"
+// StreamTerminalsAggregate Stream the workspace terminal catalog
+func (c *Client) StreamTerminalsAggregate(ctx context.Context, params StreamTerminalsAggregateParams) (*Stream[TerminalCatalogSnapshot], error) {
+	path := "/api/terminals/catalog-stream"
 	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
 	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	if params.LastEventIDQuery != nil {
+		query.Set("last_event_id", *params.LastEventIDQuery)
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out SettingsCmdPaletteResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
+	return newStream[TerminalCatalogSnapshot](ctx, c, "GET", path, headers, nil, "streamTerminalsAggregate")
 }
 
-// UpdateSettingsGeneral Update the general settings section
-func (c *Client) UpdateSettingsGeneral(ctx context.Context, body UpdateSettingsGeneralRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/general"
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
+// StreamWorktreeParams carries the path, query, and header parameters.
+type StreamWorktreeParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	WorktreeID    string  `url:"worktree_id"`
+	AfterSequence *int64  `url:"after_sequence"`
+	LastEventID   *string `url:"Last-Event-ID"`
 }
 
-// UpdateSettingsHooksExtensions Update the hooks and extensions settings section
-func (c *Client) UpdateSettingsHooksExtensions(ctx context.Context, body UpdateSettingsHooksExtensionsRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/hooks-extensions"
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsMarketplace Apply global marketplace catalog URL, TTL, and timeout
-func (c *Client) UpdateSettingsMarketplace(ctx context.Context, body UpdateSettingsMarketplaceRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/marketplace"
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsObservability Update the observability settings section
-func (c *Client) UpdateSettingsObservability(ctx context.Context, body UpdateSettingsObservabilityRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/observability"
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsPersonaParams carries the path, query, and header parameters.
-type UpdateSettingsPersonaParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UpdateSettingsPersona Update profile-layerable persona defaults
-func (c *Client) UpdateSettingsPersona(ctx context.Context, params UpdateSettingsPersonaParams, body UpdateSettingsPersonaRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/persona"
+// StreamWorktree Stream durable worktree lifecycle events
+func (c *Client) StreamWorktree(ctx context.Context, params StreamWorktreeParams) (*Stream[map[string]any], error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/stream"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
 	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
 	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
+	return newStream[map[string]any](ctx, c, "GET", path, headers, nil, "streamWorktree")
 }
 
-// UpdateSettingsProviderUsageParams carries the path, query, and header parameters.
-type UpdateSettingsProviderUsageParams struct {
-	CollectionProfile *string `url:"collection_profile"`
+// StreamWorktreeCatalog Stream worktree catalog changes across workspaces
+func (c *Client) StreamWorktreeCatalog(ctx context.Context) (*Stream[WorktreeCatalogEventPayload], error) {
+	path := "/api/worktrees/catalog-stream"
+	return newStream[WorktreeCatalogEventPayload](ctx, c, "GET", path, nil, nil, "streamWorktreeCatalog")
 }
 
-// UpdateSettingsProviderUsage Update the provider usage settings section
-func (c *Client) UpdateSettingsProviderUsage(ctx context.Context, params UpdateSettingsProviderUsageParams, body SettingsProviderUsageUpdateRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/provider-usage"
-	query := url.Values{}
-	if params.CollectionProfile != nil {
-		query.Set("collection_profile", *params.CollectionProfile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsRoles Update the background-role routing settings section
-func (c *Client) UpdateSettingsRoles(ctx context.Context, body UpdateSettingsRolesRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/roles"
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsShell Update the operator shell settings section
-func (c *Client) UpdateSettingsShell(ctx context.Context, body UpdateSettingsShellRequest) (*SettingsShellMutationResponse, error) {
-	path := "/api/settings/shell"
-	var out SettingsShellMutationResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsSkillsParams carries the path, query, and header parameters.
-type UpdateSettingsSkillsParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	AgentName   *string `url:"agent_name"`
-}
-
-// UpdateSettingsSkills Update the skills settings section
-func (c *Client) UpdateSettingsSkills(ctx context.Context, params UpdateSettingsSkillsParams, body UpdateSettingsSkillsRequest) (*SettingsSkillsMutationResponse, error) {
-	path := "/api/settings/skills"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsSkillsMutationResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsWindowManagerParams carries the path, query, and header parameters.
-type UpdateSettingsWindowManagerParams struct {
-	Scope         *string `url:"scope"`
-	WorkspaceID   *string `url:"workspace_id"`
-	ClientID      *string `url:"client_id"`
-	ClientProfile *string `url:"client_profile"`
-}
-
-// UpdateSettingsWindowManager Update the window-manager settings section
-func (c *Client) UpdateSettingsWindowManager(ctx context.Context, params UpdateSettingsWindowManagerParams, body UpdateSettingsWindowManagerRequest) (*SettingsWindowManagerMutationResponse, error) {
-	path := "/api/settings/window-manager"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.ClientID != nil {
-		query.Set("client_id", *params.ClientID)
-	}
-	if params.ClientProfile != nil {
-		query.Set("client_profile", *params.ClientProfile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsWindowManagerMutationResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateTaskParams carries the path, query, and header parameters.
-type UpdateTaskParams struct {
+// SubmitTaskRunReviewVerdictParams carries the path, query, and header parameters.
+type SubmitTaskRunReviewVerdictParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
 }
 
-// UpdateTask Update one task
-func (c *Client) UpdateTask(ctx context.Context, params UpdateTaskParams, body UpdateTaskRequest) (*TaskResponse, error) {
-	path := "/api/tasks/{id}"
+// SubmitTaskRunReviewVerdict Submit one task-run review verdict
+func (c *Client) SubmitTaskRunReviewVerdict(ctx context.Context, params SubmitTaskRunReviewVerdictParams, body SubmitTaskRunReviewVerdictRequest) (*TaskRunReviewVerdictResponse, error) {
+	path := "/api/task-reviews/{id}/verdict"
 	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
 	query := url.Values{}
 	if params.Profile != nil {
@@ -329,63 +225,45 @@ func (c *Client) UpdateTask(ctx context.Context, params UpdateTaskParams, body U
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateWindowManagerMigrationParams carries the path, query, and header parameters.
-type UpdateWindowManagerMigrationParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UpdateWindowManagerMigration Acknowledge or retry window layout migration
-func (c *Client) UpdateWindowManagerMigration(ctx context.Context, params UpdateWindowManagerMigrationParams, body WindowManagerMigrationRequest) (*MigrationStatus, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/migration"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MigrationStatus
+	var out TaskRunReviewVerdictResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// UpdateWorkspaceParams carries the path, query, and header parameters.
-type UpdateWorkspaceParams struct {
-	ID string `url:"id"`
+// TerminateProcessesParams carries the path, query, and header parameters.
+type TerminateProcessesParams struct {
+	Profile *string `url:"profile"`
 }
 
-// UpdateWorkspace Update a registered workspace
-func (c *Client) UpdateWorkspace(ctx context.Context, params UpdateWorkspaceParams, body UpdateWorkspaceRequest) (*WorkspaceResponse, error) {
-	path := "/api/workspaces/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out WorkspaceResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+// TerminateProcesses Terminate identity-verified processes with missing or retained session owners
+func (c *Client) TerminateProcesses(ctx context.Context, params TerminateProcessesParams, body TerminateProcessesRequest) (*TerminateSessionProcessesResponse, error) {
+	path := "/api/processes/terminate"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminateSessionProcessesResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// UploadSessionAttachmentParams carries the path, query, and header parameters.
-type UploadSessionAttachmentParams struct {
+// TerminateSessionProcessesParams carries the path, query, and header parameters.
+type TerminateSessionProcessesParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
 }
 
-// UploadSessionAttachment Upload a session attachment
-func (c *Client) UploadSessionAttachment(ctx context.Context, params UploadSessionAttachmentParams, body *UploadFile) (*SessionAttachmentUploadResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments"
+// TerminateSessionProcesses Terminate identity-verified session processes
+func (c *Client) TerminateSessionProcesses(ctx context.Context, params TerminateSessionProcessesParams, body TerminateSessionProcessesRequest) (*TerminateSessionProcessesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/processes/terminate"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	query := url.Values{}
@@ -395,23 +273,83 @@ func (c *Client) UploadSessionAttachment(ctx context.Context, params UploadSessi
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out SessionAttachmentUploadResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "multipart/form-data", ""); err != nil {
+	var out TerminateSessionProcessesResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// ValidateAgentDefinitionSoulParams carries the path, query, and header parameters.
-type ValidateAgentDefinitionSoulParams struct {
-	Name    string  `url:"name"`
+// TriggerAutomationJobParams carries the path, query, and header parameters.
+type TriggerAutomationJobParams struct {
+	ID      string  `url:"id"`
+	Wait    *bool   `url:"wait"`
+	Timeout *string `url:"timeout"`
 	Profile *string `url:"profile"`
 }
 
-// ValidateAgentDefinitionSoul Validate a proposed Soul body for an agent definition
-func (c *Client) ValidateAgentDefinitionSoul(ctx context.Context, params ValidateAgentDefinitionSoulParams, body AgentSoulValidateByPathRequest) (*AgentSoulPayload, error) {
-	path := "/api/agents/{name}/soul/validate"
+// TriggerAutomationJob Start one automation job and return its admission receipt
+func (c *Client) TriggerAutomationJob(ctx context.Context, params TriggerAutomationJobParams) (*RunResponse, error) {
+	path := "/api/automation/jobs/{id}/trigger"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Wait != nil {
+		query.Set("wait", strconv.FormatBool(*params.Wait))
+	}
+	if params.Timeout != nil {
+		query.Set("timeout", *params.Timeout)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RunResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// TriggerSettingsRestart Trigger a daemon restart using the persisted relaunch helper flow
+func (c *Client) TriggerSettingsRestart(ctx context.Context) (*RestartActionResponse, error) {
+	path := "/api/settings/actions/restart"
+	var out RestartActionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UnarchiveProfileParams carries the path, query, and header parameters.
+type UnarchiveProfileParams struct {
+	Name string `url:"name"`
+}
+
+// UnarchiveProfile Unarchive a profile
+func (c *Client) UnarchiveProfile(ctx context.Context, params UnarchiveProfileParams, body UnarchiveProfileRequest) (*UnarchiveProfileResponse, error) {
+	path := "/api/profiles/{name}/unarchive"
 	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out UnarchiveProfileResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UnarchiveSessionParams carries the path, query, and header parameters.
+type UnarchiveSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// UnarchiveSession Restore an archived session
+func (c *Client) UnarchiveSession(ctx context.Context, params UnarchiveSessionParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
@@ -419,15 +357,86 @@ func (c *Client) ValidateAgentDefinitionSoul(ctx context.Context, params Validat
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out AgentSoulPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// ValidateAgentHeartbeatParams carries the path, query, and header parameters.
-type ValidateAgentHeartbeatParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
+// UnarchiveWorkspaceParams carries the path, query, and header parameters.
+type UnarchiveWorkspaceParams struct {
+	ID string `url:"id"`
+}
+
+// UnarchiveWorkspace unarchive a workspace without removing its data
+func (c *Client) UnarchiveWorkspace(ctx context.Context, params UnarchiveWorkspaceParams) (*WorkspaceResponse, error) {
+	path := "/api/workspaces/{id}/unarchive"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out WorkspaceResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UnbindIngressParams carries the path, query, and header parameters.
+type UnbindIngressParams struct {
+	SubjectKind string `url:"subject_kind"`
+	SubjectID   string `url:"subject_id"`
+}
+
+// UnbindIngress Remove one public ingress confirmation
+func (c *Client) UnbindIngress(ctx context.Context, params UnbindIngressParams) error {
+	path := "/api/ingress/bindings/{subject_kind}/{subject_id}"
+	path = strings.ReplaceAll(path, "{subject_kind}", url.PathEscape(params.SubjectKind))
+	path = strings.ReplaceAll(path, "{subject_id}", url.PathEscape(params.SubjectID))
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// UnbindSessionWorktreeParams carries the path, query, and header parameters.
+type UnbindSessionWorktreeParams struct {
+	WorkspaceID        string  `url:"workspace_id"`
+	SessionID          string  `url:"session_id"`
+	Profile            *string `url:"profile"`
+	ExpectedWorktreeID *string `url:"expected_worktree_id"`
+}
+
+// UnbindSessionWorktree Return an idle session to the workspace root in place
+func (c *Client) UnbindSessionWorktree(ctx context.Context, params UnbindSessionWorktreeParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.ExpectedWorktreeID != nil {
+		query.Set("expected_worktree_id", *params.ExpectedWorktreeID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UndrainDaemon Resume admission of new work
+func (c *Client) UndrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
+	path := "/api/undrain"
+	var out DrainStatusResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UnexposeSkillParams carries the path, query, and header parameters.
+type UnexposeSkillParams struct {
+	Name     string  `url:"name"`
+	Profile  *string `url:"profile"`
+	ForAgent *string `url:"for_agent"`
 }

@@ -51,7 +51,6 @@ type Extension struct {
 	commandGroups        []contracts.ExtensionCommandGroupSpec
 	heartbeatHandlers    map[string]registeredHeartbeatSource
 	watchHandlers        map[string]registeredWatchSource
-	connectivityProvider bool
 	forgeProvider        bool
 	readyCallbacks       []func(context.Context, *HostAPI, ExtensionSession) error
 	readyLifecycle       *readyCallbackLifecycle
@@ -150,9 +149,6 @@ func (e *Extension) Handle(method string, handler ExtensionHandler) error {
 	}
 	if len(e.watchHandlers) > 0 && isWatchSourceMethod(cleanMethod) {
 		return NewInvalidParamsError(cleanMethod+" is reserved by WatchSource", nil)
-	}
-	if e.connectivityProvider && isConnectivityProviderMethod(cleanMethod) {
-		return NewInvalidParamsError(cleanMethod+" is reserved by ConnectivityProvider", nil)
 	}
 	if e.forgeProvider && isForgeProviderMethod(cleanMethod) {
 		return NewInvalidParamsError(cleanMethod+" is reserved by ForgeProvider", nil)

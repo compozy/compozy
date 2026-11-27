@@ -52,10 +52,10 @@ type SkillProposalService struct {
 	// crashAt is a test seam: returning true at a named transaction step stops the transaction there
 	// as a crash would, leaving disk state for the next Reconcile.
 	crashAt func(step string) bool
-	// onStep is a test seam observing the proposal's lock and auto-approve evaluation order.
-	onStep func(step string, t *skillTarget)
 	// syncDir is a test seam for directory syncs that confirm a commit; nil uses fileutil.SyncDir.
 	syncDir func(path string) error
+	// onStep is a test seam observing the proposal's lock and auto-approve evaluation order.
+	onStep func(step string, t *skillTarget)
 }
 
 type SkillProposalResult struct {
@@ -128,7 +128,7 @@ func (s *SkillProposalService) proposeLocked(
 	evidence []string,
 ) (SkillProposalResult, error) {
 	// Checked again after Reconcile, so an interrupted install is settled before name or base is judged.
-	edit, err := checkProposalTarget(t, targetRoot, draft, blocked)
+	edit, err := checkProposalTarget(ctx, t, targetRoot, draft, blocked)
 	if err != nil {
 		return SkillProposalResult{}, err
 	}
@@ -136,7 +136,7 @@ func (s *SkillProposalService) proposeLocked(
 	if err != nil {
 		return SkillProposalResult{}, err
 	}
-	path, digest, snapshot, err := s.writeProposal(id, draft, edit)
+	path, digest, snapshot, err := s.writeProposal(ctx, id, draft, edit)
 	if err != nil {
 		return SkillProposalResult{}, err
 	}
@@ -151,7 +151,7 @@ func (s *SkillProposalService) proposeLocked(
 		DraftPath:          path,
 		SourceSessionID:    actor.SessionID,
 		Kind:               draft.kind(),
-		SkillKey:           skillKeyFor(instance, t.root, draft.Name),
+		SkillKey:           skillKeyFor(instance.WorkspaceID, t.root, draft.Name),
 		BaseDigest:         edit.baseDigest,
 		SnapshotPath:       snapshot,
 		ProposedDigest:     edit.proposedDigest,
@@ -228,6 +228,7 @@ func prepareProposalDraft(input SkillProposalInput) (SkillDraft, error) {
 // checkProposalTarget applies Business Rule 4 under the skill locks: a new skill needs a free name; an
 // edit needs a settled, supported installed base and returns it with the resulting tree.
 func checkProposalTarget(
+	ctx context.Context,
 	t *skillTarget,
 	targetRoot string,
 	draft SkillDraft,
@@ -239,21 +240,25 @@ func checkProposalTarget(
 	if blocked != nil {
 		return skillEdit{}, skillInstallConflictError(draft.Name, blocked.OpID)
 	}
-	return prepareSkillEdit(t.dir, draft)
+	return prepareSkillEdit(ctx, t.dir, draft)
 }
 
 // writeProposal writes the inert draft and, for an edit, the base snapshot beside it.
 func (s *SkillProposalService) writeProposal(
+	ctx context.Context,
 	id string,
 	draft SkillDraft,
 	edit skillEdit,
 ) (path, digest, snapshot string, err error) {
+	if err := ctx.Err(); err != nil {
+		return "", "", "", err
+	}
 	path, digest, err = WriteSkillDraft(s.DraftRoot, s.ScanRoots, draft)
 	if err != nil || draft.Mode != SkillProposalEdit {
 		return path, digest, "", err
 	}
 	snapshot = skillSnapshotPath(path, id)
-	if err := writeSkillSnapshot(snapshot, edit.base, edit.baseDigest); err != nil {
+	if err := writeSkillSnapshot(ctx, snapshot, edit.base, edit.baseDigest); err != nil {
 		return "", "", "", errors.Join(err, os.Remove(path))
 	}
 	return path, digest, snapshot, nil
@@ -315,9 +320,9 @@ func skillReviewReport(id, name string, evidence []string) (ReportInput, error) 
 
 // skillKeyFor names the physical skill root/name: workspace targets by workspace ID, agent-local
 // targets by the canonical agent directory that owns the skills root.
-func skillKeyFor(instance Instance, root, name string) SkillKey {
-	if instance.WorkspaceID != "" {
-		return SkillKey("workspace:" + instance.WorkspaceID + "/" + name)
+func skillKeyFor(workspaceID, root, name string) SkillKey {
+	if workspaceID != "" {
+		return SkillKey("workspace:" + workspaceID + "/" + name)
 	}
 	return SkillKey("agent-dir:" + filepath.ToSlash(filepath.Dir(root)) + "/" + name)
 }

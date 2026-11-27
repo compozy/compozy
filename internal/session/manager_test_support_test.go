@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/toolmeta"
 	"github.com/compozy/compozy/internal/toolruntime"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -987,6 +988,7 @@ func cloneResolvedWorkspaceForTests(src *workspacepkg.ResolvedWorkspace) workspa
 }
 
 type recordingHostedMCPLauncher struct {
+	releaseRunHook    func()
 	initialToolDigest string
 	toolDigest        string
 	toolDigestErr     error
@@ -994,10 +996,31 @@ type recordingHostedMCPLauncher struct {
 	bindErr           error
 	waits             []string
 	server            compozyconfig.MCPServer
+	serverForLaunch   func(HostedMCPLaunchRequest, int) compozyconfig.MCPServer
 	requests          []HostedMCPLaunchRequest
 	arms              []string
 	cancels           []string
 	releases          []string
+}
+
+func newRecordingReplayLauncher() *recordingHostedMCPLauncher {
+	return &recordingHostedMCPLauncher{
+		serverForLaunch: func(request HostedMCPLaunchRequest, sequence int) compozyconfig.MCPServer {
+			return compozyconfig.MCPServer{
+				Name:      toolmeta.HostedServerName,
+				Transport: compozyconfig.MCPServerTransportStdio,
+				Command:   "/bin/compozy",
+				Args: []string{
+					"tool",
+					"mcp",
+					"--session",
+					request.SessionID,
+					toolmeta.HostedBindNonceFlag,
+					fmt.Sprintf("nonce-%d", sequence),
+				},
+			}
+		},
+	}
 }
 
 func (l *recordingHostedMCPLauncher) ArmLaunch(_ context.Context, sessionID string) error {
@@ -1016,7 +1039,11 @@ func (l *recordingHostedMCPLauncher) WaitForBind(_ context.Context, sessionID st
 
 func (*recordingHostedMCPLauncher) BindRun(context.Context, string, string, int64) error { return nil }
 
-func (*recordingHostedMCPLauncher) ReleaseRun(string, string, int64) {}
+func (l *recordingHostedMCPLauncher) ReleaseRun(string, string, int64) {
+	if l.releaseRunHook != nil {
+		l.releaseRunHook()
+	}
+}
 
 var _ HostedMCPLauncher = (*recordingHostedMCPLauncher)(nil)
 
@@ -1028,6 +1055,9 @@ func (l *recordingHostedMCPLauncher) Launch(
 	defer l.mu.Unlock()
 	l.requests = append(l.requests, req)
 	l.initialToolDigest = l.toolDigest
+	if l.serverForLaunch != nil {
+		return l.serverForLaunch(req, len(l.requests)), nil
+	}
 	return l.server, nil
 }
 

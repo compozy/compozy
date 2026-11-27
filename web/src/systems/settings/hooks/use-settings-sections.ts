@@ -52,8 +52,8 @@ export function useSettingsSkills(filter: SettingsSkillsFilter = {}) {
   return useQuery(settingsSkillsOptions(filter));
 }
 
-export function useSettingsAutomation() {
-  return useQuery(settingsAutomationOptions());
+export function useSettingsAutomation(computerId?: string) {
+  return useQuery(settingsAutomationOptions(computerId));
 }
 
 export function useSettingsAttention(filter: SettingsAttentionFilter) {

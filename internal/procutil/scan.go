@@ -14,6 +14,8 @@ type ScannedProcess struct {
 	KernelToken                         string
 	SessionID, Home, Profile, Workspace string
 	Argv0, Command, CWD                 string
+	ConnectorExecutable                 string
+	RemoteConnector                     bool
 	Ports                               []int
 	Zombie                              bool
 }
@@ -45,6 +47,8 @@ func processMarkers(p *ScannedProcess, env []byte) {
 		switch string(key) {
 		case "COMPOZY_SESSION_ID":
 			p.SessionID = string(value)
+		case "COMPOZY_REMOTE_CONNECTOR":
+			p.RemoteConnector = string(value) == "1"
 		case "COMPOZY_HOME":
 			p.Home = string(value)
 		case "COMPOZY_PROFILE_ID":

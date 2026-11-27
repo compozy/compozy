@@ -7,6 +7,7 @@ import { buildApiOperationFacts } from "../lib/api-reference-build";
 import { API_TAG_ICONS } from "../lib/docs-icons";
 import { COMPOZY_OPENAPI_ID, COMPOZY_OPENAPI_PATH } from "../lib/openapi";
 import { API_SECTIONS } from "../lib/docs-navigation";
+import { readRegisteredAPIRoutes, routePattern, type APIRoute } from "../lib/registered-api-routes";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(HERE, "../content/docs/api");
@@ -22,11 +23,6 @@ type OpenAPIDocument = {
 type OpenAPIOperation = {
   tags?: string[];
   [key: string]: unknown;
-};
-
-type APIRoute = {
-  method: string;
-  path: string;
 };
 
 type OpenAPIOptions = NonNullable<Parameters<typeof createOpenAPI>[0]>;
@@ -48,86 +44,6 @@ async function cleanGenerated(): Promise<void> {
     }
   }
   await Promise.all(removals);
-}
-
-async function readRepoFile(...parts: string[]): Promise<string> {
-  return fs.readFile(path.resolve(REPO_ROOT, ...parts), "utf8");
-}
-
-async function listRouteSourcePaths(dir: string): Promise<string[]> {
-  const entries = await fs.readdir(path.resolve(REPO_ROOT, dir));
-  return entries
-    .filter(entry => entry === "routes.go" || entry.endsWith("_routes.go"))
-    .sort()
-    .map(entry => path.join(dir, entry));
-}
-
-function joinRoute(left: string, right: string): string {
-  if (!right) {
-    return left || "/";
-  }
-  return `${left.replace(/\/$/, "")}/${right.replace(/^\//, "")}`;
-}
-
-async function extractRegisteredRoutes(sourcePath: string): Promise<APIRoute[]> {
-  const routes: APIRoute[] = [];
-  const source = await readRepoFile(sourcePath);
-  const groups = new Map<string, string>([["api", "/api"]]);
-  const assignmentMatcher = /^\s*(\w+)\s*:=\s*(\w+)\.Group\("([^"]*)"/;
-  const methodMatcher = /^\s*(\w+)\.(GET|POST|PATCH|PUT|DELETE)\("([^"]*)"/;
-
-  for (const line of source.split("\n")) {
-    const assignment = line.match(assignmentMatcher);
-    if (assignment) {
-      const [, target, parent, suffix] = assignment;
-      const parentPath = groups.get(parent ?? "");
-      if (target && parentPath !== undefined) {
-        groups.set(target, joinRoute(parentPath, suffix ?? ""));
-      }
-      continue;
-    }
-
-    const method = line.match(methodMatcher);
-    if (method) {
-      const [, group, verb, suffix] = method;
-      const prefix = groups.get(group ?? "");
-      if (prefix !== undefined && verb) {
-        routes.push({
-          method: verb,
-          path: joinRoute(prefix, suffix ?? ""),
-        });
-      }
-    }
-  }
-
-  return routes;
-}
-
-async function implementedRoutes(): Promise<APIRoute[]> {
-  const [httpSources, udsSources] = await Promise.all([
-    listRouteSourcePaths("internal/api/httpapi"),
-    listRouteSourcePaths("internal/api/udsapi"),
-  ]);
-  const routeGroups = await Promise.all(
-    [...httpSources, ...udsSources].map(sourcePath => extractRegisteredRoutes(sourcePath))
-  );
-  return routeGroups.flat();
-}
-
-function routePattern(route: string): RegExp {
-  const escaped = route
-    .split("/")
-    .map(part => {
-      if (part.startsWith(":")) {
-        return "[^/]+";
-      }
-      if (part.startsWith("*")) {
-        return ".*";
-      }
-      return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    })
-    .join("/");
-  return new RegExp(`^${escaped}$`);
 }
 
 function isCoveredByRegisteredRoute(openapiPath: string, method: string, routes: APIRoute[]) {
@@ -166,10 +82,8 @@ async function loadReferenceDocument(): Promise<OpenAPIDocument> {
   if (referenceDocument) {
     return referenceDocument;
   }
-  const [raw, routes] = await Promise.all([
-    fs.readFile(COMPOZY_OPENAPI_PATH, "utf8"),
-    implementedRoutes(),
-  ]);
+  const raw = await fs.readFile(COMPOZY_OPENAPI_PATH, "utf8");
+  const routes = readRegisteredAPIRoutes(REPO_ROOT);
   referenceDocument = filterUnimplementedRoutes(JSON.parse(raw) as OpenAPIDocument, routes);
   return referenceDocument;
 }

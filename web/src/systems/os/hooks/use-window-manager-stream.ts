@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
+import { isAccountSignInCloseCode, reportAccountGateSignal } from "@/lib/account-gate-signal";
 
 import {
   buildWindowManagerStreamUrl,
@@ -455,13 +456,15 @@ export function useWindowManagerStream({
       if (stopped) return;
       publishStatus("reconnecting");
     };
-    socket.onclose = () => {
+    socket.onclose = event => {
       if (stopped) return;
-      liveness.scheduleReconnect(
-        windowManagerReconnectDelay(lifecycleStore.getSnapshot().context.reconnectAttempt)
-      );
+      if (isAccountSignInCloseCode(event?.code)) {
+        reportAccountGateSignal({ kind: "sign_in_required", code: "sign_in_required" });
+        return;
+      }
+      const attempt = lifecycleStore.getSnapshot().context.reconnectAttempt;
+      liveness.scheduleReconnect(windowManagerReconnectDelay(attempt));
     };
-
     return () => {
       stopped = true;
       liveness.dispose();
@@ -471,10 +474,7 @@ export function useWindowManagerStream({
         contextRefreshTimerRef.current = null;
       }
       refreshController.abort();
-      socket.onopen = null;
-      socket.onmessage = null;
-      socket.onerror = null;
-      socket.onclose = null;
+      socket.onopen = socket.onmessage = socket.onerror = socket.onclose = null;
       socket.close();
       if (refreshRetryTimer !== null) {
         clearTimeout(refreshRetryTimer);

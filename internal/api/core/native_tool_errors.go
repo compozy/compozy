@@ -121,7 +121,7 @@ func nativeDomainErrorStatus(err error) int {
 		return StatusForWorktreeError(err)
 	}
 	for _, classify := range []func(error) int{
-		StatusForSessionError, StatusForWorkspaceError, StatusForGatewayError,
+		StatusForSessionError, StatusForWorkspaceError, StatusForIngressError,
 		StatusForLoopError, StatusForSettingsError,
 	} {
 		if status := classify(err); status != http.StatusInternalServerError {

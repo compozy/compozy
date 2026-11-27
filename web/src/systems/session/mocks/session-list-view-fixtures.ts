@@ -50,6 +50,8 @@ export function sessionListCatalogFixture(
     sessions: [],
     facets: undefined,
     total: undefined,
+    working: undefined,
+    needsYou: undefined,
     loading: false,
     placeholder: false,
     failed: false,

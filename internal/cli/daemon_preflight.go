@@ -23,7 +23,6 @@ func newDaemonPreflightCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
-// runDaemonPreflight never takes the runtime context: its gateway profile recovery mutates the home.
 func runDaemonPreflight(cmd *cobra.Command, deps commandDeps) error {
 	homePaths, err := deps.resolveHome()
 	if err != nil {

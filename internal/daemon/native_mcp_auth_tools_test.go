@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -3152,5 +3153,33 @@ type approvalOnlyRegistry struct {
 func runtimeInventoryHasServer(inventory runtimemcp.Inventory, name string) bool {
 	return slices.ContainsFunc(inventory.Runtimes, func(runtime runtimemcp.Snapshot) bool {
 		return slices.ContainsFunc(runtime.Servers, func(server runtimemcp.Server) bool { return server.Name == name })
+	})
+}
+
+func TestNativeToolSignInAdmission(t *testing.T) {
+	t.Parallel()
+	// UT-115. Safety Invariant 14: the native registry preserves running agent work only.
+	t.Run("Should reject operator tools and new agent work while signed out", func(t *testing.T) {
+		t.Parallel()
+		d := new(Daemon)
+		d.admission.SetSignInCheck(func() error { return account.ErrSignInRequired })
+		operator := toolspkg.Scope{Operator: true}
+		agent := toolspkg.Scope{SessionID: "running-session"}
+		const read toolspkg.ToolID = "compozy__skill_search"
+		for _, check := range []struct {
+			scope toolspkg.Scope
+			id    toolspkg.ToolID
+		}{
+			{operator, read}, {agent, toolspkg.ToolIDTaskRunClaimNext}, {agent, toolspkg.ToolIDSessionSpawn},
+			{agent, toolspkg.ToolIDSessionCreate},
+		} {
+			failure, ok := errors.AsType[*toolspkg.ToolError](d.signInToolAdmission(check.scope, check.id))
+			if !ok || failure.HTTPStatus != 401 || !errors.Is(failure, account.ErrSignInRequired) {
+				t.Errorf("tool %s admission = %v", check.id, failure)
+			}
+		}
+		if err := d.signInToolAdmission(agent, read); err != nil {
+			t.Fatal(err)
+		}
 	})
 }

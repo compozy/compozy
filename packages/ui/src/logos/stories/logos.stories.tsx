@@ -8,6 +8,7 @@ import {
   CursorLogo,
   GeminiLogo,
   GithubLogo,
+  GoogleLogo,
   KimiLogo,
   LinearLogo,
   OpenAILogo,
@@ -48,6 +49,7 @@ const AGENT_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
 
 const INTEGRATION_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
   { label: "GitHub", Logo: GithubLogo },
+  { label: "Google", Logo: GoogleLogo },
   { label: "Linear", Logo: LinearLogo },
   { label: "Slack", Logo: SlackLogo },
 ];

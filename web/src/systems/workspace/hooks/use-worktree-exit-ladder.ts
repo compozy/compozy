@@ -1,5 +1,8 @@
 import { useState } from "react";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import type { ComputerId } from "@/lib/computer-scope";
+
 import { toWorktreeExitLadder, type WorktreeExitLadder } from "../lib/worktree-exit-ladder";
 import { reduceWorktreeExitEvent, type WorktreeExitProgress } from "../lib/worktree-exit-progress";
 import type { WorktreeExitEventName, WorktreeExitEventPayload } from "../lib/worktree-events";
@@ -10,6 +13,7 @@ import type { WorktreeStreamStatus } from "./worktree-stream-store";
 
 export interface UseWorktreeExitLadderOptions {
   enabled?: boolean;
+  computerId?: ComputerId;
   eventSourceFactory?: WorktreeEventSourceFactory;
 }
 
@@ -37,9 +41,13 @@ export interface WorktreeExitLadderModel {
 export function useWorktreeExitLadder(
   workspaceID: string,
   worktreeID: string,
-  { enabled = true, eventSourceFactory }: UseWorktreeExitLadderOptions = {}
+  { enabled = true, computerId, eventSourceFactory }: UseWorktreeExitLadderOptions = {}
 ): WorktreeExitLadderModel {
-  const plan = useWorktreeExitPlan(workspaceID, worktreeID, { enabled });
+  const scopedComputerId = useCurrentComputerId(computerId);
+  const plan = useWorktreeExitPlan(workspaceID, worktreeID, {
+    enabled,
+    computerId: scopedComputerId,
+  });
   const [progress, setProgress] = useState<WorktreeExitProgress | undefined>(undefined);
 
   const handleExitEvent = (name: WorktreeExitEventName, payload: WorktreeExitEventPayload) => {
@@ -48,6 +56,7 @@ export function useWorktreeExitLadder(
 
   const streamStatus = useWorktreeStream(workspaceID, worktreeID, {
     enabled,
+    computerId: scopedComputerId,
     onExitEvent: handleExitEvent,
     eventSourceFactory,
   });

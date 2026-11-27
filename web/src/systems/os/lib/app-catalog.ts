@@ -15,6 +15,8 @@ import {
   type LucideIcon,
 } from "@compozy/ui/icons";
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import { OS_WINDOW_MIN_HEIGHT, OS_WINDOW_MIN_WIDTH, type OsAppId } from "./os-types";
 import type { PixelSize } from "./window-manager-types";
 
@@ -64,11 +66,17 @@ export function matchFilesInstance(pathname: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-export function filesAppRoute(workspaceId: string): {
+export function filesAppRoute(
+  workspaceId: string,
+  computerId?: ComputerId
+): {
   pathname: string;
-  search: Record<string, never>;
+  search: Record<string, string>;
 } {
-  return { pathname: `${FILES_APP_PATH}/${encodeURIComponent(workspaceId)}`, search: {} };
+  const search: Record<string, string> = isRemoteComputerId(computerId)
+    ? { computer: normalizeComputerId(computerId) }
+    : {};
+  return { pathname: `${FILES_APP_PATH}/${encodeURIComponent(workspaceId)}`, search };
 }
 
 export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {

@@ -3,6 +3,7 @@ import { shallowEqual } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { flattenTranscriptMessages } from "../lib/session-transcript-query";
 import type { SessionTranscriptThreadStatus } from "../lib/session-transcript-thread-context-value";
 import {
@@ -41,17 +42,18 @@ export function useSessionLiveTail({
   eventSourceFactory,
   resetGeneration = 0,
 }: UseSessionLiveTailOptions) {
+  const computerId = useCurrentComputerId();
   const queryClient = useQueryClient();
   const store = useStore(sessionLiveTailLogic);
   const catalogDeltaRefreshMs = SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS;
   const queryEnabled = sessionId.trim() !== "";
   const projectLiveEnabled = enabled && workspaceId.trim() !== "";
   const sessionState = useQuery({
-    ...sessionDetailOptions(workspaceId, sessionId),
+    ...sessionDetailOptions(workspaceId, sessionId, computerId),
     enabled: queryEnabled && projectLiveEnabled,
   }).data?.state;
   const transcriptQuery = useInfiniteQuery({
-    ...sessionTranscriptOptions(workspaceId, sessionId),
+    ...sessionTranscriptOptions(workspaceId, sessionId, computerId),
     enabled: queryEnabled,
   });
   const streamShouldOpen =
@@ -65,6 +67,7 @@ export function useSessionLiveTail({
 
   useEffect(() => {
     const runtime = createSessionLiveTailRuntime({
+      computerId,
       eventSourceFactory: eventSourceFactory ?? defaultEventSourceFactory,
       queryClient,
       sessionId,
@@ -76,6 +79,7 @@ export function useSessionLiveTail({
   }, [
     canOpenStream,
     catalogDeltaRefreshMs,
+    computerId,
     eventSourceFactory,
     queryClient,
     resetGeneration,
@@ -101,13 +105,13 @@ export function useSessionLiveTail({
   // drop to the safety cadence while this tail holds the live edge.
   useEffect(() => {
     if (!streamLive) return;
-    const release = retainSessionStreamLiveness(sessionId);
-    rescheduleSessionStreamBackedReads(queryClient, workspaceId, sessionId);
+    const release = retainSessionStreamLiveness(sessionId, computerId);
+    rescheduleSessionStreamBackedReads(queryClient, workspaceId, sessionId, computerId);
     return () => {
       release();
-      rescheduleSessionStreamBackedReads(queryClient, workspaceId, sessionId);
+      rescheduleSessionStreamBackedReads(queryClient, workspaceId, sessionId, computerId);
     };
-  }, [queryClient, sessionId, streamLive, workspaceId]);
+  }, [computerId, queryClient, sessionId, streamLive, workspaceId]);
   const transcriptMessages = flattenTranscriptMessages(transcriptQuery.data);
   const transcriptStatus: SessionTranscriptThreadStatus = transcriptQuery.isPending
     ? "pending"

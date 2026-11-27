@@ -56,6 +56,7 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDSessionList.String(),
 			toolspkg.ToolIDSessionArchive.String(),
 			toolspkg.ToolIDSessionUnarchive.String(),
+			toolspkg.ToolIDSessionArchiveStopped.String(),
 			toolspkg.ToolIDSessionCleanup.String(),
 			toolspkg.ToolIDSessionLater.String(),
 			toolspkg.ToolIDSessionResumeLater.String(),
@@ -182,10 +183,6 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDObserveMetrics.String(),
 			toolspkg.ToolIDObserveSearch.String(),
 		},
-	},
-	{
-		ID:    toolspkg.ToolsetIDGateway,
-		Tools: []string{toolspkg.ToolIDGateway.String()},
 	},
 	{
 		ID: toolspkg.ToolsetIDTasks,

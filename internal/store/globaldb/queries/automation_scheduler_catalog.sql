@@ -1,26 +1,26 @@
 -- name: GetAutomationSchedulerState :one
 SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
-       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until
+       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until, held_for_sign_in
 FROM automation_scheduler_state WHERE job_id = sqlc.arg(job_id);
 
 -- name: ListAutomationSchedulerStates :many
 SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
-       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until
+       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until, held_for_sign_in
 FROM automation_scheduler_state ORDER BY job_id ASC;
 
 -- name: UpsertAutomationSchedulerState :exec
 INSERT INTO automation_scheduler_state (
   job_id, deferred_until, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
   schedule_hash, catch_up_policy, misfire_grace_seconds,
-  consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
+  consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, held_for_sign_in
 ) VALUES (
   sqlc.arg(job_id), sqlc.narg(deferred_until), sqlc.narg(next_run_at), sqlc.narg(last_run_at),
   sqlc.narg(last_scheduled_at), sqlc.arg(last_fire_id), sqlc.arg(schedule_hash),
   sqlc.arg(catch_up_policy), sqlc.arg(misfire_grace_seconds),
   sqlc.arg(consecutive_resume_failures), sqlc.narg(last_misfire_at),
-  sqlc.arg(misfire_count), sqlc.arg(updated_at)
+  sqlc.arg(misfire_count), sqlc.arg(updated_at), sqlc.arg(held_for_sign_in)
 )
 ON CONFLICT(job_id) DO UPDATE SET
   deferred_until = excluded.deferred_until, next_run_at = excluded.next_run_at, last_run_at = excluded.last_run_at,
@@ -29,7 +29,7 @@ ON CONFLICT(job_id) DO UPDATE SET
   misfire_grace_seconds = excluded.misfire_grace_seconds,
   consecutive_resume_failures = excluded.consecutive_resume_failures,
   last_misfire_at = excluded.last_misfire_at, misfire_count = excluded.misfire_count,
-  updated_at = excluded.updated_at;
+  updated_at = excluded.updated_at, held_for_sign_in = excluded.held_for_sign_in;
 
 -- name: DeleteAutomationSchedulerState :exec
 DELETE FROM automation_scheduler_state WHERE job_id = sqlc.arg(job_id);
@@ -98,7 +98,7 @@ SELECT j.grant_ceiling, j.profile_id, j.id, j.scope, j.name, j.agent_name, j.wor
   CASE WHEN j.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
     THEN o.enabled_override ELSE j.enabled END AS enabled,
   j.retry, j.fire_limit, j.source, j.target_kind, j.loop_workspace_id,
-	j.loop_name, j.loop_inputs, j.loop_input_mapping, j.created_at, j.updated_at
+	j.loop_name, j.loop_inputs, j.loop_input_mapping, j.loop_input_command, j.created_at, j.updated_at
 FROM requested
 JOIN automation_jobs AS j ON j.id = requested.job_id
 LEFT JOIN automation_job_overlays AS o ON o.job_id = j.id
@@ -113,6 +113,7 @@ SELECT t.grant_ceiling, t.profile_id, t.id, t.scope, t.name, t.agent_name, t.wor
     THEN o.enabled_override ELSE t.enabled END AS enabled,
   t.retry, t.fire_limit, t.source, t.webhook_id, t.endpoint_slug, t.webhook_secret_ref,
   t.target_kind, t.target_instance_scope, t.loop_workspace_id, t.loop_name, t.loop_inputs, t.loop_input_mapping,
+  t.loop_input_command,
 	t.created_at, t.updated_at
 FROM requested
 JOIN automation_triggers AS t ON t.id = requested.trigger_id

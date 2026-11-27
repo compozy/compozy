@@ -303,6 +303,12 @@ func terminalOutcomeCause(status Status, cause TransitionCause) string {
 	return unknownValue
 }
 
+// TerminalOutcomeCause normalizes the cause of a settled run for public reads so
+// the briefing, run status, and run list cannot disagree about one terminal.
+func TerminalOutcomeCause(status Status, cause TransitionCause) string {
+	return terminalOutcomeCause(status, cause)
+}
+
 func (s *computedRunReadService) loadRouteEvidence(
 	ctx context.Context,
 	workspaceID WorkspaceID,

@@ -172,7 +172,6 @@ describe("extensions management mutations", () => {
       inputs: [],
       declared_profiles: [{ create: true, credentials: [], name: "operations" }],
       name: "dep-kit-ops",
-      gateway_requirement_digest: "sha256:6f1c0a94d3b27e58",
       placements: [],
     };
     mockJsonResponse(preview);
@@ -309,21 +308,6 @@ describe("extensions management mutations", () => {
     });
     await expectFetchRequest({ path: "/api/extensions/otel-bridge/logs" });
   });
-
-  it("Should ratify the exact digest on the update route", async () => {
-    const digest = "sha256:6f1c0a94d3b27e58";
-    mockEmptyResponse();
-    await updateExtension("dep-kit-ops", {
-      allow_unverified: true,
-      confirm_gateway_digest: digest,
-      version: "1.1.0",
-    });
-    await expectFetchRequest({
-      body: { allow_unverified: true, confirm_gateway_digest: digest, version: "1.1.0" },
-      method: "PUT",
-      path: "/api/extensions/dep-kit-ops",
-    });
-  });
 });
 
 describe("extensions management failures", () => {
@@ -335,30 +319,6 @@ describe("extensions management failures", () => {
     expect(error).toMatchObject({
       kind: "daemon",
       message: "extension files are locked by another operation",
-      status: 409,
-    });
-  });
-
-  /**
-   * The digest is the whole remediation: without it the operator cannot ratify what the daemon
-   * refused, so the typed error has to carry it rather than flatten to a message.
-   */
-  it("Should expose the daemon code and current digest from a gateway-confirmation refusal", async () => {
-    mockJsonResponse(
-      {
-        code: "extension_gateway_confirmation_required",
-        current_digest: "sha256:6f1c0a94d3b27e58",
-        error: "dep-kit-ops declares gateway control permissions that has not been confirmed",
-      },
-      { status: 409 }
-    );
-
-    const error = await updateExtension("dep-kit-ops", {}).catch((reason: unknown) => reason);
-    expect(error).toBeInstanceOf(ExtensionsApiError);
-    expect(error).toMatchObject({
-      code: "extension_gateway_confirmation_required",
-      currentDigest: "sha256:6f1c0a94d3b27e58",
-      kind: "daemon",
       status: 409,
     });
   });

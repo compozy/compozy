@@ -73,6 +73,8 @@ func toolReasonCodeValues() []string {
 func toolErrorCodeValues() []string {
 	values := []string{
 		admission.StartingCode,
+		admission.LocalExecutionDisabledCode,
+		"remote_scope_denied",
 		string(tools.ErrorCodeNotFound),
 		string(tools.ErrorCodeConflict),
 		string(tools.ErrorCodeSessionBusy),
@@ -99,6 +101,9 @@ func toolErrorCodeValues() []string {
 		string(tools.ErrorCodeProviderDisabled),
 		string(tools.ErrorCodeUnavailable),
 		string(tools.ErrorCodeDenied),
+		string(tools.ErrorCodeNotForwardable),
+		string(tools.ErrorCodeForwardDenied),
+		string(tools.ErrorCodeSecretAnswerOperatorOnly),
 		string(tools.ErrorCodeApprovalRequired),
 		string(tools.ErrorCodeInvalidInput),
 		string(tools.ErrorCodeModelNotFound),

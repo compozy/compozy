@@ -16,9 +16,10 @@ Manage CompozyOS extensions
 ### Options inherited from parent commands
 
 ```
-      --json             Emit JSON output
-  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
-      --profile string   Act as a profile for this command
+      --computer string   Target a computer by name or ID
+      --json              Emit JSON output
+  -o, --output string     Output format: human, json, jsonl, or toon (default "human")
+      --profile string    Act as a profile for this command
 ```
 
 ## Output Formats
@@ -55,6 +56,7 @@ This command displays human-readable help and its subcommand list. The inherited
 | [compozy extension restore](/docs/cli/extension/restore)       | Restore a permanently removed built-in extension at its bundled version |
 | [compozy extension search](/docs/cli/extension/search)         | Search curated and GitHub extensions                                    |
 | [compozy extension secrets](/docs/cli/extension/secrets)       | Manage write-only extension environment bindings                        |
+| [compozy extension setup](/docs/cli/extension/setup)           | Complete or change the inputs of one installed extension                |
 | [compozy extension status](/docs/cli/extension/status)         | Show extension runtime status                                           |
 | [compozy extension update](/docs/cli/extension/update)         | Check for or install extension updates                                  |
 | [compozy extension validate](/docs/cli/extension/validate)     | Validate an extension bundle without running its code                   |

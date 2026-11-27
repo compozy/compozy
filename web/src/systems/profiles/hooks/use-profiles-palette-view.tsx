@@ -12,7 +12,6 @@ import {
 import { openProfileDialog } from "../stores/profile-dialog-store";
 import { useActiveProfileView, useSwitchProfile } from "./use-profile-selection";
 import { useProfiles } from "./use-profiles";
-import { useGatewayAccessTier } from "@/systems/gateway";
 
 /**
  * Row contract of the palette view stack, restated structurally.
@@ -68,12 +67,11 @@ export function useProfilesPaletteView({
   const profiles = useProfiles();
   const view = useActiveProfileView();
   const switchProfile = useSwitchProfile();
-  const tier = useGatewayAccessTier();
 
   const all = profiles.data ?? [];
   const currentName = view.kind === "profile" ? view.profile : "";
   const catalogReady = !profiles.isLoading && !profiles.isError;
-  const manageable = tier === "local" && !profiles.isLoading && !profiles.isError;
+  const manageable = catalogReady;
   const active = catalogReady
     ? toProfileRows(activeProfiles(all), currentName).filter(row => matches(row, query))
     : [];
@@ -160,7 +158,7 @@ export function useProfilesPaletteView({
     ),
     note: null,
     backHint: "Profiles",
-    resetKey: `${currentName}|${all.length}|${archived.length}|${tier ?? "unknown"}|${profiles.status}`,
+    resetKey: `${currentName}|${all.length}|${archived.length}|${profiles.status}`,
     onEmptyQueryBackspace: () => false,
   };
 }

@@ -274,7 +274,7 @@ func agentSpawnBundle(record *AgentSpawnRecord) outputBundle {
 	return outputBundle{
 		jsonValue: record,
 		human: func() (string, error) {
-			wake := "off"
+			wake := cliOffValue
 			if record.Lineage.NotifyCreator {
 				wake = "on-settle (default)"
 			}

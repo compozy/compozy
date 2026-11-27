@@ -1,5 +1,5 @@
 name = "github"
-version = "1.8.0"
+version = "1.8.1"
 description = "Inspect GitHub repositories, issues, pull requests, and releases with GitHub's official MCP server."
 min_compozy_version = "0.3.0-beta.25"
 
@@ -20,6 +20,7 @@ args = [
   "--env",
   "GITHUB_PERSONAL_ACCESS_TOKEN",
   "ghcr.io/github/github-mcp-server@sha256:d5a18c04b92714c309eb46a2305087e91a4dbd80420f6e462656699f95093520",
+  "stdio",
   "--read-only",
 ]
 secret_env = { GITHUB_PERSONAL_ACCESS_TOKEN = "github_personal_access_token" }

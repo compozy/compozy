@@ -518,9 +518,22 @@ func TestSkillAutoApprove(t *testing.T) {
 			capped := f.proposeAuto(t, svc, autoInput("skill-two", "body\n", SkillProposalNew))
 			requireAutoSkipped(t, svc, capped, SkillAutoApproveDailyCapReached)
 			f.requireSkillAbsent(t, "skill-two")
-			f.reconcile(t, svc)
-			requireReviewState(t, svc, first.Review.ID, skillReviewApproved)
-			requireAutoApproved(t, svc, f.proposeAuto(t, svc, autoInput("skill-three", "body\n", SkillProposalNew)))
+
+			restarted := *svc
+			restarted.Locks = NewSkillInstallLocks()
+			setFailures(&restarted, 1)
+			f.reconcile(t, &restarted)
+			stillCapped := f.proposeAuto(t, &restarted, autoInput("skill-three", "body\n", SkillProposalNew))
+			requireAutoSkipped(t, &restarted, stillCapped, SkillAutoApproveDailyCapReached)
+			f.requireSkillAbsent(t, "skill-three")
+
+			f.reconcile(t, &restarted)
+			requireReviewState(t, &restarted, first.Review.ID, skillReviewApproved)
+			requireAutoApproved(
+				t,
+				&restarted,
+				f.proposeAuto(t, &restarted, autoInput("skill-four", "body\n", SkillProposalNew)),
+			)
 		})
 	})
 

@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/apptoken"
 	loggerpkg "github.com/compozy/compozy/internal/logger"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -33,7 +34,6 @@ import (
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -8156,7 +8156,7 @@ func TestSessionMCPDetailAndScope(t *testing.T) {
 		request := httptest.NewRequestWithContext(
 			t.Context(), http.MethodGet, "/workspaces/ws-mcp/sessions/sess-mcp/mcp", http.NoBody,
 		)
-		request = request.WithContext(core.ContextWithAppToken(request.Context(), gateway.AppToken{}))
+		request = request.WithContext(core.ContextWithAppToken(request.Context(), apptoken.Token{}))
 		response := httptest.NewRecorder()
 		fixture.Engine.ServeHTTP(response, request)
 		if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "private") ||

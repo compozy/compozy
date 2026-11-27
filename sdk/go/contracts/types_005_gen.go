@@ -132,33 +132,48 @@ type Confirmation struct {
 	Confirm string `json:"confirm"`
 }
 
-type ConnectivityAdvertisedEndpoint struct {
-	URL                 string `json:"url"`
-	Scheme              string `json:"scheme"`
-	SchemePolicy        string `json:"scheme_policy,omitempty"`
-	Stability           string `json:"stability"`
-	VerificationAddress string `json:"verification_address,omitempty"`
+type ConsentArea struct {
+	Area   string `json:"area"`
+	Access string `json:"access"`
 }
 
-type ConnectivityEstablishRequest struct {
-	Tier          string    `json:"tier"`
-	ForwardTarget string    `json:"forward_target"`
-	ChallengePath string    `json:"challenge_path"`
-	Deadline      time.Time `json:"deadline"`
+type ContextBlock struct {
+	Kind     string            `json:"kind,omitempty"`
+	Text     string            `json:"text,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
-type ConnectivityReachability struct {
-	Tier      string                           `json:"tier"`
-	Endpoints []ConnectivityAdvertisedEndpoint `json:"endpoints"`
-	Health    string                           `json:"health"`
-	Reason    string                           `json:"reason,omitempty"`
+type ContextCompactionPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
-type ConnectivityStatusRequest struct {
-	Tier string `json:"tier"`
+type ContextCompactionPayload struct {
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	LineageKind     string    `json:"lineage_kind,omitempty"`
+	ParentSessionID string    `json:"parent_session_id,omitempty"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	SessionName     string    `json:"session_name,omitempty"`
+	SessionType     string    `json:"session_type,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	Workspace       string    `json:"workspace,omitempty"`
+	WorktreeID      string    `json:"worktree_id,omitempty"`
+	ACPSessionID    string    `json:"acp_session_id,omitempty"`
+	State           string    `json:"state,omitempty"`
+	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest      string    `json:"soul_digest,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	TurnID          string    `json:"turn_id,omitempty"`
+	CompactionID    string    `json:"compaction_id"`
+	Trigger         string    `json:"trigger"`
+	Status          string    `json:"status,omitempty"`
+	Summary         string    `json:"summary,omitempty"`
+	Error           string    `json:"error,omitempty"`
 }
 
-type ConnectivityTeardownRequest struct {
-	Tier     string    `json:"tier"`
-	Deadline time.Time `json:"deadline"`
+type ContextPostCompactPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
 }

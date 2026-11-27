@@ -156,6 +156,7 @@ export function catchUpPolicyLabel(policy?: AutomationCatchUpPolicy): string {
 const AUTOMATION_SKIP_REASON_LABELS = {
   self_overlap: "Skipped",
   misfire_grace_exceeded: "Missed",
+  "no inputs": "No inputs",
 } as const;
 
 export type AutomationSkipReason = keyof typeof AUTOMATION_SKIP_REASON_LABELS;
@@ -171,7 +172,7 @@ export function automationRunSkipReason(run: AutomationRun): AutomationSkipReaso
     return null;
   }
   const reason = run.metadata?.reason;
-  if (reason === "self_overlap" || reason === "misfire_grace_exceeded") {
+  if (reason === "self_overlap" || reason === "misfire_grace_exceeded" || reason === "no inputs") {
     return reason;
   }
   return null;
@@ -213,6 +214,7 @@ export interface AutomationLastRunMeta {
 const LAST_RUN_SKIP_TEXT = {
   self_overlap: "Last run skipped — the one before was still going",
   misfire_grace_exceeded: "Last run missed — CompozyOS was off at the start time",
+  "no inputs": "Last run skipped — the input command found no work",
 } as const satisfies Record<AutomationSkipReason, string>;
 
 const LAST_RUN_TEXT = {

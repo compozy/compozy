@@ -17,7 +17,7 @@ import {
   type SymbolValue,
 } from "@compozy/ui";
 
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import { AgentIdentityCatalogContext } from "@/systems/agent/lib/agent-identity-context";
 import {

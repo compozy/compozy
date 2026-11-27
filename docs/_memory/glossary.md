@@ -70,11 +70,21 @@ Every installation has the permanent `default` profile, structurally identical t
 
 **Organization for the operator.** Any active profile is selectable by the operator; archived profiles remain visible in aggregate reads and must be unarchived before selection. Agents act in their session profile. Reads of another profile and aggregate reads follow the session's permission mode (see [Cross-workspace access](#cross-workspace-access)); an operator-authored unrestricted agent grant also permits cross-profile writes. Access control for more than one operator is a separate future program.
 
-**Bare "Profile" names only this concept.** The pre-existing compounds keep their own meaning and are unrelated: [Task Execution Profile](#task-execution-profile), layout profile, gateway connection profile, and session creation profile. Renaming them was considered and rejected; this entry is the arbitration line for any future collision.
+**Bare "Profile" names only this concept.** The pre-existing compounds keep their own meaning and are unrelated: [Task Execution Profile](#task-execution-profile), layout profile, and session creation profile. Renaming them was considered and rejected; this entry is the arbitration line for any future collision.
 
 **UI label:** "Profile" — keep. It has no alias, so it has no row in [Surface Names](#surface-names).
 
 ---
+
+### Computer
+
+A machine running CompozyOS that can run agents on behalf of this installation. **This computer**
+means the local daemon. A **route** is how one device reaches a computer. A **hosted route** uses
+Compozy Cloud and has a `compozy.run` address.
+
+A **CompozyOS account** is the identity used to sign in and enroll devices. **Compozy Cloud** manages
+accounts, devices, computer links, and hosted routes. **Compozy Pro** is the paid plan.
+
 
 ### Control surface
 
@@ -131,12 +141,6 @@ One entry of the fixed, CompozyOS-owned taxonomy that groups the Marketplace cat
 ### Extension Secret Binding
 
 An instance-scoped link from a manifest-declared environment key to an existing Vault reference. Public reads expose only bound key names, never values or references.
-
-### Gateway Requirement Confirmation
-
-Explicit consent from an operator or authorized agent to the exact digest of an extension's normalized gateway permissions. Enable or update must receive the daemon-returned digest; the selected Gateway tier must match a declared permission.
-
----
 
 ### Loop
 
@@ -251,7 +255,7 @@ Its public identifier is `apt_…`; the secret is returned once at creation and 
 The token's origin allowlist grants browser access to the explicit app-access operation set, not to
 local management or privileged operations. An empty origin list permits non-browser use only.
 App tokens are global operator credentials, separate from paired devices and operator profiles;
-they do not widen an agent's workspace or tool permissions and never authenticate Gateway listeners.
+they do not widen an agent's workspace or tool permissions and authenticate only on the local listener.
 
 ### Caller Identity (operational)
 
@@ -337,7 +341,7 @@ Daemon-managed child-session creation. Defaults: `max_depth = 1`, `max_children 
 
 A child agent session that a parent session's turn delegates one self-contained task to, on any available agent, provider, or model. The parent keeps a durable subagent record (`sub-…` id, `parent_turn_id`, status, `work_state`, result, delivery) and is woken when the subagent settles. Agents use `compozy__subagent_capabilities|delegate|status|cancel`; operators use `compozy session subagents …`, the matching HTTP/UDS routes, the transcript card, the sidebar chip, and the inspector roster.
 
-- **delegated** (`origin = delegated`) — created by `compozy__subagent_delegate`; it has a child session (`spawn_role = "subagent"`) that sees only the task. It reuses Safe Spawn's permission narrowing but has no depth, count, or TTL cap (ADR-003), and it inherits the caller's budget when narrowing lists are omitted.
+- **delegated** (`origin = delegated`) — created by `compozy__subagent_delegate`; its child session (`spawn_role = "subagent"`) receives the task and any structured handoff. It reuses Safe Spawn's permission narrowing but has no depth, count, or TTL cap (ADR-003), and it inherits the caller's budget when narrowing lists are omitted.
 - **provider-native** (`origin = provider_native`) — a subagent the provider runs inside its own process (Claude's Agent/Task tool), observed from the tool call and shown as the same card. It has no child session, never wakes the parent, and cannot be canceled.
 - **subagent wake** — the pointer prompt (`synthetic.kind = "subagent_wake"`) that tells the parent which subagents settled; it carries no result. The parent reads results with `compozy__subagent_status`, which acknowledges delivery. A wake is steered into the running turn when the agent supports steering, otherwise queued ahead of user prompts. It is distinct from the creator wake that plain spawned children send.
 
@@ -345,7 +349,7 @@ A child agent session that a parent session's turn delegates one self-contained 
 
 ### Isolated Subagent
 
-A delegated subagent started with `isolation: "worktree"` on `compozy__subagent_delegate`. CompozyOS creates a new `per_run` worktree on branch `<worktrees.run_branch_namespace><title-slug>-<8 hex>` from `base_ref` (or the caller checkout's current HEAD commit) and runs the child there; uncommitted parent changes are not copied. `SubagentPayload` carries `isolation` and a `worktree` object: static facts (id, name, branch, `base_ref`, `base_sha`, path) from creation, and git/PR facts (`head_sha`, `commits_ahead`, `dirty_files`, `observed_at`, `pull_request_status`, `pull_request`) snapshotted once by the daemon when the subagent settles. Unobserved facts are absent, never zero; `pull_request_status = "unknown"` (no forge or lookup failed) is distinct from `"none"` (the forge answered with no PR). The worktree is retained after any terminal status and removed only through the existing worktree surfaces. The default, `isolation: "shared"`, keeps today's behavior and has no facts.
+A delegated subagent started with `isolation: "worktree"` on `compozy__subagent_delegate`. CompozyOS creates a new `per_run` worktree on branch `<worktrees.run_branch_namespace><title-slug>-<8 hex>` and runs the child there. Its base is the explicit `base_ref`, the linked prior subagent's worktree branch, or the caller checkout's HEAD, in that order. The checkout carries committed changes. `SubagentPayload` carries `isolation` and a `worktree` object: static facts (id, name, branch, `base_ref`, `base_sha`, path) from creation, and git/PR facts (`head_sha`, `commits_ahead`, `dirty_files`, `observed_at`, `pull_request_status`, `pull_request`) snapshotted once by the daemon when the subagent settles. Unobserved facts are absent, never zero; `pull_request_status = "unknown"` (no forge or lookup failed) is distinct from `"none"` (the forge answered with no PR). The worktree is retained after any terminal status and removed only through the existing worktree surfaces. The default, `isolation: "shared"`, keeps today's behavior and has no facts.
 
 **UI label:** "subagent"; the card shows the branch and a "#{n}" PR link. Never "sandbox" or "workspace" for the worktree.
 
@@ -531,7 +535,7 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 | settings group `Operator` | "Personal" | Group label only. |
 | settings section `Observability` | "Diagnostics" | Section label only. |
 | settings section `Attention` | "Notifications" | Section label only. |
-| settings section `Gateway` | "Remote access" | Section label only. |
+| Settings → Computers | "Computers" | Manage computers and remote access. |
 | settings group `workspace` | "Basics" | Group label only. |
 | settings group `runtime` | "Agents" | Group label only. |
 | settings group `system` | "Advanced" | Group label only. |
@@ -588,3 +592,17 @@ A native tool result contract selected by `result_view`: `compact` is the defaul
 and `full` is the complete record. Single-result tools do not accept the selector.
 This differs from registry `ToolView`, which combines a descriptor with availability and
 policy diagnostics; it is not a returned-record selection.
+
+### Value completion
+
+TAB completion that offers live identifiers a command argument or flag accepts, such as a
+session ID, workspace reference, agent name, provider, model, profile, task, loop,
+automation, worktree, folder, extension, computer, vault ref or toolset. Distinct from
+static command and flag completion, which comes from the command tree. Value completion is
+read-only and never starts the daemon.
+
+### Completion candidate
+
+One value offered by value completion, optionally paired with a human description shown by
+shells that support completions with descriptions. The value is the exact token the command
+accepts; the description never carries secret material.

@@ -74,9 +74,17 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		if settled {
 			continue
 		}
-		until := s.now().Add(2 * toolruntime.SweepInterval)
+		now := s.now()
+		until := now.Add(2 * toolruntime.SweepInterval)
 		switch info.State {
 		case session.StateStarting, session.StateActive:
+			// Delegations can still owe their parent a result between child turns.
+			if info.State == session.StateActive && row.Lineage.SpawnRole != store.SubagentSpawnRole {
+				until = activeChildWorkDeadline(info, until)
+				if !until.After(now) {
+					continue
+				}
+			}
 			finished, err := s.childDelegationFinished(ctx, row.ID, row.Lineage.SpawnRole)
 			if err != nil {
 				return nil, err
@@ -101,6 +109,26 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		})
 	}
 	return result, nil
+}
+
+func activeChildWorkDeadline(info *session.Info, limit time.Time) time.Time {
+	if info.Prompting {
+		return limit
+	}
+	var latest time.Time
+	if info.Supervision != nil {
+		for _, signal := range info.Supervision.WorkSignals {
+			// A finished turn can leave progress or a background terminal behind.
+			if session.WaitingOnFor([]session.WorkSignal{signal}) != "" && signal.ValidUntil.After(latest) {
+				latest = signal.ValidUntil
+			}
+		}
+	}
+	// Propagating a wait cannot renew the evidence that justified it.
+	if latest.After(limit) {
+		return limit
+	}
+	return latest
 }
 
 // A completed delegation can keep its ACP session alive without keeping its parent waiting.

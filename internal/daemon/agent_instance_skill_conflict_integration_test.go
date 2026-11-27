@@ -65,7 +65,7 @@ func TestInstanceSkillInstallConflictIntegration(t *testing.T) {
 		skillsRoot := filepath.Join(rootDir, compozyconfig.DirName, compozyconfig.SkillsDirName)
 		opID := seedSkillInstallConflict(t, skillsRoot)
 
-		uds := gatewayDaemonUDSClient(d.homePaths.DaemonSocket)
+		uds := daemonIntegrationUDSClient(d.homePaths.DaemonSocket)
 		t.Cleanup(uds.CloseIdleConnections)
 		transports := []struct {
 			base   string
@@ -266,7 +266,7 @@ func seedSkillInstallConflict(t *testing.T, skillsRoot string) string {
 	}
 	backup := filepath.Join(skillsRoot, journal.BackupName)
 	writeSkill(backup, "Previous checklist")
-	original, err := agentinstance.SkillTreeDigest(backup)
+	original, err := agentinstance.SkillTreeDigest(t.Context(), backup)
 	if err != nil {
 		t.Fatal(err)
 	}

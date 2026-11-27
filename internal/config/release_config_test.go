@@ -435,9 +435,9 @@ func TestReleaseTemplatesStayAlignedWithPublicInstallMethods(t *testing.T) {
 
 		for _, snippet := range []string{
 			"npm install -g @compozy/cli@beta",
-			"go install github.com/compozy/compozy@{{ .Tag }}",
 			"curl -fsSL https://compozy.com/install.sh | sh",
 			"Verified Binary Installer",
+			"#### Binary Download",
 		} {
 			assertContainsText(t, "GoReleaser release header", header, snippet)
 		}
@@ -448,6 +448,7 @@ func TestReleaseTemplatesStayAlignedWithPublicInstallMethods(t *testing.T) {
 			"{{- if eq .Env.HOMEBREW_SKIP_UPLOAD \"true\" }}\nHomebrew is intentionally unavailable for this prerelease.\n{{- else }}\n\n#### Homebrew\n```bash\nbrew install compozy/compozy/compozy\n```",
 		)
 		assertNotContainsText(t, "GoReleaser release header", header, "github.com/pedronauck/compozy")
+		assertNotContainsText(t, "GoReleaser release header", header, "go install")
 	})
 
 	t.Run("Should keep release footer honest about verification posture", func(t *testing.T) {

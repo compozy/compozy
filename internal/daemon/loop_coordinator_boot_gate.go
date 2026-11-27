@@ -13,6 +13,7 @@ import (
 type loopCoordinatorBootGate struct {
 	backstop loopCoordinatorBackstopRunner
 	ready    atomic.Bool
+	signIn   func() error
 }
 
 var _ loopCoordinatorBackstopRunner = (*loopCoordinatorBootGate)(nil)
@@ -30,7 +31,7 @@ func (g *loopCoordinatorBootGate) RunLoopCoordinatorBackstop(
 	now time.Time,
 	actor taskpkg.ActorContext,
 ) (int, error) {
-	if !g.ready.Load() {
+	if !g.ready.Load() || (g.signIn != nil && g.signIn() != nil) {
 		return 0, nil
 	}
 	return g.backstop.RunLoopCoordinatorBackstop(ctx, now, actor)

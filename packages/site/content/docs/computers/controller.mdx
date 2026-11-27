@@ -1,0 +1,72 @@
+---
+title: Use a linked computer
+description: Add a computer to your app, inspect its routes, and target it from the CLI.
+---
+
+Sign in on the controller and link the computer you want to use. List computers linked to your account and add one by ID.
+
+```sh
+compozy computer available --json
+compozy computer add account cmp_7f3k2q9x
+compozy computer list
+compozy computer status devbox --json
+compozy session list --computer devbox --json
+```
+
+To install and link a host from the controller, see [Add a computer over SSH](/docs/computers/ssh-setup).
+
+The controller keeps the entry while the computer is offline. It prefers a direct LAN or tailnet connection, then an established SSH forward, then the computer's hosted route on Compozy Pro. The controller discovers the hosted hostname from Compozy Cloud. The status reports the route in use and the step that needs attention when the connection fails. Each route must identify the linked computer and present its pinned TLS root before the controller sends credentials.
+
+## Change how the controller connects
+
+- Run `compozy computer routes devbox` to see available routes. Remove a learned address with `compozy computer routes devbox remove direct:10.0.0.42:47823`.
+- Run `compozy computer disable devbox` to pause connections from this controller. Run `compozy computer enable devbox` to resume them.
+- Run `compozy computer remove devbox` to remove the entry and its routes from this controller. Add `--unlink` to unlink the computer from the account and free its slot. Agents already running there keep running.
+
+Use `--computer local` to target the local daemon. The `account`, `computer`, `daemon`, `install`, `remote`, `service`, `uninstall`, and `update` commands act on the local installation.
+
+## Place new sessions automatically
+
+Enable `computers.load_balancing` on the controller and register the same Git repository on each computer that can run the project. Set each computer's preference to **Prefer** (100), **Normal** (50), **Less often** (25), or **Manual only** (0).
+
+Auto considers enabled, connected computers that have a workspace for the repository. For samples up to 15 seconds old, a computer needs CPU utilization below 95% and available memory above 5%. The score multiplies the preference weight, logical CPU count, unused CPU share, and available memory share. If every eligible computer lacks a fresh, complete sample, the highest weight wins. Ties in that fallback favor this computer, then sort by name.
+
+An SSH computer with a live connection remains eligible when a service warning appears in its status.
+
+Set `computers.local_run_agents` to `false` once you have added a remote computer. Existing sessions, Loops, and automation history remain readable. New local sessions, Loop runs, and automation runs return `local_execution_disabled`.
+
+## Use the controller API
+
+Local HTTP and UDS expose the same `/api/computers` registry. Subscribe to `GET /api/computers/stream` for `computer.changed` events. Reconnect with the last event ID. After a `stream_reset`, fetch the registry again.
+
+Prefix the target API path with `/c/{computer_id}`, for example `GET /c/cmp_7f3k2q9x/api/sessions?all_workspaces=true`. For a session SSE connection, send `Last-Event-ID` when reconnecting. The controller supplies the remote credential, and task leases stay on the computer that owns them.
+
+The controller renews the credential five minutes before expiry. Streams on the same tunnel continue across renewal while the device keeps its scopes.
+
+The bridge accepts local operator requests. App tokens receive `403 app_token_route_forbidden`, and identified agent callers receive `403 agent_scope_denied`. Agent sessions can use native tool forwarding with the source session's policy and approval checks.
+
+Use the same operator routes for files, Changes, worktrees, Tasks, terminals, extensions, settings, and provider status. Each route checks the device's scope on the target. A `403 remote_scope_denied` response identifies the required scope in `details.scope`.
+
+To run a task on the target, create it and enqueue a run with `POST /c/{computer_id}/api/tasks/{id}/runs`. Prompt an agent session on the same computer to claim the run. The session that owns the lease heartbeats and completes it there. Read progress with `GET /c/{computer_id}/api/task-runs/{run_id}`. Sending an `X-Compozy-Claim-Token` header returns `400 claim_token_not_remote`.
+
+The tunnel returns `404 route_not_remote` for account, computer registry, agent-kernel, and computer link and unlink routes. A second `/c/{computer_id}` prefix returns `403 remote_bridge_not_transitive`.
+
+For operator tool calls, inspect `descriptor.remote_scope` in the tool catalog. Invoke a tool with that scope using `POST /c/{computer_id}/api/tools/{id}/invoke`. Use `workspace_id` to select a target workspace. A remote invocation that supplies `session_id`, `agent_name`, `turn_id`, or `approval_token` returns `400 remote_caller_override_forbidden`.
+
+### Placement endpoints
+
+| Request                                            | Result                                                                                                                                                                                                 |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/host/resources`                          | Logical CPU count, normalized CPU load, total and available physical memory in bytes, and the sample timestamp. Unavailable CPU or memory readings are `null`. The tunnel requires `sessions:operate`. |
+| `PATCH /api/computers/local`                       | Updates `run_agents`, `load_balancing`, or `load_balancing_weight` on the controller. `GET /api/computers` returns these values in `local`.                                                            |
+| `PATCH /api/computers/{id}`                        | Updates `load_balancing_weight` for an added computer.                                                                                                                                                 |
+| `POST /api/computers/placement`                    | Resolves a draft's `workspace` to `{computer_id, name, workspace_id}`. Pass `project_computer_id` when the draft workspace belongs to a linked computer.                                               |
+| `POST /api/sessions` with `computer` set to `auto` | Resolves placement again and creates the session in the selected workspace. The response includes `computer_id`.                                                                                       |
+
+When Auto has no eligible computer, placement returns `409 no_eligible_computer` with reason codes in `details`, keyed by computer ID when the controller can evaluate the project.
+
+### Native tools
+
+Use `compozy__computer_list` to list the controller's computers, `compozy__computer_status` with `id` to inspect one, and `compozy__computer_add` or `compozy__computer_remove` to manage entries. `compozy__remote_status` and `compozy__account_status` report this installation's remote and account state.
+
+A native tool with `remote_scope` accepts a computer name or ID in `computer`. Call `compozy__session_list` with `{"computer":"devbox"}` to list sessions in User on the destination. To list a project, pass its workspace name or ID on that computer in `workspace`. The controller applies the source session's tool policy, hooks, and approvals. The destination applies the device scopes and its operator policy. The tool result keeps its original shape and `_meta.computer_id` identifies the destination.

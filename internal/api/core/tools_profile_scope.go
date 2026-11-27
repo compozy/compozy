@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/remotehost"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
 )
@@ -22,11 +23,15 @@ func (h *BaseHandlers) resolveOperatorToolScope(c *gin.Context) (toolspkg.Scope,
 			Cause:   profilepkg.ErrInvalidInput,
 		}
 	}
-	return toolspkg.Scope{
+	scope := toolspkg.Scope{
 		ProfileID:   strings.TrimSpace(selection.Scope.ProfileID),
 		WorkspaceID: strings.TrimSpace(firstNonEmpty(c.Query("workspace_id"), c.Query("workspace"))),
-		SessionID:   strings.TrimSpace(c.Query("session_id")),
-		AgentName:   strings.TrimSpace(c.Query("agent_name")),
 		Operator:    true,
-	}, nil
+	}
+	// A remote session authenticates the device, never a local agent session.
+	if _, remote := remotehost.PrincipalFromContext(c.Request.Context()); !remote {
+		scope.SessionID = strings.TrimSpace(c.Query("session_id"))
+		scope.AgentName = strings.TrimSpace(c.Query("agent_name"))
+	}
+	return scope, nil
 }

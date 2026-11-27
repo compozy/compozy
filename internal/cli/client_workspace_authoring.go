@@ -56,7 +56,12 @@ func (c *daemonClient) GetWorkspace(ctx context.Context, ref string) (WorkspaceD
 		return WorkspaceDetailRecord{}, err
 	}
 	var response WorkspaceDetailRecord
-	path := "/api/workspaces/" + url.PathEscape(routeRef)
+	segment := url.PathEscape(routeRef)
+	if c.target.computerID != "" {
+		// The remote router query-unescapes values when routing an escaped path.
+		segment = strings.ReplaceAll(segment, "+", "%2B")
+	}
+	path := "/api/workspaces/" + segment
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
 		return WorkspaceDetailRecord{}, err
 	}
@@ -68,7 +73,7 @@ func (c *daemonClient) workspaceRouteRef(ctx context.Context, ref string) (strin
 	if trimmed == "" {
 		return "", errWorkspaceReferenceRequired
 	}
-	if !workspaceRefLooksLikePath(trimmed) {
+	if c.target.computerID != "" || !workspaceRefLooksLikePath(trimmed) {
 		return trimmed, nil
 	}
 	target, err := canonicalCLIWorkspacePath(trimmed)

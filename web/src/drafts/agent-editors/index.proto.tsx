@@ -1,4 +1,4 @@
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import { SCOUT, TRIAGE } from "../always-on-agents-shared/fixtures";
 import { CheckInsEditor, type CheckInsVariant } from "./checkins-editor";

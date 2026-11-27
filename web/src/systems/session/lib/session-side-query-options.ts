@@ -1,7 +1,29 @@
+import { LOCAL_COMPUTER_ID, queryKeyComputerId, type ComputerId } from "@/lib/computer-scope";
 import { queryOptions } from "@tanstack/react-query";
 
 import { fetchSessionSides } from "../adapters/session-side-api";
 import { sessionKeys } from "./query-keys";
+
+/**
+ * A session's side chats in raw `{ sides }` response form. Shared by `sessionSidesOptions` and
+ * imperative `fetchQuery` callers (which bypass `select` and receive the raw response).
+ */
+export function sessionSidesRawOptions(
+  workspaceId: string,
+  sessionId: string,
+  options: { archived?: boolean; enabled?: boolean; computerId?: ComputerId } = {}
+) {
+  const archived = options.archived === true;
+  return queryOptions({
+    queryKey: sessionKeys
+      .forComputer(options.computerId)
+      .sidesList(workspaceId, sessionId, archived),
+    queryFn: ({ signal }) =>
+      fetchSessionSides(workspaceId, sessionId, { archived }, signal, options.computerId),
+    staleTime: 30_000,
+    enabled: (options.enabled ?? true) && sessionId.trim() !== "",
+  });
+}
 
 /**
  * A session's side chats. The list is complete and small (bounded by the operator's own actions),
@@ -10,23 +32,21 @@ import { sessionKeys } from "./query-keys";
 export function sessionSidesOptions(
   workspaceId: string,
   sessionId: string,
-  options: { archived?: boolean; enabled?: boolean } = {}
+  options: { archived?: boolean; enabled?: boolean; computerId?: ComputerId } = {}
 ) {
-  const archived = options.archived === true;
   return queryOptions({
-    queryKey: sessionKeys.sidesList(workspaceId, sessionId, archived),
-    queryFn: ({ signal }) => fetchSessionSides(workspaceId, sessionId, { archived }, signal),
+    ...sessionSidesRawOptions(workspaceId, sessionId, options),
     select: data => data.sides,
-    staleTime: 30_000,
-    enabled: (options.enabled ?? true) && sessionId.trim() !== "",
   });
 }
 
 /** Matches every side list of `parentSessionId`, whatever workspace selector the window used. */
 export function isSessionSidesQuery(
   queryKey: readonly unknown[],
-  parentSessionId?: string
+  parentSessionId?: string,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
 ): boolean {
+  if (queryKeyComputerId(queryKey) !== computerId) return false;
   const sides = queryKey.indexOf("sides");
   if (sides < 2 || queryKey[sides - 2] !== "detail") return false;
   return parentSessionId === undefined || queryKey[sides - 1] === parentSessionId;

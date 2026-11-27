@@ -574,6 +574,76 @@ func TestJobValidateRejectsMissingRequiredFields(t *testing.T) {
 	}
 }
 
+func TestJobValidateLoopTargetInputCommand(t *testing.T) {
+	t.Parallel()
+
+	loopJob := func(command string) Job {
+		return Job{
+			Scope:       AutomationScopeWorkspace,
+			Name:        "overnight-spec",
+			TargetKind:  TargetKindLoop,
+			WorkspaceID: "ws_alpha",
+			Schedule:    &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "24h"},
+			LoopTarget: &LoopTarget{
+				WorkspaceID:  "ws_alpha",
+				LoopName:     "overnight",
+				InputCommand: command,
+			},
+			Retry:     DefaultRetryConfig(),
+			FireLimit: DefaultFireLimitConfig(),
+			Source:    JobSourceDynamic,
+		}
+	}
+
+	t.Run("Should accept an operator-authored fire-time input command", func(t *testing.T) {
+		t.Parallel()
+
+		job := loopJob("scripts/next-spec.sh --json")
+		if err := job.Validate("job"); err != nil {
+			t.Fatalf("Job.Validate() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject a blank fire-time input command", func(t *testing.T) {
+		t.Parallel()
+
+		job := loopJob("   ")
+		err := job.Validate("job")
+		if err == nil {
+			t.Fatal("Job.Validate() error = nil, want blank command rejection")
+		}
+		if got, want := err.Error(), "job.loop_target.input_command must not be blank"; !strings.Contains(got, want) {
+			t.Fatalf("Job.Validate() error = %q, want substring %q", got, want)
+		}
+	})
+
+	t.Run("Should reject a command with a NUL byte", func(t *testing.T) {
+		t.Parallel()
+
+		job := loopJob("scripts/next\x00-spec.sh")
+		err := job.Validate("job")
+		if err == nil {
+			t.Fatal("Job.Validate() error = nil, want NUL rejection")
+		}
+		if got, want := err.Error(), "must not contain NUL bytes"; !strings.Contains(got, want) {
+			t.Fatalf("Job.Validate() error = %q, want substring %q", got, want)
+		}
+	})
+
+	t.Run("Should reject a command longer than the contract limit", func(t *testing.T) {
+		t.Parallel()
+
+		job := loopJob("scripts/" + strings.Repeat("a", 4100))
+		err := job.Validate("job")
+		if err == nil {
+			t.Fatal("Job.Validate() error = nil, want length rejection")
+		}
+		if got, want := err.Error(), "must be at most"; !strings.Contains(got, want) {
+			t.Fatalf("Job.Validate() error = %q, want substring %q", got, want)
+		}
+	})
+}
+
 func TestTriggerValidate(t *testing.T) {
 	t.Parallel()
 

@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -20,12 +21,13 @@ export function useSessionContext(
   sessionState?: SessionState,
   options: { enabled?: boolean } = {}
 ) {
+  const computerId = useCurrentComputerId();
   const query = useQuery({
-    ...sessionUsageOptions(workspaceId, sessionId, sessionState),
+    ...sessionUsageOptions(workspaceId, sessionId, sessionState, computerId),
     enabled: (options.enabled ?? true) && !!sessionId && !!workspaceId,
   });
-  const reset = useQuery(sessionContextResetOptions(workspaceId, sessionId));
-  const identity = `${workspaceId}/${sessionId}/${reset.data ?? 0}`;
+  const reset = useQuery(sessionContextResetOptions(workspaceId, sessionId, computerId));
+  const identity = `${computerId}/${workspaceId}/${sessionId}/${reset.data ?? 0}`;
   const [retained, setRetained] = useState<{
     identity: string;
     source?: SessionUsagePayload;
@@ -60,7 +62,7 @@ export function useSessionUsageTurns(
   options: { enabled?: boolean } = {}
 ) {
   return useQuery({
-    ...sessionUsageTurnsOptions(workspaceId, sessionId, sessionState),
+    ...sessionUsageTurnsOptions(workspaceId, sessionId, sessionState, useCurrentComputerId()),
     enabled: (options.enabled ?? true) && !!sessionId && !!workspaceId,
   });
 }

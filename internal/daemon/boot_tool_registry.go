@@ -53,6 +53,8 @@ func (d *Daemon) bootToolRegistry(
 		toolspkg.WithWorkspaceIDResolver(nativeWorkspaceIDResolver(state)),
 		toolspkg.WithCallInputBinder(workspaceBinder),
 		toolspkg.WithCallInputAuthorizer(workspaceBinder),
+		toolspkg.WithCallAdmission(d.signInToolAdmission),
+		toolspkg.WithComputerForwarder(computerForwarderForBoot(state)),
 		toolspkg.WithDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),
 		toolspkg.WithCallTracer(traceToolCall),
 		toolspkg.WithResultProcessor(toolspkg.NewResultProcessor(

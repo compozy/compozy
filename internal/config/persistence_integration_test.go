@@ -91,13 +91,13 @@ func TestEditConfigOverlayGlobalWriteFromOperatorHomeWorkspace(t *testing.T) {
 		}
 
 		cfg, err := EditConfigOverlay(homePaths, operatorHome, target, func(editor *OverlayEditor) error {
-			return editor.SetValue([]string{"gateway", "enabled"}, true)
+			return editor.SetValue([]string{"http", "port"}, 4242)
 		})
 		if err != nil {
 			t.Fatalf("EditConfigOverlay() error = %v", err)
 		}
-		if !cfg.Gateway.Enabled {
-			t.Fatal("EditConfigOverlay() Gateway.Enabled = false, want true")
+		if cfg.HTTP.Port != 4242 {
+			t.Fatalf("EditConfigOverlay() HTTP.Port = %d, want 4242", cfg.HTTP.Port)
 		}
 	})
 }

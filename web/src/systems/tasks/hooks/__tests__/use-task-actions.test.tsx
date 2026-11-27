@@ -130,9 +130,9 @@ describe("task mutation hooks", () => {
       expect.objectContaining({ title: "Review" }),
       "default"
     );
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "list"] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "dashboard"] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "inbox"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["computer", "local", "tasks", "list"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["computer", "local", "tasks", "dashboard"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["computer", "local", "tasks", "inbox"] });
     expect(queryClient.getQueryData(listKey)).toEqual(cachedList);
   });
 
@@ -153,14 +153,16 @@ describe("task mutation hooks", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(updateTask).toHaveBeenCalledWith("task_001", { title: "Next" });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "detail", "task_001"] });
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "tasks", "detail", "task_001"],
+    });
   });
 
   it("removes task detail cache and invalidates aggregates when deleting a task", async () => {
     vi.mocked(deleteTask).mockResolvedValue(undefined);
 
     const queryClient = buildClient();
-    queryClient.setQueryData(["tasks", "detail", "task_001"], taskFixture);
+    queryClient.setQueryData(["computer", "local", "tasks", "detail", "task_001"], taskFixture);
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const removeSpy = vi.spyOn(queryClient, "removeQueries");
 
@@ -175,9 +177,15 @@ describe("task mutation hooks", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(deleteTask).toHaveBeenCalledWith("task_001");
-    expect(removeSpy).toHaveBeenCalledWith({ queryKey: ["tasks", "detail", "task_001"] });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["tasks", "dashboard"] });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["tasks", "inbox"] });
+    expect(removeSpy).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "tasks", "detail", "task_001"],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "tasks", "dashboard"],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "tasks", "inbox"],
+    });
   });
 
   it("invalidates task surfaces after publish, cancel, approve, reject", async () => {
@@ -217,8 +225,10 @@ describe("task mutation hooks", () => {
     });
 
     expect(cancelTask).toHaveBeenCalledWith("task_001", {});
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "detail", "task_001"] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "dashboard"] });
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "tasks", "detail", "task_001"],
+    });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["computer", "local", "tasks", "dashboard"] });
   });
 
   it("invalidates run and task surfaces when running task-run commands", async () => {
@@ -284,7 +294,9 @@ describe("task mutation hooks", () => {
     expect(forceReleaseTaskRun).toHaveBeenCalledWith("run_001", { reason: "handoff" });
     expect(forceFailTaskRun).toHaveBeenCalledWith("run_001", { reason: "operator recovery" });
     expect(retryTaskRun).toHaveBeenCalledWith("run_001", { metadata: { source: "operator" } });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "run-detail", "run_001"] });
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "tasks", "run-detail", "run_001"],
+    });
   });
 
   it("targets the owning task and aggregate queries after recovering a run", async () => {
@@ -307,9 +319,13 @@ describe("task mutation hooks", () => {
 
     expect(recoverTaskRun).toHaveBeenCalledTimes(1);
     expect(recoverTaskRun).toHaveBeenCalledWith("run_001", {});
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "run-detail", "run_001"] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "detail", "task_001"] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "inbox"] });
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "tasks", "run-detail", "run_001"],
+    });
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "tasks", "detail", "task_001"],
+    });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["computer", "local", "tasks", "inbox"] });
   });
 
   it("invalidates triage, list, detail, and inbox queries on triage actions", async () => {
@@ -342,9 +358,11 @@ describe("task mutation hooks", () => {
       expect(dismissHook.result.current.isSuccess).toBe(true);
     });
 
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "triage"] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "list"] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "detail", "task_001"] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "inbox"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["computer", "local", "tasks", "triage"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["computer", "local", "tasks", "list"] });
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "tasks", "detail", "task_001"],
+    });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["computer", "local", "tasks", "inbox"] });
   });
 });

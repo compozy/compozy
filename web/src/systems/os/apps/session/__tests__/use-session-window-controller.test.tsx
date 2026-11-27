@@ -6,6 +6,7 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ComputerScopeContext } from "@/lib/computer-scope-context";
 import type { SessionPayload } from "@/systems/session";
 import { primarySessionFixture } from "@/systems/session/mocks";
 import {
@@ -22,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   sessionUsage: vi.fn(),
   usageTurns: vi.fn(),
   sessionVault: vi.fn(),
+  worktreeBindingCall: vi.fn(),
   promptRuntimeStore: null as SessionPromptRuntimeStore | null,
   worktreeBinding: {
     worktreeId: "",
@@ -91,7 +93,10 @@ vi.mock("@/systems/session", () => ({
   useSessionReviewPanelState: () => ({ open: false, toggle: vi.fn() }),
   useSessionPromptRuntimeContext: () => mocks.promptRuntimeStore,
   useSessionTopbarSlot: (...args: unknown[]) => mocks.sessionTopbar(...args),
-  useSessionWorktreeBinding: () => mocks.worktreeBinding,
+  useSessionWorktreeBinding: (...args: unknown[]) => {
+    mocks.worktreeBindingCall(...args);
+    return mocks.worktreeBinding;
+  },
   useSessionUsageTurns: (...args: unknown[]) => {
     mocks.usageTurns(...args);
     return {};
@@ -137,6 +142,7 @@ describe("useSessionWindowController", () => {
     mocks.sessionUsage.mockReset();
     mocks.usageTurns.mockReset();
     mocks.sessionVault.mockReset();
+    mocks.worktreeBindingCall.mockReset();
     mocks.promptRuntimeStore = sessionPromptRuntimeStoreLogic.createStore(
       sessionPromptRuntimeInput({
         agentName: "attachments_qa",
@@ -250,5 +256,32 @@ describe("useSessionWindowController", () => {
       model: "gpt-5.6-terra",
       provider: "codex",
     });
+  });
+
+  // Regression test for AST-008: remote session windows must forward their owning computer ID
+  // into worktree binding reads instead of querying the local controller.
+  it("AST-008: Should pass the owning remote computer ID into useSessionWorktreeBinding", () => {
+    renderHook(
+      () =>
+        useSessionWindowController({
+          windowId: "window:sess-1",
+          sessionId: "sess-1",
+          workspaceId: "ws-1",
+          session,
+          liveDataEnabled: true,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <ComputerScopeContext value="cmp_remote_controller">{children}</ComputerScopeContext>
+        ),
+      }
+    );
+
+    expect(mocks.worktreeBindingCall).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        workspaceId: "ws-1",
+        computerId: "cmp_remote_controller",
+      })
+    );
   });
 });

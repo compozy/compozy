@@ -9,12 +9,11 @@ type DiagnosticItem = diagnosticcontract.DiagnosticItem
 type DiagnosticCodeSpec = diagnosticcontract.DiagnosticCodeSpec
 
 const (
-	CodeExtensionGatewayConfirmRequired = diagnosticcontract.CodeExtensionGatewayConfirmRequired
-	SeverityOK                          = diagnosticcontract.SeverityOK
-	SeverityInfo                        = diagnosticcontract.SeverityInfo
-	SeverityWarn                        = diagnosticcontract.SeverityWarn
-	SeverityError                       = diagnosticcontract.SeverityError
-	SeverityCritical                    = diagnosticcontract.SeverityCritical
+	SeverityOK       = diagnosticcontract.SeverityOK
+	SeverityInfo     = diagnosticcontract.SeverityInfo
+	SeverityWarn     = diagnosticcontract.SeverityWarn
+	SeverityError    = diagnosticcontract.SeverityError
+	SeverityCritical = diagnosticcontract.SeverityCritical
 )
 
 const (

@@ -65,7 +65,7 @@ func onOffState(on bool) string {
 	if on {
 		return "on"
 	}
-	return agentInstanceChecksOff
+	return cliOffValue
 }
 
 type agentInstanceSkillAutoApproveClient interface {

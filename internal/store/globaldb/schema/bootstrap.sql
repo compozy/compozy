@@ -4,6 +4,9 @@ VALUES (1, 0, '', '');
 INSERT INTO profiles (id, name, color, icon, emoji, state, created_at, archived_at)
 VALUES ('00000000000000000000000000', 'default', '#8E8EB5', 'circle', NULL, 'active', '1970-01-01T00:00:00Z', NULL);
 
+INSERT INTO installation_account (id, installation_id, pre_account_install, state)
+VALUES (1, 'ins_' || lower(hex(randomblob(16))), 0, 'signed_out');
+
 INSERT INTO model_catalog_execution_contexts (
 	context_id, scope, profile_id, workspace_id, command_fingerprint
 )

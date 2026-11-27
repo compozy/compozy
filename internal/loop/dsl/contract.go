@@ -1,5 +1,7 @@
 package dsl
 
+import "slices"
+
 // Contract defines goal, verification, and stop semantics.
 type Contract struct {
 	Goal                    string           `json:"goal"                      yaml:"goal"`
@@ -82,16 +84,18 @@ const (
 
 // IsKnownTerminalState reports whether value belongs to the closed terminal outcome vocabulary.
 func IsKnownTerminalState(value TerminalState) bool {
-	switch value {
-	case TerminalDone,
+	return slices.Contains(TerminalStateValues(), value)
+}
+
+// TerminalStateValues returns the closed authored terminal vocabulary in stable order.
+func TerminalStateValues() []TerminalState {
+	return []TerminalState{
+		TerminalDone,
 		TerminalNoOp,
 		TerminalBlocked,
 		TerminalFailed,
 		TerminalExhausted,
 		TerminalStalled,
-		TerminalCanceled:
-		return true
-	default:
-		return false
+		TerminalCanceled,
 	}
 }

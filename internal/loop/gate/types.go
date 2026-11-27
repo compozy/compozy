@@ -49,7 +49,8 @@ type Gate struct {
 	Criteria      []dsl.GateCriterion
 	VerdictPolicy dsl.VerdictPolicy
 	// OnResult maps verdict result keys to route overrides. Recognized keys are
-	// pass, approval, fail, blocked, error, timeout, and invalid_output.
+	// pass, approval, fail, blocked, error, timeout, and invalid_output. Each value
+	// is a string action, {route: node_id}, or {action: <action>, terminal_status: <state>}.
 	OnResult     map[string]any
 	MaxRevisions int
 }
@@ -71,10 +72,15 @@ func GateFromNode(node dsl.Node) Gate {
 //
 //revive:disable-next-line:exported // GateFromContract is the explicit adapter name for the gate package.
 func GateFromContract(id string, contract dsl.Contract, maxRevisions int) Gate {
+	var onResult map[string]any
+	if contract.ContractLifecycleState != nil {
+		onResult = contract.OnResult
+	}
 	return Gate{
 		ID:            strings.TrimSpace(id),
 		Criteria:      cloneCriteria(contract.Verification),
 		VerdictPolicy: contractVerdictPolicy(contract.Verification),
+		OnResult:      cloneResultRoutes(onResult),
 		MaxRevisions:  maxRevisions,
 	}
 }

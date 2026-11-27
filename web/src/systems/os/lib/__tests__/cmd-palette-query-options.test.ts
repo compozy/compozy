@@ -33,6 +33,8 @@ describe("command-palette query options", () => {
     const rankSignals = cmdPaletteRankSignalsOptions(" workspace:alpha ", "marketing");
 
     expect(catalog.queryKey).toEqual([
+      "computer",
+      "local",
       "cmd-palette",
       "catalog",
       "workspace:alpha",
@@ -40,6 +42,8 @@ describe("command-palette query options", () => {
       "client:web",
     ]);
     expect(view.queryKey).toEqual([
+      "computer",
+      "local",
       "cmd-palette",
       "views",
       "workspace:alpha",
@@ -47,6 +51,8 @@ describe("command-palette query options", () => {
       "profiles",
     ]);
     expect(rankSignals.queryKey).toEqual([
+      "computer",
+      "local",
       "cmd-palette",
       "rank-signals",
       "workspace:alpha",

@@ -17,7 +17,7 @@ func (m *Manager) CreateAccepted(ctx context.Context, optsInput *CreateAcceptedO
 	if ctx == nil {
 		return nil, errors.New("session: create accepted context is required")
 	}
-	if err := m.checkNewWorkAdmission(ctx); err != nil {
+	if err := m.checkSessionCreationAdmission(ctx); err != nil {
 		return nil, err
 	}
 	spec, err := m.prepareCreateStart(ctx, &opts.Session)

@@ -14,7 +14,6 @@ func (s *daemonExtensionService) commitPreparedInstallWithInputs(
 	ctx context.Context,
 	prepared preparedDaemonExtensionInstall,
 	req contract.InstallExtensionRequest,
-	confirmation *extensionpkg.GatewayConfirmation,
 	actor taskpkg.ActorContext,
 	event extensionpkg.LifecycleEvent,
 	item *contract.ExtensionPayload,
@@ -34,7 +33,7 @@ func (s *daemonExtensionService) commitPreparedInstallWithInputs(
 	if err != nil {
 		return err
 	}
-	if err := s.commitPreparedInstall(ctx, prepared, confirmation, actor, event, item, plan, req.Enable); err != nil {
+	if err := s.commitPreparedInstall(ctx, prepared, actor, event, item, plan, req.Enable); err != nil {
 		return errors.Join(err, binder.Rollback(ctx, plan), s.rollbackInstallMCPAllocations(ctx, allocations))
 	}
 	if req.Enable {

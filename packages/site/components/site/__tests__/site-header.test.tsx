@@ -19,6 +19,7 @@ vi.mock("@/components/site/github-stars-api", () => ({
 const SECTIONS = [
   ["Docs", "/docs"],
   ["Marketplace", "/marketplace"],
+  ["Pricing", "/pricing"],
   ["Blog", "/blog"],
   ["Changelog", "/changelog"],
   ["Download", "/download"],

@@ -2,6 +2,9 @@ import { useStore, useSelector } from "@xstate/store-react";
 import { useEffect } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { computerApiPath } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import { workspaceKeys } from "../lib/query-keys";
@@ -28,13 +31,14 @@ export type WorktreeCatalogEventSourceFactory = (url: string) => WorktreeCatalog
 
 interface UseWorktreeCatalogStreamOptions {
   enabled?: boolean;
+  computerId?: ComputerId;
   eventSourceFactory?: WorktreeCatalogEventSourceFactory;
 }
 
 export type { WorktreeCatalogStreamStatus } from "./worktree-catalog-stream-store";
 
-export function worktreeCatalogStreamURL(): string {
-  return "/api/worktrees/catalog-stream";
+export function worktreeCatalogStreamURL(computerId?: ComputerId): string {
+  return computerApiPath(computerId, "/api/worktrees/catalog-stream");
 }
 
 function defaultEventSourceFactory(url: string): WorktreeCatalogEventSource {
@@ -64,18 +68,20 @@ function openWorktreeCatalogStream(
   queryClient: QueryClient,
   workspaceIds: readonly string[],
   eventSourceFactory: WorktreeCatalogEventSourceFactory,
-  onStatusChange: (status: Exclude<WorktreeCatalogStreamStatus, "disabled">) => void
+  onStatusChange: (status: Exclude<WorktreeCatalogStreamStatus, "disabled">) => void,
+  computerId?: ComputerId
 ): () => void {
+  const keys = workspaceKeys.forComputer(computerId);
   const authorizedWorkspaceIds = new Set(workspaceIds);
   const pendingWorkspaces = new Set<string>();
   const reread = createCoalescedReread(
     () => {
       for (const workspaceId of pendingWorkspaces) {
         // The list prefix includes its details, status and exit plan queries.
-        void queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceId) });
+        void queryClient.invalidateQueries({ queryKey: keys.worktrees(workspaceId) });
       }
       pendingWorkspaces.clear();
-      void queryClient.invalidateQueries({ queryKey: workspaceKeys.worktreeAggregates() });
+      void queryClient.invalidateQueries({ queryKey: keys.worktreeAggregates() });
     },
     WORKTREE_REREAD_COALESCE_MS,
     WORKTREE_REREAD_MAX_WAIT_MS
@@ -96,7 +102,7 @@ function openWorktreeCatalogStream(
     if (!payload || !authorizedWorkspaceIds.has(payload.workspace_id)) return;
     if (payload.kind === "failed") {
       queryClient.setQueryData(
-        workspaceKeys.worktreeMaterializationFailure(payload.workspace_id, payload.worktree_id),
+        keys.worktreeMaterializationFailure(payload.workspace_id, payload.worktree_id),
         payload.error || "Worktree creation failed and was rolled back."
       );
     }
@@ -104,7 +110,7 @@ function openWorktreeCatalogStream(
     reread.request();
   };
 
-  const source = eventSourceFactory(worktreeCatalogStreamURL());
+  const source = eventSourceFactory(worktreeCatalogStreamURL(computerId));
   try {
     source.addEventListener("open", reconcileWorkspaces);
     source.addEventListener("error", handleStreamError);
@@ -134,9 +140,10 @@ function openWorktreeCatalogStream(
  */
 export function useWorktreeCatalogStream(
   workspaces: ReadonlyArray<{ id: string }>,
-  { enabled = true, eventSourceFactory }: UseWorktreeCatalogStreamOptions = {}
+  { enabled = true, computerId, eventSourceFactory }: UseWorktreeCatalogStreamOptions = {}
 ) {
   const queryClient = useQueryClient();
+  const scopedComputerId = useCurrentComputerId(computerId);
   const workspaceIds = [
     ...new Set(
       workspaces.flatMap(workspace => {
@@ -168,11 +175,12 @@ export function useWorktreeCatalogStream(
           queryClient,
           JSON.parse(workspaceKey) as string[],
           eventSourceFactory ?? defaultEventSourceFactory,
-          onStatusChange
+          onStatusChange,
+          scopedComputerId
         ),
     });
     return () => store.trigger.connectionDisabled();
-  }, [canConnect, eventSourceFactory, queryClient, store, workspaceKey]);
+  }, [canConnect, eventSourceFactory, queryClient, scopedComputerId, store, workspaceKey]);
 
   return status;
 }

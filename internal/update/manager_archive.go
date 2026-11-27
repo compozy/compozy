@@ -18,7 +18,8 @@ import (
 	"time"
 )
 
-func checksumForAsset(checksumsPath string, assetName string) (string, error) {
+// ChecksumForAsset reads the digest of a named asset from the checksum catalog.
+func ChecksumForAsset(checksumsPath string, assetName string) (string, error) {
 	data, err := os.ReadFile(checksumsPath)
 	if err != nil {
 		return "", fmt.Errorf("update: read checksum catalog %q: %w", checksumsPath, err)

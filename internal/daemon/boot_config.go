@@ -55,6 +55,7 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) (err error) 
 	cfg.WarnRetiredProviderReferences()
 
 	state.cfg = cfg
+	d.localComputers.Store(new(cfg.Computers))
 	state.logger = logger
 	state.closeLogger = closeLogger
 	cleanup.add(func(context.Context) error {

@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import { workspaceDetailOptions, worktreesListOptions } from "@/systems/workspace";
 
 import type { FilePathBase } from "./file-path-links";
@@ -10,17 +11,19 @@ import type { SessionPayload } from "../types";
 export interface SessionScope {
   sessionId: string;
   workspaceId: string;
+  computerId?: ComputerId;
 }
 
 // An invalidated entry (e.g. after a worktree change) may name a stale `working_dir`, so only
 // valid entries count; with none, the click rereads the detail.
 function cachedSessionDetail(
   queryClient: QueryClient,
-  { sessionId, workspaceId }: SessionScope
+  { sessionId, workspaceId, computerId }: SessionScope
 ): SessionPayload | undefined {
+  const keys = sessionKeys.forComputer(computerId);
   const cache = queryClient.getQueryCache();
-  const detail = cache.find({ queryKey: sessionKeys.detail(workspaceId, sessionId), exact: true });
-  const queries = cache.findAll({ queryKey: sessionKeys.byIdRoot(sessionId) });
+  const detail = cache.find({ queryKey: keys.detail(workspaceId, sessionId), exact: true });
+  const queries = cache.findAll({ queryKey: keys.byIdRoot(sessionId) });
   if (detail) queries.push(detail);
   const candidates: SessionPayload[] = [];
   for (const query of queries) {
@@ -40,7 +43,7 @@ async function readSessionDetail(
   if (cached?.working_dir) return cached;
   try {
     return await queryClient.fetchQuery({
-      ...sessionDetailOptions(scope.workspaceId, scope.sessionId),
+      ...sessionDetailOptions(scope.workspaceId, scope.sessionId, scope.computerId),
       staleTime: 0,
     });
   } catch {
@@ -66,10 +69,16 @@ export async function readFilePathResolutionBase(queryClient: QueryClient, scope
   const session = await readSessionDetail(queryClient, scope);
   const worktreeId = session?.worktree_id?.trim() ?? "";
   const [workspace, worktrees] = await Promise.all([
-    readOptional(() => queryClient.ensureQueryData(workspaceDetailOptions(scope.workspaceId))),
+    readOptional(() =>
+      queryClient.ensureQueryData(workspaceDetailOptions(scope.workspaceId, scope.computerId))
+    ),
     worktreeId === ""
       ? Promise.resolve(undefined)
-      : readOptional(() => queryClient.ensureQueryData(worktreesListOptions(scope.workspaceId))),
+      : readOptional(() =>
+          queryClient.ensureQueryData(
+            worktreesListOptions(scope.workspaceId, true, undefined, scope.computerId)
+          )
+        ),
   ]);
   const base: FilePathBase = {
     workingDir: session?.working_dir,

@@ -46,6 +46,10 @@ func (r *nativeToolHookRunner) PreCall(
 	if payload.ReadOnly != descriptor.ReadOnly {
 		return call, allowed, errors.New("native tool hook cannot change read-only classification")
 	}
+	if call.ForwardComputer != "" {
+		call.ToolID, call.Input = toolspkg.ToolID(payload.ToolID), payload.ToolInput
+		return call, allowed, nil
+	}
 	bound, err := r.binder.BindCallInput(ctx, scope, descriptor, payload.ToolInput)
 	if err != nil {
 		return call, allowed, err
@@ -178,6 +182,7 @@ func (r *nativeToolHookRunner) base(event hookspkg.HookEvent) hookspkg.PayloadBa
 
 func nativeHookToolRef(descriptor toolspkg.Descriptor, call toolspkg.CallRequest) hookspkg.ToolCallRef {
 	return hookspkg.ToolCallRef{
+		ComputerID:       call.ForwardComputer,
 		ToolID:           call.ToolID.String(),
 		ToolCallID:       call.ToolCallID,
 		ReadOnly:         descriptor.ReadOnly,

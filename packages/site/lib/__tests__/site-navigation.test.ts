@@ -1,7 +1,7 @@
 import { readdirSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MARKETING_NAV_LINKS, isCurrentSection } from "../site-nav";
+import { LEGAL_NAV_LINKS, MARKETING_NAV_LINKS, isCurrentSection } from "../site-nav";
 import { contentRoot } from "../content-test-utils";
 
 type InternalLink = {
@@ -17,6 +17,10 @@ const appRoutes = new Set([
   "/blog/feed.xml",
   "/marketplace",
   "/download",
+  "/pricing",
+  "/legal/terms",
+  "/legal/privacy",
+  "/legal/refunds",
 ]);
 
 function normalizeRoute(route: string): string {
@@ -54,7 +58,10 @@ function knownRoutes(): Set<string> {
 }
 
 function marketingLinks(): InternalLink[] {
-  return MARKETING_NAV_LINKS.map(link => ({ ...link, source: "MARKETING_NAV_LINKS" }));
+  return [
+    ...MARKETING_NAV_LINKS.map(link => ({ ...link, source: "MARKETING_NAV_LINKS" })),
+    ...LEGAL_NAV_LINKS.map(link => ({ ...link, source: "LEGAL_NAV_LINKS" })),
+  ];
 }
 
 function expectRouteBackedLinks(links: InternalLink[]) {

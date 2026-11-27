@@ -176,23 +176,12 @@ func (s *daemonExtensionService) recordExtensionEvent(
 func (s *daemonExtensionService) recordExtensionEnableEvents(
 	ctx context.Context,
 	actor taskpkg.ActorContext,
-	key extensionpkg.InstanceKey,
-	confirmation *extensionpkg.GatewayConfirmation,
 	result *contract.ExtensionEnableResult,
 ) error {
-	key = key.Normalize()
-	events := make([]extensionpkg.LifecycleEvent, 0, 2)
-	if confirmation != nil {
-		events = append(events, extensionpkg.LifecycleEvent{
-			Type: eventspkg.ExtensionGatewayConfirmed, ExtensionName: key.Name,
-			WorkspaceID: key.WorkspaceID, Digest: confirmation.Digest, ConfirmedBy: confirmation.ConfirmedBy,
-		})
-	}
 	count := len(result.AutomationStarted)
-	events = append(events, extensionpkg.LifecycleEvent{
+	return s.recordCanonicalExtensionLifecycleEvents(ctx, actor, extensionpkg.LifecycleEvent{
 		Type: eventspkg.ExtensionEnabled, ExtensionName: result.Extension.Name, AutomationCount: &count,
 	})
-	return s.recordCanonicalExtensionLifecycleEvents(ctx, actor, events...)
 }
 
 func extensionEventPayload(item *contract.ExtensionPayload) extensionLifecycleEventPayload {

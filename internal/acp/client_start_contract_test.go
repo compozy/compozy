@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -1835,6 +1836,147 @@ func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
 			t.Fatalf("second set-config request = %#v, want effort=max", reasoningRequest)
 		}
 	})
+
+	t.Run("Should wait for reasoning announced after the startup model is confirmed", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "model_specific_config_options", "late-reasoning", StartOpts{
+			PreferredModel:  "other-model",
+			ReasoningEffort: "max",
+			ProviderConfig:  reasoningACPProviderConfig(),
+		})
+		defer stopProcess(t, driver, proc)
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "max", "none", "max")
+	})
+
+	t.Run("Should reject a duplicate selection for a late startup reasoning option", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "startup-reasoning-conflict.jsonl")
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:       "helper",
+			Command:         helperCommand(t),
+			Cwd:             t.TempDir(),
+			Env:             helperEnvWithCapture("model_specific_config_options", "late-reasoning", captureFile),
+			Permissions:     compozyconfig.PermissionModeApproveAll,
+			PreferredModel:  "other-model",
+			ReasoningEffort: "max",
+			ProviderConfig:  reasoningACPProviderConfig(),
+			ACPOptions:      []SessionConfigOptionSelection{{ID: "reasoning_effort", ValueID: "none"}},
+		})
+		if proc != nil {
+			defer stopProcess(t, driver, proc)
+		}
+		const conflict = `config option "reasoning_effort" duplicates the dedicated reasoning effort setting`
+		if err == nil || !strings.Contains(err.Error(), conflict) {
+			t.Fatalf("Start() error = %v, want %s", err, conflict)
+		}
+		got := captureNegotiationSequence(t, captureFile)
+		want := []string{"mode:bypassPermissions", "model:other-model"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("negotiation sequence = %v, want %v", got, want)
+		}
+	})
+}
+
+func TestAwaitSessionReasoningOption(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should wait for a late config_option_update that publishes reasoning effort", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			driver := New(WithConfigSettleBudget(time.Second))
+			proc := &AgentProcess{}
+			proc.setCaps(Caps{
+				ConfigOptions: []SessionConfigOption{
+					{
+						ID:             "model",
+						Kind:           SessionConfigOptionKindSelect,
+						CurrentValueID: "m1",
+						Values:         []SessionConfigOptionValue{{Value: "m1", Label: "m1"}},
+					},
+				},
+			})
+
+			var option SessionConfigOption
+			var err error
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				option, err = driver.awaitSessionReasoningOption(t.Context(), proc, "high", true)
+			}()
+			synctest.Wait()
+			select {
+			case <-done:
+				t.Fatalf("negotiation returned before the provider update: %v", err)
+			default:
+			}
+
+			proc.setConfigOptions(sessionConfigOptionsFromSDK(helperConfigOptions("m1", "high")))
+			synctest.Wait()
+			select {
+			case <-done:
+			default:
+				t.Fatal("provider update did not release the reasoning wait")
+			}
+			if err != nil {
+				t.Fatalf("awaitSessionReasoningOption() error = %v", err)
+			}
+			if !configOptionAllowsValue(option, "high") {
+				t.Fatalf("returned option %#v does not allow high", option)
+			}
+		})
+	})
+
+	const budget = time.Second
+	tests := []struct {
+		name     string
+		options  []acpsdk.SessionConfigOption
+		wait     bool
+		wantCode string
+		wantWait time.Duration
+	}{
+		{
+			name:     "Should return reasoning_option_missing after the catalog budget",
+			options:  helperModelConfigOptions("m1"),
+			wait:     true,
+			wantCode: NegotiationCodeReasoningOptionMissing,
+			wantWait: budget,
+		},
+		{
+			name:     "Should return reasoning_effort_unsupported after the catalog budget",
+			options:  helperConfigOptions("m1", "medium"),
+			wait:     true,
+			wantCode: NegotiationCodeReasoningEffortUnsupported,
+			wantWait: budget,
+		},
+		{
+			name:     "Should reject an unsupported effort immediately when waiting is disabled",
+			options:  helperConfigOptions("m1", "medium"),
+			wantCode: NegotiationCodeReasoningEffortUnsupported,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				driver := New(WithConfigSettleBudget(budget))
+				proc := &AgentProcess{}
+				proc.setConfigOptions(sessionConfigOptionsFromSDK(tc.options))
+
+				started := time.Now()
+				_, err := driver.awaitSessionReasoningOption(t.Context(), proc, "turbo", tc.wait)
+				negotiationErr, ok := errors.AsType[*NegotiationError](err)
+				if !ok || negotiationErr.Code != tc.wantCode {
+					t.Fatalf("awaitSessionReasoningOption() error = %v, want %s", err, tc.wantCode)
+				}
+				if got := time.Since(started); got != tc.wantWait {
+					t.Fatalf("reasoning negotiation waited %s, want %s", got, tc.wantWait)
+				}
+			})
+		})
+	}
 }
 
 // TestConfigureRuntime verifies ordered negotiation, acknowledgement, and preservation after rejection.
@@ -2018,6 +2160,61 @@ func TestConfigureRuntime(t *testing.T) {
 		}
 	})
 
+	t.Run("Should wait for reasoning announced after a live model switch", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "model_specific_config_options", "late-reasoning", StartOpts{})
+		defer stopProcess(t, driver, proc)
+
+		if err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{
+			Model: "other-model", ReasoningEffort: "max",
+		}); err != nil {
+			t.Fatalf("ConfigureRuntime() error = %v", err)
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "max", "none", "max")
+	})
+
+	t.Run("Should reject a duplicate selection for a late reasoning option before writing it", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "late-reasoning-conflict.jsonl")
+		proc := startHelperProcess(t, driver, "model_specific_config_options", "late-reasoning", StartOpts{
+			Env: helperEnvWithCapture("model_specific_config_options", "late-reasoning", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{
+			Model:           "other-model",
+			ReasoningEffort: "max",
+			ACPOptions:      []SessionConfigOptionSelection{{ID: "reasoning_effort", ValueID: "none"}},
+		})
+		const conflict = `config option "reasoning_effort" duplicates the dedicated reasoning effort setting`
+		if err == nil || !strings.Contains(err.Error(), conflict) {
+			t.Fatalf("ConfigureRuntime() error = %v, want %s", err, conflict)
+		}
+		requests := captureRequestParamsForMethod(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption)
+		if len(requests) != 1 {
+			t.Fatalf("set_config_option requests = %d, want only the model change", len(requests))
+		}
+		options := proc.CapsSnapshot().ConfigOptions
+		assertConfigOption(t, options, "model", "other-model", "other-model")
+		assertConfigOption(t, options, "reasoning_effort", "none", "none", "max")
+	})
+
+	t.Run("Should refuse unavailable reasoning without waiting when the model is already active", func(t *testing.T) {
+		t.Parallel()
+		driver := New(WithConfigSettleBudget(time.Minute))
+		proc := startHelperProcess(t, driver, "config_options_no_reasoning", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.Scaled(t, 5*time.Second))
+		defer cancel()
+		err := driver.ConfigureRuntime(ctx, proc, RuntimeConfig{Model: "new-model", ReasoningEffort: "high"})
+		negotiationErr, ok := errors.AsType[*NegotiationError](err)
+		if !ok || negotiationErr.Code != NegotiationCodeReasoningOptionMissing {
+			t.Fatalf("ConfigureRuntime() error = %v, want reasoning_option_missing", err)
+		}
+	})
+
 	t.Run("Should return a typed failure when the provider rejects speed", func(t *testing.T) {
 		t.Parallel()
 
@@ -2053,7 +2250,7 @@ func TestStartRejectsReasoningEffortWhenConfigOptionIsAbsent(t *testing.T) {
 	t.Run("Should fail before prompting when the effort option is absent", func(t *testing.T) {
 		t.Parallel()
 
-		driver := New()
+		driver := New(WithConfigSettleBudget(30 * time.Millisecond))
 		captureFile := filepath.Join(t.TempDir(), "session-no-reasoning-config.jsonl")
 		proc, err := driver.Start(testutil.Context(t), StartOpts{
 			AgentName:       "helper",
@@ -2171,7 +2368,11 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			driver := newTestDriverWithCatalogBudget(t, 400*time.Millisecond)
+			driver := newTestDriverWithCatalogBudget(
+				t,
+				400*time.Millisecond,
+				WithConfigSettleBudget(30*time.Millisecond),
+			)
 			captureFile := filepath.Join(t.TempDir(), "session-unavailable-config-option.jsonl")
 			opts := StartOpts{
 				AgentName:   "helper",
@@ -2828,6 +3029,108 @@ func TestLoadSessionRequiresFreshThread(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: only control deadlines and provider-reported deadline text on session/load or
+// session/resume are transient load timeouts; caller cancellation and permanent refusals retain
+// their existing classifications.
+func TestLoadSessionTimeoutClassification(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		method       string
+		requestErr   *acpsdk.RequestError
+		cancelCaller bool
+		wantTimeout  bool
+		wantFresh    bool
+	}{
+		{
+			name:   "Should classify provider context deadline text as transient",
+			method: acpsdk.AgentMethodSessionLoad, requestErr: &acpsdk.RequestError{
+				Code: -32603, Message: "Internal error", Data: map[string]any{"error": "context deadline exceeded"},
+			},
+			wantTimeout: true,
+		},
+		{
+			name:   "Should classify provider deadline wording on session resume as transient",
+			method: acpsdk.AgentMethodSessionResume, requestErr: &acpsdk.RequestError{
+				Code: -32603, Message: "Deadline exceeded while reading session",
+			},
+			wantTimeout: true,
+		},
+		{
+			name:   "Should keep permanent provider load failures unclassified",
+			method: acpsdk.AgentMethodSessionLoad, requestErr: &acpsdk.RequestError{
+				Code: -32603, Message: "The stored session cannot be loaded",
+			},
+		},
+		{
+			name:   "Should keep a provider mismatch permanent when the diagnostic also reports a deadline",
+			method: acpsdk.AgentMethodSessionLoad, requestErr: &acpsdk.RequestError{
+				Code: -32603, Message: "This chat uses openai, but your current provider is cliproxyapi.",
+				Data: map[string]any{"error": "context deadline exceeded"},
+			},
+			wantFresh: true,
+		},
+		{
+			name:   "Should keep a missing provider session permanent when the diagnostic also reports a deadline",
+			method: acpsdk.AgentMethodSessionLoad, requestErr: &acpsdk.RequestError{
+				Code: requestErrorResourceNotFoundCode, Message: "Resource not found: sess-existing",
+				Data: map[string]any{"error": "context deadline exceeded"},
+			},
+			wantFresh: true,
+		},
+		{
+			name:   "Should not reclassify a caller deadline",
+			method: acpsdk.AgentMethodSessionLoad, requestErr: &acpsdk.RequestError{
+				Code: -32603, Message: "context deadline exceeded",
+			},
+			cancelCaller: true,
+		},
+		{
+			name:   "Should ignore provider deadline wording outside load or resume",
+			method: acpsdk.AgentMethodSessionNew, requestErr: &acpsdk.RequestError{
+				Code: -32603, Message: "context deadline exceeded",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			callerCtx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if tc.cancelCaller {
+				cancel()
+			}
+			classified := classifyLoadSessionTimeout(
+				callerCtx,
+				context.Background(),
+				tc.method,
+				tc.requestErr,
+			)
+			if got := errors.Is(classified, ErrLoadSessionTimeout); got != tc.wantTimeout {
+				t.Fatalf("classified control timeout = %v, want %v; error = %v", got, tc.wantTimeout, classified)
+			}
+			loadErr := fmt.Errorf("%w: %w", ErrLoadSessionFailed, classified)
+			if got := IsLoadSessionTimeout(loadErr); got != tc.wantTimeout {
+				t.Fatalf("IsLoadSessionTimeout() = %v, want %v; error = %v", got, tc.wantTimeout, loadErr)
+			}
+			if got := LoadSessionRequiresFreshThread(loadErr); got != tc.wantFresh {
+				t.Fatalf("LoadSessionRequiresFreshThread() = %v, want %v; error = %v", got, tc.wantFresh, loadErr)
+			}
+		})
+	}
+
+	t.Run("Should classify an internal control deadline while the caller remains live", func(t *testing.T) {
+		t.Parallel()
+		requestCtx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+		defer cancel()
+		classified := classifyLoadSessionTimeout(
+			t.Context(), requestCtx, acpsdk.AgentMethodSessionLoad, errors.New("RPC stopped"),
+		)
+		if !IsLoadSessionTimeout(classified) {
+			t.Fatalf("classified control error = %v, want a session load timeout", classified)
+		}
+	})
 }
 
 func TestCleanupFailedStartReturnsJoinedErrorWhenStopFails(t *testing.T) {

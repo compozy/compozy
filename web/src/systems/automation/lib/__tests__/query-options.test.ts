@@ -36,6 +36,8 @@ describe("automation list options", () => {
     });
 
     expect(options.queryKey).toEqual([
+      "computer",
+      "local",
       "automation",
       "jobs",
       "list",
@@ -95,7 +97,15 @@ describe("automation list options", () => {
   it("caches the complete suggestion envelope by workspace and status", () => {
     const options = automationSuggestionsListOptions("ws_alpha", "pending");
 
-    expect(options.queryKey).toEqual(["automation", "suggestions", "list", "ws_alpha", "pending"]);
+    expect(options.queryKey).toEqual([
+      "computer",
+      "local",
+      "automation",
+      "suggestions",
+      "list",
+      "ws_alpha",
+      "pending",
+    ]);
     expect(options.enabled).toBe(true);
     expect("select" in options).toBe(false);
     expect(automationSuggestionsListOptions("", "pending").enabled).toBe(false);
@@ -118,6 +128,8 @@ describe("automation detail and run options", () => {
     expect(options.refetchInterval).toBe(15_000);
     expect(options.enabled).toBe(true);
     expect(options.queryKey).toEqual([
+      "computer",
+      "local",
       "automation",
       "jobs",
       "runs",
@@ -152,6 +164,8 @@ describe("automation detail and run options", () => {
     expect(triggerRuns.refetchInterval).toBe(15_000);
     expect(triggerRuns.enabled).toBe(false);
     expect(triggerRuns.queryKey).toEqual([
+      "computer",
+      "local",
       "automation",
       "triggers",
       "runs",
@@ -166,6 +180,8 @@ describe("automation detail and run options", () => {
     expect(runs.refetchInterval).toBe(15_000);
     expect(runs.enabled).toBe(false);
     expect(runs.queryKey).toEqual([
+      "computer",
+      "local",
       "automation",
       "runs",
       "list",

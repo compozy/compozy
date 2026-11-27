@@ -51,6 +51,7 @@ const jumpToSession = vi.hoisted(() => vi.fn());
 const notifyUser = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/user-feedback", () => ({ notifyUser }));
+vi.mock("@/systems/computers", () => ({ useHostedBrowserContext: () => null }));
 
 const catalogInputs = vi.hoisted(() => ({
   workspace: { runtimeWorkspaceId: null as string | null, pending: false },

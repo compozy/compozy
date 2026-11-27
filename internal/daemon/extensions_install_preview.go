@@ -53,12 +53,8 @@ func (s *daemonExtensionService) PreviewInstall(
 	if err != nil {
 		return contract.ExtensionInstallPreviewPayload{}, err
 	}
-	digest, err := extensionpkg.GatewayRequirementDigest(prepared.manifest.Gateway)
-	if err != nil {
-		return contract.ExtensionInstallPreviewPayload{}, err
-	}
 	result := contract.ExtensionInstallPreviewPayload{
-		Name: prepared.name, GatewayRequirementDigest: digest,
+		Name:             prepared.name,
 		DigestSHA256:     prepared.digest,
 		Inputs:           make([]contract.MarketplaceInputPayload, 0, len(prepared.manifest.Inputs)),
 		DeclaredProfiles: make([]contract.ExtensionInstallDeclaredProfilePayload, 0, len(plan.Profiles)),
@@ -89,29 +85,24 @@ func (s *daemonExtensionService) PreviewInstall(
 			Kind: placement.Kind, Resource: placement.Resource, Profile: placement.Profile,
 		})
 	}
-	return result, nil
+	result.Dependencies, err = s.previewDependencies(ctx, prepared, req, actor)
+	return result, err
 }
 
-func (s *daemonExtensionService) prepareInstallGatewayConfirmation(
-	manifest *extensionpkg.Manifest,
-	expectedDigest string,
+// previewDependencies resolves the graph from the acquired packages (D15) without mutating anything.
+func (s *daemonExtensionService) previewDependencies(
+	ctx context.Context, prepared preparedDaemonExtensionInstall, req contract.InstallExtensionRequest,
 	actor taskpkg.ActorContext,
-) (*extensionpkg.GatewayConfirmation, error) {
-	digest, err := extensionpkg.GatewayRequirementDigest(manifest.Gateway)
+) (_ []contract.ExtensionDependencyPayload, resultErr error) {
+	graph, err := s.resolveDependencies(ctx, prepared.manifest, prepared.sourceDir, prepared.target, req.Dependencies,
+		actor)
 	if err != nil {
 		return nil, err
 	}
-	if digest == "" {
-		return nil, nil
-	}
-	if expectedDigest != digest {
-		return nil, &extensionpkg.GatewayConfirmationRequiredError{CurrentDigest: digest}
-	}
-	confirmedBy, err := extensionGatewayConfirmationActor(actor)
-	if err != nil {
-		return nil, err
-	}
-	return &extensionpkg.GatewayConfirmation{
-		Digest: digest, ConfirmedBy: confirmedBy, ConfirmedAt: s.now().UTC(),
-	}, nil
+	defer func() {
+		if closeErr := graph.Close(); closeErr != nil {
+			resultErr = errors.Join(resultErr, fmt.Errorf("daemon: close dependency preview: %w", closeErr))
+		}
+	}()
+	return graph.payloads(), nil
 }

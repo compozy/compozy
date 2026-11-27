@@ -1,5 +1,7 @@
 package contract
 
+import "github.com/compozy/compozy/internal/remoteproto"
+
 // SessionsResponse wraps the shared session list payload.
 type SessionsResponse struct {
 	Sessions []SessionPayload `json:"sessions"`
@@ -7,7 +9,8 @@ type SessionsResponse struct {
 
 // SessionResponse wraps one shared session payload.
 type SessionResponse struct {
-	Session SessionPayload `json:"session"`
+	Session    SessionPayload         `json:"session"`
+	ComputerID remoteproto.ComputerID `json:"computer_id,omitempty"`
 }
 
 // SessionAttachResponse wraps one explicit session attach lease.
@@ -325,6 +328,8 @@ type ExtensionResponse struct {
 type InstallExtensionResponse struct {
 	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
 	Extension   ExtensionPayload      `json:"extension"`
+	// DependenciesInstalled lists the dependencies a consented install added or enabled. Experimental.
+	DependenciesInstalled []string `json:"dependencies_installed,omitempty"`
 }
 
 // ExtensionLogsResponse wraps a bounded snapshot of redacted extension logs.

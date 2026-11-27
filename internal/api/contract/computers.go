@@ -1,0 +1,129 @@
+package contract
+
+import (
+	"time"
+
+	"github.com/compozy/compozy/internal/remoteproto"
+)
+
+const ComputersPath = "/api/computers"
+const ComputerAddKindAccount = "account"
+
+type ComputerRoute struct {
+	ID        string                `json:"id"`
+	Kind      remoteproto.RouteKind `json:"kind"`
+	Address   string                `json:"address"`
+	InUse     bool                  `json:"in_use"`
+	Learned   bool                  `json:"learned"`
+	LastError *string               `json:"last_error"`
+}
+
+type ComputerRouteInUse struct {
+	ID    string                `json:"id"`
+	Kind  remoteproto.RouteKind `json:"kind"`
+	Label string                `json:"label"`
+}
+
+type ComputerDiagnosis struct {
+	Step    string    `json:"step"`
+	Code    string    `json:"code"`
+	Message string    `json:"message"`
+	At      time.Time `json:"at"`
+}
+
+type Computer struct {
+	ID                  remoteproto.ComputerID     `json:"id"`
+	AccountID           string                     `json:"account_id"`
+	Name                string                     `json:"name"`
+	Enabled             bool                       `json:"enabled"`
+	Status              string                     `json:"status"`
+	PlanState           string                     `json:"plan_state"`
+	Version             string                     `json:"version"`
+	Platform            string                     `json:"platform"`
+	RouteInUse          *ComputerRouteInUse        `json:"route_in_use"`
+	Routes              []ComputerRoute            `json:"routes"`
+	Scopes              []remoteproto.Scope        `json:"scopes"`
+	Diagnosis           *ComputerDiagnosis         `json:"diagnosis"`
+	Protocol            *remoteproto.ProtocolRange `json:"protocol"`
+	LoadBalancingWeight int                        `json:"load_balancing_weight"`
+	AddedAt             time.Time                  `json:"added_at"`
+	LastConnectedAt     *time.Time                 `json:"last_connected_at"`
+}
+
+type LocalComputer struct {
+	RunAgents           bool `json:"run_agents"`
+	LoadBalancing       bool `json:"load_balancing"`
+	LoadBalancingWeight int  `json:"load_balancing_weight"`
+}
+
+type PatchLocalComputerRequest struct {
+	RunAgents           *bool `json:"run_agents,omitempty"`
+	LoadBalancing       *bool `json:"load_balancing,omitempty"`
+	LoadBalancingWeight *int  `json:"load_balancing_weight,omitempty"`
+}
+
+type ComputerPlacementRequest struct {
+	Workspace         string                 `json:"workspace"`
+	ProjectComputerID remoteproto.ComputerID `json:"project_computer_id,omitempty"`
+}
+
+type ComputerPlacementResponse struct {
+	ComputerID  remoteproto.ComputerID `json:"computer_id"`
+	Name        string                 `json:"name"`
+	WorkspaceID string                 `json:"workspace_id"`
+}
+
+type ComputerListResponse struct {
+	Computers []Computer    `json:"computers"`
+	Local     LocalComputer `json:"local"`
+}
+
+type AvailableComputer struct {
+	ID     remoteproto.ComputerID `json:"id"`
+	Name   string                 `json:"name"`
+	Online bool                   `json:"online"`
+	Added  bool                   `json:"added"`
+}
+
+type AvailableComputersResponse struct {
+	Computers []AvailableComputer `json:"computers"`
+}
+
+type AddComputerRequest struct {
+	Kind                 string                 `json:"kind"`
+	ComputerID           remoteproto.ComputerID `json:"computer_id,omitempty"`
+	Host                 string                 `json:"host,omitempty"`
+	User                 string                 `json:"user,omitempty"`
+	Port                 int                    `json:"port,omitzero"`
+	Name                 string                 `json:"name,omitempty"`
+	TrustHostFingerprint string                 `json:"trust_host_fingerprint,omitempty"`
+}
+
+type PatchComputerRequest struct {
+	Name    *string `json:"name,omitempty"`
+	Enabled *bool   `json:"enabled,omitempty"`
+	Weight  *int    `json:"load_balancing_weight,omitempty"`
+}
+
+type RemoveComputerResponse struct {
+	Removed   bool   `json:"removed"`
+	Uninstall string `json:"uninstall"`
+}
+
+type ComputerChange struct {
+	ComputerID remoteproto.ComputerID `json:"computer_id,omitempty"`
+	Computer   *Computer              `json:"computer,omitempty"`
+	Removed    bool                   `json:"removed,omitzero"`
+	SetupID    string                 `json:"setup_id,omitempty"`
+	Step       string                 `json:"step,omitempty"`
+	State      string                 `json:"state,omitempty"`
+	Prompt     *ComputerSetupPrompt   `json:"prompt,omitempty"`
+	Error      *ErrorPayload          `json:"error,omitempty"`
+	Answered   bool                   `json:"answered,omitzero"`
+}
+
+type ComputerEvent struct {
+	ID    string         `json:"id"`
+	Event string         `json:"event"`
+	Data  ComputerChange `json:"data"`
+}

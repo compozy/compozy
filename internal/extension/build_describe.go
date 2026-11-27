@@ -48,13 +48,16 @@ func manifestFromDescribe(input *extensioncontract.DescribePayload) (*Manifest, 
 	if err := validateDescribeCapabilityCoverage(&payload); err != nil {
 		return nil, err
 	}
+	inputs := manifestInputsFromDescribe(payload.Inputs)
 	manifest := &Manifest{
-		Name:              strings.TrimSpace(payload.Name),
-		Version:           strings.TrimSpace(payload.Version),
-		Description:       strings.TrimSpace(payload.Description),
-		MinCompozyVersion: strings.TrimSpace(payload.SDK.MinCompozyVersion),
-		RequiresEnv:       payload.RequiresEnv,
-		Profiles:          manifestProfilesFromDescribe(payload.Profiles),
+		Name:                strings.TrimSpace(payload.Name),
+		Version:             strings.TrimSpace(payload.Version),
+		Description:         strings.TrimSpace(payload.Description),
+		MinCompozyVersion:   strings.TrimSpace(payload.SDK.MinCompozyVersion),
+		RequiresEnv:         manifestRequiredEnv(payload.RequiresEnv, inputs),
+		DeclaredRequiresEnv: slices.Clone(payload.RequiresEnv),
+		Inputs:              inputs,
+		Profiles:            manifestProfilesFromDescribe(payload.Profiles),
 		Resources: ResourcesConfig{
 			Skills:     manifestResourcePathsFromDescribe(payload.Resources.Skills),
 			Loops:      manifestResourcePathsFromDescribe(payload.Resources.Loops),
@@ -74,11 +77,6 @@ func manifestFromDescribe(input *extensioncontract.DescribePayload) (*Manifest, 
 			Args:    slices.Clone(payload.Subprocess.Args),
 			Env:     cloneStringMap(payload.Subprocess.Env),
 		},
-	}
-	if payload.Gateway != nil {
-		manifest.Gateway = (&GatewayRequirement{
-			Permissions: slices.Clone(payload.Gateway.Permissions),
-		}).Normalize()
 	}
 	if err := validateDescribeSDK(payload.SDK); err != nil {
 		return nil, err

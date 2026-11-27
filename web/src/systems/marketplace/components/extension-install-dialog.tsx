@@ -26,6 +26,11 @@ import {
 
 import type { ExtensionInstallRequest } from "../types";
 import type { ExtensionInstallPreview } from "@/systems/extensions";
+import { ExtensionDependencyList } from "./extension-dependency-list";
+import {
+  blockedExtensionDependencies,
+  unmetExtensionDependencies,
+} from "./extension-dependency-model";
 import { ExtensionInputFields } from "./extension-input-fields";
 import {
   buildExtensionInstallRequest,
@@ -78,6 +83,8 @@ export function ExtensionInstallDialog({
   ]);
   const inputForm = useExtensionInputForm(preview?.inputs ?? [], acquisitionIdentity);
   const [fieldErrors, setFieldErrors] = useState<ExtensionInstallFieldError>({});
+  // A dependency Install cannot add (below its version, or another instance's copy) blocks it.
+  const blocked = preview !== null && blockedExtensionDependencies(preview).length > 0;
   const patch = (next: Partial<ExtensionInstallForm>) => {
     setFieldErrors({});
     onFormChange?.();
@@ -106,7 +113,7 @@ export function ExtensionInstallDialog({
             event.preventDefault();
             const errors = validateExtensionInstallForm(form);
             setFieldErrors(errors);
-            if (Object.keys(errors).length > 0 || !inputForm.valid) return;
+            if (Object.keys(errors).length > 0 || !inputForm.valid || blocked) return;
             onSubmit({
               ...buildExtensionInstallRequest(form),
               ...(Object.keys(inputForm.inputs).length ? { inputs: inputForm.inputs } : {}),
@@ -126,6 +133,9 @@ export function ExtensionInstallDialog({
             <ExtensionInstallMoreOptions form={form} onChange={patch} />
 
             {preview ? <ExtensionInstallSummary preview={preview} /> : null}
+            {preview ? (
+              <ExtensionDependencyList dependencies={unmetExtensionDependencies(preview)} />
+            ) : null}
             {preview && preview.inputs.length > 0 ? (
               <ExtensionInputFields disabled={pending} form={inputForm} key={acquisitionIdentity} />
             ) : null}
@@ -151,7 +161,7 @@ export function ExtensionInstallDialog({
             </Button>
             <Button
               data-testid="extension-install-submit"
-              disabled={pending || !inputForm.valid}
+              disabled={pending || blocked || !inputForm.valid}
               type="submit"
             >
               {pending ? <Spinner aria-hidden="true" className="size-3.5" /> : null}

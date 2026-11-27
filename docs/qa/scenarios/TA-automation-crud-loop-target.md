@@ -98,3 +98,13 @@ QA impact 2026-11-15 (release M6): startup/process/handshake/protocol failures b
 retain v0.7.0 backoff coverage. Accepted-start failures of every eligible kind remain terminal and
 retain diagnostics. `TestSchedulerIntegrationStartupFailure` owns the real SQLite scheduler/fire
 integration; CI and provider replay remain pending and no local verification is permitted.
+
+QA impact 2026-11-22 (#1943): a Loop target can set `input_command` (`--loop-input-command`) so
+inputs are resolved at each fire. Create a job whose command prints `key=value` lines, trigger one
+fire, and confirm the Loop starts with the command values overriding static `inputs`, that
+`automation runs get` shows the resolved inputs under `metadata.loop_inputs` and the delegated
+`loop_run_id`, and that `automation jobs get` returns the command after a daemon restart. Then print
+nothing: the run must settle as `canceled` with `metadata.reason = "no inputs"` and no Loop run.
+Finally make the command exit non-zero: the run must keep the stderr text and create no Loop run.
+The workspace-root cwd, timeout, and environment withholding are unit-owned in the daemon suite; a
+provider replay remains pending and local verification is left to the orchestrator/CI.

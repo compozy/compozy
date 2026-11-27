@@ -101,6 +101,7 @@ func sameLoopTarget(left *LoopTarget, right *LoopTarget) bool {
 	default:
 		return left.WorkspaceID == right.WorkspaceID &&
 			left.LoopName == right.LoopName &&
+			left.InputCommand == right.InputCommand &&
 			sameJSONMap(left.Inputs, right.Inputs) &&
 			sameStringMap(left.InputMapping, right.InputMapping)
 	}

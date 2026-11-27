@@ -1,0 +1,37 @@
+import type { components } from "@compozy/client";
+
+export type ComputerPayload = components["schemas"]["Computer"];
+export type ComputerListResponse = components["schemas"]["ComputerListResponse"];
+export type ComputerChangePayload = components["schemas"]["ComputerChange"];
+export type ComputerEventPayload = components["schemas"]["ComputerEvent"];
+export type ComputerRoutePayload = components["schemas"]["ComputerRoute"];
+export type ComputerRouteInUsePayload = components["schemas"]["ComputerRouteInUse"];
+export type ComputerDiagnosisPayload = components["schemas"]["ComputerDiagnosis"];
+export type LocalComputerPayload = components["schemas"]["LocalComputer"];
+export type PatchLocalComputerRequest = components["schemas"]["PatchLocalComputerRequest"];
+export type ComputerPlacementRequest = components["schemas"]["ComputerPlacementRequest"];
+export type ComputerPlacementResponse = components["schemas"]["ComputerPlacementResponse"];
+export type HostResourcesResponse = components["schemas"]["HostResourcesResponse"];
+export type PatchComputerRequest = components["schemas"]["PatchComputerRequest"];
+export type AvailableComputerPayload = components["schemas"]["AvailableComputer"];
+export type AvailableComputersResponse = components["schemas"]["AvailableComputersResponse"];
+export type AddComputerRequest = components["schemas"]["AddComputerRequest"];
+export type RemoveComputerResponse = components["schemas"]["RemoveComputerResponse"];
+export type ComputerSSHHostPayload = components["schemas"]["ComputerSSHHost"];
+export type ComputerSSHHostsResponse = components["schemas"]["ComputerSSHHostsResponse"];
+export type ComputerSetupStartedPayload = components["schemas"]["ComputerSetupStarted"];
+export type ComputerUpdateStartedPayload = components["schemas"]["ComputerUpdateStarted"];
+export type ComputerSetupStatusPayload = components["schemas"]["ComputerSetupStatus"];
+export type ComputerSetupPromptPayload = components["schemas"]["ComputerSetupPrompt"];
+export type ComputerSetupAnswerRequest = components["schemas"]["ComputerSetupAnswer"];
+export type ComputerSetupCanceledPayload = components["schemas"]["ComputerSetupCanceled"];
+export type ErrorPayload = components["schemas"]["ErrorPayload"];
+
+export type RemoteStatusPayload = components["schemas"]["RemoteStatusResponse"];
+export type RemotePatchRequest = components["schemas"]["RemotePatchRequest"];
+export type RemoteDevicePayload = components["schemas"]["RemoteDeviceResponse"];
+export type RemoteDevicesResponse = components["schemas"]["RemoteDevicesResponse"];
+export type RemoteDevicePatchRequest = components["schemas"]["RemoteDevicePatchRequest"];
+export type RemoteLinkRequest = components["schemas"]["RemoteLinkRequest"];
+export type RemoteLinkResponse = components["schemas"]["RemoteLinkResponse"];
+export type RemoteApprovalPayload = components["schemas"]["Approval"];

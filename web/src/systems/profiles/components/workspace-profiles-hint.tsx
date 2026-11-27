@@ -3,7 +3,6 @@ import { useState } from "react";
 
 import { Button } from "@compozy/ui";
 
-import { useGatewayAccessTier } from "@/systems/gateway";
 import type { WorkspaceDetailPayload } from "@/systems/workspace";
 
 import { openProfileDialog } from "../stores/profile-dialog-store";
@@ -19,11 +18,10 @@ export interface WorkspaceProfilesHintProps {
 /** Offers the canonical create flow for dormant repository profile folders. */
 export function WorkspaceProfilesHint({ hints, workspaceId }: WorkspaceProfilesHintProps) {
   const profiles = useProfiles();
-  const tier = useGatewayAccessTier();
   const [dismissedWorkspaces, setDismissedWorkspaces] = useState<ReadonlySet<string>>(
     () => new Set()
   );
-  if (tier !== "local" || profiles.isPending || profiles.isError) return null;
+  if (profiles.isPending || profiles.isError) return null;
 
   const known = new Set((profiles.data ?? []).map(profile => profile.name));
   const absent = hints.filter(hint => !known.has(hint.name));

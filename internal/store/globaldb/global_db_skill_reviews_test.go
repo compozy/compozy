@@ -24,7 +24,7 @@ func TestSkillReviewRepo(t *testing.T) {
 	t.Run("Should migrate every review losslessly and keep legacy rows approvable [IT-012 IT-003]", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00219_schema.sql"))
+		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00220_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -110,8 +110,9 @@ func TestSkillReviewRepo(t *testing.T) {
 		ctx := t.Context()
 		_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances
  (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
- VALUES ('identity-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`,
-			store.DefaultProfileID)
+ VALUES ('identity-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z'),
+ ('variant-instance',?,'variant-coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`,
+			store.DefaultProfileID, store.DefaultProfileID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -127,10 +128,10 @@ func TestSkillReviewRepo(t *testing.T) {
 			t.Fatal(err)
 		}
 		repo := db.SkillReviews()
-		create := func(id, skill, digest, baseDigest string) (agentinstance.SkillReview, bool, error) {
+		createFor := func(instanceID, id, skill, digest, baseDigest string) (agentinstance.SkillReview, bool, error) {
 			t.Helper()
 			return repo.CreateReview(ctx, agentinstance.SkillReview{
-				ID: id, InstanceID: "identity-instance", ProfileID: store.DefaultProfileID, SkillName: skill,
+				ID: id, InstanceID: instanceID, ProfileID: store.DefaultProfileID, SkillName: skill,
 				Digest: digest, BaseDigest: baseDigest, DraftPath: "/drafts/" + id,
 				Lesson: agentinstance.SkillLesson{
 					Cue: "cue", Lesson: "lesson", Evidence: "evidence", Confidence: "high",
@@ -144,6 +145,10 @@ func TestSkillReviewRepo(t *testing.T) {
 				),
 			})
 		}
+		create := func(id, skill, digest, baseDigest string) (agentinstance.SkillReview, bool, error) {
+			t.Helper()
+			return createFor("identity-instance", id, skill, digest, baseDigest)
+		}
 		first, duplicate, err := create("fresh", "fresh", "sha256:fresh", "")
 		if err != nil || duplicate || first.Lesson.Confidence != "high" || first.EvidenceSessionIDs[0] != "sess-a" {
 			t.Fatalf("fresh review = %+v, %v, %v", first, duplicate, err)
@@ -152,9 +157,20 @@ func TestSkillReviewRepo(t *testing.T) {
 		if err != nil || !duplicate || again.ID != "fresh" {
 			t.Fatalf("pending duplicate = %+v, %v, %v", again, duplicate, err)
 		}
-		otherBase, duplicate, err := create("fresh-base", "fresh", "sha256:fresh", "sha256:base")
-		if err != nil || duplicate || otherBase.ID != "fresh-base" {
-			t.Fatalf("different base = %+v, %v, %v", otherBase, duplicate, err)
+		// Each identity field alone makes a new review; only an exact match is a duplicate. The variants
+		// use their own instance so the pending-review limit stays out of the way.
+		if _, _, err := createFor("variant-instance", "variant", "variant", "sha256:variant", ""); err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct{ id, skill, digest, base string }{
+			{id: "variant-skill", skill: "variant-other", digest: "sha256:variant"},
+			{id: "variant-digest", skill: "variant", digest: "sha256:variant-other"},
+			{id: "variant-base", skill: "variant", digest: "sha256:variant", base: "sha256:base"},
+		} {
+			created, duplicate, err := createFor("variant-instance", tc.id, tc.skill, tc.digest, tc.base)
+			if err != nil || duplicate || created.ID != tc.id {
+				t.Fatalf("%s identity = %+v, %v, %v; want a new review", tc.id, created, duplicate, err)
+			}
 		}
 		legacy, duplicate, err := create("legacy-again", "legacy", "sha256:legacy", "")
 		if err != nil || !duplicate || legacy.ID != "legacy-pending" {
@@ -166,14 +182,16 @@ func TestSkillReviewRepo(t *testing.T) {
 			t.Fatalf("rejected identity: %v", err)
 		}
 		for _, skill := range []string{"approved", "reverted"} {
-			created, duplicate, err := create(skill+"-again", skill, "sha256:"+skill, "")
-			if err != nil || duplicate || created.ID != skill+"-again" {
-				t.Fatalf("%s identity = %+v, %v, %v", skill, created, duplicate, err)
-			}
+			t.Run("Should create a new review over a "+skill+" identity", func(t *testing.T) {
+				created, duplicate, err := create(skill+"-again", skill, "sha256:"+skill, "")
+				if err != nil || duplicate || created.ID != skill+"-again" {
+					t.Fatalf("%s identity = %+v, %v, %v", skill, created, duplicate, err)
+				}
+			})
 		}
 		var reports int
 		if err := db.DB().QueryRowContext(ctx, "SELECT count(*) FROM agent_instance_reports WHERE instance_id = ?",
-			"identity-instance").Scan(&reports); err != nil || reports != 4 {
+			"identity-instance").Scan(&reports); err != nil || reports != 3 {
 			t.Fatalf("reports = %d, %v; want one per new review", reports, err)
 		}
 	})
@@ -254,7 +272,7 @@ func TestSkillReviewRepo(t *testing.T) {
 	t.Run("Should read instances created before the auto-approve migration as off [IT-005]", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00220_schema.sql"))
+		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00234_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

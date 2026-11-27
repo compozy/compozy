@@ -235,6 +235,10 @@ turns by #782 on 2026-10-17): configure short `quiet_after`/`stop_grace` interva
 lab. Hold a turn in flight that stops producing work (for example a provider that hangs inside a
 prompt). Exercise a verified tool, active child, recent Loop reconciliation, task lease, and
 scheduled wait independently. Each must suspend the watchdog while its work evidence is current.
+Let a child finish its turn and remain open with recent provider progress or a retained terminal.
+The parent's child signal clears. Repeat with the child waiting on an armed monitor and confirm
+the parent still has a child signal while that monitor is current. Verify that an unfinished
+subagent delegation still holds a Goal wait between the child's turns and clears on settlement.
 Provider waiting and an open subscriber leave the quiet window running. Observe one quiet warning:
 no window banner, and the working status line
 under the transcript reads `Working for … · quiet for …`, also for a turn that hangs before its

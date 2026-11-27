@@ -1,4 +1,4 @@
-import { BadgeCheck, PackageX, Radio } from "@compozy/ui/icons";
+import { BadgeCheck, PackageX } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import {
@@ -306,49 +306,6 @@ function RemoveExtensionImpact({ extension }: { extension: ExtensionEntry | null
  * One affordance for both enable and update: the daemon refuses either until the operator ratifies
  * the exact digest it returned, so the digest is shown rather than summarised.
  */
-export function ExtensionGatewayConfirmDialog({
-  digest,
-  error,
-  extensionName,
-  onConfirm,
-  onOpenChange,
-  open,
-  pending,
-}: {
-  digest: string;
-  error?: string;
-  extensionName: string;
-  onConfirm: () => void;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
-  pending: boolean;
-}) {
-  return (
-    <ConfirmDialog
-      cancelLabel="Cancel"
-      confirmButtonProps={{ "data-testid": "extension-gateway-confirm-accept" }}
-      confirmIcon={Radio}
-      confirmLabel="Confirm and continue"
-      contentProps={{ "data-testid": "extension-gateway-confirm-dialog" }}
-      description={`Updating ${extensionName} lets it use remote access. CompozyOS remembers your choice for this exact version.`}
-      error={error}
-      isPending={pending}
-      note={
-        <div className="space-y-1">
-          <p>Version fingerprint</p>
-          <MonoId data-testid="extension-gateway-confirm-digest" value={digest} />
-        </div>
-      }
-      noteTone="warning"
-      onConfirm={onConfirm}
-      onOpenChange={onOpenChange}
-      open={open}
-      title={`Allow remote access for ${extensionName}?`}
-      tone="warning"
-    />
-  );
-}
-
 export function VerifiedMark({ verified }: { verified: boolean }) {
   return verified ? (
     <BadgeCheck aria-label="Checksum verified" className="size-3.5 text-success" />

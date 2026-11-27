@@ -94,6 +94,8 @@ export function SessionListProjectFolders({
           key={folder.id}
           folder={folder}
           count={groups.length}
+          running={groups.reduce((working, group) => working + group.working, 0)}
+          needsYou={groups.reduce((needsYou, group) => needsYou + group.needsYou, 0)}
           holds="projects"
           expanded={filtering || !collapsed.has(folder.id)}
           onToggle={() => {

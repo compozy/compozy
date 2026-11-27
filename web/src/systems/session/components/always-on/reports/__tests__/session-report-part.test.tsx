@@ -900,7 +900,7 @@ describe("SessionReportPart skill review", () => {
         { path: "notes.md", content: "New notes\n" },
       ],
       base_files: [
-        { path: "SKILL.md", content: base },
+        { path: "SKILL.md", content: base, redacted: true },
         { path: "assets/flow.png", binary: true, size: 18234 },
         { path: "scripts/old.sh", content: "echo old\n" },
         { path: "scripts/sync.sh", content: "echo sync\n" },
@@ -930,6 +930,9 @@ describe("SessionReportPart skill review", () => {
     const diff = await screen.findByTestId("skill-review-diff");
     expect(diff).toHaveTextContent("+1");
     expect(diff).toHaveTextContent("2. Check the board.");
+    expect(
+      screen.getByText("The diff may hide changes to redacted text in the installed file.")
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Source" })).toBeInTheDocument();
 
     await userEvent.click(within(tree).getByRole("button", { name: /flow\.png/ }));
@@ -1052,6 +1055,15 @@ describe("SessionReportPart skill review", () => {
 
     expect(await screen.findByText(/You rejected/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Review skill" })).toBeNull();
+  });
+
+  it("Should say the installed skill stays in place after rejecting an edit", async () => {
+    skillReviews.fetch.mockResolvedValue(editReview({ state: "rejected" }));
+    render(<SessionReportPart data={SKILL_REPORT} />, { wrapper: harness(vi.fn()) });
+
+    expect(await screen.findByText(/You rejected the change/)).toHaveTextContent(
+      "The installed skill stays as it is."
+    );
   });
 
   it("Should read and decide under the instance's own profile [UT-059]", async () => {

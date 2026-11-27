@@ -241,42 +241,6 @@ func appSDKOperatorJourney(t *testing.T, harness *e2etest.RuntimeHarness) {
 	if err := harness.CLI.RunJSON(ctx, &second, "app-token", "create", "SDK backend", "-o", "json"); err != nil {
 		t.Fatal(err)
 	}
-	var pairing contract.GatewayPairingArtifactPayload
-	if err := harness.HTTPJSON(ctx, http.MethodPost, "/api/gateway/pairings", nil, &pairing); err != nil {
-		t.Fatal(err)
-	}
-	var device contract.GatewayIssuedCredentialPayload
-	if err := harness.HTTPJSON(
-		ctx,
-		http.MethodPost,
-		"/api/gateway/pairings/redeem",
-		contract.GatewayPairingRedeemRequest{
-			Artifact: pairing.Artifact, Name: "SDK paired device", ActorKind: "operator_device",
-		},
-		&device,
-	); err != nil {
-		t.Fatal(err)
-	}
-	var devices contract.GatewayDevicesResponse
-	if err := harness.CLI.RunJSON(ctx, &devices, "device", "list", "-o", "json"); err != nil {
-		t.Fatal(err)
-	}
-	if len(devices.Devices) != 1 || devices.Devices[0].ID != device.Device.ID {
-		t.Fatalf("CLI device inventory with two app tokens = %#v", devices)
-	}
-	if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/gateway/devices", nil, &devices); err != nil {
-		t.Fatal(err)
-	}
-	if len(devices.Devices) != 1 || devices.Devices[0].ID != device.Device.ID {
-		t.Fatalf("HTTP device inventory with two app tokens = %#v", devices)
-	}
-	var audit contract.GatewayAuditPayload
-	if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/gateway/audit", nil, &audit); err != nil {
-		t.Fatal(err)
-	}
-	if audit.Auth.ActiveDeviceCount != 1 || audit.DeviceHighlights.Active != 1 || len(audit.Status.Devices) != 1 {
-		t.Fatalf("device audit counts app credentials: %#v", audit)
-	}
 	session := createBoundFixtureBackedSession(t, ctx, harness, appSDKAgent, "Browser stream")
 	path := "/api/workspaces/" + session.WorkspaceID + "/sessions/" + session.ID + "/stream"
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL(path), http.NoBody)

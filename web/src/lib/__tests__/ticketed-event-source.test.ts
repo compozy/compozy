@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createDeferred, createEventRecorder } from "@/test/event-recorder";
 
-import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
+import { resetHostedBrowserAuth, setHostedBrowserMode } from "@/lib/hosted-browser-auth";
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 import { defaultEventSourceFactory } from "@/systems/session/hooks/session-stream-source";
 
@@ -75,16 +75,6 @@ function ticketResponse(ticket: string): Response {
   });
 }
 
-function listenerResponse(tier: "local" | "private"): Response {
-  return new Response(JSON.stringify({}), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Compozy-Gateway-Tier": tier,
-    },
-  });
-}
-
 function requestPath(input: RequestInfo | URL): string {
   if (input instanceof Request) return new URL(input.url).pathname;
   if (input instanceof URL) return input.pathname;
@@ -98,7 +88,7 @@ async function settled(): Promise<void> {
 
 describe("ticketed event source", () => {
   beforeEach(() => {
-    resetGatewayStreamAuth();
+    resetHostedBrowserAuth();
     FakeEventSource.opened = createEventRecorder<FakeEventSource>();
     FakeWebSocket.opened = createEventRecorder<FakeWebSocket>();
     vi.stubGlobal("EventSource", FakeEventSource);
@@ -109,11 +99,12 @@ describe("ticketed event source", () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    resetGatewayStreamAuth();
+    resetHostedBrowserAuth();
   });
 
   it("Should open a local stream on the bare URL and keep native reconnect", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(listenerResponse("local")));
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     const source = createStreamEventSource("/api/sessions/catalog-stream");
     await settled();
 
@@ -126,23 +117,22 @@ describe("ticketed event source", () => {
     expect(native.closed).toBe(false);
     expect(FakeEventSource.instances).toHaveLength(1);
 
+    expect(fetchMock).not.toHaveBeenCalled();
     source.close();
   });
 
-  it.each(["local", "private"] as const)(
+  it.each(["local", "hosted"] as const)(
     "Should deliver named WebSocket events and resume with fresh authorization on %s listeners",
-    async tier => {
+    async mode => {
+      setHostedBrowserMode(mode === "hosted");
       vi.useFakeTimers();
       let issued = 0;
       vi.stubGlobal(
         "fetch",
-        vi.fn((input: RequestInfo | URL) =>
-          Promise.resolve(
-            requestPath(input) === "/api/status"
-              ? listenerResponse(tier)
-              : ticketResponse(`socket-${++issued}`)
-          )
-        )
+        vi.fn((input: RequestInfo | URL) => {
+          expect(requestPath(input)).toBe("/remote/v1/stream-tickets");
+          return Promise.resolve(ticketResponse(`socket-${++issued}`));
+        })
       );
       const source = createStreamEventSource("/api/logs/stream?component=profile&replay=false", {
         transport: "websocket",
@@ -159,8 +149,8 @@ describe("ticketed event source", () => {
       expect(FakeEventSource.instances).toHaveLength(0);
       const first = FakeWebSocket.instances[0];
       expect(new URL(first.url).protocol).toBe("ws:");
-      expect(new URL(first.url).searchParams.get("ticket")).toBe(
-        tier === "private" ? "socket-1" : null
+      expect(new URL(first.url).searchParams.get("remote_ticket")).toBe(
+        mode === "hosted" ? "socket-1" : null
       );
       first.onmessage?.(new MessageEvent("message", { data: ": stream ready\n\n" }));
       first.onmessage?.(
@@ -183,7 +173,7 @@ describe("ticketed event source", () => {
       expect(FakeWebSocket.instances).toHaveLength(2);
       const second = new URL(FakeWebSocket.instances[1].url);
       expect(second.searchParams.get("last_event_id")).toBe("2026-10-02T23:00:00Z|17");
-      expect(second.searchParams.get("ticket")).toBe(tier === "private" ? "socket-2" : null);
+      expect(second.searchParams.get("remote_ticket")).toBe(mode === "hosted" ? "socket-2" : null);
       source.close();
       expect(FakeWebSocket.instances[1].closed).toBe(true);
       await vi.advanceTimersByTimeAsync(16_000);
@@ -192,53 +182,48 @@ describe("ticketed event source", () => {
   );
 
   it("Should open a remote stream with a minted ticket", async () => {
+    setHostedBrowserMode(true);
     vi.stubGlobal(
       "fetch",
-      vi.fn((input: RequestInfo | URL) =>
-        Promise.resolve(
-          requestPath(input) === "/api/status"
-            ? listenerResponse("private")
-            : ticketResponse("tkt_1")
-        )
-      )
+      vi.fn((input: RequestInfo | URL) => {
+        expect(requestPath(input)).toBe("/remote/v1/stream-tickets");
+        return Promise.resolve(ticketResponse("tkt_1"));
+      })
     );
     const source = createStreamEventSource("/api/tasks/t1/stream");
     await settled();
 
-    expect(FakeEventSource.instances[0].url).toBe("/api/tasks/t1/stream?ticket=tkt_1");
+    expect(FakeEventSource.instances[0].url).toBe("/api/tasks/t1/stream?remote_ticket=tkt_1");
     source.close();
   });
 
   it("Should authenticate the default session stream factory with a fresh ticket", async () => {
+    setHostedBrowserMode(true);
     vi.stubGlobal(
       "fetch",
-      vi.fn((input: RequestInfo | URL) =>
-        Promise.resolve(
-          requestPath(input) === "/api/status"
-            ? listenerResponse("private")
-            : ticketResponse("session-ticket")
-        )
-      )
+      vi.fn((input: RequestInfo | URL) => {
+        expect(requestPath(input)).toBe("/remote/v1/stream-tickets");
+        return Promise.resolve(ticketResponse("session-ticket"));
+      })
     );
 
     const source = defaultEventSourceFactory("/api/sessions/session-1/stream");
     await settled();
 
     expect(FakeEventSource.instances[0].url).toBe(
-      "/api/sessions/session-1/stream?ticket=session-ticket"
+      "/api/sessions/session-1/stream?remote_ticket=session-ticket"
     );
     source.close();
   });
 
   it("Should reconnect a remote stream with a fresh ticket instead of replaying a spent one", async () => {
+    setHostedBrowserMode(true);
     vi.useFakeTimers();
     let issued = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((input: RequestInfo | URL) => {
-        if (requestPath(input) === "/api/status") {
-          return Promise.resolve(listenerResponse("private"));
-        }
+        expect(requestPath(input)).toBe("/remote/v1/stream-tickets");
         issued += 1;
         return Promise.resolve(ticketResponse(`tkt_${issued}`));
       })
@@ -260,21 +245,20 @@ describe("ticketed event source", () => {
     await vi.advanceTimersByTimeAsync(600);
     await FakeEventSource.opened.waitForCount(2);
     expect(FakeEventSource.instances).toHaveLength(2);
-    expect(FakeEventSource.instances[1].url).toBe("/api/tasks/t1/stream?ticket=tkt_2");
+    expect(FakeEventSource.instances[1].url).toBe("/api/tasks/t1/stream?remote_ticket=tkt_2");
 
     source.close();
     vi.useRealTimers();
   });
 
   it("Should resume an opted-in durable stream from its last named event", async () => {
+    setHostedBrowserMode(true);
     vi.useFakeTimers();
     let issued = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((input: RequestInfo | URL) => {
-        if (requestPath(input) === "/api/status") {
-          return Promise.resolve(listenerResponse("private"));
-        }
+        expect(requestPath(input)).toBe("/remote/v1/stream-tickets");
         issued += 1;
         return Promise.resolve(ticketResponse(`tkt_${issued}`));
       })
@@ -296,7 +280,7 @@ describe("ticketed event source", () => {
     await FakeEventSource.opened.waitForCount(2);
     expect(FakeEventSource.instances).toHaveLength(2);
     expect(FakeEventSource.instances[1].url).toBe(
-      "/api/worktrees/wt_1/stream?after_sequence=41&ticket=tkt_2"
+      "/api/worktrees/wt_1/stream?after_sequence=41&remote_ticket=tkt_2"
     );
 
     source.close();
@@ -304,14 +288,13 @@ describe("ticketed event source", () => {
   });
 
   it("Should preserve reconnect backoff across short-lived open connections", async () => {
+    setHostedBrowserMode(true);
     vi.useFakeTimers();
     let issued = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((input: RequestInfo | URL) => {
-        if (requestPath(input) === "/api/status") {
-          return Promise.resolve(listenerResponse("private"));
-        }
+        expect(requestPath(input)).toBe("/remote/v1/stream-tickets");
         issued += 1;
         return Promise.resolve(ticketResponse(`tkt_${issued}`));
       })
@@ -339,14 +322,13 @@ describe("ticketed event source", () => {
   });
 
   it("Should reset reconnect backoff after a stable open connection", async () => {
+    setHostedBrowserMode(true);
     vi.useFakeTimers();
     let issued = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((input: RequestInfo | URL) => {
-        if (requestPath(input) === "/api/status") {
-          return Promise.resolve(listenerResponse("private"));
-        }
+        expect(requestPath(input)).toBe("/remote/v1/stream-tickets");
         issued += 1;
         return Promise.resolve(ticketResponse(`tkt_${issued}`));
       })
@@ -375,14 +357,13 @@ describe("ticketed event source", () => {
   });
 
   it("Should re-attach registered listeners to each reconnected socket", async () => {
+    setHostedBrowserMode(true);
     vi.useFakeTimers();
     let issued = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((input: RequestInfo | URL) => {
-        if (requestPath(input) === "/api/status") {
-          return Promise.resolve(listenerResponse("private"));
-        }
+        expect(requestPath(input)).toBe("/remote/v1/stream-tickets");
         issued += 1;
         return Promise.resolve(ticketResponse(`tkt_${issued}`));
       })
@@ -410,16 +391,14 @@ describe("ticketed event source", () => {
   });
 
   it("Should stop reconnecting once the consumer closes the stream", async () => {
+    setHostedBrowserMode(true);
     vi.useFakeTimers();
     vi.stubGlobal(
       "fetch",
-      vi.fn((input: RequestInfo | URL) =>
-        Promise.resolve(
-          requestPath(input) === "/api/status"
-            ? listenerResponse("private")
-            : ticketResponse("tkt_1")
-        )
-      )
+      vi.fn((input: RequestInfo | URL) => {
+        expect(requestPath(input)).toBe("/remote/v1/stream-tickets");
+        return Promise.resolve(ticketResponse("tkt_1"));
+      })
     );
 
     const source = createStreamEventSource("/api/tasks/t1/stream");
@@ -434,10 +413,11 @@ describe("ticketed event source", () => {
   });
 
   it("Should surface a failed mint as a stream error and retry on the backoff curve", async () => {
+    setHostedBrowserMode(true);
     vi.useFakeTimers();
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(listenerResponse("private"))
+
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ error: "boom" }), {
           status: 503,
@@ -462,22 +442,22 @@ describe("ticketed event source", () => {
     await vi.advanceTimersByTimeAsync(600);
     await FakeEventSource.opened.waitForCount(1);
     expect(FakeEventSource.instances).toHaveLength(1);
-    expect(FakeEventSource.instances[0].url).toBe("/api/tasks/t1/stream?ticket=tkt_recovered");
+    expect(FakeEventSource.instances[0].url).toBe(
+      "/api/tasks/t1/stream?remote_ticket=tkt_recovered"
+    );
 
     source.close();
     vi.useRealTimers();
   });
 
   it("Should forward open and message events to the consumer", async () => {
+    setHostedBrowserMode(true);
     vi.stubGlobal(
       "fetch",
-      vi.fn((input: RequestInfo | URL) =>
-        Promise.resolve(
-          requestPath(input) === "/api/status"
-            ? listenerResponse("private")
-            : ticketResponse("tkt_1")
-        )
-      )
+      vi.fn((input: RequestInfo | URL) => {
+        expect(requestPath(input)).toBe("/remote/v1/stream-tickets");
+        return Promise.resolve(ticketResponse("tkt_1"));
+      })
     );
     const source = createStreamEventSource("/api/tasks/t1/stream");
     await settled();

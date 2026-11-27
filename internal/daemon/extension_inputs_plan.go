@@ -3,19 +3,27 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 )
 
 // The lifecycle coordinator owns the instance lock throughout Prepare, Commit, and Rollback.
-type extensionInputBinder struct{ service *daemonExtensionService }
+// partial accepts a plan that still leaves required inputs missing: setup is a partial-progress write.
+type extensionInputBinder struct {
+	service *daemonExtensionService
+	partial bool
+}
 
 type extensionInputPlan struct {
 	instance      extensioninput.Instance
+	manifest      *extensionpkg.Manifest
 	key           extensionpkg.InstanceKey
 	state         extensionpkg.InputState
 	rows          []extensioninput.Mutation
@@ -42,13 +50,10 @@ func (b extensionInputBinder) Prepare(
 	}
 	plan := &extensionInputPlan{
 		instance: instance,
+		manifest: manifest,
 		key:      key,
 		state:    prior,
 		previous: map[string]extensionpkg.EnvBinding{},
-	}
-	for id, record := range plan.state.Values {
-		record.Active = false
-		plan.state.Values[id] = record
 	}
 	if b.service.envBindings != nil {
 		bindings, err := b.service.envBindings.ListEnvBindings(ctx, key.Name, profile.ID, key.WorkspaceID)
@@ -57,16 +62,31 @@ func (b extensionInputBinder) Prepare(
 		}
 		plan.previous = extensionBindingsByName(bindings)
 	}
+	carried := carriedSubprocessValues(plan, values)
+	if err := b.carryBindingValues(ctx, plan, values, carried); err != nil {
+		return nil, err
+	}
+	for id, record := range plan.state.Values {
+		record.Active = false
+		plan.state.Values[id] = record
+	}
 	for _, input := range manifest.Inputs {
 		value, supplied := values[input.ID]
+		if !supplied {
+			value, supplied = carried[input.ID]
+		}
 		if supplied && ((len(value.Value) == 0) == (value.VaultRef == nil)) {
 			return nil, inputInvalid(input.ID, "supply exactly one of value or vault_ref")
 		}
-		if input.Type == extensionInputTypeSecret {
-			if err := b.prepareSecret(ctx, plan, input, value, supplied); err != nil {
-				return nil, err
-			}
-		} else if err := b.prepareValue(plan, input, value, supplied); err != nil {
+		switch {
+		case input.Type == extensionInputTypeSecret:
+			err = b.prepareSecret(ctx, plan, input, value, supplied)
+		case manifest.SubprocessInput(input):
+			err = b.prepareSubprocessValue(ctx, plan, input, value, supplied)
+		default:
+			err = b.prepareValue(plan, input, value, supplied)
+		}
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -75,12 +95,83 @@ func (b extensionInputBinder) Prepare(
 	}
 	b.prepareRetiredSecrets(plan, declared)
 	readiness := extensionpkg.InputReadiness(manifest, plan.state, b.service.getenv)
-	if len(manifest.Inputs) > 0 {
+	if len(manifest.Inputs) > 0 && !b.partial {
 		if err := readiness.RequiredError(manifest); err != nil {
 			return nil, err
 		}
 	}
 	return plan, nil
+}
+
+// carriedSubprocessValues mints the env binding of an omitted subprocess-bound input from its active
+// typed row when no active binding exists yet, so a stored value keeps reaching the subprocess after
+// the input gains a subprocess target (rule 5a).
+func carriedSubprocessValues(
+	plan *extensionInputPlan, values map[string]extensioninput.Value,
+) map[string]extensioninput.Value {
+	carried := map[string]extensioninput.Value{}
+	for _, input := range plan.manifest.Inputs {
+		if _, supplied := values[input.ID]; supplied || input.Type == extensionInputTypeSecret ||
+			!plan.manifest.SubprocessInput(input) {
+			continue
+		}
+		if binding, bound := plan.previous[input.Binding.Name]; bound && !binding.Inactive &&
+			binding.InputID == input.ID {
+			continue
+		}
+		row, found := plan.state.Values[input.ID]
+		if !found || !row.Active || row.Type != input.Type || row.SecretRef != "" || row.Invalid != "" ||
+			blankInputValue(row.Value) {
+			continue
+		}
+		carried[input.ID] = extensioninput.Value{Value: row.Value}
+	}
+	return carried
+}
+
+// carryBindingValues is the reverse of carriedSubprocessValues: an omitted non-secret input that is no
+// longer subprocess-bound takes its typed row from its active env binding, re-checked against the
+// declared type, so the value survives when prepareRetiredSecrets retires that binding. The binding
+// outranks an active typed row of a former dual consumer, which `secrets set` does not rewrite (R-5).
+// An invalid or unavailable value is not carried, so such a row keeps its own value.
+func (b extensionInputBinder) carryBindingValues(
+	ctx context.Context, plan *extensionInputPlan, values, carried map[string]extensioninput.Value,
+) error {
+	for _, input := range plan.manifest.Inputs {
+		if _, supplied := values[input.ID]; supplied || input.Type == extensionInputTypeSecret ||
+			plan.manifest.SubprocessInput(input) {
+			continue
+		}
+		binding, found := activeInputBinding(plan.previous, input.ID)
+		if !found {
+			continue
+		}
+		record := extensionpkg.InputValueRecord{Type: input.Type}
+		if err := b.service.inputReader().recheckBindingValue(ctx, &record, input, binding.SecretRef); err != nil {
+			return err
+		}
+		if record.Invalid == "" {
+			carried[input.ID] = extensioninput.Value{Value: record.Value}
+		}
+	}
+	return nil
+}
+
+func activeInputBinding(bindings map[string]extensionpkg.EnvBinding, inputID string) (extensionpkg.EnvBinding, bool) {
+	for _, envName := range slices.Sorted(maps.Keys(bindings)) {
+		if binding := bindings[envName]; binding.InputID == inputID && !binding.Inactive && binding.MCPServer == "" {
+			return binding, true
+		}
+	}
+	return extensionpkg.EnvBinding{}, false
+}
+
+func blankInputValue(raw json.RawMessage) bool {
+	var decoded any
+	if len(raw) == 0 || json.Unmarshal(raw, &decoded) != nil {
+		return true
+	}
+	return strings.TrimSpace(fmt.Sprint(decoded)) == ""
 }
 
 func (b extensionInputBinder) prepareValue(
@@ -123,17 +214,46 @@ func (b extensionInputBinder) prepareRows(
 		after[id] = row
 	}
 	for id, record := range plan.state.Values {
-		input, found := declared[id]
-		if !found || input.Type == extensionInputTypeSecret || record.Type != input.Type || !record.Active {
-			continue
-		}
-		after[id] = extensioninput.Record{
-			Type:      record.Type,
-			Value:     record.Value,
-			Active:    true,
-			UpdatedAt: record.UpdatedAt,
+		if row, keep := plannedInputRow(plan.manifest, declared, before, id, record); keep {
+			after[id] = row
 		}
 	}
+	b.diffInputRows(plan, before, after)
+	if len(plan.rows) > 0 && b.service.inputs == nil {
+		return errors.New("daemon: extension input store is required")
+	}
+	return nil
+}
+
+// plannedInputRow reports the typed row an active non-secret record keeps, if any.
+func plannedInputRow(
+	manifest *extensionpkg.Manifest, declared map[string]extensionpkg.ManifestInput,
+	before map[string]extensioninput.Record, id string, record extensionpkg.InputValueRecord,
+) (extensioninput.Record, bool) {
+	input, found := declared[id]
+	if !found || input.Type == extensionInputTypeSecret || record.Type != input.Type || !record.Active {
+		return extensioninput.Record{}, false
+	}
+	// Subprocess-only values live in their env binding; only server-consumed inputs keep a typed row.
+	if manifest.SubprocessOnlyInput(input) {
+		return extensioninput.Record{}, false
+	}
+	// An invalid canonical binding has no value to mirror; the prior row stays as it was.
+	if record.Invalid != "" {
+		previous, found := before[id]
+		return previous, found
+	}
+	return extensioninput.Record{
+		Type:      record.Type,
+		Value:     record.Value,
+		Active:    true,
+		UpdatedAt: record.UpdatedAt,
+	}, true
+}
+
+func (b extensionInputBinder) diffInputRows(
+	plan *extensionInputPlan, before, after map[string]extensioninput.Record,
+) {
 	for _, id := range slices.Sorted(maps.Keys(after)) {
 		row := after[id]
 		previous, found := before[id]
@@ -152,10 +272,6 @@ func (b extensionInputBinder) prepareRows(
 		}
 		plan.rows = append(plan.rows, mutation)
 	}
-	if len(plan.rows) > 0 && b.service.inputs == nil {
-		return errors.New("daemon: extension input store is required")
-	}
-	return nil
 }
 
 func (b extensionInputBinder) prepareRetiredSecrets(
@@ -171,7 +287,9 @@ func (b extensionInputBinder) prepareRetiredSecrets(
 			continue
 		}
 		input, present := declared[before.InputID]
-		inactive := !present || input.Type != extensionInputTypeSecret || input.Binding.Name != envName
+		// Subprocess-bound inputs keep their binding whatever their type (rule 3a).
+		retired := input.Type != extensionInputTypeSecret && !plan.manifest.SubprocessInput(input)
+		inactive := !present || retired || input.Binding.Name != envName
 		if before.Inactive == inactive {
 			continue
 		}
@@ -184,6 +302,22 @@ func (b extensionInputBinder) prepareRetiredSecrets(
 
 func inputInvalid(id, reason string) error {
 	return &extensionpkg.InputValidationError{InputID: id, Reason: reason}
+}
+
+// inputInvalidCause keeps the sanitized public diagnostic of an input validation error while carrying
+// its cause for errors.Is and errors.As; the cause text stays out of Error().
+type inputInvalidCause struct {
+	*extensionpkg.InputValidationError
+	cause error
+}
+
+func (e *inputInvalidCause) Unwrap() []error { return []error{e.InputValidationError, e.cause} }
+
+func inputInvalidWithCause(id, reason string, cause error) error {
+	return &inputInvalidCause{
+		InputValidationError: &extensionpkg.InputValidationError{InputID: id, Reason: reason},
+		cause:                cause,
+	}
 }
 
 func validateExtensionInputPreparation(

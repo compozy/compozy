@@ -12,15 +12,6 @@ import { ExtensionsApiError } from "../../adapters/extensions-api";
 import { extensionFixtures } from "../../mocks/fixtures";
 import type { InstalledExtensionView } from "../../types";
 
-const CURRENT_DIGEST = "sha256:6f1c0a94d3b27e58";
-
-function gatewayConfirmationRefusal() {
-  return new ExtensionsApiError("gateway confirmation required", 409, "daemon", {
-    code: "extension_gateway_confirmation_required",
-    currentDigest: CURRENT_DIGEST,
-  });
-}
-
 const mocks = vi.hoisted(() => ({
   detail: { data: null as InstalledExtensionView | null, workspaceId: null as string | null },
   inventory: { data: [], error: null, isLoading: false, refetch: vi.fn() },
@@ -180,7 +171,7 @@ describe("useExtensionDetailState", () => {
     expect(result.current.activeDialog).toBeNull();
   });
 
-  it("Should toggle the displayed profile without opening a gateway confirmation", async () => {
+  it("Should toggle the displayed profile", async () => {
     mocks.detail.data = installedView({
       name: "dep-kit-ops",
       profile: "captured",
@@ -198,80 +189,9 @@ describe("useExtensionDetailState", () => {
       profileName: "captured",
       workspaceId: "ws_captured",
     });
-    expect(result.current.gatewayConfirm).toBeNull();
   });
 
-  it("Should resume a refused unverified update with its original variables plus the digest", async () => {
-    mocks.detail.data = installedView({
-      name: "dep-kit-ops",
-      provenance: undefined,
-      remote_version: "v1.1.0",
-      trust: {
-        allow_unverified: true,
-        checksum_verified: false,
-        decision: "allowed_unverified",
-        registry_tier: "community",
-      },
-    });
-    mocks.update.mutateAsync.mockRejectedValueOnce(gatewayConfirmationRefusal());
-    const { result } = renderHook(() =>
-      useExtensionDetailState("dep-kit-ops", { updateVersion: "1.2.0" })
-    );
-
-    await act(async () => {
-      await result.current.requestUpdate();
-    });
-    await act(async () => {
-      await result.current.submitUpdate();
-    });
-
-    // The consent decision and the resolved target survive the refusal.
-    expect(result.current.gatewayConfirm).toEqual({
-      digest: CURRENT_DIGEST,
-      variables: {
-        profileName: "default",
-        scope: "global",
-        allowUnverified: true,
-        name: "dep-kit-ops",
-        version: "1.2.0",
-      },
-    });
-    expect(result.current.activeDialog).toBeNull();
-
-    await act(async () => {
-      await result.current.submitGatewayConfirm();
-    });
-
-    expect(mocks.update.mutateAsync).toHaveBeenLastCalledWith({
-      profileName: "default",
-      scope: "global",
-      allowUnverified: true,
-      confirmGatewayDigest: CURRENT_DIGEST,
-      name: "dep-kit-ops",
-      version: "1.2.0",
-    });
-    expect(result.current.gatewayConfirm).toBeNull();
-    expect(result.current.activeDialog).toBeNull();
-  });
-
-  it("Should clear the pending confirmation when the operator dismisses it", async () => {
-    mocks.detail.data = installedView({ name: "dep-kit-ops" });
-    mocks.update.mutateAsync.mockRejectedValueOnce(gatewayConfirmationRefusal());
-    const { result } = renderHook(() => useExtensionDetailState("dep-kit-ops"));
-
-    await act(async () => {
-      await result.current.requestUpdate();
-    });
-    expect(result.current.gatewayConfirm).not.toBeNull();
-
-    act(() => {
-      result.current.dismissGatewayConfirm();
-    });
-
-    expect(result.current.gatewayConfirm).toBeNull();
-  });
-
-  it("Should not open confirmation for an unrelated lifecycle failure", async () => {
+  it("Should send the displayed version when the daemon refuses an update", async () => {
     mocks.detail.data = installedView({ name: "dep-kit-ops" });
     mocks.update.mutateAsync.mockRejectedValueOnce(
       new ExtensionsApiError("daemon refused the update", 500, "daemon")
@@ -289,6 +209,5 @@ describe("useExtensionDetailState", () => {
       name: "dep-kit-ops",
       version: "0.6.0",
     });
-    expect(result.current.gatewayConfirm).toBeNull();
   });
 });

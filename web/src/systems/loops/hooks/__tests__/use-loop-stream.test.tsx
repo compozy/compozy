@@ -498,7 +498,7 @@ describe("useLoopStream", () => {
       let reads = 0;
       let canceled = 0;
       const options = {
-        queryKey: ["loops", "run-detail", "ws_1", "looprun_1"],
+        queryKey: ["computer", "local", "loops", "run-detail", "ws_1", "looprun_1"],
         enabled: !disabled,
         staleTime: Infinity,
         queryFn: ({ signal }: { signal: AbortSignal }) => {
@@ -575,9 +575,11 @@ describe("useLoopStream", () => {
     let revision = 0;
     let reads = 0;
     let canceled = 0;
-    const queryKey = ["loops", "run-detail", "ws_1", "looprun_1"];
+    const queryKey = ["computer", "local", "loops", "run-detail", "ws_1", "looprun_1"];
     queryClient.setQueryData(queryKey, { revision: 0 });
-    queryClient.setQueryData(["loops", "run-detail", "ws_2", "looprun_2"], { revision: 0 });
+    queryClient.setQueryData(["computer", "local", "loops", "run-detail", "ws_2", "looprun_2"], {
+      revision: 0,
+    });
     const observer = new QueryObserver(queryClient, {
       queryKey,
       staleTime: Infinity,
@@ -621,7 +623,8 @@ describe("useLoopStream", () => {
       expect(onEvent).toHaveBeenCalledTimes(100);
       expect(observer.getCurrentResult().data).toEqual({ revision: 100 });
       expect(
-        queryClient.getQueryState(["loops", "run-detail", "ws_2", "looprun_2"])?.isInvalidated
+        queryClient.getQueryState(["computer", "local", "loops", "run-detail", "ws_2", "looprun_2"])
+          ?.isInvalidated
       ).toBe(false);
       console.log(`[loop-stream-burst] ${JSON.stringify({ frames: 100, reads, canceled })}`);
       expect(reads).toBe(3);
@@ -643,12 +646,12 @@ describe("useLoopStream", () => {
       const eventSourceFactory = () => eventSource;
       const onEvent = vi.fn();
       const onError = vi.fn();
-      const queryKey = ["loops", "run-detail", "ws_1", "looprun_1"];
+      const queryKey = ["computer", "local", "loops", "run-detail", "ws_1", "looprun_1"];
       const affectedKeys = [
-        ["loops", "requests", "ws_1"],
-        ["loops", "node-inventory", "ws_1"],
-        ["loops", "catalog", "ws_1"],
-        ["loops", "run-reads", "ws_1", "looprun_1", "goal-turns", 50],
+        ["computer", "local", "loops", "requests", "ws_1"],
+        ["computer", "local", "loops", "node-inventory", "ws_1"],
+        ["computer", "local", "loops", "catalog", "ws_1"],
+        ["computer", "local", "loops", "run-reads", "ws_1", "looprun_1", "goal-turns", 50],
       ];
       queryClient.setQueryData(queryKey, { revision: 0 });
       for (const key of affectedKeys) queryClient.setQueryData(key, { revision: 0 });
@@ -848,13 +851,15 @@ describe("useLoopStream", () => {
     });
     await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(1));
     expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["loops", "run-detail", "ws_1", "looprun_1"],
+      queryKey: ["computer", "local", "loops", "run-detail", "ws_1", "looprun_1"],
     });
     // Only this workspace's runs lists — not the unscoped root across all workspaces.
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["loops", "runs", "ws_1"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "loops", "runs", "ws_1"],
+    });
     // Status changes own the catalog's latest-run and aggregate projections.
     expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["loops", "catalog", "ws_1"],
+      queryKey: ["computer", "local", "loops", "catalog", "ws_1"],
     });
 
     invalidateQueries.mockClear();
@@ -875,7 +880,7 @@ describe("useLoopStream", () => {
     await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(3));
     expect(invalidateQueries).toHaveBeenCalledTimes(1);
     expect(invalidateQueries).toHaveBeenNthCalledWith(1, {
-      queryKey: ["loops", "run-reads", "ws_1", "looprun_1", "goal-turns", 50],
+      queryKey: ["computer", "local", "loops", "run-reads", "ws_1", "looprun_1", "goal-turns", 50],
     });
 
     act(() => {
@@ -883,9 +888,11 @@ describe("useLoopStream", () => {
     });
     await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(4));
     expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["loops", "run-detail", "ws_1", "looprun_1"],
+      queryKey: ["computer", "local", "loops", "run-detail", "ws_1", "looprun_1"],
     });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["loops", "runs", "ws_1"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "loops", "runs", "ws_1"],
+    });
   });
 
   it("Should refresh the request inventory on the request lifecycle kinds the daemon set omits", async () => {
@@ -914,15 +921,17 @@ describe("useLoopStream", () => {
       });
       await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(1));
       expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["loops", "run-detail", "ws_1", "looprun_1"],
+        queryKey: ["computer", "local", "loops", "run-detail", "ws_1", "looprun_1"],
       });
-      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["loops", "requests", "ws_1"] });
       expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["loops", "node-inventory", "ws_1"],
+        queryKey: ["computer", "local", "loops", "requests", "ws_1"],
+      });
+      expect(invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["computer", "local", "loops", "node-inventory", "ws_1"],
       });
 
       expect(invalidateQueries).not.toHaveBeenCalledWith({
-        queryKey: ["loops", "catalog", "ws_1"],
+        queryKey: ["computer", "local", "loops", "catalog", "ws_1"],
       });
     }
 
@@ -932,8 +941,12 @@ describe("useLoopStream", () => {
       eventSource.emitNamed("branch_pruned", buildFrame({ kind: "branch_pruned" }));
     });
     await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(1));
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["loops", "runs", "ws_1"] });
-    expect(invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ["loops", "requests", "ws_1"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "loops", "runs", "ws_1"],
+    });
+    expect(invalidateQueries).not.toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "loops", "requests", "ws_1"],
+    });
   });
 
   it("Should keep the source open for effect results after terminal status until cleanup", async () => {

@@ -32,9 +32,6 @@ func validateManifestRuntime(manifest *Manifest) error {
 	if err := validateEnvRequirements("requires_env", manifest.RequiresEnv); err != nil {
 		return err
 	}
-	if err := manifest.Gateway.Validate(manifestFieldGateway); err != nil {
-		return err
-	}
 	return validateManifestEnvMaps(
 		"subprocess", "extensions", manifest.Subprocess.Env, manifest.Subprocess.SecretEnv,
 	)
@@ -53,6 +50,9 @@ func validateNativeManifestCompatibility(manifest *Manifest) error {
 
 func validateManifestResources(manifest *Manifest) error {
 	if err := ValidateManifestInputs(manifest); err != nil {
+		return err
+	}
+	if err := validateManifestRequires(manifest); err != nil {
 		return err
 	}
 	if err := validateManifestMCPPolicies(manifest.Resources.MCPServers); err != nil {

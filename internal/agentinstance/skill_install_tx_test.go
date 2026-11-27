@@ -56,8 +56,11 @@ func (s *memSkillReviewStore) ListReviews(context.Context, SkillReviewQuery) ([]
 }
 
 func (s *memSkillReviewStore) ProjectApproval(
-	_ context.Context, marker SkillInstallMarker, installedDigest string, prev []byte, decidedAt time.Time,
+	ctx context.Context, marker SkillInstallMarker, installedDigest string, prev []byte, decidedAt time.Time,
 ) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.projectErr != nil {
@@ -77,7 +80,10 @@ func (s *memSkillReviewStore) ProjectApproval(
 	return nil
 }
 
-func (s *memSkillReviewStore) ProjectRevert(_ context.Context, id, operator string, revertedAt time.Time) error {
+func (s *memSkillReviewStore) ProjectRevert(ctx context.Context, id, operator string, revertedAt time.Time) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.projectErr != nil {
@@ -228,7 +234,7 @@ func (f *skillTxFixture) install(t *testing.T, name string, files ...skillTestFi
 
 func (f *skillTxFixture) digest(t *testing.T, name string) string {
 	t.Helper()
-	digest, err := skillTreeState(filepath.Join(f.root, name))
+	digest, err := skillTreeState(t.Context(), filepath.Join(f.root, name))
 	if err != nil {
 		t.Fatalf("digest %s: %v", name, err)
 	}
@@ -328,6 +334,23 @@ func requireReviewState(t *testing.T, svc *SkillProposalService, id, state strin
 // rolls back and an existing skill is never overwritten.
 // Owning layer: agentinstance install transaction; canonical suite: TestSkillInstallTransaction.
 func TestSkillInstallTransaction(t *testing.T) {
+	t.Run("Should roll back when staged contents differ from the reviewed tree", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		const name = "release-checklist"
+		original := f.install(t, name, skillBaseFiles...)
+		svc := f.service(t, "home-a", nil)
+		op := f.replaceOp(t, name)
+		op.next.InstalledDigest = original
+		if err := f.runOp(t, svc, name, op); !errors.Is(err, ErrSkillReviewInvalid) {
+			t.Fatalf("install transaction = %v, want skill_review_invalid", err)
+		}
+		if got := f.digest(t, name); got != original {
+			t.Fatalf("installed digest = %q, want original %q", got, original)
+		}
+		f.requireClean(t)
+	})
+
 	t.Run("Should re-approve a committed review without writing [UT-019]", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
@@ -620,6 +643,48 @@ func TestSkillInstallTransaction(t *testing.T) {
 		f.requireClean(t)
 		requireReviewState(t, svc, review.ID, SkillReviewPending)
 	})
+	t.Run("Should finish publication when canceled after moving the original", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		publisher := &flakySkillPublisher{}
+		svc.Publisher = publisher
+		f.install(t, skillEditName, skillEditBase...)
+		review := f.mustProposeEdit(t, svc, "Changed.\n")
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+		canceling := withHook(svc, func(step string) bool {
+			if step == "backup_moved" {
+				cancel()
+			}
+			return false
+		})
+		result, err := canceling.Approve(
+			ctx,
+			skillOperator,
+			f.instance,
+			review.ID,
+			review.Digest,
+			"operator:prof-a",
+			f.root,
+		)
+		if err != nil || !result.Committed || result.Warning != nil || !errors.Is(ctx.Err(), context.Canceled) {
+			t.Fatalf(
+				"Approve() = %+v, %v, context %v; want a committed install after cancellation",
+				result,
+				err,
+				ctx.Err(),
+			)
+		}
+		if got := f.digest(t, skillEditName); got != review.ProposedDigest {
+			t.Fatalf("installed digest = %q, want %q", got, review.ProposedDigest)
+		}
+		requireReviewState(t, svc, review.ID, skillReviewApproved)
+		if calls := publisher.count(); calls != 1 {
+			t.Fatalf("catalog refreshes = %d, want 1", calls)
+		}
+		f.requireClean(t)
+	})
 	t.Run("Should neither project nor roll back a published journal that is not durable", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
@@ -790,7 +855,10 @@ type flakySkillPublisher struct {
 	calls int
 }
 
-func (p *flakySkillPublisher) SkillPublished(context.Context) error {
+func (p *flakySkillPublisher) SkillPublished(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.calls++

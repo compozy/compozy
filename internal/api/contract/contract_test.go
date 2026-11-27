@@ -1672,6 +1672,7 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 	webhookID := "wbh_123"
 	endpointSlug := "deploy-review"
 	secret := "secret"
+	inputCommand := "scripts/next-spec.sh"
 	disabled := false
 
 	t.Run("Should report changes for automation job update requests", func(t *testing.T) {
@@ -1700,6 +1701,11 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 			{
 				name: "Should return true when the job schedule is set",
 				req:  contract.UpdateJobRequest{Schedule: &schedule},
+				want: true,
+			},
+			{
+				name: "Should return true when the job loop input command is set",
+				req:  contract.UpdateJobRequest{LoopInputCommand: &inputCommand},
 				want: true,
 			},
 			{

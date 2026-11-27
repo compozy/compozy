@@ -93,6 +93,7 @@ export function useSessionWindowSidebar({
         agentName: target.agent_name,
         workspaceId: target.workspace_id ?? "",
         ...(target.subagentId ? { subagentId: target.subagentId } : {}),
+        ...(target.computerId ? { computerId: target.computerId } : {}),
       },
       { newWindow: false }
     );
@@ -124,9 +125,8 @@ type DeleteManySelection = Parameters<
 >[1];
 
 /**
- * The rail's deletes belong to the shell, which outlives this window: the daemon
- * reconciles a deleted session's window before the DELETE answers, so a dialog
- * owned by the window would leave with it.
+ * The shell hosts the rail's confirmation so it survives the session pane changing
+ * to the empty Sessions view before DELETE answers.
  */
 function hostedDeleteActions(
   actions: SessionLifecycleActionHandlers

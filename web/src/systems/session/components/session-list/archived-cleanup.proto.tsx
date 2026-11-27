@@ -7,7 +7,7 @@
  */
 import { useState } from "react";
 
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import {
   ARCHIVED_CLEANUP_FIXTURES,

@@ -127,7 +127,10 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 				Managed:      detectManagedState(deps).Managed,
 				Manager:      detectManagedState(deps).Manager,
 			}
-			return writeCommandOutput(cmd, installBundle(record))
+			if err := writeCommandOutput(cmd, installBundle(record)); err != nil {
+				return err
+			}
+			return handOffInstallToSignIn(cmd, deps)
 		},
 	}
 	cmd.Flags().StringVar(&provider, cliProviderKey, "", "Default provider to configure without opening the wizard")

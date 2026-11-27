@@ -380,6 +380,55 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		})
 	}
 
+	// Invariant (#1926): the page's working and needs-you counts join durable and live rows
+	// under the total's scope, and are absent where the total is skipped or counts pins.
+	t.Run("Should count live running sessions with the page total", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 4, 2)
+		manager.sessions["live-starting"] = &Session{
+			ID: "live-starting", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-read-00",
+			AgentName: "coder", Provider: "claude", State: StateStarting,
+			CreatedAt: benchmarkSessionTime.Add(time.Hour),
+		}
+		manager.sessions["live-elsewhere"] = &Session{
+			ID: "live-elsewhere", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-read-01",
+			AgentName: "coder", Provider: "claude", State: StateStarting,
+			CreatedAt: benchmarkSessionTime.Add(time.Hour),
+		}
+		// One durable row needs you by its unseen failure, one live row by its open question.
+		failed := &Session{
+			ID: "durable-failed", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-read-00",
+			AgentName: "coder", Provider: "claude", State: StateStopped, RuntimeStatus: store.SessionRuntimeReady,
+			failure:   &store.SessionFailure{Kind: store.FailurePrompt},
+			CreatedAt: benchmarkSessionTime.Add(2 * time.Hour), UpdatedAt: benchmarkSessionTime,
+		}
+		if err := manager.sessionCatalog.RegisterSession(
+			t.Context(), new(sessionCatalogInfoFromRuntime(failed.Info())),
+		); err != nil {
+			t.Fatal(err)
+		}
+		manager.sessions["live-asking"] = &Session{
+			ID: "live-asking", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-read-00",
+			AgentName: "coder", Provider: "claude", State: StateActive, PendingClarifyCount: 1,
+			CreatedAt: benchmarkSessionTime.Add(3 * time.Hour),
+		}
+		query := ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "ws-read-00"}
+		page, err := manager.ListPage(t.Context(), query)
+		if err != nil || page.Total != 5 || page.Working == nil || *page.Working != 1 ||
+			page.NeedsYou == nil || *page.NeedsYou != 2 {
+			t.Fatalf("page total = %d, working = %v, needs-you = %v, err = %v; want 5, 1 and 2",
+				page.Total, page.Working, page.NeedsYou, err)
+		}
+		query.SkipTotal = true
+		if page, err = manager.ListPage(t.Context(), query); err != nil || page.Working != nil || page.NeedsYou != nil {
+			t.Fatalf("skipped-total working/needs-you = %v/%v, %v; want nil", page.Working, page.NeedsYou, err)
+		}
+		query.SkipTotal, query.Sort, query.Pinned = false, ListSortPinned, store.SessionPinnedOnly
+		if page, err = manager.ListPage(t.Context(), query); err != nil || page.Working != nil || page.NeedsYou != nil {
+			t.Fatalf("pinned working/needs-you = %v/%v, %v; want nil", page.Working, page.NeedsYou, err)
+		}
+	})
+
 	t.Run("Should merge live and durable sessions inside their folder partition only", func(t *testing.T) {
 		t.Parallel()
 		h, db := newMentionHarness(t)

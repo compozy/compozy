@@ -114,28 +114,30 @@ describe("useCmdPaletteStream (UT-104)", () => {
     // under it, so one catalog event cannot leave another profile's rows stale.
     expect(
       call?.predicate?.({
-        queryKey: ["cmd-palette", "catalog", WORKSPACE, "default", "client-a"],
+        queryKey: ["computer", "local", "cmd-palette", "catalog", WORKSPACE, "default", "client-a"],
       } as never)
     ).toBe(true);
     expect(
       call?.predicate?.({
-        queryKey: ["cmd-palette", "catalog", WORKSPACE, "@all", "client-a"],
+        queryKey: ["computer", "local", "cmd-palette", "catalog", WORKSPACE, "@all", "client-a"],
       } as never)
     ).toBe(true);
     expect(
       call?.predicate?.({
-        queryKey: ["cmd-palette", "rank-signals", WORKSPACE, "default"],
+        queryKey: ["computer", "local", "cmd-palette", "rank-signals", WORKSPACE, "default"],
       } as never)
     ).toBe(true);
     // Another profile's ranking history is not this event's business.
     expect(
       call?.predicate?.({
-        queryKey: ["cmd-palette", "rank-signals", WORKSPACE, "marketing"],
+        queryKey: ["computer", "local", "cmd-palette", "rank-signals", WORKSPACE, "marketing"],
       } as never)
     ).toBe(false);
-    expect(call?.predicate?.({ queryKey: ["cmd-palette", "catalog", "ws-other"] } as never)).toBe(
-      false
-    );
+    expect(
+      call?.predicate?.({
+        queryKey: ["computer", "local", "cmd-palette", "catalog", "ws-other"],
+      } as never)
+    ).toBe(false);
     // The agent and extension rows read their own lists; an extension enable,
     // disable, or removal must refresh them on the same event, with no reload.
     const rowListKeys = [

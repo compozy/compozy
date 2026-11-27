@@ -51,6 +51,73 @@ import (
 // Invariant: real daemon wiring reserves, launches ACP, persists a result and delivers one wake.
 // Owner: daemon orchestration; canonical suite for the new subagent journey (IT-001/IT-013 queue and replay halves).
 func TestSubagentDaemonIntegration(t *testing.T) {
+	// Invariant: an agent-only target launches and persists the selected runtime through ACP.
+	t.Run("Should persist the named agent runtime on the delegation and its child", func(t *testing.T) {
+		t.Parallel()
+		const provider = "acpmock-other"
+		const model = "configured-model"
+		const effort = "high"
+		d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+			target := cfg.Providers[provider]
+			target.Models.Reasoning.Apply = compozyconfig.ReasoningApplyACPOption
+			cfg.Providers[provider] = target
+		})
+		driver, err := acpmock.DefaultDriverPath()
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture := filepath.Join(t.TempDir(), "named-runtime.json")
+		if err := os.WriteFile(fixture, []byte(`{
+  "version": 2,
+  "agents": [{
+    "name": "configured-reviewer",
+    "provider": "acpmock-other",
+    "config_options": [
+      {"id":"model","name":"Model","category":"model","current":"configured-model","values":[{"value":"configured-model"}]},
+      {"id":"thought_level","name":"Reasoning","category":"thought_level","current":"medium","values":[{"value":"medium"},{"value":"high"}]}
+    ],
+    "turns": [{"match":{"user_text_contains":"child work"},"steps":[{"kind":"assistant","text":"child answer"}]}]
+  }]
+}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+		records := append(d.agentCatalog.Snapshot(), resources.Record[compozyconfig.AgentDef]{
+			ID:    "integration:configured-reviewer",
+			Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "integration"},
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: workspace},
+			Spec: compozyconfig.AgentDef{
+				Name: "configured-reviewer", Provider: provider, Model: model, ReasoningEffort: effort,
+				Command: acpmock.BuildCommand(driver, fixture, "configured-reviewer", "", provider),
+				Prompt:  "Review.",
+			},
+		})
+		d.agentCatalog.Replace(d.agentCatalog.Revision()+1, records)
+		_, caller := startSubagentIntegrationParent(t, manager, workspace)
+		service := d.SubagentService()
+		row, err := service.Delegate(t.Context(), session.SubagentRequest{
+			Caller: caller, Task: "child work", Target: session.SubagentTarget{Agent: "configured-reviewer"},
+		})
+		if err != nil || row.ChildSessionID == nil {
+			t.Fatalf("Delegate() = %+v, %v", row, err)
+		}
+		waitForRuntimeCondition(t, "named agent finishes on its configured runtime", 15*time.Second, func() bool {
+			result, err := service.Get(t.Context(), workspace, row.ID)
+			return err == nil && store.IsSubagentStatusTerminal(result.Status)
+		})
+		row, err = service.Get(t.Context(), workspace, row.ID)
+		if err != nil || row.Status != store.SubagentStatusCompleted || row.RuntimeProvider != provider ||
+			row.RuntimeModel != model || row.RuntimeEffort != effort || row.ChildSessionID == nil {
+			t.Fatalf("stored delegation = %+v, %v", row, err)
+		}
+		child, err := manager.StoredStatus(t.Context(), *row.ChildSessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if child.Provider != provider || child.Model != model || child.ReasoningEffort != effort {
+			t.Fatalf("stored child runtime = %s/%s/%s, want %s/%s/%s",
+				child.Provider, child.Model, child.ReasoningEffort, provider, model, effort)
+		}
+	})
 	// Invariant: deleting child history retains one terminal result and wakes its parent once.
 	for _, deletion := range []string{"running", "stopped", "missing history", "store recovery", "wait recovery"} {
 		t.Run("Should settle and deliver a deleted child with "+deletion, func(t *testing.T) {
@@ -4596,7 +4663,9 @@ func TestReplyWatchCrashIntegration(t *testing.T) {
 		}
 		d := reopenSubagentIntegrationDaemon(t, state.Home, &state.Config)
 		m := d.sessions.(*session.Manager)
-		// Boot classifies the lost ACP runtime as dead; recovery still must not retry a committed handoff.
+		// Boot classifies the lost ACP runtime as dead; recovery still must not retry a committed handoff:
+		// exactly one reply turn carries the watch. The interrupted reply turn may get at most one ordinary
+		// restart-continuation turn, like any other interrupted turn.
 		for range 2 {
 			if err := m.ReplyWatches().Deliver(t.Context(), state.Watch); err != nil {
 				t.Fatal(err)
@@ -4613,12 +4682,27 @@ func TestReplyWatchCrashIntegration(t *testing.T) {
 			state.Sender,
 			store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 100},
 		)
-		if err != nil || len(rows) != 1 {
-			t.Fatalf("reply turns after crash = %d, %v", len(rows), err)
+		if err != nil {
+			t.Fatal(err)
 		}
-		event, err := transcript.UnmarshalAgentEvent(rows[0].Content)
-		if err != nil || event.Synthetic == nil || event.Synthetic.WakeEventID != state.Watch {
-			t.Fatal(event, err)
+		replies, continuations := 0, 0
+		for _, row := range rows {
+			event, err := transcript.UnmarshalAgentEvent(row.Content)
+			if err != nil || event.Synthetic == nil {
+				t.Fatal(event, err)
+			}
+			switch {
+			case event.Synthetic.WakeEventID == state.Watch:
+				replies++
+			case event.Synthetic.Kind == "restart_continuation":
+				continuations++
+			default:
+				t.Fatalf("unexpected synthetic turn after crash = %+v", event.Synthetic)
+			}
+		}
+		if replies != 1 || continuations > 1 {
+			t.Fatalf("reply turns after crash = %d, restart continuations = %d; want 1 and at most 1",
+				replies, continuations)
 		}
 		watch, err := d.registry.(*globaldb.GlobalDB).GetReplyWatch(t.Context(), state.Watch)
 		if err != nil || watch.State != "delivered" {

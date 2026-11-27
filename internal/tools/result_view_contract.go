@@ -68,6 +68,9 @@ func equalSchema(left, right json.RawMessage) bool {
 
 // x-compozy-free-form explicitly marks maps whose keys belong to the tool's requested content.
 func validateClosedResultSchema(path string, node map[string]json.RawMessage) error {
+	if isFalseSchemaNode(node) {
+		return nil // A false subschema admits no value, so no open object can appear here.
+	}
 	types, err := schemaTypes(node["type"])
 	if err != nil {
 		return NewValidationError(path, ReasonSchemaInvalid, err.Error())
@@ -100,9 +103,14 @@ func validateClosedResultChildren(path string, node map[string]json.RawMessage) 
 			}
 		}
 	}
-	for _, key := range []string{"items", "additionalProperties", "not", "if", "then", "else"} {
+	for _, key := range []string{
+		schemaKeyItems, schemaKeyAdditionalItems, "additionalProperties", "not", "if", "then", "else",
+	} {
+		if key == schemaKeyAdditionalItems && !isTupleItems(node[schemaKeyItems]) {
+			continue
+		}
 		raw := bytes.TrimSpace(node[key])
-		if len(raw) == 0 || raw[0] != '{' {
+		if len(raw) == 0 || (raw[0] != '{' && !isBooleanItemsSchema(key, raw)) {
 			continue
 		}
 		child, _, err := schemaNode(raw)
@@ -113,8 +121,12 @@ func validateClosedResultChildren(path string, node map[string]json.RawMessage) 
 			return err
 		}
 	}
-	for _, key := range []string{"anyOf", "oneOf", "allOf", "prefixItems"} {
-		children, err := schemaNodeArray(node[key])
+	for _, key := range []string{"anyOf", "oneOf", "allOf", schemaKeyPrefixItems, schemaKeyItems} {
+		raw := bytes.TrimSpace(node[key])
+		if key == schemaKeyItems && (len(raw) == 0 || raw[0] != '[') {
+			continue // Object-valued items were checked above; an items array is a draft-07 tuple.
+		}
+		children, err := schemaNodeArray(raw)
 		if err != nil {
 			return err
 		}
@@ -153,4 +165,19 @@ func populateResultViewDigests(d *Descriptor) error {
 	}
 	d.SetResultViews(views)
 	return nil
+}
+
+// isFalseSchemaNode reports the decoded form of the boolean subschema false: {"not":{}}.
+func isFalseSchemaNode(node map[string]json.RawMessage) bool {
+	not, ok := node["not"]
+	return ok && len(node) == 1 && bytes.Equal(bytes.TrimSpace(not), []byte("{}"))
+}
+
+// isBooleanItemsSchema reports a boolean element schema, which must meet the same closure rule:
+// true admits open objects and false admits nothing.
+func isBooleanItemsSchema(key string, raw []byte) bool {
+	if key != schemaKeyItems && key != schemaKeyAdditionalItems {
+		return false
+	}
+	return bytes.Equal(raw, []byte("true")) || bytes.Equal(raw, []byte("false"))
 }

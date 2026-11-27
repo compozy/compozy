@@ -3,8 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 import type { UIMessage } from "ai";
 
-import { authorizeStreamFetchInput } from "@/lib/gateway-stream-auth";
-import { reportGatewayResponse } from "@/lib/gateway-access-signal";
+import { computerApiPath } from "@/lib/api-client";
+import { isRemoteComputerId } from "@/lib/computer-scope";
 import { modelCatalogKeys } from "@/systems/model-catalog";
 
 import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
@@ -16,6 +16,7 @@ import {
 import { promptRebindsRuntime } from "../lib/session-prompt-rebind";
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
 import {
+  completeWhenResponseBodySettles,
   createSessionPromptChatTransport,
   type SessionPromptRequestBody,
 } from "../lib/session-prompt-chat-transport";
@@ -28,11 +29,13 @@ import { applyTerminalQuoteToPromptMessage } from "../lib/session-terminal-quote
 import {
   discardRefusedPromptMessage,
   type SessionPromptRecovery,
+  type SessionPromptRecoveryScope,
 } from "../lib/session-prompt-recovery";
 import {
   dismissSessionPromptNotSent,
   notifySessionPromptNotSent,
-  sessionPromptRefusalReason,
+  parseSessionPromptRefusal,
+  SESSION_REBIND_TIMEOUT_CODE,
 } from "../lib/session-prompt-refusal";
 import { sessionStore } from "../stores/session-store";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
@@ -42,6 +45,7 @@ import { useSessionAttachmentAdapter } from "./use-session-attachment-adapter";
 import { useOptionalSessionPromptRuntimeContext } from "./use-session-prompt-runtime-context";
 import { loopsKeys } from "@/systems/loops";
 import { fetchSessionTranscript } from "../adapters/session-api";
+import { SessionApiError } from "../adapters/session-api-errors";
 import { sessionTranscriptOptions } from "../lib/session-transcript-options";
 import {
   reconcileAdmittedPrompt,
@@ -50,48 +54,7 @@ import {
 
 type QueryClient = ReturnType<typeof useQueryClient>;
 
-function completeWhenResponseBodySettles(response: Response, onComplete: () => void): Response {
-  if (response.body === null) {
-    onComplete();
-    return response;
-  }
-
-  const reader = response.body.getReader();
-  let completed = false;
-  const complete = () => {
-    if (completed) return;
-    completed = true;
-    onComplete();
-  };
-  const body = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const chunk = await reader.read();
-        if (chunk.done) {
-          complete();
-          controller.close();
-          return;
-        }
-        controller.enqueue(chunk.value);
-      } catch (error) {
-        complete();
-        controller.error(error);
-      }
-    },
-    async cancel(reason) {
-      try {
-        await reader.cancel(reason);
-      } finally {
-        complete();
-      }
-    },
-  });
-  return new Response(body, {
-    headers: response.headers,
-    status: response.status,
-    statusText: response.statusText,
-  });
-}
+const DETACHED_REBIND_BODY_TIMEOUT_MS = 5_000;
 
 /**
  * Settles the composer draft a prompt POST took. The draft is consumed only
@@ -140,14 +103,31 @@ function settleDetachedPrompt(
         await response.body?.cancel().catch(() => undefined);
         return;
       }
-      if (response.status >= 500) {
+      if (response.status >= 500 && response.status !== 504) {
         // A 5xx may follow durable acceptance: not a refusal. With no composer left to hold
         // a retryable pending-ack row, the draft returns as unconfirmed instead of being lost.
         await response.body?.cancel().catch(() => undefined);
         outcome.notSent(messageId, null);
         return;
       }
-      outcome.notSent(messageId, sessionPromptRefusalReason(await response.text().catch(() => "")));
+      // Only the structured 504 is an explicit refusal. Bound the read after headers so
+      // the draft returns even if the error body stalls after the composer closes.
+      const refusalBody =
+        response.status === 504 && response.body
+          ? new Response(
+              response.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>(), {
+                signal: AbortSignal.timeout(DETACHED_REBIND_BODY_TIMEOUT_MS),
+              })
+            )
+          : response;
+      const refusal = parseSessionPromptRefusal(
+        response.status,
+        await refusalBody.text().catch(() => "")
+      );
+      outcome.notSent(
+        messageId,
+        response.status < 500 || refusal.rebindTimeout ? refusal.reason : null
+      );
     },
     () => outcome.notSent(messageId, null)
   );
@@ -179,8 +159,7 @@ function envelopeFromPromptBody(
 
 function buildSessionRuntimeConfig(
   queryClient: QueryClient,
-  workspaceId: string,
-  sessionId: string,
+  recoveryScope: SessionPromptRecoveryScope,
   promptDispatch: SessionPromptDispatchStore,
   promptRecovery: SessionPromptRecovery,
   promptOutcome: SessionPromptOutcome,
@@ -189,7 +168,8 @@ function buildSessionRuntimeConfig(
   preparedUserMessages?: Map<string, UIMessage>,
   readOnly = false
 ) {
-  const recoveryScope = { workspaceId, sessionId };
+  const { computerId, workspaceId, sessionId } = recoveryScope;
+  const keys = sessionKeys.forComputer(computerId);
   const goalAwareFetch = createGoalAwareFetch({
     onRequest: () => {
       sessionStore.trigger.goalErrorAcknowledged({ sessionId });
@@ -201,10 +181,11 @@ function buildSessionRuntimeConfig(
         ...(requestText === null || requestText === undefined ? {} : { command: requestText }),
       });
       if (result.snapshot !== null || result.outcome === "cleared") {
-        queryClient.setQueryData(sessionKeys.goal(workspaceId, sessionId), {
+        queryClient.setQueryData(keys.goal(workspaceId, sessionId), {
           goal: result.snapshot,
         });
       }
+      if (isRemoteComputerId(computerId)) return;
       const runId = result.snapshot?.run_id;
       if (runId) {
         void queryClient.invalidateQueries({
@@ -224,7 +205,7 @@ function buildSessionRuntimeConfig(
     // Read before dispatch: the 1s control poll may land the new binding before the answer.
     const rebindsRuntime = promptRebindsRuntime(
       init?.body,
-      queryClient.getQueryData<SessionPayload>(sessionKeys.detail(workspaceId, sessionId))?.runtime
+      queryClient.getQueryData<SessionPayload>(keys.detail(workspaceId, sessionId))?.runtime
         .effective
     );
     let answered = false;
@@ -271,37 +252,32 @@ function buildSessionRuntimeConfig(
         queryClient.cancelQueries({ queryKey: modelCatalogKeys.all }),
         runtimeClosed,
       ]);
-      // The prompt POST streams its response, so a remote gateway session
-      // authenticates it with a fresh single-use ticket like any other stream.
-      const target = await Promise.race([
-        authorizeStreamFetchInput(input, controller.signal),
-        runtimeClosed,
-      ]);
-      request = goalAwareFetch(target, { ...init, signal: controller.signal });
+      request = goalAwareFetch(input, { ...init, signal: controller.signal });
       const response = await Promise.race([request, runtimeClosed]);
       answered = true;
       promptDispatch.trigger.promptAnswered({ status: response.status });
-      await reportGatewayResponse(response);
       if (response.ok) {
         promptOutcome.accepted(messageId);
         // The catalog rows show the bound runtime; reread them now rather than
         // waiting for the turn to end or the throttled catalog-stream wake.
-        if (rebindsRuntime) void invalidateSessionLiveQueries(queryClient, workspaceId, sessionId);
+        if (rebindsRuntime) {
+          void invalidateSessionLiveQueries(queryClient, workspaceId, sessionId, computerId);
+        }
         // The POST streams the assistant, not the daemon's verified user-input
         // metadata. Read that input once while the parallel transcript SSE is
         // suspended, retaining its cursor and every streaming assistant message.
         if (messageId !== null) {
-          void fetchSessionTranscript(workspaceId, sessionId, {}, controller.signal)
+          void fetchSessionTranscript(workspaceId, sessionId, {}, controller.signal, computerId)
             .then(async transcript => {
               // A cold composer may send before its first history read finishes.
               // Join that canonical read before merging, so its older snapshot
               // cannot discard the admitted input and its verified directives.
               await queryClient.ensureInfiniteQueryData(
-                sessionTranscriptOptions(workspaceId, sessionId)
+                sessionTranscriptOptions(workspaceId, sessionId, computerId)
               );
               if (controller.signal.aborted) return;
               queryClient.setQueryData<SessionTranscriptData>(
-                sessionKeys.transcript(workspaceId, sessionId),
+                keys.transcript(workspaceId, sessionId),
                 current => reconcileAdmittedPrompt(current, transcript, messageId)
               );
             })
@@ -334,7 +310,10 @@ function buildSessionRuntimeConfig(
   };
   return {
     transport: createSessionPromptChatTransport({
-      api: `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`,
+      api: computerApiPath(
+        computerId,
+        `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`
+      ),
       fetch: trackedFetch,
       ...(getRuntimeSnapshot ? { getRuntimeSnapshot } : {}),
       ...(idempotencyKeys ? { idempotencyKeys } : {}),
@@ -350,7 +329,7 @@ function buildSessionRuntimeConfig(
     }),
     onFinish: () => {
       startTransition(() => {
-        void invalidateSessionMutationQueries(queryClient, workspaceId, sessionId);
+        void invalidateSessionMutationQueries(queryClient, workspaceId, sessionId, computerId);
       });
     },
   };
@@ -358,14 +337,13 @@ function buildSessionRuntimeConfig(
 
 /** Connects session dispatch and recovery to chat streaming and session-scoped completion events. */
 export function useSessionChatRuntime({
+  computerId,
   sessionId,
   workspaceId,
   promptDispatch,
   promptRecovery,
   readOnly = false,
-}: {
-  sessionId: string;
-  workspaceId: string;
+}: SessionPromptRecoveryScope & {
   promptDispatch: SessionPromptDispatchStore;
   promptRecovery: SessionPromptRecovery;
   readOnly?: boolean;
@@ -375,7 +353,7 @@ export function useSessionChatRuntime({
   const [idempotencyKeys] = useState(() => new Map<string, string>());
   const [preparedUserMessages] = useState(() => new Map<string, UIMessage>());
   const attachmentAdapter = useSessionAttachmentAdapter(workspaceId, sessionId);
-  const recoveryScope = { workspaceId, sessionId };
+  const recoveryScope = { computerId, workspaceId, sessionId };
   const consumeDraft = (messageId: string | null) => {
     if (messageId !== null) promptRecovery.acknowledge(recoveryScope, messageId);
     attachmentAdapter.acknowledgeSentFiles();
@@ -398,8 +376,7 @@ export function useSessionChatRuntime({
   };
   const runtimeConfig = buildSessionRuntimeConfig(
     queryClient,
-    workspaceId,
-    sessionId,
+    recoveryScope,
     promptDispatch,
     promptRecovery,
     promptOutcome,
@@ -414,13 +391,20 @@ export function useSessionChatRuntime({
     // may have followed durable acceptance — may still have been recorded: the
     // identity is retained as pending-ack and the tail reopens at once (Part II
     // topology). A 2xx accepted the turn (it continues detached if the body
-    // breaks later; the draft was already consumed) and a 4xx refused it (the
-    // draft comes back): both are outcomes, never unconfirmed.
+    // breaks later; the draft was already consumed). A 4xx or a structured
+    // rebind timeout refused it before admission, so the draft comes back.
     const prompt = promptDispatch.getSnapshot().context.prompt;
     const answered = prompt?.answeredStatus ?? null;
     const messageId = prompt?.envelope.identity.messageId ?? null;
+    const refused =
+      answered !== null &&
+      ((answered >= 400 && answered < 500) ||
+        (error instanceof SessionApiError && error.code === SESSION_REBIND_TIMEOUT_CODE));
     const unconfirmed =
-      prompt !== null && (answered === null || answered >= 500) && isSendAcknowledgmentLost(error);
+      prompt !== null &&
+      !refused &&
+      (answered === null || answered >= 500) &&
+      isSendAcknowledgmentLost(error);
     promptDispatch.trigger.promptFailed();
     if (unconfirmed) {
       // The app-scoped owner keeps the identity for Retry even when this
@@ -429,13 +413,10 @@ export function useSessionChatRuntime({
       consumeDraft(messageId);
       return;
     }
-    if (answered !== null && answered >= 400 && answered < 500) {
+    if (refused) {
       // Only an authoritative refusal can evict the optimistic user message.
       void discardRefusedPromptMessage(runtime, messageId);
-      promptOutcome.notSent(
-        messageId,
-        sessionPromptRefusalReason(error instanceof Error ? error.message : "")
-      );
+      promptOutcome.notSent(messageId, error.message.trim() || null);
       return;
     }
     restoreDraft(messageId);

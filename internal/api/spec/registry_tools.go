@@ -121,8 +121,21 @@ func invokeToolOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "Completed", Body: contract.ToolInvokeResponse{}},
 			{Status: 202, Description: "Approval required", Body: contract.ToolErrorResponse{}},
-			profileOrToolResponse(400, "Invalid invocation request or profile selection"),
-			{Status: 403, Description: "Invocation denied", Body: contract.ToolErrorResponse{}},
+			{
+				Status: 400, Description: "Invalid request, remote_caller_override_forbidden or tool_not_forwardable",
+				Bodies: responseBodiesOf(
+					responseBodyOf[contract.ProfileErrorPayload](),
+					responseBodyOf[contract.ToolErrorResponse](),
+					responseBodyOf[contract.ErrorPayload](),
+				),
+			},
+			{
+				Status: 403, Description: "Invocation denied or remote_scope_denied",
+				Bodies: responseBodiesOf(
+					responseBodyOf[contract.ToolErrorResponse](),
+					responseBodyOf[contract.ErrorPayload](),
+				),
+			},
 			profileOrToolResponse(404, "Tool or profile not found"),
 			profileOrToolResponse(409, "Tool conflict or profile archived or unavailable"),
 			{Status: 422, Description: "Tool unavailable or not executable", Body: contract.ToolErrorResponse{}},

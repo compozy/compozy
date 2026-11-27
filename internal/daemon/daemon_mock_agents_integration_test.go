@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -2218,6 +2219,23 @@ func startHostedMCPClient(
 	return session
 }
 
+type lockedHostedMCPBuffer struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (b *lockedHostedMCPBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.Write(p)
+}
+
+func (b *lockedHostedMCPBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.String()
+}
+
 func listLegacyHostedMCPTools(
 	t testing.TB,
 	ctx context.Context,
@@ -3832,6 +3850,10 @@ func importRuntimeMCPHTTP(
 func TestDaemonMCPHotActivation(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
+	t.Run(
+		"Should recover the open session catalog after a successful Settings check",
+		testDaemonMCPSettingsCheckRecovery,
+	)
 	for _, change := range []string{"settings", "file", "launch failure"} {
 		t.Run("Should activate an MCP after "+change, func(t *testing.T) {
 			t.Parallel()
@@ -3989,6 +4011,89 @@ func TestDaemonMCPHotActivation(t *testing.T) {
 	}
 }
 
+func testDaemonMCPSettingsCheckRecovery(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+	var recovered atomic.Bool
+	handler := mcpfixture.MustNew(mcpfixture.ProfileModern2026).StreamableHTTPHandler()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !recovered.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(upstream.Close)
+	const agent = "mock-mcp-check"
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{
+			{
+				FixturePath: mockFixturePath(
+					t,
+					"hosted_protocol_fixture.json",
+				),
+				FixtureAgent: "hosted-native",
+				AgentName:    agent,
+			},
+		},
+	})
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+	const settingsPath = "/api/settings/mcp-servers/echo"
+	definition := compozycontract.PutSettingsMCPServerRequest{
+		Server: compozycontract.SettingsMCPServerPayload{Name: "echo", Transport: "http", URL: upstream.URL},
+	}
+	if err := harness.HTTPJSON(ctx, http.MethodPut, settingsPath+"?scope=user", definition, nil); err != nil {
+		t.Fatal(err)
+	}
+	active := createBoundFixtureBackedSession(t, ctx, harness, agent, "mcp-check")
+	retained := retainActivationCatalog(t, ctx, harness, agent, active.ID, &sdkmcp.ClientOptions{
+		Capabilities: &sdkmcp.ClientCapabilities{},
+		// MCP 2026 list caches invalidate through an opted-in change subscription.
+		ToolListChangedHandler: func(context.Context, *sdkmcp.ToolListChangedRequest) {},
+	})
+	mcpPath := "/api/workspaces/" + active.WorkspaceID + "/sessions/" + active.ID + "/mcp"
+	catalogReportsFailure := func() bool {
+		var body compozycontract.SessionMCPResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, mcpPath, nil, &body); err != nil {
+			return false
+		}
+		return slices.ContainsFunc(body.CompozyServers, func(row session.MCPServerRow) bool {
+			return row.Name == "echo" && row.State == "failed" && row.CallableCount == 0 &&
+				row.Reason == "Server unavailable during tool discovery"
+		})
+	}
+	waitForRuntimeCondition(t, "failed discovery in the session catalog", 15*time.Second, catalogReportsFailure)
+
+	var failed compozycontract.SettingsMCPServerItemPayload
+	if err := harness.HTTPJSON(ctx, http.MethodPost, settingsPath+"/check?scope=user", nil, &failed); err != nil {
+		t.Fatal(err)
+	}
+	if failed.RuntimeStatus == nil || failed.RuntimeStatus.Probe != "failed" || !catalogReportsFailure() {
+		t.Fatalf("failed check lost the catalog failure, check status=%+v", failed.RuntimeStatus)
+	}
+
+	recovered.Store(true)
+	var ready compozycontract.SettingsMCPServerItemPayload
+	if err := harness.CLI.RunJSON(ctx, &ready, "mcp", "check", "echo", "--scope", "user", "-o", "json"); err != nil {
+		t.Fatal(err)
+	}
+	if ready.RuntimeStatus == nil || ready.RuntimeStatus.State != "ready" || ready.RuntimeStatus.ToolCount != 2 {
+		t.Fatalf("recovery check status=%+v", ready.RuntimeStatus)
+	}
+	var sessionMCP compozycontract.SessionMCPResponse
+	if err := harness.HTTPJSON(ctx, http.MethodGet, mcpPath, nil, &sessionMCP); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(sessionMCP.CompozyServers, func(row session.MCPServerRow) bool {
+		return row.Name == "echo" && row.CallableCount == 2 &&
+			(row.State == "ready" || row.State == "applies_next_message")
+	}) {
+		t.Fatalf("session MCP after successful check = %+v", sessionMCP.CompozyServers)
+	}
+	callToolOnActivationClient(t, ctx, retained, "mcp__echo__echo", map[string]any{"message": "recovered"})
+}
+
 func activationSessionHasTool(ctx context.Context, harness *e2etest.RuntimeHarness, sessionID, tool string) bool {
 	var response compozycontract.ToolsResponse
 	if err := harness.HTTPJSON(
@@ -4055,9 +4160,15 @@ func activationPromptHTTP(
 
 // The protocol test owns the provider-side client and acknowledges the initial catalog
 // before changing sources, so the next prompt compares against tools actually served.
-func retainActivationCatalog(t *testing.T, ctx context.Context, harness *e2etest.RuntimeHarness, agent, id string) {
+func retainActivationCatalog(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	agent, id string,
+	options ...*sdkmcp.ClientOptions,
+) *sdkmcp.ClientSession {
 	t.Helper()
-	client := activationHostedClient(t, ctx, harness, agent, id)
+	client := activationHostedClient(t, ctx, harness, agent, id, options...)
 	t.Cleanup(func() {
 		if err := client.Close(); err != nil {
 			t.Error(err)
@@ -4066,6 +4177,7 @@ func retainActivationCatalog(t *testing.T, ctx context.Context, harness *e2etest
 	if _, err := client.ListTools(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
+	return client
 }
 
 func activationHostedClient(
@@ -4073,6 +4185,7 @@ func activationHostedClient(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	agent, id string,
+	options ...*sdkmcp.ClientOptions,
 ) *sdkmcp.ClientSession {
 	t.Helper()
 	registration, ok := harness.MockAgentRegistration(agent)
@@ -4088,7 +4201,7 @@ func activationHostedClient(
 		t,
 		ctx,
 		requireHostedMCPStdioServer(t, records, hostedMCPServerLatest),
-		&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+		options...,
 	)
 }
 
@@ -4106,6 +4219,17 @@ func activationCallHostedTool(
 			t.Error(err)
 		}
 	}()
+	return callToolOnActivationClient(t, ctx, client, tool, input)
+}
+
+func callToolOnActivationClient(
+	t *testing.T,
+	ctx context.Context,
+	client *sdkmcp.ClientSession,
+	tool string,
+	input map[string]any,
+) *sdkmcp.CallToolResult {
+	t.Helper()
 	var listed *sdkmcp.ListToolsResult
 	waitForRuntimeCondition(t, "activated hosted tool", 10*time.Second, func() bool {
 		var err error

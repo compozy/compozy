@@ -66,14 +66,16 @@ type ScheduledJobState struct {
 
 // Scheduler owns durable cursor-driven scheduled-job dispatch.
 type Scheduler struct {
-	dispatcher   ScheduleDispatcher
-	store        SchedulerStore
-	logger       *slog.Logger
-	clock        clockwork.Clock
-	location     *time.Location
-	stopTimeout  time.Duration
-	claimTimeout time.Duration
-	policyForJob SchedulerCatchUpPolicyResolver
+	waitForSignIn  func(context.Context) error
+	dispatcher     ScheduleDispatcher
+	store          SchedulerStore
+	logger         *slog.Logger
+	clock          clockwork.Clock
+	location       *time.Location
+	stopTimeout    time.Duration
+	claimTimeout   time.Duration
+	policyForJob   SchedulerCatchUpPolicyResolver
+	localExecution func() error
 
 	mu            sync.RWMutex
 	runtime       *schedulerRuntime

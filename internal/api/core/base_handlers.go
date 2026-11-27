@@ -114,8 +114,11 @@ type BaseHandlerConfig struct {
 	TelemetryStatus             TelemetryStatusSource
 	AppTokens                   AppTokenManager
 	OpenAPI                     *OpenAPIDocument
-	Gateway                     GatewayService
-	GatewayPairingSource        string
+	Account                     AccountService
+	Remote                      RemoteHostService
+	Computers                   ComputersService
+	Ingress                     IngressService
+	MigrationNotices            MigrationNoticeStore
 	HomePaths                   compozyconfig.HomePaths
 	Config                      compozyconfig.Config
 	Logger                      *slog.Logger
@@ -210,8 +213,11 @@ type BaseHandlers struct {
 	TelemetryStatus              TelemetryStatusSource
 	AppTokens                    AppTokenManager
 	OpenAPI                      *OpenAPIDocument
-	Gateway                      GatewayService
-	GatewayPairingSource         string
+	Account                      AccountService
+	Remote                       RemoteHostService
+	Computers                    ComputersService
+	Ingress                      IngressService
+	MigrationNotices             MigrationNoticeStore
 	HomePaths                    compozyconfig.HomePaths
 	Config                       compozyconfig.Config
 	Logger                       *slog.Logger
@@ -241,6 +247,11 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	handlers := baseHandlersFromConfig(cfg, defaults)
 	handlers.SessionChanges = cfg.SessionChanges
 	handlers.TelemetryStatus = cfg.TelemetryStatus
+	handlers.Account = cfg.Account
+	handlers.Remote = cfg.Remote
+	handlers.Computers = cfg.Computers
+	handlers.Ingress = cfg.Ingress
+	handlers.MigrationNotices = cfg.MigrationNotices
 	handlers.applyAuthoredContextConfig(cfg)
 	handlers.streamDone = cfg.StreamDone
 	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()
@@ -325,8 +336,6 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		DeadEntities:                 cfg.DeadEntities,
 		AppTokens:                    cfg.AppTokens,
 		OpenAPI:                      cfg.OpenAPI,
-		Gateway:                      cfg.Gateway,
-		GatewayPairingSource:         strings.TrimSpace(cfg.GatewayPairingSource),
 		HomePaths:                    cfg.HomePaths,
 		Config:                       cfg.Config,
 		Logger:                       defaults.logger,

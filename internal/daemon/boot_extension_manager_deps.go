@@ -64,6 +64,7 @@ func (d *Daemon) extensionManagerDeps(
 		ProcessRegistry: state.processRegistry,
 		SecretResolver:  state.providerVault,
 		EnvBindings:     envBindings,
+		InputRows:       state.extensionInputs,
 		LifecycleEvents: extensionPaletteLifecycleEventSink{
 			primary: extensionLifecycleEventStoreSink{
 				writer: extensionEventSummaryStore(state.registry),

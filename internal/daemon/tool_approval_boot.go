@@ -42,13 +42,26 @@ func (i *boundToolApprovalIssuer) CreateToolApproval(
 	if len(req.Input) == 0 {
 		req.Input = json.RawMessage(`{}`)
 	}
-	boundInput, err := i.binder.BindCallInput(ctx, scope, view.Descriptor, req.Input)
+	boundInput, err := i.bindApprovalInput(ctx, scope, view.Descriptor, req.Input)
 	if err != nil {
 		return toolspkg.ApprovalTokenGrant{}, err
 	}
 	req.Input = toolspkg.ApprovalOperationInput(view.Descriptor, boundInput)
 	req.InputDigest = ""
 	return i.tokens.CreateToolApproval(ctx, scope, req)
+}
+
+func (i *boundToolApprovalIssuer) bindApprovalInput(
+	ctx context.Context, scope toolspkg.Scope, desc toolspkg.Descriptor, input json.RawMessage,
+) (json.RawMessage, error) {
+	if registry, ok := i.registry.(*toolspkg.RuntimeRegistry); ok {
+		bound, forwarded, err := registry.BindComputerApprovalInput(ctx, scope, desc, input)
+		if err != nil || forwarded {
+			return bound, err
+		}
+		input = bound
+	}
+	return i.binder.BindCallInput(ctx, scope, desc, input)
 }
 
 func (d *Daemon) bootToolApprovalServices(

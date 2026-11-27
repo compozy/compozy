@@ -54,10 +54,6 @@ func (c *daemonClient) WatchWindowManager(
 	// through the request path that stamps the resolved profile — so it stamps it
 	// here or it would watch the default profile's windows.
 	query = profileQueryValues(ctx, query)
-	query, err := c.withFreshStreamTicket(ctx, query)
-	if err != nil {
-		return err
-	}
 	websocketBase, err := c.target.websocketBaseURL()
 	if err != nil {
 		return err
@@ -70,9 +66,6 @@ func (c *daemonClient) WatchWindowManager(
 	if err != nil {
 		if response != nil {
 			return readAndCloseStreamHandshakeError(response)
-		}
-		if c.target.isRemoteGateway() {
-			return newGatewayReachabilityError(c.target, err)
 		}
 		return fmt.Errorf("cli: dial window-manager stream: %w", err)
 	}
@@ -97,9 +90,6 @@ func (c *daemonClient) WatchWindowManager(
 	}()
 
 	streamErr := readWindowManagerFrames(ctx, conn, handlers)
-	if c.target.isRemoteGateway() && ctx.Err() == nil {
-		return newGatewayStreamInterruptedError(c.target, streamErr)
-	}
 	return streamErr
 }
 

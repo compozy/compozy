@@ -1,8 +1,9 @@
 import {
-  apiClient,
+  apiClientFor,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
+  type ComputerId,
 } from "@/lib/api-client";
 
 import type {
@@ -23,9 +24,10 @@ export interface WorktreeStatusQuery {
 export async function inspectWorktree(
   workspaceID: string,
   worktreeID: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorktreeInspectionPayload> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}",
     {
       params: { path: { workspace_id: workspaceID, worktree_id: worktreeID } },
@@ -51,10 +53,11 @@ export async function fetchWorktreeStatus(
   workspaceID: string,
   worktreeID: string,
   query: WorktreeStatusQuery = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorktreeStatusPayload> {
   const hasQuery = query.refresh !== undefined || query.forge !== undefined;
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status",
     {
       params: {
@@ -82,9 +85,10 @@ export async function fetchWorktreeStatus(
 export async function fetchWorktreeExitPlan(
   workspaceID: string,
   worktreeID: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorktreeExitPlanPayload> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit",
     {
       params: { path: { workspace_id: workspaceID, worktree_id: worktreeID } },
@@ -106,9 +110,10 @@ export async function fetchWorktreeExitPlan(
 export async function prepareWorktreeExitPlan(
   workspaceID: string,
   worktreeID: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorktreeExitPlanPayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare",
     {
       params: { path: { workspace_id: workspaceID, worktree_id: worktreeID } },
@@ -133,9 +138,10 @@ export async function runWorktreeExitAction(
   workspaceID: string,
   worktreeID: string,
   params: RunWorktreeExitActionParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<string> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/actions",
     {
       params: { path: { workspace_id: workspaceID, worktree_id: worktreeID } },
@@ -159,9 +165,10 @@ export async function cancelWorktreeExitAction(
   workspaceID: string,
   worktreeID: string,
   operationID: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<void> {
-  const { error, response } = await apiClient.POST(
+  const { error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/cancel",
     {
       params: { path: { workspace_id: workspaceID, worktree_id: worktreeID } },

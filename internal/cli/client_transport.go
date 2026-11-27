@@ -23,7 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/sse"
 )
 
-const clientTasksPath = "/api/tasks"
+const clientJSONMediaType = "application/json"
 
 func (c *daemonClient) doJSON(
 	ctx context.Context,
@@ -104,13 +104,6 @@ func (c *daemonClient) doSSE(
 	lastEventID string,
 	handler SSEHandler,
 ) (err error) {
-	if err := c.validateTargetOperation(http.MethodGet, path); err != nil {
-		return err
-	}
-	query, err = c.withFreshStreamTicket(ctx, query)
-	if err != nil {
-		return err
-	}
 	response, err := c.doRequestWithCredentialsAndClient(
 		ctx,
 		http.MethodGet,
@@ -134,9 +127,6 @@ func (c *daemonClient) doSSE(
 		return drainResponseBody(http.MethodGet, path, response.Body)
 	}
 	if err := decodeSSE(ctx, response.Body, handler); err != nil {
-		if c.target.isRemoteGateway() && ctx.Err() == nil {
-			return newGatewayStreamInterruptedError(c.target, err)
-		}
 		return err
 	}
 	return nil
@@ -225,26 +215,28 @@ func (c *daemonClient) doRequestWithCredentialsAndClient(
 	credentials agentidentity.Credentials,
 	client *http.Client,
 ) (*http.Response, error) {
-	var body io.Reader
-	contentType := ""
-	if requestBody != nil {
-		payload, err := json.Marshal(requestBody)
-		if err != nil {
-			return nil, fmt.Errorf("cli: encode %s %s request: %w", method, path, err)
-		}
-		body = bytes.NewReader(payload)
-		contentType = "application/json"
-	}
-	return c.doRequestWithReaderAndClient(ctx, clientReaderRequest{
+	return c.doRequestWithJSON(ctx, clientReaderRequest{
 		Method:      method,
 		Path:        path,
 		Query:       query,
-		Body:        body,
-		ContentType: contentType,
 		LastEventID: lastEventID,
 		Credentials: credentials,
 		Client:      client,
-	})
+	}, requestBody)
+}
+
+func (c *daemonClient) doRequestWithJSON(
+	ctx context.Context, options clientReaderRequest, requestBody any,
+) (*http.Response, error) {
+	if requestBody != nil {
+		payload, err := json.Marshal(requestBody)
+		if err != nil {
+			return nil, fmt.Errorf("cli: encode %s %s request: %w", options.Method, options.Path, err)
+		}
+		options.Body = bytes.NewReader(payload)
+		options.ContentType = clientJSONMediaType
+	}
+	return c.doRequestWithReaderAndClient(ctx, options)
 }
 
 type clientReaderRequest struct {
@@ -252,6 +244,7 @@ type clientReaderRequest struct {
 	Path           string
 	Query          url.Values
 	Body           io.Reader
+	Accept         string
 	ContentType    string
 	ContentLength  int64
 	ExpectContinue bool
@@ -269,9 +262,6 @@ func (c *daemonClient) doRequestWithReaderAndClient(
 	}
 	if options.Client == nil {
 		return nil, errors.New("cli: http client is required")
-	}
-	if err := c.validateTargetOperation(options.Method, options.Path); err != nil {
-		return nil, err
 	}
 	options.Query = profileQueryValues(ctx, options.Query)
 
@@ -291,6 +281,9 @@ func (c *daemonClient) doRequestWithReaderAndClient(
 	if options.ExpectContinue {
 		req.Header.Set("Expect", "100-continue")
 	}
+	if options.Accept != "" {
+		req.Header.Set("Accept", options.Accept)
+	}
 	if strings.TrimSpace(options.ContentType) != "" {
 		req.Header.Set("Content-Type", options.ContentType)
 	}
@@ -298,92 +291,15 @@ func (c *daemonClient) doRequestWithReaderAndClient(
 		req.Header.Set("Last-Event-ID", strings.TrimSpace(options.LastEventID))
 	}
 	setAgentIdentityHeaders(req, options.Credentials)
-	if c.target.isRemoteGateway() && strings.TrimSpace(c.target.credential) != "" {
-		req.Header.Set("Authorization", "Bearer "+c.target.credential)
-	}
 
 	response, err := options.Client.Do(req)
 	if err != nil {
-		if c.target.isRemoteGateway() {
-			return nil, newGatewayReachabilityError(c.target, err)
-		}
 		if c.target.kind == clientTargetLocal && isDaemonUnavailableTransportError(err) {
 			return nil, newDaemonUnavailableError(c.target.socketPath, options.Method, options.Path, err)
 		}
 		return nil, fmt.Errorf("cli: %s %s via %s: %w", options.Method, options.Path, c.target.displayName(), err)
 	}
 	return response, nil
-}
-
-func (c *daemonClient) validateTargetOperation(method string, path string) error {
-	if c.target.isRemoteGateway() && isLocalOnlyClientOperation(method, path) {
-		return newGatewayLocalOnlyError(method, path)
-	}
-	return nil
-}
-
-func (c *daemonClient) withFreshStreamTicket(ctx context.Context, query url.Values) (url.Values, error) {
-	if c == nil || !c.target.isRemoteGateway() {
-		return query, nil
-	}
-	var ticket contract.GatewayStreamTicketPayload
-	if err := c.doJSON(
-		ctx,
-		http.MethodPost,
-		"/api/gateway/stream-tickets",
-		nil,
-		nil,
-		&ticket,
-	); err != nil {
-		return nil, fmt.Errorf("cli: acquire gateway stream ticket: %w", err)
-	}
-	if strings.TrimSpace(ticket.Ticket) == "" {
-		return nil, errors.New("cli: gateway returned an empty stream ticket")
-	}
-	values := url.Values{}
-	for key, entries := range query {
-		values[key] = append([]string(nil), entries...)
-	}
-	values.Set("ticket", strings.TrimSpace(ticket.Ticket))
-	return values, nil
-}
-
-func isLocalOnlyClientOperation(method string, path string) bool {
-	method = strings.ToUpper(strings.TrimSpace(method))
-	normalized := "/" + strings.TrimLeft(strings.TrimSpace(path), "/")
-	if hasAPIPathPrefix(normalized, "/api/agent") || hasAPIPathPrefix(normalized, "/api/internal") {
-		return true
-	}
-	if hasAPIPathPrefix(normalized, "/api/scheduler") {
-		return true
-	}
-	if strings.HasPrefix(normalized, "/api/workspaces/") && strings.Contains(normalized, "/terminals") {
-		return true
-	}
-	if hasAPIPathPrefix(normalized, "/api/resources") &&
-		(method == http.MethodPut || method == http.MethodPost ||
-			method == http.MethodPatch || method == http.MethodDelete) {
-		return true
-	}
-	if method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions {
-		return false
-	}
-	return normalized == clientTasksPath || strings.HasPrefix(normalized, clientTasksPath+"/") ||
-		strings.HasPrefix(normalized, "/api/task-runs/") ||
-		strings.HasPrefix(normalized, "/api/task-reviews/") ||
-		strings.HasPrefix(normalized, "/api/runs/")
-}
-
-func hasAPIPathPrefix(path string, prefix string) bool {
-	return path == prefix || strings.HasPrefix(path, prefix+"/")
-}
-
-func newGatewayLocalOnlyError(method string, path string) error {
-	return &gatewayClientError{
-		code:       "gateway_local_only_operation",
-		statusCode: http.StatusForbidden,
-		message:    fmt.Sprintf("%s %s is available only through local UDS or an SSH forward", method, path),
-	}
 }
 
 func newDaemonUnavailableError(socketPath string, method string, path string, err error) error {

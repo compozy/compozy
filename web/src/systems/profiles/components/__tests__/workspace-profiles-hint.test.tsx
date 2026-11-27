@@ -4,10 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { profileDialogStore } from "../../stores/profile-dialog-store";
 import { WorkspaceProfilesHint } from "../workspace-profiles-hint";
 
-vi.mock("@/systems/gateway", () => ({
-  useGatewayAccessTier: () => "local",
-}));
-
 vi.mock("../../hooks/use-profiles", () => ({
   useProfiles: vi.fn(() => ({ data: [{ name: "marketing" }] })),
 }));

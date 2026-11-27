@@ -21,8 +21,8 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/apptoken"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/providerusage"
@@ -3439,9 +3439,10 @@ func waitForCatalogTestError(t *testing.T, ch <-chan error, label string) error 
 }
 
 func TestProviderUsageAuthAdmission(t *testing.T) {
-	for _, id := range []string{"claude", "codex", "cursor", "gemini", "kimi-cli", "openrouter", "vercel-ai-gateway", "zai", "moonshot"} {
+	for _, id := range []string{"agy", "claude", "codex", "cursor", "gemini", "kimi-cli", "openrouter", "vercel-ai-gateway", "zai", "moonshot"} {
 		for _, mode := range []compozyconfig.ProviderAuthMode{compozyconfig.ProviderAuthModeNone, compozyconfig.ProviderAuthModeBoundSecret, compozyconfig.ProviderAuthModeNativeCLI} {
-			native := id == "claude" || id == "codex" || id == "cursor" || id == "gemini" || id == "kimi-cli"
+			native := id == "agy" || id == "claude" || id == "codex" || id == "cursor" || id == "gemini" ||
+				id == "kimi-cli"
 			if (native && mode == compozyconfig.ProviderAuthModeNativeCLI) ||
 				(!native && mode == compozyconfig.ProviderAuthModeBoundSecret) {
 				continue
@@ -4210,7 +4211,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 		remote := selection.remote
 		t.Run(
 			fmt.Sprintf(
-				"Should apply consent only for a local selected profile IT004 IT005 remote=%t profile=%s",
+				"Should apply consent only for a local selected profile IT004 IT005 app_token=%t profile=%s",
 				remote,
 				selection.profileID,
 			),
@@ -4289,7 +4290,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 				engine.POST("/api/provider-usage/refresh", handlers.RefreshProviderUsage)
 				requestCtx := t.Context()
 				if remote {
-					requestCtx = gateway.ContextWithDevice(requestCtx, gateway.DeviceSession{})
+					requestCtx = core.ContextWithAppToken(requestCtx, apptoken.Token{})
 				}
 				response := httptest.NewRecorder()
 				engine.ServeHTTP(response, httptest.NewRequestWithContext(
@@ -4321,7 +4322,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 					}
 					if len(reader.prompts) != 0 ||
 						!strings.Contains(refreshResponse.Body.String(), "auth_missing") {
-						t.Fatalf("gateway prompted: %s", refreshResponse.Body.String())
+						t.Fatalf("app token prompted: %s", refreshResponse.Body.String())
 					}
 					return
 				}
@@ -4483,4 +4484,46 @@ func TestProviderUsageResolverDisabledProviders(t *testing.T) {
 			t.Fatal("target claude disabled, want aliases independent")
 		}
 	})
+}
+
+func TestProviderUsageKeychainConsentRoutes(t *testing.T) {
+	for _, consented := range []string{"agy", "claude"} {
+		t.Run("Should route Keychain consent only to "+consented, func(t *testing.T) {
+			t.Parallel()
+			home := testHomePaths(t)
+			cfg := testConfig(t, home)
+			cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+			cfg.ProviderUsage.Providers = map[string]compozyconfig.ProviderUsageProviderConfig{
+				consented: {Enabled: true, KeychainAccess: true},
+			}
+			resolver := &providerUsageResolver{
+				cfg:        cfg,
+				home:       home,
+				collectors: providerusage.DefaultRegistry(providerusage.RegistryOptions{}),
+			}
+			targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			seen := 0
+			for _, target := range targets {
+				if !compozyconfig.ProviderUsageKeychainProvider(target.ProviderID) {
+					if target.Route.KeychainAccess {
+						t.Fatalf("%s received Keychain consent", target.ProviderID)
+					}
+					continue
+				}
+				seen++
+				if target.Error != nil {
+					t.Fatalf("%s target error = %s", target.ProviderID, target.Error.Code)
+				}
+				if got, want := target.Route.KeychainAccess, target.ProviderID == consented; got != want {
+					t.Fatalf("%s KeychainAccess = %t, want %t", target.ProviderID, got, want)
+				}
+			}
+			if seen != 2 {
+				t.Fatalf("Keychain provider targets = %d, want 2", seen)
+			}
+		})
+	}
 }

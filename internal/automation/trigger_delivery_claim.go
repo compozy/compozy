@@ -78,7 +78,7 @@ func (e *TriggerEngine) claimPersistentWebhookDelivery(
 	now := e.now()
 	runID := webhookDeliveryRunID(trigger.ID, deliveryID)
 	run := Run{
-		WorkspaceID: new(trigger.WorkspaceID), Attribution: "recorded",
+		WorkspaceID: new(trigger.WorkspaceID), Attribution: runAttributionRecorded,
 		ProfileID: strings.TrimSpace(trigger.ProfileID),
 		ID:        runID,
 		TriggerID: strings.TrimSpace(trigger.ID),

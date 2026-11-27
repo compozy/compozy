@@ -1,6 +1,7 @@
 package agentinstance
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 )
@@ -84,36 +86,43 @@ func draftSkillTree(draft SkillDraft) SkillTree {
 	return tree
 }
 
-// readSkillBase reads an installed skill (or a snapshot) losslessly. A tree with a symlink or another
-// non-regular entry, more than 64 files, or more than 1 MiB returns ErrSkillReviewBaseUnsupported.
-func readSkillBase(dir string) (SkillTree, error) {
+// readSkillBase reads an installed skill (or a snapshot) losslessly. Unsupported entries or a tree
+// exceeding the edit limits return ErrSkillReviewBaseUnsupported.
+func readSkillBase(ctx context.Context, dir string) (SkillTree, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return nil, err
 	}
-	tree, err := readSkillRoot(root)
+	tree, err := readSkillRoot(ctx, root)
 	return tree, errors.Join(err, root.Close())
 }
 
-func readSkillRoot(root *os.Root) (SkillTree, error) {
-	files, err := skillTreeFiles(root)
+func readSkillRoot(ctx context.Context, root *os.Root) (SkillTree, error) {
+	files, err := skillTreeFiles(ctx, root, maxSkillBaseFiles)
 	if errors.Is(err, ErrSkillTreeUnsupported) {
 		return nil, fmt.Errorf("%w: %w", ErrSkillReviewBaseUnsupported, err)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if len(files) > maxSkillBaseFiles {
-		return nil, fmt.Errorf("%w: more than %d files", ErrSkillReviewBaseUnsupported, maxSkillBaseFiles)
-	}
 	tree := make(SkillTree, 0, len(files))
 	total := 0
 	for _, file := range files {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if !validSkillTreePath(file.path) {
+			return nil, fmt.Errorf("%w: invalid file path %q", ErrSkillReviewBaseUnsupported, file.path)
+		}
 		handle, err := root.Open(file.path)
 		if err != nil {
 			return nil, err
 		}
-		data, err := io.ReadAll(io.LimitReader(handle, maxSkillBaseBytes+1))
+		reader := skillContextReader{ctx: ctx, source: handle}
+		data, err := io.ReadAll(io.LimitReader(reader, int64(maxSkillBaseBytes-total)+1))
 		if err := errors.Join(err, handle.Close()); err != nil {
 			return nil, err
 		}
@@ -127,7 +136,10 @@ func readSkillRoot(root *os.Root) (SkillTree, error) {
 }
 
 // readSkillEditBase reads the installed skill an edit applies to: absent ⇒ base missing.
-func readSkillEditBase(dir, name string) (SkillTree, error) {
+func readSkillEditBase(ctx context.Context, dir, name string) (SkillTree, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	info, err := os.Lstat(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("%w: no skill named %s is installed for this instance; use mode new",
@@ -139,7 +151,7 @@ func readSkillEditBase(dir, name string) (SkillTree, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("%w: %s is not a directory", ErrSkillReviewBaseUnsupported, name)
 	}
-	return readSkillBase(dir)
+	return readSkillBase(ctx, dir)
 }
 
 // prepareSkillRemovePaths validates remove_paths: edit only, valid relative file paths, never
@@ -158,7 +170,7 @@ func prepareSkillRemovePaths(mode SkillProposalMode, paths []string, files []Ski
 	}
 	result := make([]string, 0, len(paths))
 	for _, path := range paths {
-		if !fs.ValidPath(path) || path == "." || strings.ContainsAny(path, "\\\x00:") || written[path] {
+		if !validSkillTreePath(path) || written[path] {
 			return nil, fmt.Errorf("%w: %q cannot be removed", ErrSkillProposeInvalidRemove, path)
 		}
 		result = append(result, path)
@@ -172,10 +184,8 @@ func prepareSkillRemovePaths(mode SkillProposalMode, paths []string, files []Ski
 // byte- and mode-exact.
 func applySkillOverlay(base SkillTree, draft SkillDraft) (SkillTree, error) {
 	byPath := make(map[string]SkillTreeFile, len(base)+len(draft.Files))
-	folded := make(map[string]string, len(base))
 	for _, file := range base {
 		byPath[file.Path] = file
-		folded[strings.ToLower(file.Path)] = file.Path
 	}
 	for _, path := range draft.RemovePaths {
 		if _, ok := byPath[path]; !ok {
@@ -183,29 +193,54 @@ func applySkillOverlay(base SkillTree, draft SkillDraft) (SkillTree, error) {
 		}
 		delete(byPath, path)
 	}
+	newPerm := skillNewFilePerm
+	if runtime.GOOS == "windows" {
+		// Go reports writable Windows files as 0666. Chmod only changes the read-only attribute.
+		newPerm = 0o666
+	}
 	for _, file := range draft.Files {
-		if existing, ok := folded[strings.ToLower(file.Path)]; ok && existing != file.Path {
-			return nil, fmt.Errorf("%w: skill proposal file %s differs only in case from installed %s",
-				ErrSkillReviewInvalid, file.Path, existing)
-		}
-		perm := skillNewFilePerm
+		perm := newPerm
 		if previous, ok := byPath[file.Path]; ok {
 			perm = previous.Perm
 		}
 		byPath[file.Path] = SkillTreeFile{Path: file.Path, Perm: perm, Data: []byte(file.Content)}
 	}
+	if len(byPath) > maxSkillBaseFiles {
+		return nil, fmt.Errorf("%w: edited skill exceeds %d files", ErrSkillReviewInvalid, maxSkillBaseFiles)
+	}
 	result := make(SkillTree, 0, len(byPath))
+	total := 0
 	for _, file := range byPath {
+		total += len(file.Data)
 		result = append(result, file)
 	}
+	if total > maxSkillBaseBytes {
+		return nil, fmt.Errorf("%w: edited skill exceeds 1 MiB", ErrSkillReviewInvalid)
+	}
 	slices.SortFunc(result, func(a, b SkillTreeFile) int { return strings.Compare(a.Path, b.Path) })
+	folded := make(map[string]string, len(result))
+	for _, file := range result {
+		key := strings.ToLower(file.Path)
+		if existing, ok := folded[key]; ok {
+			return nil, fmt.Errorf("%w: skill tree files %s and %s differ only in case",
+				ErrSkillReviewInvalid, existing, file.Path)
+		}
+		folded[key] = file.Path
+	}
+	dirs := make(map[string]string)
 	for _, file := range result {
 		parent := filepath.ToSlash(filepath.Dir(file.Path))
 		for ; parent != "."; parent = filepath.ToSlash(filepath.Dir(parent)) {
-			if _, ok := byPath[parent]; ok {
+			key := strings.ToLower(parent)
+			if existing, ok := folded[key]; ok {
 				return nil, fmt.Errorf("%w: skill proposal file %s conflicts with the file %s", ErrSkillReviewInvalid,
-					file.Path, parent)
+					file.Path, existing)
 			}
+			if existing, ok := dirs[key]; ok && existing != parent {
+				return nil, fmt.Errorf("%w: skill tree directories %s and %s differ only in case",
+					ErrSkillReviewInvalid, existing, parent)
+			}
+			dirs[key] = parent
 		}
 	}
 	return result, nil
@@ -219,8 +254,8 @@ type skillEdit struct {
 
 // prepareSkillEdit captures the live base of an edit under the skill locks and computes the resulting
 // tree; a result identical to the base is refused.
-func prepareSkillEdit(dir string, draft SkillDraft) (skillEdit, error) {
-	base, err := readSkillEditBase(dir, draft.Name)
+func prepareSkillEdit(ctx context.Context, dir string, draft SkillDraft) (skillEdit, error) {
+	base, err := readSkillEditBase(ctx, dir, draft.Name)
 	if err != nil {
 		return skillEdit{}, err
 	}
@@ -242,17 +277,20 @@ func skillSnapshotPath(draftPath, reviewID string) string {
 
 // writeSkillSnapshot writes the base byte- and mode-exact into the new directory dir and verifies it.
 // Snapshots are never redacted.
-func writeSkillSnapshot(dir string, base SkillTree, digest string) error {
+func writeSkillSnapshot(ctx context.Context, dir string, base SkillTree, digest string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		return err
 	}
-	err := writeSkillTreeFiles(dir, base)
+	err := writeSkillTreeFiles(ctx, dir, base)
 	if err == nil {
-		err = syncSkillTree(dir)
+		err = syncSkillTree(ctx, dir)
 	}
 	if err == nil {
 		var written string
-		written, err = SkillTreeDigest(dir)
+		written, err = SkillTreeDigest(ctx, dir)
 		if err == nil && written != digest {
 			err = errors.New("skill base snapshot does not match the captured base")
 		}
@@ -264,9 +302,12 @@ func writeSkillSnapshot(dir string, base SkillTree, digest string) error {
 }
 
 // writeSkillTreeFiles writes every file of tree into the existing directory dir with its exact mode.
-func writeSkillTreeFiles(dir string, tree SkillTree) error {
+func writeSkillTreeFiles(ctx context.Context, dir string, tree SkillTree) error {
 	for _, file := range tree {
-		if !fs.ValidPath(file.Path) || file.Path == "." || strings.ContainsAny(file.Path, "\\\x00:") {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !validSkillTreePath(file.Path) {
 			return ErrSkillReviewInvalid
 		}
 		path := filepath.Join(dir, filepath.FromSlash(file.Path))
@@ -280,12 +321,16 @@ func writeSkillTreeFiles(dir string, tree SkillTree) error {
 	return nil
 }
 
+func validSkillTreePath(path string) bool {
+	return fs.ValidPath(path) && path != "." && !strings.ContainsAny(path, "\\\x00:")
+}
+
 // readSkillSnapshot reads a review's base snapshot and re-verifies it against the base digest.
-func readSkillSnapshot(review SkillReview) (SkillTree, error) {
+func readSkillSnapshot(ctx context.Context, review SkillReview) (SkillTree, error) {
 	if review.SnapshotPath == "" {
 		return nil, ErrSkillReviewSnapshotInvalid
 	}
-	base, err := readSkillBase(review.SnapshotPath)
+	base, err := readSkillBase(ctx, review.SnapshotPath)
 	if err != nil || base.Digest() != review.BaseDigest {
 		return nil, errors.Join(ErrSkillReviewSnapshotInvalid, err)
 	}

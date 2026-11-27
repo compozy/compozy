@@ -196,7 +196,7 @@ export function gateFields(_raw: RawLoopNode): FieldSpec[] {
       mono: true,
       json: true,
       placeholder: '"continue" or {"route":"node_id"}',
-      hint: 'Use continue, revise, next_generation, escalate, halt, or {"route":"node_id"}. The object target must be a declared forward edge.',
+      hint: 'A string action advances the run; {"route":"node_id"} must be a declared forward edge; {"action":"halt","terminal_status":"blocked"} chooses the settled status. terminal_status requires a closed state and, when contract.terminal_states is set, a member of that set.',
     },
     {
       type: "text",
@@ -206,7 +206,7 @@ export function gateFields(_raw: RawLoopNode): FieldSpec[] {
       mono: true,
       json: true,
       placeholder: '"revise" or {"route":"node_id"}',
-      hint: 'Use continue, revise, next_generation, escalate, halt, or {"route":"node_id"}. The removed branch action is rejected.',
+      hint: 'A string action revises or advances the run; {"route":"node_id"} must be a declared forward edge; {"action":"halt","terminal_status":"blocked"} chooses the settled status. terminal_status requires a closed state and, when contract.terminal_states is set, a member of that set. The removed branch action is rejected.',
     },
     {
       type: "number",

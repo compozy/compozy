@@ -13,6 +13,7 @@ import { act, fireEvent, render as renderUI, screen, waitFor } from "@testing-li
 import { createContext, type ReactNode, Suspense, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ComputerScopeContext } from "@/lib/computer-scope-context";
 import { SessionWindowPresentationContext, type SessionPayload } from "@/systems/session";
 
 // The real drawer consumes the application query/UI providers even when closed.
@@ -688,5 +689,38 @@ describe("SessionWindowContent", () => {
         })
       );
     });
+  });
+
+  // Regression test for AST-008: the rendered environment control in a remote session window must
+  // receive the owning computer ID so worktree actions target `/c/{computerId}`.
+  it("AST-008: Should pass the owning remote computer ID into SessionEnvironmentControl", async () => {
+    render(
+      <ComputerScopeContext value="cmp_remote_window">
+        <Suspense fallback={null}>
+          <SessionWindowContent
+            agentName="codex-agent"
+            liveDataEnabled={false}
+            session={quietSession}
+            sessionId={quietSession.id}
+            windowId={`session:${quietSession.id}`}
+            workspaceId="ws-alpha"
+          />
+        </Suspense>
+      </ComputerScopeContext>
+    );
+
+    await waitFor(() => {
+      expect(mocks.sessionThreadProps).toHaveBeenCalled();
+    });
+    const lastThreadProps = mocks.sessionThreadProps.mock.lastCall?.[0] as
+      | { environmentControl?: { props?: Record<string, unknown> } }
+      | undefined;
+    expect(lastThreadProps?.environmentControl?.props).toEqual(
+      expect.objectContaining({
+        computerId: "cmp_remote_window",
+        sessionId: quietSession.id,
+        workspaceId: "ws-alpha",
+      })
+    );
   });
 });

@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useQuery } from "@tanstack/react-query";
 
 import type { SessionSideItem } from "../adapters/session-side-api";
@@ -29,7 +30,8 @@ export function useSessionSides(
   sessionId: string,
   options: { enabled?: boolean } = {}
 ): SessionSidesModel {
-  const query = useQuery(sessionSidesOptions(workspaceId, sessionId, options));
+  const computerId = useCurrentComputerId();
+  const query = useQuery(sessionSidesOptions(workspaceId, sessionId, { ...options, computerId }));
   const sides = openSideChats(query.data ?? NO_SIDES);
   return {
     sides,
@@ -50,18 +52,9 @@ export function useSessionHasSideChats(
   sessionId: string,
   options: { enabled?: boolean } = {}
 ): boolean {
+  const computerId = useCurrentComputerId();
   const query = useQuery(
-    sessionSidesOptions(workspaceId, sessionId, { ...options, archived: true })
+    sessionSidesOptions(workspaceId, sessionId, { ...options, archived: true, computerId })
   );
   return (query.data?.length ?? 0) > 0;
-}
-
-/** Side chats are named in the delete dialog only for a single delete target. */
-export function useDeleteTargetHasSideChats(
-  sessions: readonly { id: string; workspace_id?: string | null }[] | null | undefined
-): boolean {
-  const single = sessions?.length === 1 ? sessions[0] : undefined;
-  return useSessionHasSideChats(single?.workspace_id ?? "", single?.id ?? "", {
-    enabled: single !== undefined,
-  });
 }

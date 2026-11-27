@@ -74,7 +74,7 @@ var userScopeMigrationInventory = []string{
 	"loop_runs",
 	"loop_session_bindings",
 	"loop_ui_annotations",
-	"gateway_ingress_bindings",
+	"ingress_bindings",
 	"task_blocks",
 	"tasks",
 	"task_runs",

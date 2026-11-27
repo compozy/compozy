@@ -90,6 +90,9 @@ describe("automation formatter helpers", () => {
         metadata: { reason: "misfire_grace_exceeded" },
       } as never)
     ).toBe("misfire_grace_exceeded");
+    expect(
+      automationRunSkipReason({ status: "canceled", metadata: { reason: "no inputs" } } as never)
+    ).toBe("no inputs");
 
     // A known reason on a non-canceled run is ignored (no invented skip status).
     expect(
@@ -114,6 +117,7 @@ describe("automation formatter helpers", () => {
 
     expect(automationSkipReasonLabel("self_overlap")).toBe("Skipped");
     expect(automationSkipReasonLabel("misfire_grace_exceeded")).toBe("Missed");
+    expect(automationSkipReasonLabel("no inputs")).toBe("No inputs");
   });
 
   it("labels a last run's durable skip before its status", () => {
@@ -142,6 +146,9 @@ describe("automation formatter helpers", () => {
     expect(
       automationLastRunMeta({ status: "canceled", skipReason: "misfire_grace_exceeded" })?.text
     ).toBe("Last run missed — CompozyOS was off at the start time");
+    expect(automationLastRunMeta({ status: "canceled", skipReason: "no inputs" })?.text).toBe(
+      "Last run skipped — the input command found no work"
+    );
     expect(automationLastRunMeta({ status: "canceled", startedAt: at })?.text).toBe(
       "Last run canceled"
     );

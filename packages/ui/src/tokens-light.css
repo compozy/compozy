@@ -24,7 +24,9 @@
   --color-canvas-soft: #ffffff;
   --color-sunken: #f7f7f8;
   --color-surface-2: #f4f4f5;
-  --color-selected: #efeff1;
+  /* As dark as muted-foreground (#6b6b6b, pinned) keeps AA on it, so the
+     selected row reads as a step past hover (#1925). */
+  --color-selected: #ededef;
   --color-code-bg: #f6f6f7;
   --color-elevated: #ffffff;
   --color-disabled: #c4c7cc;

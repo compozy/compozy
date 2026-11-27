@@ -1,5 +1,7 @@
 import { useImperativeHandle, useState, type Ref } from "react";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import type { ComputerId } from "@/lib/computer-scope";
 import { useWorktreeMaterialization } from "@/systems/workspace";
 
 import type { SessionEnvironmentControlHandle } from "../components/session-environment-control";
@@ -10,6 +12,7 @@ interface UseSessionEnvironmentControlParams {
   ref?: Ref<SessionEnvironmentControlHandle>;
   sessionId: string;
   workspaceId: string;
+  computerId?: ComputerId;
   currentWorktreeId: string;
 }
 
@@ -18,14 +21,16 @@ export function useSessionEnvironmentControl({
   ref,
   sessionId,
   workspaceId,
+  computerId,
   currentWorktreeId,
 }: UseSessionEnvironmentControlParams) {
+  const scopedComputerId = useCurrentComputerId(computerId);
   const [mode, setMode] = useState<"fork" | "bind" | null>(null);
-  const change = useChangeSessionWorktree(workspaceId, sessionId);
+  const change = useChangeSessionWorktree(workspaceId, sessionId, scopedComputerId);
   const [expectedWorktreeId, setExpectedWorktreeId] = useState(currentWorktreeId);
   const [target, setTarget] = useState("");
-  const fork = useForkSessionToWorktree(workspaceId, sessionId);
-  const materialization = useWorktreeMaterialization(workspaceId);
+  const fork = useForkSessionToWorktree(workspaceId, sessionId, scopedComputerId);
+  const materialization = useWorktreeMaterialization(workspaceId, scopedComputerId);
   const resolvedTarget = materialization.worktree?.id ?? target;
 
   useImperativeHandle(ref, () => ({ openFork: () => setMode("fork") }), []);

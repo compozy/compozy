@@ -5,6 +5,8 @@ import { useDesktopShellModel } from "./use-desktop-shell-model";
 import { useWorkspaceSetupDefaults } from "./use-workspace-setup-defaults";
 import { useWorktreeDialogTargets } from "./use-worktree-dialog-targets";
 import { continuityStreamsWithinConnectionBudget } from "../lib/background-stream-budget";
+import { isHostedBrowserMode } from "@/lib/hosted-browser-auth";
+import { useAccountRemoteEviction, useComputers } from "@/systems/computers";
 import {
   useActiveWorkspace,
   USER_DESKTOP_WORKSPACE_ID,
@@ -13,6 +15,9 @@ import {
 
 /** Owns the state and supporting models required to mount the desktop chrome. */
 export function useDesktopChromeController() {
+  const hosted = isHostedBrowserMode();
+  const { signedIn } = useAccountRemoteEviction(!hosted);
+  useComputers({ enabled: !hosted && signedIn, stream: !hosted && signedIn });
   const activeWorkspace = useActiveWorkspace();
   const chrome = useDesktopChrome(
     activeWorkspace.desktopWorkspaceId,

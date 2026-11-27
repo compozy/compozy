@@ -1,3 +1,4 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import { PROFILE_AGGREGATE, type ProfileScopeParams } from "@/systems/profiles";
 import type { HomeActivityFilter, HomeOverviewFilter } from "../types";
 
@@ -9,11 +10,11 @@ function normalizeNumber(value?: number): string {
   return value === undefined ? "" : String(value);
 }
 
-/** Where the usage window sits in an overview key: after the root and the scope. */
-const OVERVIEW_USAGE_WINDOW_SLOT = 3;
+/** Where the usage window sits in an overview key: after `["computer", id]`, the root, and the scope. */
+const OVERVIEW_USAGE_WINDOW_SLOT = 5;
 
 export const dashboardKeys = {
-  all: ["dashboard"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "dashboard"),
 
   overviewRoot: () => [...dashboardKeys.all, "overview"] as const,
   overview: (filters: HomeOverviewFilter = {}) =>

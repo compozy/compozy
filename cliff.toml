@@ -119,10 +119,10 @@ commit_parsers = [
 
 protect_breaking_commits = false
 filter_commits = false
-tag_pattern = "v[0-9].*"
+tag_pattern = "^v[0-9].*"
 # Prerelease tags are snapshots of the in-flight line: keep them out of
 # changelog sections and version bumping (the next stable owns their commits).
-ignore_tags = "v[0-9].*-(alpha|beta|rc)"
+ignore_tags = "^v[0-9].*-(alpha|beta|rc)"
 sort_commits = "oldest"
 
 [bump]

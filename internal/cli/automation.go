@@ -87,6 +87,7 @@ type automationJobUpdateInput struct {
 	MisfireGraceSeconds int
 	RetryRaw            string
 	Enabled             bool
+	LoopInputCommand    string
 }
 
 func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
@@ -155,6 +156,7 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 		misfireGraceSeconds int
 		retryRaw            string
 		enabled             bool
+		loopInputCommand    string
 	)
 
 	cmd := &cobra.Command{
@@ -176,6 +178,7 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 				MisfireGraceSeconds: misfireGraceSeconds,
 				RetryRaw:            retryRaw,
 				Enabled:             enabled,
+				LoopInputCommand:    loopInputCommand,
 			})
 			if err != nil {
 				return err
@@ -203,6 +206,12 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&retryRaw, automationRetryKey, "", `Update retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
 	cmd.Flags().BoolVar(&enabled, automationEnabledKey, false, "Update the enabled state")
+	cmd.Flags().StringVar(
+		&loopInputCommand,
+		automationLoopInputCommandFlag,
+		"",
+		"Resolve Loop inputs at each fire by running a shell command in the workspace; empty clears it",
+	)
 	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
@@ -229,37 +238,28 @@ func buildAutomationJobUpdateRequest(
 		request.Schedule = &schedule
 	}
 
-	var currentSchedule *automationpkg.ScheduleSpec
-	if reliabilityChanged || scheduleChanged && request.Schedule.Mode != automationpkg.ScheduleModeAt {
-		current, err := client.GetAutomationJob(cmd.Context(), input.JobID)
+	currentLoaded := false
+	var current JobRecord
+	loadCurrent := func() (JobRecord, error) {
+		if currentLoaded {
+			return current, nil
+		}
+		loaded, err := client.GetAutomationJob(cmd.Context(), input.JobID)
 		if err != nil {
-			return AutomationJobUpdateRequest{}, err
+			return JobRecord{}, err
 		}
-		currentSchedule = current.Schedule
+		current, currentLoaded = loaded, true
+		return current, nil
 	}
-	if scheduleChanged && request.Schedule.Mode != automationpkg.ScheduleModeAt && currentSchedule != nil {
-		request.Schedule.CatchUpPolicy = currentSchedule.CatchUpPolicy
-		request.Schedule.MisfireGraceSeconds = currentSchedule.MisfireGraceSeconds
-	}
-	if reliabilityChanged {
-		if request.Schedule == nil {
-			if currentSchedule == nil {
-				return AutomationJobUpdateRequest{}, errors.New(
-					"cli: automation job has no schedule to update reliability",
-				)
-			}
-			request.Schedule = new(*currentSchedule)
-		}
-		if err := applyAutomationScheduleReliability(
-			cmd,
-			request.Schedule,
-			automationScheduleReliabilityInput{
-				CatchUpPolicyRaw:    input.CatchUpPolicyRaw,
-				MisfireGraceSeconds: input.MisfireGraceSeconds,
-			},
-		); err != nil {
-			return AutomationJobUpdateRequest{}, err
-		}
+	if err := applyAutomationScheduleUpdate(
+		cmd,
+		&request,
+		input,
+		scheduleChanged,
+		reliabilityChanged,
+		loadCurrent,
+	); err != nil {
+		return AutomationJobUpdateRequest{}, err
 	}
 	if cmd.Flags().Changed(automationRetryKey) {
 		retry, err := parseAutomationRetryFlag(input.RetryRaw)
@@ -276,7 +276,80 @@ func buildAutomationJobUpdateRequest(
 	if cmd.Flags().Changed(automationEnabledKey) {
 		request.Enabled = new(input.Enabled)
 	}
+	if cmd.Flags().Changed(automationLoopInputCommandFlag) {
+		if err := applyAutomationLoopInputCommandUpdate(
+			&request,
+			input.LoopInputCommand,
+			loadCurrent,
+		); err != nil {
+			return AutomationJobUpdateRequest{}, err
+		}
+	}
 	return request, nil
+}
+
+func applyAutomationScheduleUpdate(
+	cmd *cobra.Command,
+	request *AutomationJobUpdateRequest,
+	input automationJobUpdateInput,
+	scheduleChanged bool,
+	reliabilityChanged bool,
+	loadCurrent func() (JobRecord, error),
+) error {
+	var currentSchedule *automationpkg.ScheduleSpec
+	if reliabilityChanged ||
+		(scheduleChanged && request.Schedule.Mode != automationpkg.ScheduleModeAt) {
+		loaded, err := loadCurrent()
+		if err != nil {
+			return err
+		}
+		currentSchedule = loaded.Schedule
+	}
+	if scheduleChanged &&
+		request.Schedule.Mode != automationpkg.ScheduleModeAt &&
+		currentSchedule != nil {
+		request.Schedule.CatchUpPolicy = currentSchedule.CatchUpPolicy
+		request.Schedule.MisfireGraceSeconds = currentSchedule.MisfireGraceSeconds
+	}
+	if !reliabilityChanged {
+		return nil
+	}
+	if request.Schedule == nil {
+		if currentSchedule == nil {
+			return errors.New("cli: automation job has no schedule to update reliability")
+		}
+		request.Schedule = new(*currentSchedule)
+	}
+	return applyAutomationScheduleReliability(
+		cmd,
+		request.Schedule,
+		automationScheduleReliabilityInput{
+			CatchUpPolicyRaw:    input.CatchUpPolicyRaw,
+			MisfireGraceSeconds: input.MisfireGraceSeconds,
+		},
+	)
+}
+
+func applyAutomationLoopInputCommandUpdate(
+	request *AutomationJobUpdateRequest,
+	raw string,
+	loadCurrent func() (JobRecord, error),
+) error {
+	command, err := parseAutomationLoopInputCommand(raw)
+	if err != nil {
+		return err
+	}
+	loaded, err := loadCurrent()
+	if err != nil {
+		return err
+	}
+	if loaded.LoopTarget == nil {
+		return errors.New("cli: --loop-input-command requires a Loop target job")
+	}
+	// Patch only the command field. Rebuilding the whole target from this GET would revert a
+	// concurrent edit made between the read and the update.
+	request.LoopInputCommand = &command
+	return nil
 }
 
 func newAutomationJobsDeleteCommand(deps commandDeps) *cobra.Command {

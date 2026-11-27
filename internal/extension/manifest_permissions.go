@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,6 +11,8 @@ import (
 
 const unknownHostAPIPermissionMessage = "unknown Host API permission"
 
+var ErrExtensionKindRemoved = errors.New("extension_kind_removed")
+
 func validateProvideCapabilities(values []string) error {
 	valid := make([]string, 0)
 	for _, contract := range extensioncontract.ProvideCapabilityContracts() {
@@ -18,6 +21,12 @@ func validateProvideCapabilities(values []string) error {
 	slices.Sort(valid)
 	for idx, value := range values {
 		trimmed := strings.TrimSpace(value)
+		if trimmed == "connectivity.provider" {
+			return fmt.Errorf("%w: %w", ErrExtensionKindRemoved, &ManifestValidationError{
+				Field: fmt.Sprintf("capabilities.provides[%d]", idx), Value: value,
+				Message: "Connectivity providers were removed. See https://compozy.com/docs/computers.",
+			})
+		}
 		if slices.Contains(valid, trimmed) {
 			continue
 		}

@@ -60,6 +60,14 @@ func (p *PreparedMarketplaceManagedInstall) Digest() string {
 	return p.install.archiveDigest
 }
 
+// RegistryTier returns the trust tier the commit records: only curated trust evidence is registry-verified.
+func (p *PreparedMarketplaceManagedInstall) RegistryTier() string {
+	if p == nil || p.install.trust == nil {
+		return ExtensionRegistryTierUnverified
+	}
+	return normalizedMarketplaceRegistryTier(p.install.trust.RegistryTier)
+}
+
 // Commit moves the staged artifact into place and attaches it to the resolved scope.
 func (p *PreparedMarketplaceManagedInstall) Commit(scope InstallationScope) (*ExtensionInfo, error) {
 	if p == nil || p.registry == nil || p.install.manifest == nil {

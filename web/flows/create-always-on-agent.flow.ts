@@ -1,4 +1,4 @@
-import { defineFlow } from "@compozy/proto/flow";
+import { defineFlow } from "@protohq/cli/flow";
 
 /**
  * From New agent to the avatar above a project's sessions: fill the one create screen, choose that

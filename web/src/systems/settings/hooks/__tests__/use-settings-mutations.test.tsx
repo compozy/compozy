@@ -403,7 +403,9 @@ describe("useUpdateSettingsHooksExtensions", () => {
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: settingsKeys.section("hooks-extensions"),
       });
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["computer", "local", "marketplace"],
+      });
     });
   });
 });

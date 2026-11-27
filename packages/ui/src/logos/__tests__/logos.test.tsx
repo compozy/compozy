@@ -6,6 +6,7 @@ import { ClaudeLogo } from "../claude";
 import { CopilotLogo } from "../copilot";
 import { GeminiLogo } from "../gemini";
 import { GithubLogo } from "../github";
+import { GoogleLogo } from "../google";
 import { LinearLogo } from "../linear";
 import { OpenAILogo } from "../openai";
 
@@ -76,6 +77,31 @@ describe("GithubLogo", () => {
       expect(paths.length, variant).toBeGreaterThan(0);
       for (const path of paths) expect(path, variant).not.toMatch(/[\n\r\t]|\s{2,}/);
     }
+  });
+});
+
+describe("GoogleLogo", () => {
+  it("renders the four-color brand mark with hydration-stable paths and forwarded props", () => {
+    const { container } = render(
+      <GoogleLogo aria-hidden="true" className="size-4" data-testid="google-logo" />
+    );
+
+    const svg = container.querySelector("svg");
+    expect(svg?.getAttribute("viewBox")).toBe("0 0 24 24");
+    expect(svg?.getAttribute("class")).toContain("size-4");
+    expect(svg).toHaveAttribute("aria-hidden", "true");
+    expect(svg).toHaveAttribute("data-testid", "google-logo");
+    expect(svg?.querySelector("title")).toHaveTextContent("Google");
+
+    const fills = Array.from(svg?.querySelectorAll("path") ?? [], path =>
+      path.getAttribute("fill")
+    );
+    expect(fills).toEqual(["#4285F4", "#34A853", "#FBBC05", "#EA4335"]);
+
+    const markup = renderToString(<GoogleLogo />);
+    const paths = Array.from(markup.matchAll(/\sd="([^"]+)"/g), match => match[1]);
+    expect(paths).toHaveLength(4);
+    for (const path of paths) expect(path).not.toMatch(/[\n\r\t]|\s{2,}/);
   });
 });
 

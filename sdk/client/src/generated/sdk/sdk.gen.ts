@@ -13,9 +13,15 @@ import type {
   AcceptAutomationSuggestionData,
   AcceptAutomationSuggestionErrors,
   AcceptAutomationSuggestionResponses,
+  AccountBillingPortalData,
+  AccountBillingPortalErrors,
+  AccountBillingPortalResponses,
   AcknowledgeAttentionNotificationsData,
   AcknowledgeAttentionNotificationsErrors,
   AcknowledgeAttentionNotificationsResponses,
+  AddAccountComputerData,
+  AddAccountComputerErrors,
+  AddAccountComputerResponses,
   AddAgentMemoryData,
   AddAgentMemoryErrors,
   AddAgentMemoryResponses,
@@ -40,6 +46,9 @@ import type {
   AmendLoopNodeData,
   AmendLoopNodeErrors,
   AmendLoopNodeResponses,
+  AnswerComputerSetupData,
+  AnswerComputerSetupErrors,
+  AnswerComputerSetupResponses,
   AnswerSessionClarificationData,
   AnswerSessionClarificationErrors,
   AnswerSessionClarificationResponses,
@@ -76,6 +85,9 @@ import type {
   ArchiveSessionData,
   ArchiveSessionErrors,
   ArchiveSessionResponses,
+  ArchiveStoppedSessionsData,
+  ArchiveStoppedSessionsErrors,
+  ArchiveStoppedSessionsResponses,
   ArchiveTaskData,
   ArchiveTaskErrors,
   ArchiveTaskResponses,
@@ -94,9 +106,9 @@ import type {
   BeginSettingsMCPAuthData,
   BeginSettingsMCPAuthErrors,
   BeginSettingsMCPAuthResponses,
-  BindGatewayIngressData,
-  BindGatewayIngressErrors,
-  BindGatewayIngressResponses,
+  BindIngressData,
+  BindIngressErrors,
+  BindIngressResponses,
   BindSessionWorktreeData,
   BindSessionWorktreeErrors,
   BindSessionWorktreeResponses,
@@ -112,9 +124,15 @@ import type {
   BulkForceReleaseTaskRunsData,
   BulkForceReleaseTaskRunsErrors,
   BulkForceReleaseTaskRunsResponses,
+  CancelAccountLoginData,
+  CancelAccountLoginErrors,
+  CancelAccountLoginResponses,
   CancelAutomationRunData,
   CancelAutomationRunErrors,
   CancelAutomationRunResponses,
+  CancelComputerSetupData,
+  CancelComputerSetupErrors,
+  CancelComputerSetupResponses,
   CancelLoopNodeData,
   CancelLoopNodeErrors,
   CancelLoopNodeResponses,
@@ -157,6 +175,9 @@ import type {
   CheckAgentInstanceData,
   CheckAgentInstanceErrors,
   CheckAgentInstanceResponses,
+  CheckoutAccountData,
+  CheckoutAccountErrors,
+  CheckoutAccountResponses,
   CheckSessionMCPData,
   CheckSessionMCPErrors,
   CheckSessionMCPResponses,
@@ -208,6 +229,9 @@ import type {
   ControlTerminalRecordingData,
   ControlTerminalRecordingErrors,
   ControlTerminalRecordingResponses,
+  CreateAccountTokenData,
+  CreateAccountTokenErrors,
+  CreateAccountTokenResponses,
   CreateAgentData,
   CreateAgentErrors,
   CreateAgentInstanceData,
@@ -262,6 +286,12 @@ import type {
   CurateProviderModelData,
   CurateProviderModelErrors,
   CurateProviderModelResponses,
+  DecideAccountApprovalData,
+  DecideAccountApprovalErrors,
+  DecideAccountApprovalResponses,
+  DeleteAccountData,
+  DeleteAccountErrors,
+  DeleteAccountResponses,
   DeleteAgentData,
   DeleteAgentErrors,
   DeleteAgentHeartbeatData,
@@ -349,15 +379,18 @@ import type {
   DiffLoopRunData,
   DiffLoopRunErrors,
   DiffLoopRunResponses,
-  DisableGatewayProviderData,
-  DisableGatewayProviderErrors,
-  DisableGatewayProviderResponses,
   DisableSkillData,
   DisableSkillErrors,
   DisableSkillResponses,
+  DismissAccountSignInNoticesData,
+  DismissAccountSignInNoticesErrors,
+  DismissAccountSignInNoticesResponses,
   DismissAutomationSuggestionData,
   DismissAutomationSuggestionErrors,
   DismissAutomationSuggestionResponses,
+  DismissMigrationNoticeData,
+  DismissMigrationNoticeErrors,
+  DismissMigrationNoticeResponses,
   DismissTaskData,
   DismissTaskErrors,
   DismissTaskResponses,
@@ -385,12 +418,12 @@ import type {
   DuplicateAgentData,
   DuplicateAgentErrors,
   DuplicateAgentResponses,
-  EnableGatewayProviderData,
-  EnableGatewayProviderErrors,
-  EnableGatewayProviderResponses,
   EnableSkillData,
   EnableSkillErrors,
   EnableSkillResponses,
+  EndBrowserSessionData,
+  EndBrowserSessionErrors,
+  EndBrowserSessionResponses,
   EnqueueTaskRunData,
   EnqueueTaskRunErrors,
   EnqueueTaskRunResponses,
@@ -442,6 +475,12 @@ import type {
   ForkSessionToWorktreeData,
   ForkSessionToWorktreeErrors,
   ForkSessionToWorktreeResponses,
+  GetAccountApprovalData,
+  GetAccountApprovalErrors,
+  GetAccountApprovalResponses,
+  GetAccountData,
+  GetAccountErrors,
+  GetAccountResponses,
   GetAgentActivityData,
   GetAgentActivityErrors,
   GetAgentActivityResponses,
@@ -499,6 +538,12 @@ import type {
   GetAutomationTriggerData,
   GetAutomationTriggerErrors,
   GetAutomationTriggerResponses,
+  GetBrowserApprovalData,
+  GetBrowserApprovalErrors,
+  GetBrowserApprovalResponses,
+  GetBrowserStatusData,
+  GetBrowserStatusErrors,
+  GetBrowserStatusResponses,
   GetCmdPalettePersonalizationData,
   GetCmdPalettePersonalizationErrors,
   GetCmdPalettePersonalizationResponses,
@@ -508,11 +553,20 @@ import type {
   GetCmdPaletteViewData,
   GetCmdPaletteViewErrors,
   GetCmdPaletteViewResponses,
+  GetComputerData,
+  GetComputerErrors,
+  GetComputerResponses,
+  GetComputerSetupData,
+  GetComputerSetupErrors,
+  GetComputerSetupResponses,
   GetDoctorData,
   GetDoctorErrors,
   GetDoctorResponses,
   GetExtensionData,
   GetExtensionErrors,
+  GetExtensionInputsData,
+  GetExtensionInputsErrors,
+  GetExtensionInputsResponses,
   GetExtensionInventoryData,
   GetExtensionInventoryErrors,
   GetExtensionInventoryResponses,
@@ -523,12 +577,6 @@ import type {
   GetExtensionProvenanceErrors,
   GetExtensionProvenanceResponses,
   GetExtensionResponses,
-  GetGatewayAuditData,
-  GetGatewayAuditErrors,
-  GetGatewayAuditResponses,
-  GetGatewayStatusData,
-  GetGatewayStatusErrors,
-  GetGatewayStatusResponses,
   GetGlobalSessionHistoryData,
   GetGlobalSessionHistoryErrors,
   GetGlobalSessionHistoryResponses,
@@ -553,6 +601,8 @@ import type {
   GetHookRunsData,
   GetHookRunsErrors,
   GetHookRunsResponses,
+  GetHostResourcesData,
+  GetHostResourcesResponses,
   GetLoopAnnotationsData,
   GetLoopAnnotationsErrors,
   GetLoopAnnotationsResponses,
@@ -622,6 +672,9 @@ import type {
   GetProviderUsageData,
   GetProviderUsageErrors,
   GetProviderUsageResponses,
+  GetRemoteStatusData,
+  GetRemoteStatusErrors,
+  GetRemoteStatusResponses,
   GetResourceData,
   GetResourceErrors,
   GetResourceResponses,
@@ -849,6 +902,18 @@ import type {
   InvokeToolData,
   InvokeToolErrors,
   InvokeToolResponses,
+  LinkRemoteData,
+  LinkRemoteErrors,
+  LinkRemoteResponses,
+  ListAccountApprovalsData,
+  ListAccountApprovalsErrors,
+  ListAccountApprovalsResponses,
+  ListAccountDevicesData,
+  ListAccountDevicesErrors,
+  ListAccountDevicesResponses,
+  ListAccountTokensData,
+  ListAccountTokensErrors,
+  ListAccountTokensResponses,
   ListAgentCatalogData,
   ListAgentCatalogErrors,
   ListAgentCatalogResponses,
@@ -909,12 +974,24 @@ import type {
   ListAutomationTriggersData,
   ListAutomationTriggersErrors,
   ListAutomationTriggersResponses,
+  ListAvailableComputersData,
+  ListAvailableComputersErrors,
+  ListAvailableComputersResponses,
+  ListBrowserPeersData,
+  ListBrowserPeersErrors,
+  ListBrowserPeersResponses,
   ListCmdPaletteClientsData,
   ListCmdPaletteClientsErrors,
   ListCmdPaletteClientsResponses,
   ListCmdPaletteCommandsData,
   ListCmdPaletteCommandsErrors,
   ListCmdPaletteCommandsResponses,
+  ListComputersData,
+  ListComputersErrors,
+  ListComputersResponses,
+  ListComputerSSHHostsData,
+  ListComputerSSHHostsErrors,
+  ListComputerSSHHostsResponses,
   ListExtensionCommandsData,
   ListExtensionCommandsErrors,
   ListExtensionCommandsResponses,
@@ -930,9 +1007,6 @@ import type {
   ListFileEntriesData,
   ListFileEntriesErrors,
   ListFileEntriesResponses,
-  ListGatewayDevicesData,
-  ListGatewayDevicesErrors,
-  ListGatewayDevicesResponses,
   ListGlobalSessionEventsData,
   ListGlobalSessionEventsErrors,
   ListGlobalSessionEventsResponses,
@@ -969,6 +1043,9 @@ import type {
   ListMarketplaceSourcesData,
   ListMarketplaceSourcesErrors,
   ListMarketplaceSourcesResponses,
+  ListMigrationNoticesData,
+  ListMigrationNoticesErrors,
+  ListMigrationNoticesResponses,
   ListOpenAIModelsData,
   ListOpenAIModelsErrors,
   ListOpenAIModelsResponses,
@@ -996,6 +1073,9 @@ import type {
   ListProviderUsageData,
   ListProviderUsageErrors,
   ListProviderUsageResponses,
+  ListRemoteDevicesData,
+  ListRemoteDevicesErrors,
+  ListRemoteDevicesResponses,
   ListRemovedBuiltinExtensionsData,
   ListRemovedBuiltinExtensionsErrors,
   ListRemovedBuiltinExtensionsResponses,
@@ -1131,6 +1211,9 @@ import type {
   ListWorktreesData,
   ListWorktreesErrors,
   ListWorktreesResponses,
+  LogoutAccountData,
+  LogoutAccountErrors,
+  LogoutAccountResponses,
   LogoutSettingsMCPAuthData,
   LogoutSettingsMCPAuthErrors,
   LogoutSettingsMCPAuthResponses,
@@ -1143,12 +1226,9 @@ import type {
   MarkTaskReadData,
   MarkTaskReadErrors,
   MarkTaskReadResponses,
-  MintGatewayPairingData,
-  MintGatewayPairingErrors,
-  MintGatewayPairingResponses,
-  MintGatewayStreamTicketData,
-  MintGatewayStreamTicketErrors,
-  MintGatewayStreamTicketResponses,
+  MintBrowserStreamTicketData,
+  MintBrowserStreamTicketErrors,
+  MintBrowserStreamTicketResponses,
   MintTerminalAttachTicketData,
   MintTerminalAttachTicketErrors,
   MintTerminalAttachTicketResponses,
@@ -1176,9 +1256,27 @@ import type {
   OpenSessionSideData,
   OpenSessionSideErrors,
   OpenSessionSideResponses,
+  PatchAccountDeviceData,
+  PatchAccountDeviceErrors,
+  PatchAccountDeviceResponses,
+  PatchAccountEmailData,
+  PatchAccountEmailErrors,
+  PatchAccountEmailResponses,
+  PatchComputerData,
+  PatchComputerErrors,
+  PatchComputerResponses,
+  PatchLocalComputerData,
+  PatchLocalComputerErrors,
+  PatchLocalComputerResponses,
   PatchLoopData,
   PatchLoopErrors,
   PatchLoopResponses,
+  PatchRemoteDeviceData,
+  PatchRemoteDeviceErrors,
+  PatchRemoteDeviceResponses,
+  PatchRemoteStatusData,
+  PatchRemoteStatusErrors,
+  PatchRemoteStatusResponses,
   PauseAgentInstanceData,
   PauseAgentInstanceErrors,
   PauseAgentInstanceResponses,
@@ -1218,6 +1316,9 @@ import type {
   PrepareWorktreeExitPlanData,
   PrepareWorktreeExitPlanErrors,
   PrepareWorktreeExitPlanResponses,
+  PreviewComputerPlacementData,
+  PreviewComputerPlacementErrors,
+  PreviewComputerPlacementResponses,
   PreviewExtensionEnableData,
   PreviewExtensionEnableErrors,
   PreviewExtensionEnableResponses,
@@ -1323,9 +1424,6 @@ import type {
   RecoverTaskRunData,
   RecoverTaskRunErrors,
   RecoverTaskRunResponses,
-  RedeemGatewayPairingData,
-  RedeemGatewayPairingErrors,
-  RedeemGatewayPairingResponses,
   RefreshMarketplaceCatalogData,
   RefreshMarketplaceCatalogErrors,
   RefreshMarketplaceCatalogResponses,
@@ -1374,15 +1472,18 @@ import type {
   RemoveAgentMemoryData,
   RemoveAgentMemoryErrors,
   RemoveAgentMemoryResponses,
+  RemoveComputerData,
+  RemoveComputerErrors,
+  RemoveComputerResponses,
+  RemoveComputerRouteData,
+  RemoveComputerRouteErrors,
+  RemoveComputerRouteResponses,
   RemoveDiscoveredWorktreeData,
   RemoveDiscoveredWorktreeErrors,
   RemoveDiscoveredWorktreeResponses,
   RemoveExtensionData,
   RemoveExtensionErrors,
   RemoveExtensionResponses,
-  RemoveGatewayDeviceData,
-  RemoveGatewayDeviceErrors,
-  RemoveGatewayDeviceResponses,
   RemoveMarketplaceSourceData,
   RemoveMarketplaceSourceErrors,
   RemoveMarketplaceSourceResponses,
@@ -1398,9 +1499,6 @@ import type {
   RemoveWorktreesData,
   RemoveWorktreesErrors,
   RemoveWorktreesResponses,
-  RenameGatewayDeviceData,
-  RenameGatewayDeviceErrors,
-  RenameGatewayDeviceResponses,
   RenameProfileData,
   RenameProfileErrors,
   RenameProfileResponses,
@@ -1494,6 +1592,12 @@ import type {
   RevertAgentSkillReviewData,
   RevertAgentSkillReviewErrors,
   RevertAgentSkillReviewResponses,
+  RevokeAccountDeviceData,
+  RevokeAccountDeviceErrors,
+  RevokeAccountDeviceResponses,
+  RevokeAccountTokenData,
+  RevokeAccountTokenErrors,
+  RevokeAccountTokenResponses,
   RevokeAgentHeartbeatAuthorityData,
   RevokeAgentHeartbeatAuthorityErrors,
   RevokeAgentHeartbeatAuthorityResponses,
@@ -1503,9 +1607,9 @@ import type {
   RevokeAppTokenData,
   RevokeAppTokenErrors,
   RevokeAppTokenResponses,
-  RevokeGatewayDeviceData,
-  RevokeGatewayDeviceErrors,
-  RevokeGatewayDeviceResponses,
+  RevokeRemoteDeviceData,
+  RevokeRemoteDeviceErrors,
+  RevokeRemoteDeviceResponses,
   RevokeToolApprovalGrantData,
   RevokeToolApprovalGrantErrors,
   RevokeToolApprovalGrantResponses,
@@ -1557,12 +1661,12 @@ import type {
   SetExtensionEnablementData,
   SetExtensionEnablementErrors,
   SetExtensionEnablementResponses,
+  SetExtensionInputsData,
+  SetExtensionInputsErrors,
+  SetExtensionInputsResponses,
   SetExtensionSecretsData,
   SetExtensionSecretsErrors,
   SetExtensionSecretsResponses,
-  SetGatewaySurfaceData,
-  SetGatewaySurfaceErrors,
-  SetGatewaySurfaceResponses,
   SetSessionParentData,
   SetSessionParentErrors,
   SetSessionParentResponses,
@@ -1590,9 +1694,18 @@ import type {
   SpawnAgentSessionData,
   SpawnAgentSessionErrors,
   SpawnAgentSessionResponses,
+  StartAccountLoginData,
+  StartAccountLoginErrors,
+  StartAccountLoginResponses,
   StartAgentTaskRunData,
   StartAgentTaskRunErrors,
   StartAgentTaskRunResponses,
+  StartBrowserSessionData,
+  StartBrowserSessionErrors,
+  StartBrowserSessionResponses,
+  StartComputerUpdateData,
+  StartComputerUpdateErrors,
+  StartComputerUpdateResponses,
   StartTaskData,
   StartTaskErrors,
   StartTaskResponses,
@@ -1632,9 +1745,9 @@ import type {
   UnarchiveWorkspaceData,
   UnarchiveWorkspaceErrors,
   UnarchiveWorkspaceResponses,
-  UnbindGatewayIngressData,
-  UnbindGatewayIngressErrors,
-  UnbindGatewayIngressResponses,
+  UnbindIngressData,
+  UnbindIngressErrors,
+  UnbindIngressResponses,
   UnbindSessionWorktreeData,
   UnbindSessionWorktreeErrors,
   UnbindSessionWorktreeResponses,
@@ -1644,6 +1757,9 @@ import type {
   UnexposeSkillData,
   UnexposeSkillErrors,
   UnexposeSkillResponses,
+  UnlinkRemoteData,
+  UnlinkRemoteErrors,
+  UnlinkRemoteResponses,
   UnpinCmdPaletteCommandData,
   UnpinCmdPaletteCommandErrors,
   UnpinCmdPaletteCommandResponses,
@@ -1804,6 +1920,384 @@ class HeyApiRegistry<T> {
 
   set(value: T, key?: string): void {
     this.instances.set(key ?? this.defaultKey, value);
+  }
+}
+
+export class account extends HeyApiClient {
+  /**
+   * Start account deletion and sign out
+   */
+  public deleteAccount<ThrowOnError extends boolean = true>(
+    options: Options<DeleteAccountData, ThrowOnError>
+  ): RequestResult<DeleteAccountResponses, DeleteAccountErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      DeleteAccountResponses,
+      DeleteAccountErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read the installation account
+   */
+  public getAccount<ThrowOnError extends boolean = true>(
+    options?: Options<GetAccountData, ThrowOnError>
+  ): RequestResult<GetAccountResponses, GetAccountErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      GetAccountResponses,
+      GetAccountErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account",
+      ...options,
+    });
+  }
+
+  /**
+   * Update the product news preference
+   */
+  public patchAccountEmail<ThrowOnError extends boolean = true>(
+    options: Options<PatchAccountEmailData, ThrowOnError>
+  ): RequestResult<PatchAccountEmailResponses, PatchAccountEmailErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchAccountEmailResponses,
+      PatchAccountEmailErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List pending and recently decided approvals
+   */
+  public listAccountApprovals<ThrowOnError extends boolean = true>(
+    options?: Options<ListAccountApprovalsData, ThrowOnError>
+  ): RequestResult<
+    ListAccountApprovalsResponses,
+    ListAccountApprovalsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListAccountApprovalsResponses,
+      ListAccountApprovalsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/approvals",
+      ...options,
+    });
+  }
+
+  /**
+   * Read an approval and its applied result
+   */
+  public getAccountApproval<ThrowOnError extends boolean = true>(
+    options: Options<GetAccountApprovalData, ThrowOnError>
+  ): RequestResult<GetAccountApprovalResponses, GetAccountApprovalErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAccountApprovalResponses,
+      GetAccountApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/approvals/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Deliver an approval decision
+   */
+  public decideAccountApproval<ThrowOnError extends boolean = true>(
+    options: Options<DecideAccountApprovalData, ThrowOnError>
+  ): RequestResult<
+    DecideAccountApprovalResponses,
+    DecideAccountApprovalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      DecideAccountApprovalResponses,
+      DecideAccountApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/approvals/{id}/decision",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Open account billing
+   */
+  public accountBillingPortal<ThrowOnError extends boolean = true>(
+    options?: Options<AccountBillingPortalData, ThrowOnError>
+  ): RequestResult<
+    AccountBillingPortalResponses,
+    AccountBillingPortalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).post<
+      AccountBillingPortalResponses,
+      AccountBillingPortalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/billing-portal",
+      ...options,
+    });
+  }
+
+  /**
+   * Start a Pro checkout
+   */
+  public checkoutAccount<ThrowOnError extends boolean = true>(
+    options: Options<CheckoutAccountData, ThrowOnError>
+  ): RequestResult<CheckoutAccountResponses, CheckoutAccountErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CheckoutAccountResponses,
+      CheckoutAccountErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/checkout",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List the account's devices
+   */
+  public listAccountDevices<ThrowOnError extends boolean = true>(
+    options?: Options<ListAccountDevicesData, ThrowOnError>
+  ): RequestResult<ListAccountDevicesResponses, ListAccountDevicesErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListAccountDevicesResponses,
+      ListAccountDevicesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/devices",
+      ...options,
+    });
+  }
+
+  /**
+   * Revoke a device on this account
+   */
+  public revokeAccountDevice<ThrowOnError extends boolean = true>(
+    options: Options<RevokeAccountDeviceData, ThrowOnError>
+  ): RequestResult<RevokeAccountDeviceResponses, RevokeAccountDeviceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RevokeAccountDeviceResponses,
+      RevokeAccountDeviceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/devices/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Update a device on this account
+   */
+  public patchAccountDevice<ThrowOnError extends boolean = true>(
+    options: Options<PatchAccountDeviceData, ThrowOnError>
+  ): RequestResult<PatchAccountDeviceResponses, PatchAccountDeviceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchAccountDeviceResponses,
+      PatchAccountDeviceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/devices/{id}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Cancel account sign-in
+   */
+  public cancelAccountLogin<ThrowOnError extends boolean = true>(
+    options?: Options<CancelAccountLoginData, ThrowOnError>
+  ): RequestResult<CancelAccountLoginResponses, CancelAccountLoginErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).delete<
+      CancelAccountLoginResponses,
+      CancelAccountLoginErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/login",
+      ...options,
+    });
+  }
+
+  /**
+   * Start account sign-in
+   */
+  public startAccountLogin<ThrowOnError extends boolean = true>(
+    options?: Options<StartAccountLoginData, ThrowOnError>
+  ): RequestResult<StartAccountLoginResponses, StartAccountLoginErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).post<
+      StartAccountLoginResponses,
+      StartAccountLoginErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/login",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
+  }
+
+  /**
+   * Sign out this installation
+   */
+  public logoutAccount<ThrowOnError extends boolean = true>(
+    options?: Options<LogoutAccountData, ThrowOnError>
+  ): RequestResult<LogoutAccountResponses, LogoutAccountErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).post<
+      LogoutAccountResponses,
+      LogoutAccountErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/logout",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
+  }
+
+  /**
+   * Dismiss sign-in notices on this installation
+   */
+  public dismissAccountSignInNotices<ThrowOnError extends boolean = true>(
+    options?: Options<DismissAccountSignInNoticesData, ThrowOnError>
+  ): RequestResult<
+    DismissAccountSignInNoticesResponses,
+    DismissAccountSignInNoticesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).post<
+      DismissAccountSignInNoticesResponses,
+      DismissAccountSignInNoticesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/sign-in-notices/dismiss",
+      ...options,
+    });
+  }
+
+  /**
+   * List account tokens
+   */
+  public listAccountTokens<ThrowOnError extends boolean = true>(
+    options?: Options<ListAccountTokensData, ThrowOnError>
+  ): RequestResult<ListAccountTokensResponses, ListAccountTokensErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListAccountTokensResponses,
+      ListAccountTokensErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/tokens",
+      ...options,
+    });
+  }
+
+  /**
+   * Create an account token for local use
+   */
+  public createAccountToken<ThrowOnError extends boolean = true>(
+    options: Options<CreateAccountTokenData, ThrowOnError>
+  ): RequestResult<CreateAccountTokenResponses, CreateAccountTokenErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CreateAccountTokenResponses,
+      CreateAccountTokenErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/tokens",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Revoke an account token
+   */
+  public revokeAccountToken<ThrowOnError extends boolean = true>(
+    options: Options<RevokeAccountTokenData, ThrowOnError>
+  ): RequestResult<RevokeAccountTokenResponses, RevokeAccountTokenErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RevokeAccountTokenResponses,
+      RevokeAccountTokenErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/tokens/{id}",
+      ...options,
+    });
   }
 }
 
@@ -4420,6 +4914,295 @@ export class cmdPalette extends HeyApiClient {
   }
 }
 
+export class computers extends HeyApiClient {
+  /**
+   * List computers added to this controller
+   */
+  public listComputers<ThrowOnError extends boolean = true>(
+    options?: Options<ListComputersData, ThrowOnError>
+  ): RequestResult<ListComputersResponses, ListComputersErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListComputersResponses,
+      ListComputersErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers",
+      ...options,
+    });
+  }
+
+  /**
+   * Add a linked account computer or start SSH setup
+   */
+  public addAccountComputer<ThrowOnError extends boolean = true>(
+    options: Options<AddAccountComputerData, ThrowOnError>
+  ): RequestResult<AddAccountComputerResponses, AddAccountComputerErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      AddAccountComputerResponses,
+      AddAccountComputerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List linked computers available to add
+   */
+  public listAvailableComputers<ThrowOnError extends boolean = true>(
+    options?: Options<ListAvailableComputersData, ThrowOnError>
+  ): RequestResult<
+    ListAvailableComputersResponses,
+    ListAvailableComputersErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListAvailableComputersResponses,
+      ListAvailableComputersErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/available",
+      ...options,
+    });
+  }
+
+  /**
+   * Update local execution and load balancing
+   */
+  public patchLocalComputer<ThrowOnError extends boolean = true>(
+    options: Options<PatchLocalComputerData, ThrowOnError>
+  ): RequestResult<PatchLocalComputerResponses, PatchLocalComputerErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchLocalComputerResponses,
+      PatchLocalComputerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/local",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Resolve Auto placement for a project
+   */
+  public previewComputerPlacement<ThrowOnError extends boolean = true>(
+    options: Options<PreviewComputerPlacementData, ThrowOnError>
+  ): RequestResult<
+    PreviewComputerPlacementResponses,
+    PreviewComputerPlacementErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      PreviewComputerPlacementResponses,
+      PreviewComputerPlacementErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/placement",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Cancel an unlinked SSH setup
+   */
+  public cancelComputerSetup<ThrowOnError extends boolean = true>(
+    options: Options<CancelComputerSetupData, ThrowOnError>
+  ): RequestResult<CancelComputerSetupResponses, CancelComputerSetupErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      CancelComputerSetupResponses,
+      CancelComputerSetupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/setups/{setup_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Read or wait for SSH setup progress
+   */
+  public getComputerSetup<ThrowOnError extends boolean = true>(
+    options: Options<GetComputerSetupData, ThrowOnError>
+  ): RequestResult<GetComputerSetupResponses, GetComputerSetupErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetComputerSetupResponses,
+      GetComputerSetupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/setups/{setup_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Answer an SSH setup prompt
+   */
+  public answerComputerSetup<ThrowOnError extends boolean = true>(
+    options: Options<AnswerComputerSetupData, ThrowOnError>
+  ): RequestResult<AnswerComputerSetupResponses, AnswerComputerSetupErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      AnswerComputerSetupResponses,
+      AnswerComputerSetupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/setups/{setup_id}/answer",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Discover SSH hosts on the controller
+   */
+  public listComputerSSHHosts<ThrowOnError extends boolean = true>(
+    options?: Options<ListComputerSSHHostsData, ThrowOnError>
+  ): RequestResult<
+    ListComputerSSHHostsResponses,
+    ListComputerSSHHostsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListComputerSSHHostsResponses,
+      ListComputerSSHHostsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/ssh-hosts",
+      ...options,
+    });
+  }
+
+  /**
+   * Remove a computer from this controller
+   */
+  public removeComputer<ThrowOnError extends boolean = true>(
+    options: Options<RemoveComputerData, ThrowOnError>
+  ): RequestResult<RemoveComputerResponses, RemoveComputerErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RemoveComputerResponses,
+      RemoveComputerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Inspect a computer and its routes
+   */
+  public getComputer<ThrowOnError extends boolean = true>(
+    options: Options<GetComputerData, ThrowOnError>
+  ): RequestResult<GetComputerResponses, GetComputerErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetComputerResponses,
+      GetComputerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Update a computer in this controller
+   */
+  public patchComputer<ThrowOnError extends boolean = true>(
+    options: Options<PatchComputerData, ThrowOnError>
+  ): RequestResult<PatchComputerResponses, PatchComputerErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchComputerResponses,
+      PatchComputerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/{id}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove a learned route
+   */
+  public removeComputerRoute<ThrowOnError extends boolean = true>(
+    options: Options<RemoveComputerRouteData, ThrowOnError>
+  ): RequestResult<RemoveComputerRouteResponses, RemoveComputerRouteErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RemoveComputerRouteResponses,
+      RemoveComputerRouteErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/{id}/routes/{route_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Start an SSH computer update
+   */
+  public startComputerUpdate<ThrowOnError extends boolean = true>(
+    options: Options<StartComputerUpdateData, ThrowOnError>
+  ): RequestResult<StartComputerUpdateResponses, StartComputerUpdateErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      StartComputerUpdateResponses,
+      StartComputerUpdateErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/{id}/update",
+      ...options,
+    });
+  }
+}
+
 export class diagnostics extends HeyApiClient {
   /**
    * Capture a runtime profile over the local socket
@@ -4478,6 +5261,24 @@ export class diagnostics extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/drain",
+      ...options,
+    });
+  }
+
+  /**
+   * Get the latest host resource sample
+   */
+  public getHostResources<ThrowOnError extends boolean = true>(
+    options?: Options<GetHostResourcesData, ThrowOnError>
+  ): RequestResult<GetHostResourcesResponses, unknown, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      GetHostResourcesResponses,
+      unknown,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/host/resources",
       ...options,
     });
   }
@@ -4822,6 +5623,46 @@ export class extensions extends HeyApiClient {
   }
 
   /**
+   * Read declared extension inputs and their setup state without values
+   */
+  public getExtensionInputs<ThrowOnError extends boolean = true>(
+    options: Options<GetExtensionInputsData, ThrowOnError>
+  ): RequestResult<GetExtensionInputsResponses, GetExtensionInputsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetExtensionInputsResponses,
+      GetExtensionInputsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/extensions/{name}/inputs",
+      ...options,
+    });
+  }
+
+  /**
+   * Write extension input values for one installed instance
+   */
+  public setExtensionInputs<ThrowOnError extends boolean = true>(
+    options: Options<SetExtensionInputsData, ThrowOnError>
+  ): RequestResult<SetExtensionInputsResponses, SetExtensionInputsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      SetExtensionInputsResponses,
+      SetExtensionInputsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/extensions/{name}/inputs",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * List shipped and live resources for one extension
    */
   public getExtensionInventory<ThrowOnError extends boolean = true>(
@@ -5037,305 +5878,6 @@ export class filesystem extends HeyApiClient {
   }
 }
 
-export class gateway extends HeyApiClient {
-  /**
-   * Audit the current gateway security posture
-   */
-  public getGatewayAudit<ThrowOnError extends boolean = true>(
-    options?: Options<GetGatewayAuditData, ThrowOnError>
-  ): RequestResult<GetGatewayAuditResponses, GetGatewayAuditErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      GetGatewayAuditResponses,
-      GetGatewayAuditErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/audit",
-      ...options,
-    });
-  }
-
-  /**
-   * List the operator-global paired device inventory
-   */
-  public listGatewayDevices<ThrowOnError extends boolean = true>(
-    options?: Options<ListGatewayDevicesData, ThrowOnError>
-  ): RequestResult<ListGatewayDevicesResponses, ListGatewayDevicesErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      ListGatewayDevicesResponses,
-      ListGatewayDevicesErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/devices",
-      ...options,
-    });
-  }
-
-  /**
-   * Revoke one paired gateway device and its live streams
-   */
-  public revokeGatewayDevice<ThrowOnError extends boolean = true>(
-    options: Options<RevokeGatewayDeviceData, ThrowOnError>
-  ): RequestResult<RevokeGatewayDeviceResponses, RevokeGatewayDeviceErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      RevokeGatewayDeviceResponses,
-      RevokeGatewayDeviceErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/devices/{id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Rename one paired gateway device
-   */
-  public renameGatewayDevice<ThrowOnError extends boolean = true>(
-    options: Options<RenameGatewayDeviceData, ThrowOnError>
-  ): RequestResult<RenameGatewayDeviceResponses, RenameGatewayDeviceErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).patch<
-      RenameGatewayDeviceResponses,
-      RenameGatewayDeviceErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/devices/{id}",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Remove one paired gateway device record
-   */
-  public removeGatewayDevice<ThrowOnError extends boolean = true>(
-    options: Options<RemoveGatewayDeviceData, ThrowOnError>
-  ): RequestResult<RemoveGatewayDeviceResponses, RemoveGatewayDeviceErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      RemoveGatewayDeviceResponses,
-      RemoveGatewayDeviceErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/devices/{id}/record",
-      ...options,
-    });
-  }
-
-  /**
-   * Confirm one subject against the verified public endpoint
-   */
-  public bindGatewayIngress<ThrowOnError extends boolean = true>(
-    options: Options<BindGatewayIngressData, ThrowOnError>
-  ): RequestResult<BindGatewayIngressResponses, BindGatewayIngressErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      BindGatewayIngressResponses,
-      BindGatewayIngressErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/ingress-bindings",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Remove one public ingress confirmation
-   */
-  public unbindGatewayIngress<ThrowOnError extends boolean = true>(
-    options: Options<UnbindGatewayIngressData, ThrowOnError>
-  ): RequestResult<
-    UnbindGatewayIngressResponses,
-    UnbindGatewayIngressErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).delete<
-      UnbindGatewayIngressResponses,
-      UnbindGatewayIngressErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Mint a bounded one-time gateway pairing artifact
-   */
-  public mintGatewayPairing<ThrowOnError extends boolean = true>(
-    options?: Options<MintGatewayPairingData, ThrowOnError>
-  ): RequestResult<MintGatewayPairingResponses, MintGatewayPairingErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).post<
-      MintGatewayPairingResponses,
-      MintGatewayPairingErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/pairings",
-      ...options,
-    });
-  }
-
-  /**
-   * Redeem a one-time gateway pairing artifact
-   */
-  public redeemGatewayPairing<ThrowOnError extends boolean = true>(
-    options: Options<RedeemGatewayPairingData, ThrowOnError>
-  ): RequestResult<
-    RedeemGatewayPairingResponses,
-    RedeemGatewayPairingErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      RedeemGatewayPairingResponses,
-      RedeemGatewayPairingErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/pairings/redeem",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Disable one named connectivity provider for a gateway tier
-   */
-  public disableGatewayProvider<ThrowOnError extends boolean = true>(
-    options: Options<DisableGatewayProviderData, ThrowOnError>
-  ): RequestResult<
-    DisableGatewayProviderResponses,
-    DisableGatewayProviderErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      DisableGatewayProviderResponses,
-      DisableGatewayProviderErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/providers/{name}/disable",
-      ...options,
-    });
-  }
-
-  /**
-   * Enable one connectivity provider for a gateway tier
-   */
-  public enableGatewayProvider<ThrowOnError extends boolean = true>(
-    options: Options<EnableGatewayProviderData, ThrowOnError>
-  ): RequestResult<
-    EnableGatewayProviderResponses,
-    EnableGatewayProviderErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      EnableGatewayProviderResponses,
-      EnableGatewayProviderErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/providers/{name}/enable",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Get the operator-global gateway posture
-   */
-  public getGatewayStatus<ThrowOnError extends boolean = true>(
-    options?: Options<GetGatewayStatusData, ThrowOnError>
-  ): RequestResult<GetGatewayStatusResponses, GetGatewayStatusErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      GetGatewayStatusResponses,
-      GetGatewayStatusErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/status",
-      ...options,
-    });
-  }
-
-  /**
-   * Mint a short-lived single-use stream ticket
-   */
-  public mintGatewayStreamTicket<ThrowOnError extends boolean = true>(
-    options?: Options<MintGatewayStreamTicketData, ThrowOnError>
-  ): RequestResult<
-    MintGatewayStreamTicketResponses,
-    MintGatewayStreamTicketErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options?.client ?? this.client).post<
-      MintGatewayStreamTicketResponses,
-      MintGatewayStreamTicketErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/stream-tickets",
-      ...options,
-    });
-  }
-
-  /**
-   * Set durable exposure for one gateway surface
-   */
-  public setGatewaySurface<ThrowOnError extends boolean = true>(
-    options: Options<SetGatewaySurfaceData, ThrowOnError>
-  ): RequestResult<SetGatewaySurfaceResponses, SetGatewaySurfaceErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      SetGatewaySurfaceResponses,
-      SetGatewaySurfaceErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/surfaces",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-}
-
 export class hooks extends HeyApiClient {
   /**
    * List the resolved hook catalog
@@ -5387,6 +5929,48 @@ export class hooks extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/hooks/runs",
+      ...options,
+    });
+  }
+}
+
+export class ingress extends HeyApiClient {
+  /**
+   * Confirm one subject against the verified public endpoint
+   */
+  public bindIngress<ThrowOnError extends boolean = true>(
+    options: Options<BindIngressData, ThrowOnError>
+  ): RequestResult<BindIngressResponses, BindIngressErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      BindIngressResponses,
+      BindIngressErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/ingress/bindings",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove one public ingress confirmation
+   */
+  public unbindIngress<ThrowOnError extends boolean = true>(
+    options: Options<UnbindIngressData, ThrowOnError>
+  ): RequestResult<UnbindIngressResponses, UnbindIngressErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      UnbindIngressResponses,
+      UnbindIngressErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/ingress/bindings/{subject_kind}/{subject_id}",
       ...options,
     });
   }
@@ -7844,6 +8428,54 @@ export class settings extends HeyApiClient {
   }
 }
 
+export class migrationNotices extends HeyApiClient {
+  /**
+   * List undismissed upgrade notices on this computer
+   */
+  public listMigrationNotices<ThrowOnError extends boolean = true>(
+    options?: Options<ListMigrationNoticesData, ThrowOnError>
+  ): RequestResult<
+    ListMigrationNoticesResponses,
+    ListMigrationNoticesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListMigrationNoticesResponses,
+      ListMigrationNoticesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/migration-notices",
+      ...options,
+    });
+  }
+
+  /**
+   * Dismiss an upgrade notice on this computer
+   */
+  public dismissMigrationNotice<ThrowOnError extends boolean = true>(
+    options: Options<DismissMigrationNoticeData, ThrowOnError>
+  ): RequestResult<
+    DismissMigrationNoticeResponses,
+    DismissMigrationNoticeErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      DismissMigrationNoticeResponses,
+      DismissMigrationNoticeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/migration-notices/{key}/dismiss",
+      ...options,
+    });
+  }
+}
+
 export class providers extends HeyApiClient {
   /**
    * List provider model catalog entries across providers
@@ -8430,6 +9062,33 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/sessions",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Archive every stopped thread of one workspace or all workspaces that is not running, waiting on the operator, holding queued input, pinned, in Later, or an always-on agent's main session; dry_run reports the same result without archiving
+   */
+  public archiveStoppedSessions<ThrowOnError extends boolean = true>(
+    options: Options<ArchiveStoppedSessionsData, ThrowOnError>
+  ): RequestResult<
+    ArchiveStoppedSessionsResponses,
+    ArchiveStoppedSessionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ArchiveStoppedSessionsResponses,
+      ArchiveStoppedSessionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/archive-stopped",
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -10959,6 +11618,267 @@ export class profiles extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/profiles/{name}/unarchive",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class remote extends HeyApiClient {
+  /**
+   * Read this computer's remote access status
+   */
+  public getRemoteStatus<ThrowOnError extends boolean = true>(
+    options?: Options<GetRemoteStatusData, ThrowOnError>
+  ): RequestResult<GetRemoteStatusResponses, GetRemoteStatusErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      GetRemoteStatusResponses,
+      GetRemoteStatusErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote",
+      ...options,
+    });
+  }
+
+  /**
+   * Update this computer's remote access
+   */
+  public patchRemoteStatus<ThrowOnError extends boolean = true>(
+    options: Options<PatchRemoteStatusData, ThrowOnError>
+  ): RequestResult<PatchRemoteStatusResponses, PatchRemoteStatusErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchRemoteStatusResponses,
+      PatchRemoteStatusErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List devices allowed on this computer
+   */
+  public listRemoteDevices<ThrowOnError extends boolean = true>(
+    options?: Options<ListRemoteDevicesData, ThrowOnError>
+  ): RequestResult<ListRemoteDevicesResponses, ListRemoteDevicesErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListRemoteDevicesResponses,
+      ListRemoteDevicesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote/devices",
+      ...options,
+    });
+  }
+
+  /**
+   * Revoke a device on this account
+   */
+  public revokeRemoteDevice<ThrowOnError extends boolean = true>(
+    options: Options<RevokeRemoteDeviceData, ThrowOnError>
+  ): RequestResult<RevokeRemoteDeviceResponses, RevokeRemoteDeviceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RevokeRemoteDeviceResponses,
+      RevokeRemoteDeviceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote/devices/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Change device scopes or decide a local approval
+   */
+  public patchRemoteDevice<ThrowOnError extends boolean = true>(
+    options: Options<PatchRemoteDeviceData, ThrowOnError>
+  ): RequestResult<PatchRemoteDeviceResponses, PatchRemoteDeviceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchRemoteDeviceResponses,
+      PatchRemoteDeviceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote/devices/{id}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Unlink this computer from the local daemon
+   */
+  public unlinkRemote<ThrowOnError extends boolean = true>(
+    options?: Options<UnlinkRemoteData, ThrowOnError>
+  ): RequestResult<UnlinkRemoteResponses, UnlinkRemoteErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).delete<
+      UnlinkRemoteResponses,
+      UnlinkRemoteErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote/link",
+      ...options,
+    });
+  }
+
+  /**
+   * Link this computer from the local daemon
+   */
+  public linkRemote<ThrowOnError extends boolean = true>(
+    options: Options<LinkRemoteData, ThrowOnError>
+  ): RequestResult<LinkRemoteResponses, LinkRemoteErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      LinkRemoteResponses,
+      LinkRemoteErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote/link",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read the approval for the waiting browser key
+   */
+  public getBrowserApproval<ThrowOnError extends boolean = true>(
+    options: Options<GetBrowserApprovalData, ThrowOnError>
+  ): RequestResult<GetBrowserApprovalResponses, GetBrowserApprovalErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetBrowserApprovalResponses,
+      GetBrowserApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/remote/v1/browser/approvals/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * List other hosted computers on this account
+   */
+  public listBrowserPeers<ThrowOnError extends boolean = true>(
+    options: Options<ListBrowserPeersData, ThrowOnError>
+  ): RequestResult<ListBrowserPeersResponses, ListBrowserPeersErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListBrowserPeersResponses,
+      ListBrowserPeersErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/remote/v1/browser/peers",
+      ...options,
+    });
+  }
+
+  /**
+   * Revoke the current browser session
+   */
+  public endBrowserSession<ThrowOnError extends boolean = true>(
+    options: Options<EndBrowserSessionData, ThrowOnError>
+  ): RequestResult<EndBrowserSessionResponses, EndBrowserSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      EndBrowserSessionResponses,
+      EndBrowserSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/remote/v1/browser/session",
+      ...options,
+    });
+  }
+
+  /**
+   * Redeem a hosted sign-in code
+   */
+  public startBrowserSession<ThrowOnError extends boolean = true>(
+    options: Options<StartBrowserSessionData, ThrowOnError>
+  ): RequestResult<StartBrowserSessionResponses, StartBrowserSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      StartBrowserSessionResponses,
+      StartBrowserSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/remote/v1/browser/session",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read the hosted listener status
+   */
+  public getBrowserStatus<ThrowOnError extends boolean = true>(
+    options?: Options<GetBrowserStatusData, ThrowOnError>
+  ): RequestResult<GetBrowserStatusResponses, GetBrowserStatusErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      GetBrowserStatusResponses,
+      GetBrowserStatusErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/remote/v1/browser/status",
+      ...options,
+    });
+  }
+
+  /**
+   * Mint a single-use ticket for one stream path
+   */
+  public mintBrowserStreamTicket<ThrowOnError extends boolean = true>(
+    options: Options<MintBrowserStreamTicketData, ThrowOnError>
+  ): RequestResult<
+    MintBrowserStreamTicketResponses,
+    MintBrowserStreamTicketErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      MintBrowserStreamTicketResponses,
+      MintBrowserStreamTicketErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/remote/v1/stream-tickets",
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -14615,6 +15535,11 @@ export class Compozy extends HeyApiClient {
     Compozy.__registry.set(this, args?.key);
   }
 
+  private _account?: account;
+  get account(): account {
+    return (this._account ??= new account({ client: this.client }));
+  }
+
   private _agents?: agents;
   get agents(): agents {
     return (this._agents ??= new agents({ client: this.client }));
@@ -14640,6 +15565,11 @@ export class Compozy extends HeyApiClient {
     return (this._cmdPalette ??= new cmdPalette({ client: this.client }));
   }
 
+  private _computers?: computers;
+  get computers(): computers {
+    return (this._computers ??= new computers({ client: this.client }));
+  }
+
   private _diagnostics?: diagnostics;
   get diagnostics(): diagnostics {
     return (this._diagnostics ??= new diagnostics({ client: this.client }));
@@ -14655,14 +15585,14 @@ export class Compozy extends HeyApiClient {
     return (this._filesystem ??= new filesystem({ client: this.client }));
   }
 
-  private _gateway?: gateway;
-  get gateway(): gateway {
-    return (this._gateway ??= new gateway({ client: this.client }));
-  }
-
   private _hooks?: hooks;
   get hooks(): hooks {
     return (this._hooks ??= new hooks({ client: this.client }));
+  }
+
+  private _ingress?: ingress;
+  get ingress(): ingress {
+    return (this._ingress ??= new ingress({ client: this.client }));
   }
 
   private _logs?: logs;
@@ -14683,6 +15613,11 @@ export class Compozy extends HeyApiClient {
   private _settings?: settings;
   get settings(): settings {
     return (this._settings ??= new settings({ client: this.client }));
+  }
+
+  private _migrationNotices?: migrationNotices;
+  get migrationNotices(): migrationNotices {
+    return (this._migrationNotices ??= new migrationNotices({ client: this.client }));
   }
 
   private _providers?: providers;
@@ -14718,6 +15653,11 @@ export class Compozy extends HeyApiClient {
   private _profiles?: profiles;
   get profiles(): profiles {
     return (this._profiles ??= new profiles({ client: this.client }));
+  }
+
+  private _remote?: remote;
+  get remote(): remote {
+    return (this._remote ??= new remote({ client: this.client }));
   }
 
   private _resources?: resources;

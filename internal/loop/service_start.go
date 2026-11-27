@@ -150,6 +150,9 @@ func (s *service) prepareResolvedStart(
 	origin RunOrigin,
 	actor task.ActorContext,
 ) (Run, error) {
+	if err := s.checkLocalExecution(); err != nil {
+		return Run{}, err
+	}
 	inputs.ProfileID = strings.TrimSpace(inputs.ProfileID)
 	if inputs.ProfileID == "" {
 		return Run{}, fmt.Errorf("%w: profile id is required", ErrValidation)
@@ -214,6 +217,17 @@ func (s *service) prepareResolvedStart(
 		policy,
 		actor,
 	)
+}
+
+func WithLocalExecutionChecker(check func() error) Option {
+	return func(s *service) { s.localExecution = check }
+}
+
+func (s *service) checkLocalExecution() error {
+	if s.localExecution == nil {
+		return nil
+	}
+	return s.localExecution()
 }
 
 func (s *service) resolveGoalRunPolicy(ctx context.Context, ws WorkspaceID) (GoalRunPolicy, error) {

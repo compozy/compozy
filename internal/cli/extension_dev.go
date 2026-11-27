@@ -29,7 +29,6 @@ type extensionDevClient interface {
 func newExtensionDevCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
 	var watch bool
-	var confirmGatewayDigest string
 	command := &cobra.Command{
 		Use:   "dev [directory]",
 		Short: "Build and link an extension to the current workspace",
@@ -44,9 +43,8 @@ func newExtensionDevCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			item, err := client.DevExtension(cmd.Context(), workspace.ID, DevLinkExtensionRequest{
-				OriginPath:           sourceDir,
-				GenerationHash:       result.GenerationHash,
-				ConfirmGatewayDigest: confirmGatewayDigest,
+				OriginPath:     sourceDir,
+				GenerationHash: result.GenerationHash,
 			})
 			if err != nil {
 				return err
@@ -62,18 +60,11 @@ func newExtensionDevCommand(deps commandDeps) *cobra.Command {
 	}
 	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
 	command.Flags().BoolVar(&watch, "watch", false, "Build and reload when source files change")
-	command.Flags().StringVar(
-		&confirmGatewayDigest,
-		"confirm-gateway-requirement",
-		"",
-		"Confirm the exact gateway permission digest",
-	)
 	return command
 }
 
 func newExtensionReloadCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
-	var confirmGatewayDigest string
 	command := &cobra.Command{
 		Use:   "reload <name> [directory]",
 		Short: "Build and atomically reload a dev-linked extension",
@@ -103,8 +94,7 @@ func newExtensionReloadCommand(deps commandDeps) *cobra.Command {
 				workspace.ID,
 				args[0],
 				ReloadExtensionRequest{
-					GenerationHash:       result.GenerationHash,
-					ConfirmGatewayDigest: confirmGatewayDigest,
+					GenerationHash: result.GenerationHash,
 				},
 			)
 			if err != nil {
@@ -114,12 +104,6 @@ func newExtensionReloadCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
-	command.Flags().StringVar(
-		&confirmGatewayDigest,
-		"confirm-gateway-requirement",
-		"",
-		"Confirm the exact gateway permission digest",
-	)
 	return command
 }
 

@@ -13,7 +13,34 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/vault"
 	"github.com/spf13/cobra"
+	keyring "github.com/zalando/go-keyring"
 )
+
+type memoryCredentialKeyring struct {
+	values map[string]string
+}
+
+func (k *memoryCredentialKeyring) Get(service, user string) (string, error) {
+	value, ok := k.values[service+"\x00"+user]
+	if !ok {
+		return "", keyring.ErrNotFound
+	}
+	return value, nil
+}
+
+func (k *memoryCredentialKeyring) Set(service, user, password string) error {
+	k.values[service+"\x00"+user] = password
+	return nil
+}
+
+func (k *memoryCredentialKeyring) Delete(service, user string) error {
+	key := service + "\x00" + user
+	if _, ok := k.values[key]; !ok {
+		return keyring.ErrNotFound
+	}
+	delete(k.values, key)
+	return nil
+}
 
 func TestVaultCommands(t *testing.T) {
 	t.Parallel()

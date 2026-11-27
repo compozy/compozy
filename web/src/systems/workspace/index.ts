@@ -62,8 +62,9 @@ export {
 export type { BreadthMode, DataScope, Focus, FocusedDataScope } from "./lib/destination";
 export { toWorkspaceCommandSelectOptions } from "./lib/workspace-command-select-options";
 export { workspaceProviderToOption } from "./lib/provider-runtime-option";
-export { workspaceKeys } from "./lib/query-keys";
+export { workspaceKeys, workspaceKeysFor } from "./lib/query-keys";
 export {
+  computerWorkspacesOptions,
   workspaceDetailOptions,
   worktreeDetailOptions,
   worktreeExitPlanOptions,

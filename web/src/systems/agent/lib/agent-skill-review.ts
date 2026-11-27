@@ -20,6 +20,8 @@ export interface SkillReviewFile {
   change?: SkillFileChange;
   /** Edit reviews: the installed text of a modified file, for the diff. */
   baseBody?: string;
+  /** The diff uses a redacted copy of the installed file. */
+  baseRedacted?: boolean;
   /** An installed file that isn't text: only its name and size are shown. */
   binarySize?: number;
 }
@@ -112,7 +114,7 @@ function editReviewFiles(review: AgentSkillReviewPayload): SkillReviewFile[] {
       automatic: change !== "removed" && isAutomatic(path, body),
       change: change as SkillFileChange,
       ...(change === "modified" && installed && !installed.binary
-        ? { baseBody: installed.content ?? "" }
+        ? { baseBody: installed.content ?? "", baseRedacted: installed.redacted }
         : {}),
       ...(binary ? { binarySize: installed?.size ?? 0 } : {}),
     };

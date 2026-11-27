@@ -1,4 +1,5 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
+import { apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
 import type {
   SessionLinkedWorkResponse,
@@ -39,10 +40,11 @@ function mutationParams(workspaceId: string, sessionId: string, profile: string)
 export async function fetchSessionLinkedWork(
   workspaceId: string,
   sessionId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionLinkedWorkResponse> {
   const fallback = `Failed to read what is linked to session "${sessionId}"`;
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
     { params: { path: linksPath(workspaceId, sessionId), query: { all_profiles: true } }, signal }
   );
@@ -57,10 +59,11 @@ export async function addSessionWorkLink(
   sessionId: string,
   profile: string,
   body: SessionWorkLinkRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionLinkedWorkResponse> {
   const fallback = "Couldn't link this to the session";
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
     { params: mutationParams(workspaceId, sessionId, profile), body, signal }
   );
@@ -75,10 +78,11 @@ export async function removeSessionWorkLink(
   sessionId: string,
   profile: string,
   body: SessionWorkLinkRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionLinkedWorkResponse> {
   const fallback = "Couldn't unlink this from the session";
-  const { data, error, response } = await apiClient.DELETE(
+  const { data, error, response } = await apiClientFor(computerId).DELETE(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
     { params: mutationParams(workspaceId, sessionId, profile), body, signal }
   );
@@ -94,10 +98,11 @@ export async function refreshSessionWorkLink(
   sessionId: string,
   profile: string,
   body: SessionWorkLinkRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionLinkedWorkResponse> {
   const fallback = "Couldn't refresh this";
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/links/refresh",
     { params: mutationParams(workspaceId, sessionId, profile), body, signal }
   );
@@ -111,10 +116,11 @@ export async function searchSessionLinkCandidates(
   workspaceId: string,
   sessionId: string,
   { q, kind, page, limit }: SessionLinkCandidateQuery,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionWorkCandidates> {
   const fallback = "Couldn't search this project";
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/link-candidates",
     {
       params: {

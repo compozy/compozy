@@ -10,7 +10,7 @@ describe("terminalKeys", () => {
     const recordings = terminalKeys.recordings(scope);
     const artifact = terminalKeys.recording(scope, "rec-1");
 
-    expect(recordings).toEqual(["terminal", "recordings", "ws-atlas", "work"]);
+    expect(recordings).toEqual(["computer", "local", "terminal", "recordings", "ws-atlas", "work"]);
     expect(artifact).not.toEqual(recordings);
     expect(terminalKeys.recordings({ workspaceId: "ws-other", profileKey: "work" })).not.toEqual(
       recordings

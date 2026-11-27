@@ -483,7 +483,7 @@ func (p exportPolicy) registeredSpanName(name string) bool {
 func mountedRouteTemplates() []string {
 	httpEngine, udsEngine := gin.New(), gin.New()
 	ginutil.QuietDebug(func() {
-		httpapi.RegisterSurfaceRoutes(httpEngine, &httpapi.Handlers{}, httpapi.SurfaceSetLocal)
+		httpapi.RegisterRoutes(httpEngine, &httpapi.Handlers{})
 		udsapi.RegisterRoutes(udsEngine, &udsapi.Handlers{})
 	})
 	return slices.Concat(ginutil.RouteTemplates(httpEngine), ginutil.RouteTemplates(udsEngine))

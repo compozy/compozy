@@ -128,6 +128,18 @@ QA impact 2026-11-18 (#1829, #1830, #1831), using only local OAuth and MCP fixtu
 
 The OAuth adapter and executor suites cover these fixture walks.
 
+QA impact 2026-11-26 (#2007), using only local OAuth and MCP fixtures:
+
+- Advertise `offline_access` only in protected-resource `scopes_supported` and omit the issuer's
+  `scopes_supported` while it allows `refresh_token`. Verify the authorization request (DCR and CIMD
+  clients) includes `offline_access`. Repeat with an issuer scope list that omits it and confirm
+  the request does not add it.
+- Have the token endpoint grant fewer scopes than requested. Expect the callback to complete as
+  `authenticated` instead of `changed`/`login_session_stale`, status to list the granted scopes,
+  and a later refresh and bearer use to keep working. Add a scope to the server's configured
+  `auth.scopes` and confirm the token stops binding until a new login. Tokens stored before this
+  change keep validating against their granted scopes.
+
 QA impact 2026-11-19 (MCP OAuth callback page): `GET /api/mcp/oauth/callback` keeps its status codes
 (200 connected; 400 declined, expired, changed or failed; 503 unavailable runtime or unusable
 redirect URI) and now classifies the failure in the HTML page. Every response carries a

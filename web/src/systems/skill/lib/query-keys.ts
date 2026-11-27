@@ -1,5 +1,7 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+
 export const skillKeys = {
-  all: ["skills"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "skills"),
   listScope: (workspace: string) => [...skillKeys.all, "list", workspace] as const,
   list: (workspace: string, profile?: string) =>
     [...skillKeys.listScope(workspace), profile ?? ""] as const,

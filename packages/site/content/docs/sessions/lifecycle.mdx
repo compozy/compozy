@@ -224,6 +224,8 @@ Two operational details matter here:
 - `runtime` is a prompt-bound snapshot of `provider`, `model`, `reasoning_effort`, `speed`, and typed
   ACP options. The
   accepted snapshot is retained with the turn and is not rewritten by later runtime changes.
+  Provide the reasoning effort once. A typed ACP selection for the same option is rejected even
+  when the provider announces that option after changing models.
 - If a snapshot keeps the same provider, CompozyOS configures the existing ACP session in place when
   the provider exposes the needed live options. A provider or harness change replaces the process
   and replays the stored transcript into the replacement ACP session as a
@@ -345,6 +347,10 @@ whether a turn was running, and the provider's live-apply semantics. With a `nex
 events recorded after the marker carry the new runtime; with a `next_turn` provider, the rest of the
 running turn keeps the runtime it started with, and the next turn uses the new one.
 
+During session startup and after a live model switch, CompozyOS briefly waits for the provider to
+announce the requested reasoning effort. If the provider never advertises it, configuration fails
+with the existing missing-option or unsupported-effort error.
+
 Workspace provider options report when an applied change reaches the agent as
 `runtime_live_apply`:
 
@@ -455,9 +461,11 @@ affect a newer turn.
 ### Runtime activity supervision
 
 Supervision inspects every live session. Provider updates restart the quiet window.
-Fresh evidence of ongoing work keeps the session alive: a verified running tool, an active child, a recently
-reconciled Loop run, a held task lease, a scheduled wait with a future deadline, or a reply the
-session is awaiting (`awaiting_reply`). A session that sent `compozy__session_prompt` with
+Verified running tools, recently reconciled Loop runs, held task leases, scheduled waits with
+future deadlines, and awaited replies (`awaiting_reply`) keep the session alive. A child counts
+while it starts, stops, runs a turn, or has current evidence of a wait such as an armed monitor.
+An unfinished subagent delegation still counts between turns until it settles.
+A session that sent `compozy__session_prompt` with
 `notify_on_complete: true` stays alive while the session it asked is live, and while the reply
 wake is waiting to be delivered. An interim reply leaves the watch outstanding while the target
 finishes its work. The original `session.messaging.reply_watch_ttl` (24 hours by default) also caps
@@ -513,9 +521,11 @@ successful release.
 The next prompt from any surface (composer, CLI, HTTP/UDS, a reply delivery, or a wake) binds a
 runtime again without a Resume step:
 
-- CompozyOS reloads the same ACP session with `session/load`.
+- CompozyOS reloads the same ACP session with `session/load`, which has a 90-second default budget.
 - If the load fails, it starts a fresh ACP session and replays the bounded transcript
-  (`session.derive.max_replay_bytes`).
+  (`session.derive.max_replay_bytes`). If the load timed out and replay also fails, HTTP and UDS
+  return `504 session_rebind_timeout` with `retryable: true`. The web composer keeps your draft.
+  Retry the prompt, or use Continue or Fork to carry the conversation to a fresh provider session.
 - If the prompt selects a different provider or model, it binds that route and carries the
   transcript, as a live runtime switch does.
 
@@ -905,6 +915,58 @@ in one transaction. Continued and forked sessions are never included, and the wa
 session's workspace and profile. With `--stop`, live children stop first and a failed stop archives
 nothing. `GET /api/workspaces/:workspace/sessions/:id/descendants` lists what the option includes.
 Unarchiving restores subagents with their parent; restore other children one by one.
+
+### Archiving every stopped thread
+
+Archive stopped archives, in one request, every stopped thread of one project or of all
+unarchived projects of the active profile. A thread is a top-level session with everything nested
+under it: child sessions, subagents, and side chats. It archives whole or not at all, and nothing is
+stopped.
+
+```bash
+curl -X POST http://localhost:2123/api/sessions/archive-stopped \
+  -H 'Content-Type: application/json' \
+  -d '{"workspace_id": "ws_alpha", "dry_run": true}'
+```
+
+Send exactly one of `workspace_id` or `all_workspaces: true`; `?profile=` selects another profile,
+and `all_profiles` is refused. The same route serves UDS. With `dry_run: true` the response reports
+what would be archived and changes nothing. App tokens are denied.
+
+A thread is skipped, with the first matching reason, when:
+
+| Reason           | When                                                                     |
+| ---------------- | ------------------------------------------------------------------------ |
+| `instance_main`  | A session in it is the main session of an always-on agent.               |
+| `running`        | A session in it is not stopped, or is resuming.                          |
+| `waiting_on_you` | A session in it has a pending or orphaned permission or clarify request. |
+| `queued_input`   | A session in it has queued or dispatching input.                         |
+| `pinned`         | A session in it is pinned.                                               |
+| `later`          | A session in it is in Later.                                             |
+| `caller`         | The thread contains the session that made the request.                   |
+
+Sessions already archived inside a thread do not block it and are not archived again. Each thread
+archives in its own transaction that checks every rule again, so a thread that changed after the
+read is skipped with its current reason, and one failed thread (`archive_failed`) leaves the others
+archived. A thread that stopped being a top-level thread after the read (archived, deleted or moved
+under another session meanwhile) has nothing left to archive and is left out of the report.
+`archived[].session_ids` lists every session the request archived, top-level session first.
+`archived[].restore_ids` is the same list without subagents, which restore with their parent;
+unarchive those one by one, in order, to undo it. `skip_counts` and `failure_count` count
+every skipped and failed thread, while `skipped` and `failures` list the first 100 and set
+`skipped_truncated` or `failures_truncated` past that.
+
+From the CLI, `compozy session archive --stopped` does the same for the current project, or for
+`--workspace <ref>` or `--all-workspaces`; `--dry-run` previews. It prints a summary such as
+`Archived 14 threads (31 sessions) in platform.` followed by `Skipped 3 threads: 2 waiting_on_you,
+1 running.`, prints the response unchanged with `-o json`, and exits `1` when any thread failed.
+`--stopped` takes no session ID and cannot be combined with `--stop`, `--with-children`, or the
+process flags (exit `2`).
+
+Agents call `compozy__session_archive_stopped` with `{workspace?, all_workspaces?, dry_run?}`. It
+defaults to the caller's workspace and always skips the caller's own thread as `caller`;
+`dry_run: true` runs without approval, and `all_workspaces` needs operator authority or unrestricted
+workspace access.
 
 ## Stop reasons
 

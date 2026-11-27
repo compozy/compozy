@@ -47,7 +47,7 @@ func (m *Manager) restartSkipReason(
 	if restartFailureRequiresOperator(meta.Failure) {
 		return "agent_failure", nil
 	}
-	if checkpoint.Delivery != string(PromptDeliveryNormal) {
+	if PromptDelivery(checkpoint.Delivery).isCommand() {
 		return "maintenance_command", nil
 	}
 	if !sameRestartBinding(checkpoint, meta) {

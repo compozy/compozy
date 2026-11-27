@@ -1,0 +1,250 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
+package billing
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/url"
+	"strconv"
+	"time"
+
+	"github.com/compozy/compozy/internal/cloud/plan"
+	"github.com/compozy/compozy/internal/cloud/store"
+)
+
+// CancelForDeletion runs after the account enters deleting and before its tombstone.
+func (s *Service) CancelForDeletion(ctx context.Context, accountID string) error {
+	if err := s.ExpireCheckouts(ctx, accountID); err != nil {
+		return err
+	}
+	subscriptions, err := s.db.Subscriptions(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	requestedAt, err := s.db.AccountDeletionRequestedAt(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if requestedAt.IsZero() {
+		requestedAt = s.cfg.Now()
+	}
+	var failures []error
+	var refunds []plan.Subscription
+	for _, sub := range subscriptions {
+		if sub.Source != stripeSource {
+			continue
+		}
+		if sub.Entitled(s.cfg.MonthlyPrice, s.cfg.AnnualPrice, s.cfg.Now()) {
+			sub, err = s.cancelForDeletion(ctx, sub)
+			if err != nil {
+				failures = append(failures, err)
+				continue
+			}
+		}
+		// Stripe's ended_at has whole-second precision and may arrive through a webhook during a retry.
+		if sub.Status == stripeStatusCanceled && !sub.EndsAt.Before(requestedAt.Truncate(time.Second)) &&
+			requestedAt.Before(sub.RefundEligibleUntil()) {
+			refunds = append(refunds, sub)
+		}
+	}
+	if err := errors.Join(failures...); err != nil {
+		return err
+	}
+	for _, sub := range refunds {
+		if s.cfg.Stripe == nil {
+			return ErrUnavailable
+		}
+		if err := s.cfg.Stripe.refundInvoice(ctx, sub.LastInvoiceID, sub.ID); err != nil {
+			return err
+		}
+	}
+	return s.db.Transaction(ctx, func(q *store.Queries) error {
+		if err := q.LockPlanAccount(ctx, accountID); err != nil {
+			return err
+		}
+		now := s.cfg.Now()
+		return q.EndComplimentarySubscriptions(ctx, accountID, now)
+	})
+}
+
+func (s *Service) ExpireCheckouts(ctx context.Context, accountID string) error {
+	checkouts, err := s.db.BillingCheckouts(ctx, accountID, true)
+	if err != nil {
+		return err
+	}
+	for _, checkout := range checkouts {
+		if err := s.finishDeletingCheckout(ctx, checkout); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) finishDeletingCheckout(ctx context.Context, checkout store.BillingCheckout) error {
+	if s.cfg.Stripe == nil {
+		return ErrUnavailable
+	}
+	current, err := s.cfg.Stripe.closeCheckout(ctx, checkout.ID)
+	if err != nil {
+		return err
+	}
+	switch current.Status {
+	case stripeCheckoutExpired:
+		return nil
+	case stripeCheckoutComplete:
+		if current.Subscription != "" {
+			return s.refreshSubscription(ctx, current.Subscription, stripeEvent{}, checkout.AccountID)
+		}
+	}
+	return ErrUnavailable
+}
+
+func (s *Service) cancelForDeletion(ctx context.Context, sub plan.Subscription) (plan.Subscription, error) {
+	if s.cfg.Stripe == nil {
+		return sub, ErrUnavailable
+	}
+	var current plan.Subscription
+	err := s.db.Transaction(ctx, func(q *store.Queries) error {
+		if err := q.LockStripeSubscription(ctx, sub.ID); err != nil {
+			return err
+		}
+		if err := q.LockPlanAccount(ctx, sub.AccountID); err != nil {
+			return err
+		}
+		var err error
+		current, err = q.BillingSubscription(ctx, sub.ID)
+		now := s.cfg.Now()
+		if err != nil || !current.Entitled(s.cfg.MonthlyPrice, s.cfg.AnnualPrice, now) {
+			return err
+		}
+		if err := s.cfg.Stripe.cancelSubscription(ctx, current.ID); err != nil {
+			return err
+		}
+		current.Status, current.EndsAt = stripeStatusCanceled, now
+		current.CancelAtPeriodEnd = false
+		return q.SaveStripeSubscription(ctx, current, now)
+	})
+	return current, err
+}
+
+type stripeInvoicePayment struct {
+	ID         string `json:"id"`
+	AmountPaid int64  `json:"amount_paid"`
+	Payment    struct {
+		Type          string `json:"type"`
+		PaymentIntent string `json:"payment_intent"`
+		Charge        string `json:"charge"`
+	} `json:"payment"`
+}
+
+func (s *Stripe) refundInvoice(ctx context.Context, invoice, subscription string) error {
+	if !validStripeID(invoice, "in_") {
+		return errors.New("stripe invoice for the refundable payment is missing")
+	}
+	params := url.Values{"invoice": {invoice}, "status": {stripeStatusPaid}, stripeLimitParam: {"100"}}
+	var page stripeList[stripeInvoicePayment]
+	if err := s.request(ctx, http.MethodGet, "/v1/invoice_payments", params, "", &page); err != nil {
+		return err
+	}
+	if len(page.Data) == 0 || page.HasMore {
+		return errors.New("cannot identify all payments for the refundable Stripe invoice")
+	}
+	for _, payment := range page.Data {
+		if err := s.refundPayment(ctx, subscription, payment); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Stripe) refundPayment(ctx context.Context, subscription string, payment stripeInvoicePayment) error {
+	params := url.Values{}
+	switch payment.Payment.Type {
+	case "payment_intent":
+		params.Set("payment_intent", payment.Payment.PaymentIntent)
+	case "charge":
+		params.Set("charge", payment.Payment.Charge)
+	default:
+		return errors.New("Stripe invoice payment cannot be refunded through its payment method")
+	}
+	if !validStripeID(payment.ID, "inpay_") || payment.AmountPaid <= 0 {
+		return errors.New("Stripe invoice payment has no refundable amount or identity")
+	}
+	params.Set("amount", strconv.FormatInt(payment.AmountPaid, 10))
+	key := "delete_refund_" + subscription + "_" + payment.ID
+	var refund struct {
+		Status string `json:"status"`
+	}
+	err := s.request(ctx, http.MethodPost, "/v1/refunds", params, key, &refund)
+	if stripeCode(err, "charge_already_refunded") {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if refund.Status != "succeeded" && refund.Status != "pending" {
+		return errors.New("Stripe has not accepted the full refund")
+	}
+	return nil
+}
+
+func (s *Stripe) cancelSubscription(ctx context.Context, id string) error {
+	path := "/v1/subscriptions/" + url.PathEscape(id)
+	var current stripeSubscription
+	err := s.request(ctx, http.MethodDelete, path, nil, "delete_cancel_"+id, &current)
+	if err != nil {
+		// A retry after an unacknowledged cancellation must observe Stripe's terminal state.
+		if readErr := s.request(ctx, http.MethodGet, path, nil, "", &current); readErr != nil {
+			return errors.Join(err, readErr)
+		}
+	}
+	if current.ID != id || current.Status != stripeStatusCanceled {
+		return errors.Join(err, errors.New("Stripe has not confirmed immediate cancellation"))
+	}
+	return nil
+}
+
+func (s *Service) RedactDeletingCustomer(ctx context.Context, accountID string) error {
+	subscriptions, err := s.db.Subscriptions(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	customers := make(map[string]struct{})
+	for _, sub := range subscriptions {
+		if sub.Source == "stripe" && sub.CustomerID != "" {
+			customers[sub.CustomerID] = struct{}{}
+		}
+	}
+	for customer := range customers {
+		if s.cfg.Stripe == nil {
+			return ErrUnavailable
+		}
+		if err := s.cfg.Stripe.deleteCustomer(ctx, customer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Stripe) deleteCustomer(ctx context.Context, id string) error {
+	if !validStripeID(id, "cus_") {
+		return errors.New("invalid Stripe customer for account deletion")
+	}
+	var result struct {
+		ID      string `json:"id"`
+		Deleted bool   `json:"deleted"`
+	}
+	err := s.request(ctx, http.MethodDelete, "/v1/customers/"+url.PathEscape(id), nil, "delete_customer_"+id, &result)
+	if stripeCode(err, "resource_missing") {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if result.ID != id || !result.Deleted {
+		return errors.New("Stripe has not confirmed customer redaction")
+	}
+	return nil
+}

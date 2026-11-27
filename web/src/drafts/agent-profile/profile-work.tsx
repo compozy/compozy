@@ -1,5 +1,5 @@
 /** What the agent has actually done: findings first, then the running log. */
-import { protoHref } from "@compozy/proto";
+import { protoHref } from "@protohq/cli";
 import { Check } from "@compozy/ui/icons";
 
 import { Panel, Section, Timeline, TimelineEvent } from "@compozy/ui";

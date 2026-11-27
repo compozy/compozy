@@ -24,7 +24,6 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	tailscale "github.com/compozy/compozy/extensions/connectivity/tailscale"
 	forgegithub "github.com/compozy/compozy/extensions/forge/github"
 	opendesign "github.com/compozy/compozy/extensions/open-design"
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
@@ -421,13 +420,6 @@ func referenceDisableBundledExtensions(t *testing.T, homePaths compozyconfig.Hom
 	if err := registry.Disable(speccycle.Name); err != nil {
 		t.Fatalf("Disable(spec-cycle) error = %v", err)
 	}
-	if err := tailscale.EnsureManagedInstall(homePaths, registry); err != nil {
-		t.Fatalf("EnsureManagedInstall(tailscale) error = %v", err)
-	}
-	if err := registry.Disable(tailscale.Name); err != nil {
-		t.Fatalf("Disable(tailscale) error = %v", err)
-	}
-
 	if err := opendesign.EnsureManagedInstall(homePaths, registry); err != nil {
 		t.Fatalf("EnsureManagedInstall(open-design) error = %v", err)
 	}

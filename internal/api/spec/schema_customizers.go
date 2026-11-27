@@ -12,7 +12,10 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-const schemaStabilityExperimental = "experimental"
+const (
+	schemaStabilityExperimental = "experimental"
+	schemaStabilityExtensionKey = "x-stability"
+)
 
 var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.AgentInstanceDailyBudgetInput](): customizeAgentInstanceDailyBudgetInputSchema,
@@ -20,13 +23,13 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 		schema.WithAnyAdditionalProperties()
 	},
 	reflect.TypeFor[contract.SessionCompactionContextAfterPayload](): func(schema *openapi3.Schema) {
-		schema.Extensions = map[string]any{"x-stability": schemaStabilityExperimental}
+		schema.Extensions = map[string]any{schemaStabilityExtensionKey: schemaStabilityExperimental}
 		schema.Description = "Experimental: first occupancy observation after this compaction's first terminal snapshot " +
 			"and before the next compaction's first terminal boundary; " +
 			"counter-only events and later corrections do not change it. Omitted until observed."
 	},
 	reflect.TypeFor[contract.SessionContextClearedByPayload](): func(schema *openapi3.Schema) {
-		schema.Extensions = map[string]any{"x-stability": schemaStabilityExperimental}
+		schema.Extensions = map[string]any{schemaStabilityExtensionKey: schemaStabilityExperimental}
 		schema.Description = "Experimental: compaction id and first terminal snapshot sequence that cleared occupancy. " +
 			"Present only while context is unknown awaiting a later occupancy observation."
 	},
@@ -36,10 +39,11 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 			Value: openapi3.NewStringSchema().WithEnum("approved", "denied"),
 		}
 	},
-	reflect.TypeFor[extensioninput.Value]():             customizeExtensionInputValueSchema,
-	reflect.TypeFor[contract.InstallExtensionRequest](): customizeExtensionInstallRequestSchema,
-	reflect.TypeFor[contract.UpdateExtensionRequest]():  customizeExtensionUpdateRequestSchema,
-	reflect.TypeFor[contract.UpdateExtensionsRequest](): customizeExtensionUpdateRequestSchema,
+	reflect.TypeFor[extensioninput.Value]():                customizeExtensionInputValueSchema,
+	reflect.TypeFor[contract.InstallExtensionRequest]():    customizeExtensionInstallRequestSchema,
+	reflect.TypeFor[contract.ExtensionDependencyConsent](): customizeExtensionDependencyConsentSchema,
+	reflect.TypeFor[contract.UpdateExtensionRequest]():     customizeExtensionUpdateRequestSchema,
+	reflect.TypeFor[contract.UpdateExtensionsRequest]():    customizeExtensionUpdateRequestSchema,
 	reflect.TypeFor[binaryResponse](): func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewStringSchema()
 		schema.Format = schemaFormatBinary
@@ -51,6 +55,7 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 		schema.MaxLength = &maxLength
 	},
 	reflect.TypeFor[dsl.Graph]():        customizeLoopGraphSchema,
+	reflect.TypeFor[dsl.Contract]():     customizeLoopContractSchema,
 	reflect.TypeFor[dsl.StopWhenSpec](): customizeStopWhenSpecSchema,
 	reflect.TypeFor[dsl.EffectSpec](): func(schema *openapi3.Schema) {
 		*schema = *loopEffectSchema()
@@ -65,6 +70,8 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 		*schema = *loopEffectSchema()
 	},
 	reflect.TypeFor[contract.LoopRunEventPayload]():                  customizeLoopRunEventPayloadSchema,
+	reflect.TypeFor[contract.LoopRunTerminal]():                      customizeLoopRunTerminalSchema,
+	reflect.TypeFor[contract.LoopContract]():                         customizeLoopContractSchema,
 	reflect.TypeFor[contract.LoopGenerationStartedRunEventPayload](): customizeLoopGenerationStartedRunEventPayloadSchema,
 	reflect.TypeFor[contract.LoopGateVerdictRunEventPayload]():       customizeLoopGateVerdictRunEventPayloadSchema,
 	reflect.TypeFor[contract.WindowManagerRevision](): func(schema *openapi3.Schema) {

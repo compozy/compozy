@@ -26,6 +26,8 @@ export interface TerminalHeaderProps {
   onNewTerminal?: () => void;
   /** Reveals the journal overlay. */
   onViewJournal?: () => void;
+  /** Optional provenance chip (e.g. remote `ComputerChip`) placed in the status zone. */
+  statusExtra?: React.ReactNode;
   /**
    * When true, identity and ≤2 actions publish into the OS window head
    * instead of drawing a second identity row under the deck.
@@ -145,6 +147,7 @@ export function TerminalHeader({
   onStopRecording,
   onNewTerminal,
   onViewJournal,
+  statusExtra,
   hostChrome = false,
 }: TerminalHeaderProps) {
   const { isPipe, showViewers, hasStatus, hasTerminalActions } = terminalHeaderFlags({
@@ -155,11 +158,12 @@ export function TerminalHeader({
     onWait,
     onStopRecording,
   });
+  const anyStatus = hasStatus || Boolean(statusExtra);
   // The raw terminal id lives in the journal detail; the head only shows the cap count.
   const identityCount = terminalCapCount(terminalCount, limit) ?? undefined;
   // One hairline between groups, never a leading or doubled one: the OS head
   // already rules status off from actions, so only the in-window row needs it.
-  const chipsLeadActions = hasStatus && !hostChrome;
+  const chipsLeadActions = anyStatus && !hostChrome;
   const actions = (
     <>
       <TerminalHeaderActions
@@ -178,13 +182,18 @@ export function TerminalHeader({
       />
     </>
   );
-  const status = hasStatus ? (
-    <TerminalHeaderStatus
-      isPipe={isPipe}
-      recording={recording}
-      showViewers={showViewers}
-      viewers={terminal.viewers}
-    />
+  const status = anyStatus ? (
+    <>
+      {statusExtra}
+      {hasStatus ? (
+        <TerminalHeaderStatus
+          isPipe={isPipe}
+          recording={recording}
+          showViewers={showViewers}
+          viewers={terminal.viewers}
+        />
+      ) : null}
+    </>
   ) : null;
   const stateGlyph = terminalStateGlyph(terminal);
   useTopbarSlot(

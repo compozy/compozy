@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/core"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 )
 
@@ -71,7 +72,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	streamCtx, streamCancel := context.WithCancel(context.WithoutCancel(ctx))
 	httpServer := &http.Server{
-		Handler:           s.engine,
+		Handler:           core.AliasLocalComputer(s.engine),
 		ReadHeaderTimeout: defaultReadHeaderTimeout,
 		IdleTimeout:       defaultIdleTimeout,
 		ConnContext: func(ctx context.Context, conn net.Conn) context.Context {

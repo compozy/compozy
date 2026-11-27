@@ -1,0 +1,4 @@
+{
+    "title": "Devices",
+    "pages": ["index", "approve", "deny", "list", "revoke", "scopes"]
+}

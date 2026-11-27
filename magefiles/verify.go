@@ -3,17 +3,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
 
-func Verify() error {
+func Verify(ctx context.Context) error {
 	release := acquireVerifyLock()
 	defer release()
-	return runMageSteps(verifySteps())
+	return runMageSteps(verifySteps(ctx))
 }
 
-func verifySteps() []mageStep {
+func verifySteps(ctx context.Context) []mageStep {
 	return []mageStep{
 		{name: "CodegenCheck", run: CodegenCheck},
 		{name: "InstallerCheck", run: InstallerCheck},
@@ -27,7 +28,7 @@ func verifySteps() []mageStep {
 		{name: "GoLint", run: GoLint},
 		{name: "Test", run: Test},
 		{name: "buildGo", run: buildGo},
-		{name: "Boundaries", run: Boundaries},
+		{name: "Boundaries", run: func() error { return Boundaries(ctx) }},
 	}
 }
 

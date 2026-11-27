@@ -1,16 +1,20 @@
-import { ExtensionGatewayConfirmDialog, type InstalledExtensionView } from "@/systems/extensions";
+import { type InstalledExtensionView } from "@/systems/extensions";
 import { MCPSignInPopover, type useMCPDefinitionAuthorization } from "@/systems/settings";
 
 import type { MarketplaceCatalogListing } from "../types";
+import { ExtensionDependencyGateDialog } from "./extension-dependency-gate-dialog";
 import { ExtensionInstallSummaryDialog } from "./extension-install-summary-dialog";
 import { ExtensionTrustDialog } from "./extension-trust-dialog";
 import type { ExtensionInputDraft } from "./extension-install-model";
 import type { MarketplaceInstallPreview } from "./marketplace-action-controller-logic";
 import type { useMarketplaceUpdateRecovery } from "./use-marketplace-update-recovery";
+import type { ExtensionDependencyGatesController } from "./use-extension-dependency-gates";
 
 interface MarketplaceActionDialogsProps {
   /** Set up's MCP sign-in panel, closed until a row requests it. */
   authorization: ReturnType<typeof useMCPDefinitionAuthorization>;
+  /** Per-dependency trust gates of an Add, shown one at a time over a hidden review. */
+  dependencyGates: ExtensionDependencyGatesController;
   /** Installed-row update waiting for unverified consent. */
   installedTrust: {
     item: InstalledExtensionView;
@@ -36,9 +40,10 @@ interface MarketplaceActionDialogsProps {
   } | null;
 }
 
-/** The consent, gateway and review dialogs the marketplace action controller drives. */
+/** The consent and review dialogs the marketplace action controller drives. */
 function MarketplaceActionDialogs({
   authorization,
+  dependencyGates,
   installedTrust,
   trust,
   updateFlow,
@@ -47,6 +52,11 @@ function MarketplaceActionDialogs({
   return (
     <>
       <MCPSignInPopover authorize={authorization.authorize} server={authorization.server} />
+      <ExtensionDependencyGateDialog
+        gate={dependencyGates.current}
+        onAccept={dependencyGates.accept}
+        onCancel={dependencyGates.cancel}
+      />
       {installedTrust ? (
         <ExtensionTrustDialog
           action="update"
@@ -74,19 +84,7 @@ function MarketplaceActionDialogs({
           warnings={trust.entry.trust?.warnings}
         />
       ) : null}
-      {updateFlow.recovery?.kind === "gateway" ? (
-        <ExtensionGatewayConfirmDialog
-          digest={updateFlow.recovery.digest}
-          extensionName={updateFlow.recovery.label}
-          onConfirm={() => updateFlow.confirm()}
-          onOpenChange={open => {
-            if (!open) updateFlow.dismiss();
-          }}
-          open
-          pending={updateFlow.pending}
-        />
-      ) : null}
-      {updateFlow.recovery?.kind === "inputs" ? (
+      {updateFlow.recovery ? (
         <ExtensionInstallSummaryDialog
           action="update"
           name={updateFlow.recovery.label}

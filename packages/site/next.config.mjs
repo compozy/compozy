@@ -16,6 +16,26 @@ const config = {
   redirects() {
     return [
       {
+        source: "/docs/gateway/webhooks/",
+        destination: "/docs/computers/remote-host/#webhook-ingress",
+        permanent: true,
+      },
+      {
+        source: "/docs/gateway/:path*/",
+        destination: "/docs/computers/",
+        permanent: true,
+      },
+      {
+        source: "/docs/api/gateway/:path*/",
+        destination: "/docs/computers/remote-host/",
+        permanent: true,
+      },
+      ...["connect", "gateway", "device", "pair"].map(command => ({
+        source: "/docs/cli/" + command + "/:path*/",
+        destination: "/docs/computers/",
+        permanent: true,
+      })),
+      {
         source: "/blog/crewai-alternatives/",
         destination: "/blog/git-repository-briefing-python/",
         permanent: true,

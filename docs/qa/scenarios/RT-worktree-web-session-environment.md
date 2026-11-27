@@ -18,6 +18,9 @@ overlaps: RT-worktree-web-create-adopt
 
 QA impact: Task 07 adds the session-create environment control and the materialize-then-bind create path.
 
+For #1963, open Advanced in the New session dialog and select a ready worktree. Verify that
+Environment shows the selected worktree and a single up/down chevron at the right edge.
+
 2026-08-14 behavior change: opening session create while a worktree is the acting scope now seeds
 the environment with that worktree and opens Advanced so the preselection is visible; the root
 default applies only when no worktree is scoped. Covered by use-session-create.test.tsx; reset for

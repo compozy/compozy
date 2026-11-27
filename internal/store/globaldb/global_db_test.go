@@ -680,6 +680,121 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	t.Run(
+		"Should preserve each device's latest connection when upgrading the remote host database",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := globalMigrationTestContext(t)
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00223_schema.sql"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, seedErr := prior.ExecContext(ctx, `INSERT INTO remote_sessions
+			(id, credential_sha256, device_id, device_jkt, scopes, route, browser, created_at, expires_at)
+			VALUES ('old', X'01', 'dev_one', 'key-one', '[]', 'ssh', 0, 10000000100, 10000000400),
+		       ('new', X'02', 'dev_one', 'key-one', '[]', 'ssh', 0, 20000000200, 20000000500),
+		       ('other', X'03', 'dev_two', 'key-two', '[]', 'ssh', 0, 15000000150, 15000000450)`)
+			if seedErr != nil {
+				t.Fatal(errors.Join(seedErr, prior.Close()))
+			}
+			_, seedErr = prior.ExecContext(ctx, `INSERT INTO remote_identity
+			(id, computer_id, account_id, computer_key_ref, tls_root_ref, tls_root_sha256, tls_leaf_not_after, linked_at)
+			VALUES (1, 'cmp_upgrade', 'acc_upgrade', '', '', '', '2026-12-01T00:00:00Z', '2026-11-01T00:00:00Z')`)
+			if seedErr != nil {
+				t.Fatal(errors.Join(seedErr, prior.Close()))
+			}
+			target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+			if err != nil {
+				t.Fatal(errors.Join(err, prior.Close()))
+			}
+			bindErr := bindTelemetryDestination(ctx, prior, target.DB())
+			if err := errors.Join(bindErr, target.Close(ctx), prior.Close()); err != nil {
+				t.Fatal(err)
+			}
+
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := upgraded.Close(context.WithoutCancel(ctx)); err != nil {
+					t.Error(err)
+				}
+			})
+			connections, err := upgraded.RemoteDeviceConnections(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(connections) != 2 || !connections["dev_one"].Equal(time.Unix(20, 200)) ||
+				!connections["dev_two"].Equal(time.Unix(15, 150)) {
+				t.Fatalf("migrated device connections = %v", connections)
+			}
+			// AST-004. The new control report can recover the latest recorded mint from an older database.
+			mint, err := upgraded.RemoteLastMint(ctx)
+			if err != nil || mint.At != 20 || mint.DeviceID != "dev_one" || mint.JKT != "key-one" {
+				t.Fatalf("migrated last mint = %+v, error=%v", mint, err)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+		},
+	)
+
+	t.Run("Should assign a stable installation identity and preserve pre-account data", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00221_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		const workspace = `INSERT INTO workspaces(id,root_dir,name,created_at,updated_at)
+			VALUES ('before-account','/before-account','Existing','2026-11-22','2026-11-22')`
+		if _, err := prior.ExecContext(ctx, workspace); err != nil {
+			t.Fatal(err)
+		}
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		bindErr := bindTelemetryDestination(ctx, prior, target.DB())
+		if err := errors.Join(bindErr, target.Close(ctx), prior.Close()); err != nil {
+			t.Fatal(err)
+		}
+
+		var installationID string
+		for range 2 {
+			db, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			installation, readErr := db.ReadInstallationAccount(ctx)
+			var name string
+			workspaceErr := db.DB().
+				QueryRowContext(ctx, "SELECT name FROM workspaces WHERE id = 'before-account'").
+				Scan(&name)
+			if err := errors.Join(readErr, workspaceErr, db.Close(ctx)); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.HasPrefix(installation.InstallationID, "ins_") || !installation.PreAccountInstall ||
+				string(installation.State) != "signed_out" || name != "Existing" {
+				t.Fatalf("migrated installation = %#v, retained workspace = %q", installation, name)
+			}
+			if installationID != "" && installation.InstallationID != installationID {
+				t.Fatal("reopening the database changed its installation ID")
+			}
+			installationID = installation.InstallationID
+		}
+	})
+
 	t.Run("Should preserve native subagent usage through the run identity migration", func(t *testing.T) {
 		t.Parallel()
 		ctx := globalMigrationTestContext(t)
@@ -1833,7 +1948,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				{`SELECT origin_kind || ':' || run_kind FROM task_runs WHERE id='retained-run'`, "daemon:worker"},
 				{`SELECT CAST(last_sequence AS TEXT) FROM notification_cursors WHERE subject_id='retained-task'`, "12"},
 				{`SELECT summary_json FROM task_designation_rollups WHERE designation_group_id='retained-group'`, `{"completed":1}`},
-				{`SELECT gateway_requirement_digest || ':' || gateway_confirmed_by || ':' || gateway_confirmed_at FROM extensions WHERE name='retained-gateway'`, "gateway-digest:operator:" + timestamp},
+				{`SELECT version || ':' || checksum FROM extensions WHERE name='retained-gateway'`, "1.0.0:checksum"},
 			} {
 				var got string
 				if err := upgraded.db.QueryRowContext(ctx, retained.query).Scan(&got); err != nil {
@@ -1871,6 +1986,9 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				t.Fatalf("retired wake/table counts = %d/%d, want zero", wakeCount, retiredTables)
 			}
 			assertTableExcludesColumns(t, upgraded.db, "sessions", []string{"network_spec_json", "sandbox_id"})
+			assertTableExcludesColumns(t, upgraded.db, "extensions",
+				[]string{"gateway_requirement_digest", "gateway_confirmed_by", "gateway_confirmed_at"},
+			)
 			assertTableExcludesColumns(
 				t,
 				upgraded.db,
@@ -3850,9 +3968,6 @@ func assertExtensionTableColumns(t *testing.T, globalDB *GlobalDB) {
 		"registry_name",
 		"remote_version",
 		globalDBExtensionProvenanceJSONKey,
-		"gateway_requirement_digest",
-		"gateway_confirmed_by",
-		"gateway_confirmed_at",
 	})
 	assertTableColumns(t, globalDB.db, "extension_profile_enablement", []string{
 		"extension_name",
@@ -3867,9 +3982,6 @@ func assertExtensionTableColumns(t *testing.T, globalDB *GlobalDB) {
 		"linked_at",
 		"format",
 		"ingest_diagnostics_json",
-		"gateway_requirement_digest",
-		"gateway_confirmed_by",
-		"gateway_confirmed_at",
 	})
 	assertTableColumns(t, globalDB.db, "extension_env_bindings", []string{
 		"extension_name",
@@ -7375,123 +7487,6 @@ func memoryRetirementRows(t *testing.T, db *sql.DB, query string) string {
 		t.Fatal(err)
 	}
 	return string(contents)
-}
-
-// Invariant: widening credential kinds preserves every device column; owner: global migration/open suite.
-func TestGlobalDBAppTokenMigration(t *testing.T) {
-	t.Parallel()
-	t.Run("Should preserve active CLI and revoked device rows through the app token migration", func(t *testing.T) {
-		t.Parallel()
-		ctx := globalMigrationTestContext(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00141_schema.sql"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := prior.Close(); err != nil {
-				t.Errorf("Close(prior): %v", err)
-			}
-		})
-		type deviceRow struct {
-			id, name, hash, kind, origin, created string
-			epoch                                 int64
-			seen, revoked                         sql.NullString
-		}
-		rows := []deviceRow{
-			{
-				id:      "device-active",
-				name:    "Desktop",
-				hash:    strings.Repeat("a", 64),
-				kind:    "operator_device",
-				origin:  "private",
-				created: "2026-10-01T12:00:00Z",
-				seen:    sql.NullString{String: "2026-10-02T12:00:00Z", Valid: true},
-			},
-			{
-				id:      "cli-active",
-				name:    "CLI",
-				hash:    strings.Repeat("b", 64),
-				kind:    "cli_profile",
-				origin:  "local",
-				created: "2026-10-03T12:00:00Z",
-				epoch:   2,
-			},
-			{
-				id:      "device-revoked",
-				name:    "Retired",
-				hash:    strings.Repeat("c", 64),
-				kind:    "operator_device",
-				origin:  "private",
-				created: "2026-10-04T12:00:00Z",
-				epoch:   4,
-				seen:    sql.NullString{String: "2026-10-05T12:00:00Z", Valid: true},
-				revoked: sql.NullString{String: "2026-10-06T12:00:00Z", Valid: true},
-			},
-		}
-		for _, row := range rows {
-			if _, err := prior.ExecContext(ctx, `INSERT INTO gateway_device_sessions
-				(id, name, token_hash, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at, revoked_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, row.id, row.name, row.hash, row.kind, row.origin, row.epoch, row.created, row.seen, row.revoked); err != nil {
-				t.Fatal(err)
-			}
-		}
-		if err := prior.Close(); err != nil {
-			t.Fatal(err)
-		}
-		upgraded, err := openGlobalMigrationUpgrade(t, path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := upgraded.Close(testutil.Context(t)); err != nil {
-				t.Errorf("Close(upgraded): %v", err)
-			}
-		})
-		for _, want := range rows {
-			var got deviceRow
-			if err := upgraded.db.QueryRowContext(ctx, `SELECT id, name, token_hash, actor_kind, pairing_origin,
-				revoke_epoch, created_at, last_seen_at, revoked_at FROM gateway_device_sessions WHERE id = ?`, want.id).
-				Scan(&got.id, &got.name, &got.hash, &got.kind, &got.origin, &got.epoch, &got.created, &got.seen, &got.revoked); err != nil {
-				t.Fatal(err)
-			}
-			if got != want {
-				t.Fatalf("device row after migration = %#v, want %#v", got, want)
-			}
-		}
-		service := appTokenServiceForTest(t, upgraded)
-		issued, err := service.CreateAppToken(ctx, "Migrated application", []string{"https://app.test"})
-		if err != nil {
-			t.Fatalf("new app token kind rejected after migration: %v", err)
-		}
-		if err := upgraded.Close(ctx); err != nil {
-			t.Fatal(err)
-		}
-		reopened, err := openGlobalMigrationUpgrade(t, path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := reopened.Close(testutil.Context(t)); err != nil {
-				t.Errorf("Close(reopened): %v", err)
-			}
-		})
-		restarted := appTokenServiceForTest(t, reopened)
-		persisted, err := restarted.AuthenticateAppToken(ctx, issued.Secret)
-		if err != nil || persisted.Session.ID != issued.Token.Session.ID || len(persisted.Origins) != 1 ||
-			persisted.Origins[0] != "https://app.test" {
-			t.Fatalf("token did not survive reopen: %#v, %v", persisted, err)
-		}
-		devices, err := restarted.ListDevices(ctx)
-		if err != nil || len(devices) != 3 {
-			t.Fatalf("device inventory after reopen: %#v, %v", devices, err)
-		}
-		status, err := store.Status(ctx, reopened.db, MigrationStream())
-		if err != nil {
-			t.Fatal(err)
-		}
-		assertCompleteMigrationStream(t, status, MigrationStream())
-	})
 }
 
 func TestUserScopeMigration(t *testing.T) {

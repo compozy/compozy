@@ -64,6 +64,9 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 	if failure := a.applyBusyInputDefault(next, previous); failure != nil {
 		failures = append(failures, *failure)
 	}
+	if failure := a.applyRemoteConfig(ctx, next, previous); failure != nil {
+		failures = append(failures, *failure)
+	}
 	if a.state.windowManagers != nil {
 		if err := a.state.windowManagers.UpdateDefaults(windowManagerDefaults(previous.WindowManager)); err != nil {
 			failures = append(failures, configApplyFailure(
@@ -122,8 +125,18 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 	previous *compozyconfig.Config,
 	next *compozyconfig.Config,
 ) []settingspkg.ApplyFailure {
+	if err := validateComputerSettings(
+		ctx, a.state.runtimeWorkers.computers, previous.Computers, next.Computers,
+	); err != nil {
+		return []settingspkg.ApplyFailure{
+			configApplyFailure("computers", "Computer settings could not be applied", err),
+		}
+	}
 	var failures []settingspkg.ApplyFailure
 	if failure := a.applyBusyInputDefault(previous, next); failure != nil {
+		failures = append(failures, *failure)
+	}
+	if failure := a.applyRemoteConfig(ctx, previous, next); failure != nil {
 		failures = append(failures, *failure)
 	}
 	if a.state.windowManagers != nil {

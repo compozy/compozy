@@ -1,0 +1,323 @@
+<!-- SPDX-License-Identifier: FSL-1.1-MIT -->
+{{ define "account" }}
+<div class="account-heading">
+  <p><strong>{{ .Profile.Email }}</strong> · {{ .Profile.Name }} · {{ .Profile.State }}</p>
+  <p><code>{{ .Profile.ID }}</code></p>
+  <div class="actions">
+    {{ if eq .Profile.State "active" }}<a href="/admin/confirm/suspend?account_id={{ .Profile.ID }}"
+      >Suspend</a
+    >{{ end }} {{ if eq .Profile.State "suspended" }}<a
+      href="/admin/confirm/unsuspend?account_id={{ .Profile.ID }}"
+      >Unsuspend</a
+    >{{ end }} {{ if ne .Profile.State "deleting" }}
+    <a href="/admin/confirm/hosted-route-cap?account_id={{ .Profile.ID }}">Hosted-route cap</a>
+    <a href="/admin/confirm/complimentary-pro?account_id={{ .Profile.ID }}"
+      >Grant complimentary Pro</a
+    >
+    <a href="/admin/confirm/start-deletion?account_id={{ .Profile.ID }}">Start deletion</a>
+    {{ end }}
+    <form
+      method="post"
+      action="/admin/accounts/{{ .Profile.ID }}/export.json"
+      data-download="compozy-account.json"
+    >
+      <button type="submit">Export JSON</button>
+      <p role="status"></p>
+    </form>
+  </div>
+</div>
+
+<section aria-labelledby="consent">
+  <h2 id="consent">Email consent</h2>
+  <dl class="stats">
+    <div>
+      <dt>Product news and offers</dt>
+      <dd>{{ if .Consent.OptIn }}Opted in{{ else }}Opted out{{ end }}</dd>
+    </div>
+    <div>
+      <dt>Source</dt>
+      <dd>{{ if .Consent.Source }}{{ .Consent.Source }}{{ else }}—{{ end }}</dd>
+    </div>
+    <div>
+      <dt>Last changed</dt>
+      <dd>{{ optionalTime .Consent.At }}</dd>
+    </div>
+    <div>
+      <dt>Last synced with Resend</dt>
+      <dd>{{ optionalTime .Consent.SyncedAt }}{{ if .Consent.RetryAt }} · Sync pending{{ end }}</dd>
+    </div>
+  </dl>
+</section>
+<section aria-labelledby="identities">
+  <h2 id="identities">Identities</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Provider</th>
+          <th scope="col">Email</th>
+          <th scope="col">Subject</th>
+          <th scope="col">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Identities }}
+        <tr>
+          <td>{{ .Provider }}</td>
+          <td>{{ .Email }}</td>
+          <td><code>{{ .Subject }}</code></td>
+          <td>
+            {{ if ne $.Profile.State "deleting" }}<a
+              href="/admin/confirm/detach-identity?account_id={{ $.Profile.ID }}&amp;provider={{ .Provider }}&amp;target={{ .Subject }}"
+              >Detach identity</a
+            >{{ end }}
+          </td>
+        </tr>
+        {{ else }}
+        <tr>
+          <td colspan="4">No identities.</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section aria-labelledby="installations">
+  <h2 id="installations">Installations</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">ID</th>
+          <th scope="col">Source</th>
+          <th scope="col">Last seen</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Installations }}
+        <tr>
+          <td><code>{{ .ID }}</code></td>
+          <td>{{ .Source }}</td>
+          <td>{{ optionalTime .LastSeen }}</td>
+        </tr>
+        {{ else }}
+        <tr>
+          <td colspan="3">No installations.</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section aria-labelledby="devices">
+  <h2 id="devices">Devices</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">ID</th>
+          <th scope="col">Kind</th>
+          <th scope="col">Last seen</th>
+          <th scope="col">State</th>
+          <th scope="col">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Devices }}
+        <tr>
+          <td>{{ .Name }}</td>
+          <td><code>{{ .ID }}</code></td>
+          <td>{{ .Kind }}</td>
+          <td>{{ optionalTime .LastSeen }}</td>
+          <td>
+            {{ if .RevokedAt }}Revoked{{ else if .Admin }}Trusted for admin{{ else }}Active{{ end }}
+          </td>
+          <td>
+            {{ if and (not .RevokedAt) (ne $.Profile.State "deleting") }}<a
+              href="/admin/confirm/revoke-device?account_id={{ $.Profile.ID }}&amp;target={{ .ID }}"
+              >Revoke</a
+            >{{ end }}
+          </td>
+        </tr>
+        {{ else }}
+        <tr>
+          <td colspan="6">No devices.</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section aria-labelledby="sessions">
+  <h2 id="sessions">Device sessions</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Session</th>
+          <th scope="col">Device</th>
+          <th scope="col">Provider</th>
+          <th scope="col">Last used</th>
+          <th scope="col">State</th>
+          <th scope="col">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Sessions }}
+        <tr>
+          <td><code>{{ .ID }}</code></td>
+          <td><code>{{ .DeviceID }}</code></td>
+          <td>{{ .Provider }}</td>
+          <td>{{ optionalTime .LastUsed }}</td>
+          <td>{{ if .RevokedAt }}Revoked{{ else }}Active{{ end }}</td>
+          <td>
+            {{ if and (not .RevokedAt) (ne $.Profile.State "deleting") }}<a
+              href="/admin/confirm/revoke-session?account_id={{ $.Profile.ID }}&amp;target={{ .ID }}"
+              >Revoke</a
+            >{{ end }}
+          </td>
+        </tr>
+        {{ else }}
+        <tr>
+          <td colspan="6">No device sessions.</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section aria-labelledby="computers">
+  <h2 id="computers">Computers</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Computer</th>
+          <th scope="col">ID</th>
+          <th scope="col">Platform</th>
+          <th scope="col">Version</th>
+          <th scope="col">Last control link</th>
+          <th scope="col">Remote access</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Computers }}
+        <tr>
+          <td>{{ .Name }}</td>
+          <td><code>{{ .ID }}</code></td>
+          <td>{{ .Platform }}</td>
+          <td>{{ .Version }}</td>
+          <td>{{ optionalTime .LastControl }}</td>
+          <td>{{ if .UnlinkedAt }}Unlinked{{ else if .RemoteEnabled }}On{{ else }}Off{{ end }}</td>
+        </tr>
+        {{ else }}
+        <tr>
+          <td colspan="6">No computers.</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section aria-labelledby="tunnels">
+  <h2 id="tunnels">Tunnels</h2>
+  <p>Hosted-route cap <strong>{{ .Profile.CloudRoutesMax }}</strong></p>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Hostname</th>
+          <th scope="col">State</th>
+          <th scope="col">Generation</th>
+          <th scope="col">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Tunnels }}
+        <tr>
+          <td><code>{{ .Hostname }}</code></td>
+          <td>{{ .State }}</td>
+          <td>{{ .Generation }}</td>
+          <td>
+            {{ if and (ne .State "deleted") (not .TakenDown) (ne $.Profile.State "deleting") }}<a
+              href="/admin/confirm/delete-tunnel?target={{ .Hostname }}"
+              >Delete tunnel</a
+            >{{ end }}
+          </td>
+        </tr>
+        {{ else }}
+        <tr>
+          <td colspan="4">No tunnels.</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section aria-labelledby="subscriptions">
+  <h2 id="subscriptions">Subscriptions</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Subscription</th>
+          <th scope="col">Source</th>
+          <th scope="col">State</th>
+          <th scope="col">Interval</th>
+          <th scope="col">Stripe customer</th>
+          <th scope="col">Ends</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Subscriptions }}
+        <tr>
+          <td><code>{{ .ID }}</code></td>
+          <td>{{ .Source }}</td>
+          <td>{{ .Status }}</td>
+          <td>{{ .Interval }}</td>
+          <td><code>{{ .Customer }}</code></td>
+          <td>
+            {{ if .EndsAt }}{{ optionalTime .EndsAt }}{{ else }}{{ optionalTime .PeriodEnd }}{{ end
+            }}
+          </td>
+        </tr>
+        {{ else }}
+        <tr>
+          <td colspan="6">No subscriptions.</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section aria-labelledby="security-events">
+  <h2 id="security-events">Latest 50 security events</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">ID</th>
+          <th scope="col">Event</th>
+          <th scope="col">Actor</th>
+          <th scope="col">Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Events }}
+        <tr>
+          <td><a href="/admin/events/{{ .ID }}">{{ .ID }}</a></td>
+          <td><code>{{ .Type }}</code></td>
+          <td>{{ .Actor }}</td>
+          <td>{{ timestamp .At }}</td>
+        </tr>
+        {{ else }}
+        <tr>
+          <td colspan="4">No security events.</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</section>
+{{ end }}

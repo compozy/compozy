@@ -20,10 +20,10 @@ func (o providerUsageOverlay) Apply(dst *ProviderUsageConfig) error {
 		dst.Providers = make(map[string]ProviderUsageProviderConfig, len(o.Providers))
 	}
 	for id, overlay := range o.Providers {
-		if id != providerClaudeKey && overlay.KeychainAccess != nil {
+		if !ProviderUsageKeychainProvider(id) && overlay.KeychainAccess != nil {
 			return ValidationError{
 				Path:    "provider_usage.providers." + id + ".keychain_access",
-				Message: "is only valid for claude",
+				Message: providerUsageKeychainMessage,
 			}
 		}
 		provider, ok := dst.Providers[id]

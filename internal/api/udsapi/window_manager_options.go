@@ -6,15 +6,16 @@ import (
 )
 
 type udsExtendedServices struct {
-	resources     core.ResourceService
-	extensions    ExtensionService
-	hostedMCP     *mcppkg.HostedService
-	mcpHostAPI    mcppkg.HostAPIInvoker
-	windowManager core.WindowManagerProvider
-	terminal      core.TerminalProvider
-	appTokens     core.AppTokenManager
-	openAPI       *core.OpenAPIDocument
-	gateway       core.GatewayService
+	resources        core.ResourceService
+	extensions       ExtensionService
+	hostedMCP        *mcppkg.HostedService
+	mcpHostAPI       mcppkg.HostAPIInvoker
+	windowManager    core.WindowManagerProvider
+	terminal         core.TerminalProvider
+	appTokens        core.AppTokenManager
+	openAPI          *core.OpenAPIDocument
+	ingress          core.IngressService
+	migrationNotices core.MigrationNoticeStore
 }
 
 // WithWindowManagerProvider injects the per-profile window managers.

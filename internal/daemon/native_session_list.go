@@ -46,6 +46,9 @@ func (n *daemonNativeTools) sessionList(
 		return toolspkg.ToolResult{}, err
 	}
 	workspaceRef := nativeCallerWorkspaceInput(input.Workspace, scope)
+	if workspaceRef == "" && scope.Operator {
+		workspaceRef = workspaceaccess.UserSelector
+	}
 	workspaceID := ""
 	if workspaceRef == workspaceaccess.UserSelector {
 		workspaceID = workspaceaccess.UserSelector
@@ -136,6 +139,8 @@ func (n *daemonNativeTools) sessionListPayload(
 			NextCursor: page.NextCursor,
 			HasMore:    page.HasMore,
 			Total:      &page.Total,
+			Working:    page.Working,
+			NeedsYou:   page.NeedsYou,
 			Limit:      page.Limit,
 		},
 	}

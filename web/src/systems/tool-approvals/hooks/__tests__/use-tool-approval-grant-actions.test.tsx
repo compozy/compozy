@@ -4,7 +4,11 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMswFetch } from "@/test/msw-fetch";
-import { useRevokeToolApprovalGrant, useSetToolApprovalGrant } from "@/systems/tool-approvals";
+import {
+  toolApprovalKeys,
+  useRevokeToolApprovalGrant,
+  useSetToolApprovalGrant,
+} from "@/systems/tool-approvals";
 import { handlers } from "@/systems/tool-approvals/mocks";
 import { toolApprovalGrantFixtures } from "@/systems/tool-approvals/mocks/fixtures";
 
@@ -52,11 +56,11 @@ describe("useSetToolApprovalGrant", () => {
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["tool-approval-grants", "list", WS],
+        queryKey: toolApprovalKeys.list(WS),
       });
     });
     expect(invalidate).not.toHaveBeenCalledWith({
-      queryKey: ["tool-approval-grants", "list", OTHER_WS],
+      queryKey: toolApprovalKeys.list(OTHER_WS),
     });
   });
 });
@@ -82,11 +86,11 @@ describe("useRevokeToolApprovalGrant", () => {
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["tool-approval-grants", "list", WS],
+        queryKey: toolApprovalKeys.list(WS),
       });
     });
     expect(invalidate).not.toHaveBeenCalledWith({
-      queryKey: ["tool-approval-grants", "list", OTHER_WS],
+      queryKey: toolApprovalKeys.list(OTHER_WS),
     });
   });
 

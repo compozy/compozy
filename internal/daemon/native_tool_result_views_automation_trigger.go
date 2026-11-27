@@ -24,7 +24,7 @@ type compactTriggerRecord struct {
 	EndpointSlug         string                             `json:"endpoint_slug,omitempty"`
 	WebhookSecretPresent bool                               `json:"webhook_secret_present"`
 	LastRun              *contract.AutomationLastRunPayload `json:"last_run,omitzero"`
-	Ingress              *contract.GatewayIngressPayload    `json:"ingress,omitempty"`
+	Ingress              *contract.IngressPayload           `json:"ingress,omitempty"`
 	LoopTarget           *compactAutomationLoopTarget       `json:"loop_target,omitempty"`
 }
 

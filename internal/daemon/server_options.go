@@ -53,6 +53,9 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithAgentDefinitionSync(deps.AgentDefinitionSync),
 		httpapi.WithAgentHistoryPurgers(deps.SoulHistoryPurger, deps.HeartbeatPurger),
 		httpapi.WithModelCatalogService(deps.ModelCatalog),
+		httpapi.WithAccountService(deps.Account),
+		httpapi.WithRemoteHost(deps.Remote),
+		httpapi.WithComputers(deps.Computers),
 		httpapi.WithProviderUsageService(deps.ProviderUsage),
 		httpapi.WithContextWindowResolver(sessionContextWindowResolver{catalog: deps.ModelCatalog}),
 		httpapi.WithMarketplaceCatalogService(deps.MarketplaceCatalog),
@@ -76,17 +79,11 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithDeadEntitySource(deps.DeadEntities),
 		httpapi.WithExtensionService(deps.Extensions),
 		httpapi.WithOpenAPIDocument(runtimeOpenAPIDocument),
-		httpapi.WithGatewayService(deps.Gateway),
-		httpapi.WithDeviceAuth(deps.Gateway),
 	}
-	if deps.AppTokens != nil {
-		options = append(options,
-			httpapi.WithAppTokenManager(deps.AppTokens),
-			httpapi.WithAppTokenAuth(deps.AppTokens, appAccessPolicy()),
-		)
-	}
+	options = append(options, httpRemoteAccessOptions(deps)...)
 	return append(options, httpProjectFileOptions(deps)...)
 }
+
 func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 	options := []udsapi.Option{
 		udsapi.WithHomePaths(deps.HomePaths),
@@ -137,6 +134,9 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithAgentDefinitionSync(deps.AgentDefinitionSync),
 		udsapi.WithAgentHistoryPurgers(deps.SoulHistoryPurger, deps.HeartbeatPurger),
 		udsapi.WithModelCatalogService(deps.ModelCatalog),
+		udsapi.WithAccountService(deps.Account),
+		udsapi.WithRemoteHost(deps.Remote),
+		udsapi.WithComputers(deps.Computers),
 		udsapi.WithProviderUsageService(deps.ProviderUsage),
 		udsapi.WithContextWindowResolver(sessionContextWindowResolver{catalog: deps.ModelCatalog}),
 		udsapi.WithMarketplaceCatalogService(deps.MarketplaceCatalog),
@@ -162,7 +162,30 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithHostedMCP(deps.HostedMCP),
 		udsapi.WithMCPHostAPI(deps.MCPHostAPI),
 		udsapi.WithOpenAPIDocument(runtimeOpenAPIDocument),
-		udsapi.WithGatewayService(deps.Gateway),
+	}
+	return append(options, udsRemoteAccessOptions(deps)...)
+}
+
+func httpRemoteAccessOptions(deps *RuntimeDeps) []httpapi.Option {
+	options := []httpapi.Option{}
+	options = append(options, httpapi.WithMigrationNoticeStore(deps.MigrationNotices))
+	if deps.Ingress != nil {
+		options = append(options, httpapi.WithIngressService(deps.Ingress))
+	}
+	if deps.AppTokens != nil {
+		options = append(options,
+			httpapi.WithAppTokenManager(deps.AppTokens),
+			httpapi.WithAppTokenAuth(deps.AppTokens, appAccessPolicy()),
+		)
+	}
+	return options
+}
+
+func udsRemoteAccessOptions(deps *RuntimeDeps) []udsapi.Option {
+	options := []udsapi.Option{}
+	options = append(options, udsapi.WithMigrationNoticeStore(deps.MigrationNotices))
+	if deps.Ingress != nil {
+		options = append(options, udsapi.WithIngressService(deps.Ingress))
 	}
 	if deps.AppTokens != nil {
 		options = append(options, udsapi.WithAppTokenManager(deps.AppTokens))

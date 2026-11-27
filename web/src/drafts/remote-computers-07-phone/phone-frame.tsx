@@ -1,0 +1,1 @@
+export const WIDE_BROWSER_BREAKPOINT_PX = 1024;

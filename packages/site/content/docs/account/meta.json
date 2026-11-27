@@ -1,0 +1,5 @@
+{
+    "title": "Account",
+    "icon": "Users",
+    "pages": ["sign-in", "billing", "security", "tokens"]
+}

@@ -125,8 +125,8 @@ func deleteWorkspaceTx(ctx context.Context, queries *sqlcgen.Queries, workspaceI
 	if err := queries.DeleteSessionsByWorkspace(ctx, workspaceID); err != nil {
 		return fmt.Errorf("store: delete stopped sessions for workspace %q: %w", workspaceID, err)
 	}
-	if _, err := queries.DeleteGatewayIngressBindingsByWorkspace(ctx, store.SQLNullString(workspaceID)); err != nil {
-		return fmt.Errorf("store: delete gateway ingress bindings for workspace %q: %w", workspaceID, err)
+	if _, err := queries.DeleteIngressBindingsByWorkspace(ctx, store.SQLNullString(workspaceID)); err != nil {
+		return fmt.Errorf("store: delete ingress bindings for workspace %q: %w", workspaceID, err)
 	}
 	affected, err := queries.DeleteWorkspace(ctx, workspaceID)
 	if err != nil {

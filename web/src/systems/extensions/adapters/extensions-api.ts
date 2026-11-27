@@ -8,6 +8,7 @@ import {
 import type {
   ExtensionEnablement,
   ExtensionEntry,
+  ExtensionInputsState,
   ExtensionInstallRequest,
   ExtensionInstallPreview,
   ExtensionInstanceScope,
@@ -16,6 +17,7 @@ import type {
   ExtensionProvenance,
   ExtensionRemovedBuiltin,
   ExtensionRestoreResult,
+  ExtensionSetInputsRequest,
   ExtensionUpdateRequest,
 } from "../types";
 
@@ -37,11 +39,10 @@ export type ExtensionsApiErrorKind = "daemon" | "malformed_response" | "transpor
 export type ExtensionsApiErrorMetadata = ExtensionOperationErrorMetadata;
 
 export class ExtensionsApiError extends Error {
-  /** Daemon error code, e.g. `extension_gateway_confirmation_required`. */
+  /** Daemon error code, e.g. `extension_kind_removed`. */
   public readonly code: string | undefined;
 
   /** Digest the daemon expects consent for; the remediation for a missing or stale confirm. */
-  public readonly currentDigest: string | undefined;
   public readonly installedOrigin: ExtensionsApiErrorMetadata["installedOrigin"];
   public readonly listedDigest: string | undefined;
   public readonly fetchedDigest: string | undefined;
@@ -58,7 +59,6 @@ export class ExtensionsApiError extends Error {
     super(message);
     this.name = "ExtensionsApiError";
     this.code = metadata.code;
-    this.currentDigest = metadata.currentDigest;
     this.listedDigest = metadata.listedDigest;
     this.installedOrigin = metadata.installedOrigin;
     this.fetchedDigest = metadata.fetchedDigest;
@@ -276,6 +276,61 @@ export async function getExtensionInventory(
     );
   }
   return envelope;
+}
+
+/** Setup addresses one instance: a workspace row by its id, otherwise the global row. */
+function inputsQuery(scope: ExtensionInstanceScope) {
+  const workspace = scope.workspaceId?.trim() ?? "";
+  return { ...instanceQuery(scope), scope: workspace === "" ? "global" : "workspace" };
+}
+
+function inputsState(
+  data: ExtensionInputsState | undefined,
+  response: Response,
+  fallback: string
+): ExtensionInputsState {
+  const state = responseData(data, response, fallback);
+  requiredArray(state.inputs, response, fallback, "inputs");
+  return {
+    ...state,
+    missing: state.missing ?? [],
+    invalid: state.invalid ?? [],
+    daemon_env: state.daemon_env ?? [],
+    missing_env: state.missing_env ?? [],
+    mcp_auth_servers: state.mcp_auth_servers ?? [],
+  };
+}
+
+/** Declared inputs of one installed instance with their `state`. Values never leave the daemon. */
+export async function getExtensionInputs(
+  name: string,
+  scope: ExtensionInstanceScope = {},
+  signal?: AbortSignal
+): Promise<ExtensionInputsState> {
+  const { data, error, response } = await apiClient.GET("/api/extensions/{name}/inputs", {
+    params: { path: { name }, query: inputsQuery(scope) },
+    signal,
+  });
+  const fallback = `Failed to load setup for ${name}`;
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  return inputsState(data, response, fallback);
+}
+
+/** Merges values into one instance; omitted inputs keep their current binding. */
+export async function setExtensionInputs(
+  name: string,
+  scope: ExtensionInstanceScope,
+  body: ExtensionSetInputsRequest,
+  signal?: AbortSignal
+): Promise<ExtensionInputsState> {
+  const { data, error, response } = await apiClient.PUT("/api/extensions/{name}/inputs", {
+    params: { path: { name }, query: inputsQuery(scope) },
+    body,
+    signal,
+  });
+  const fallback = `Failed to save setup for ${name}`;
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  return inputsState(data, response, fallback);
 }
 
 /** Permanently removed built-ins, in the order the daemon lists them. The list is global. */

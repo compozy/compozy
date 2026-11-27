@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/compozy/compozy/internal/cli"
+	"github.com/compozy/compozy/internal/computers/sshsetup"
 )
 
 func main() {
@@ -19,5 +20,11 @@ func main() {
 }
 
 func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer) int {
+	if used, err := sshsetup.RunAskpass(ctx, args, stdout); used {
+		if err != nil {
+			return 1
+		}
+		return 0
+	}
 	return cli.ExecuteContext(ctx, args, stdout, stderr)
 }

@@ -1,14 +1,16 @@
 import type { ProfileOwner, ProfileScopeParams } from "@/systems/profiles";
 import {
   ownerDataScope,
-  workspaceBadgeIdentity,
   workspaceSelectorForScope,
   workspaceSelectorOrAll,
-  workspaceWorkingLabel,
   type DataScope,
   type FocusedDataScope,
+} from "@/systems/workspace/lib/destination";
+import {
+  workspaceBadgeIdentity,
   type WorkspaceBadgeIdentity,
-} from "@/systems/workspace";
+} from "@/systems/workspace/lib/workspace-badge-identity";
+import { workspaceWorkingLabel } from "@/systems/workspace/lib/workspace-working-label";
 
 import type { fetchSessionFacets } from "../adapters/session-catalog-api";
 import type { SessionListFilters } from "../types";
@@ -207,8 +209,26 @@ export function sessionListGroupName(group: Pick<SessionListGroupSpec, "badge" |
 export function sessionListGroupSignalLabel(
   group: Pick<SessionListGroupSpec, "needsYou" | "working">
 ): string | null {
-  if (group.needsYou > 0) return `${group.needsYou} need${group.needsYou === 1 ? "s" : ""} you`;
+  if (group.needsYou > 0) return needsYouLabel(group.needsYou);
   return group.working > 0 ? workspaceWorkingLabel(group.working) : null;
+}
+
+/**
+ * The sidebar's collapsed-header leading glyph name: it draws needs-you over working
+ * (#1926), so its name reports both, e.g. "1 needs you, 4 sessions working".
+ */
+export function sessionListLeadingSignalLabel(
+  group: Pick<SessionListGroupSpec, "needsYou" | "working">
+): string | null {
+  const parts = [
+    group.needsYou > 0 ? needsYouLabel(group.needsYou) : null,
+    group.working > 0 ? workspaceWorkingLabel(group.working) : null,
+  ].filter(part => part !== null);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
+function needsYouLabel(count: number): string {
+  return `${count} need${count === 1 ? "s" : ""} you`;
 }
 
 /**

@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	extensionpkg "github.com/compozy/compozy/internal/extension"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -136,39 +135,6 @@ func writeExtensionKitE2EFile(t *testing.T, sourceDir string, relativePath strin
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
 	}
-}
-
-func addExtensionKitE2EGatewayRequirement(
-	t *testing.T,
-	generationDir string,
-	permission string,
-) string {
-	t.Helper()
-	manifestPath := filepath.Join(generationDir, "extension.toml")
-	file, err := os.OpenFile(manifestPath, os.O_APPEND|os.O_WRONLY, 0o600)
-	if err != nil {
-		t.Fatalf("os.OpenFile(%q) error = %v", manifestPath, err)
-	}
-	_, writeErr := fmt.Fprintf(file, `
-[gateway]
-permissions = [%q]
-`, permission)
-	closeErr := file.Close()
-	if writeErr != nil || closeErr != nil {
-		t.Fatalf("append gateway requirement write error = %v, close error = %v", writeErr, closeErr)
-	}
-	manifest, err := extensionpkg.LoadManifest(generationDir)
-	if err != nil {
-		t.Fatalf("extension.LoadManifest(%q) error = %v", generationDir, err)
-	}
-	digest, err := extensionpkg.GatewayRequirementDigest(manifest.Gateway)
-	if err != nil {
-		t.Fatalf("GatewayRequirementDigest() error = %v", err)
-	}
-	if strings.TrimSpace(digest) == "" {
-		t.Fatal("gateway requirement digest is empty")
-	}
-	return digest
 }
 
 func setExtensionKitE2ESecret(

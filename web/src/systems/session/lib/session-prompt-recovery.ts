@@ -1,8 +1,10 @@
 import type { AssistantRuntime } from "@assistant-ui/react";
 import type { UIMessage } from "ai";
 
+import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import type { TerminalQuote } from "@/systems/terminal/parts";
 
+import { sessionWorkspacePath } from "../adapters/session-workspace-path";
 import { splitQuotedPrompt } from "./session-terminal-quote-prompt";
 import type { SessionSendEnvelope } from "./session-unconfirmed-send";
 
@@ -22,12 +24,17 @@ type RecoveryListener = (draft: RestoredSessionPromptDraft) => void;
 type UnconfirmedListener = (envelope: SessionSendEnvelope) => void;
 
 export interface SessionPromptRecoveryScope {
+  computerId?: ComputerId;
   workspaceId: string;
   sessionId: string;
 }
 
 function recoveryScopeKey(scope: SessionPromptRecoveryScope): string {
-  return JSON.stringify([scope.workspaceId, scope.sessionId]);
+  return JSON.stringify([
+    normalizeComputerId(scope.computerId),
+    sessionWorkspacePath(scope.workspaceId),
+    scope.sessionId,
+  ]);
 }
 
 function latestUserPromptText(messages: readonly UIMessage[]): string {
@@ -44,7 +51,7 @@ function latestUserPromptText(messages: readonly UIMessage[]): string {
 }
 
 function stagedDraftKey(scope: SessionPromptRecoveryScope, messageId: string): string {
-  return JSON.stringify([scope.workspaceId, scope.sessionId, messageId]);
+  return `${recoveryScopeKey(scope)}:${messageId}`;
 }
 
 /**

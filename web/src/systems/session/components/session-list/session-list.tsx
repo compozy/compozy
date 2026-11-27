@@ -2,8 +2,14 @@ import type { SessionThreadBranchChange } from "../../lib/session-thread-branch"
 
 import { SearchInput } from "@compozy/ui";
 
+import { useRemoteSessionsFanout } from "../../hooks/use-remote-sessions-fanout";
 import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
+import {
+  mergeLocalAndRemoteThreads,
+  SessionListComputerContext,
+} from "../../lib/session-list-computer";
+import { SessionListRemoteFooter } from "./session-list-remote-body";
 import { SessionMenuOpenContext } from "../../contexts/session-menu-open-context-value";
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
@@ -396,8 +402,13 @@ function SessionListBody({
   pinnedSection: React.ReactNode;
 }) {
   const ownerOf = view.aggregate ? view.ownerOf : undefined;
+  const remote = useRemoteSessionsFanout({
+    enabled: view.shelf === "active",
+    filters: normalizedFilter !== "" ? { q: normalizedFilter } : undefined,
+  });
+  const effectiveThreads = mergeLocalAndRemoteThreads(threads, remote.remoteSessions);
   // Nothing has answered yet: placeholder rows, never the empty state.
-  if (view.catalog?.loading) return <SessionListSkeleton />;
+  if (view.catalog?.loading && remote.remoteSessions.length === 0) return <SessionListSkeleton />;
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
@@ -405,23 +416,40 @@ function SessionListBody({
       aria-busy={view.catalog?.paging || undefined}
     >
       {pinnedSection}
-      <SessionListBadgeContext value={view.badgeOf}>
-        <SessionListThreadList
-          threads={threads}
-          collapsedThreads={collapsedThreads}
-          subagentThreads={subagentThreads}
-          currentSessionId={currentSessionId}
-          ownerOf={ownerOf}
-          onThreadBranchChange={onThreadBranchChange}
-          onSelectSession={session => {
-            if (!view.catalog?.paging) onSelectSession(session);
-          }}
-          selection={selection}
-          sessionActions={sessionActions}
-          testIdPrefix={testIdPrefix}
-          emptyMessage={emptySessionListMessage(normalizedFilter !== "", view)}
-        />
-      </SessionListBadgeContext>
+      <SessionListComputerContext value={remote.computerBySessionId}>
+        <SessionListBadgeContext value={view.badgeOf}>
+          <SessionListThreadList
+            threads={effectiveThreads}
+            collapsedThreads={collapsedThreads}
+            subagentThreads={subagentThreads}
+            currentSessionId={currentSessionId}
+            ownerOf={ownerOf}
+            onThreadBranchChange={onThreadBranchChange}
+            onSelectSession={session => {
+              if (!view.catalog?.paging) {
+                const computer = remote.computerBySessionId.get(session.id);
+                onSelectSession(computer ? { ...session, computerId: computer.id } : session);
+              }
+            }}
+            selection={selection}
+            sessionActions={sessionActions}
+            testIdPrefix={testIdPrefix}
+            emptyMessage={
+              remote.loadingComputers.length > 0 || remote.failedComputers.length > 0
+                ? null
+                : emptySessionListMessage(normalizedFilter !== "", view)
+            }
+          />
+        </SessionListBadgeContext>
+      </SessionListComputerContext>
+      <SessionListRemoteFooter
+        failedComputers={remote.failedComputers}
+        hasMore={remote.hasMore}
+        loadingComputers={remote.loadingComputers}
+        loadingMore={remote.loadingMore}
+        onLoadMore={() => void remote.loadMore()}
+        testIdPrefix={testIdPrefix}
+      />
       {view.catalog ? <SessionListCatalogNavigation catalog={view.catalog} /> : null}
     </div>
   );

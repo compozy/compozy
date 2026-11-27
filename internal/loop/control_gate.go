@@ -369,14 +369,11 @@ func gateVerdictOutputRef(verdict gate.Verdict) (string, error) {
 func gateRouteTerminal(gateID dsl.NodeID, route gate.RouteDecision, details string) *task.CoordinatorTerminal {
 	status := strings.TrimSpace(route.TerminalStatus)
 	if status == "" {
-		switch route.Action {
-		case gate.RouteEscalate:
-			status = string(StatusNeedsApproval)
-		case gate.RouteHalt:
-			status = string(StatusBlocked)
-		default:
-			status = string(StatusFailed)
-		}
+		// Keep the fallback identical to gate routing: escalate parks, halt fails.
+		status = gate.DefaultTerminalStatus(route.Action)
+	}
+	if status == "" {
+		status = string(StatusFailed)
 	}
 	reasonCode := strings.TrimSpace(route.ReasonCode)
 	if reasonCode == "" {
@@ -387,6 +384,7 @@ func gateRouteTerminal(gateID dsl.NodeID, route gate.RouteDecision, details stri
 		Cause:      string(TransitionCauseGateRejected),
 		ReasonCode: reasonCode,
 		GateID:     string(gateID),
+		NodeID:     string(gateID),
 		Details:    json.RawMessage(details),
 	}
 }

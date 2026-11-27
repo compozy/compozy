@@ -5,7 +5,11 @@ import (
 
 	"github.com/compozy/compozy/internal/heartbeat"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/admission"
+	"github.com/compozy/compozy/internal/cloudclient"
+	"github.com/compozy/compozy/internal/computers"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/retention"
 
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
@@ -13,6 +17,11 @@ import (
 )
 
 type daemonRuntimeWorkers struct {
+	account               *account.Service
+	signInRecovery        *ownedWorkerGroup
+	cloud                 *cloudclient.Client
+	remote                *remotehost.Host
+	computers             *computers.Registry
 	proactiveChecks       *heartbeat.CheckService
 	instanceMaintenance   *retention.PeriodicWorker
 	supervision           *retention.PeriodicWorker
@@ -30,6 +39,17 @@ type daemonRuntimeWorkers struct {
 }
 
 func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
+	appendWrappedError(errs, "daemon: stop sign-in recovery",
+		stopOwnedWorker(ctx, "sign-in recovery", w.signInRecovery))
+	if w.computers != nil {
+		w.computers.Close()
+	}
+	if w.remote != nil {
+		w.remote.Close()
+	}
+	if w.account != nil {
+		w.account.Close()
+	}
 	appendWrappedError(errs, "daemon: stop terminal window retirement",
 		stopOwnedWorker(ctx, "terminal window retirement", w.terminalWindows))
 	appendWrappedError(errs, "daemon: stop MCP declarations watcher",

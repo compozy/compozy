@@ -1,6 +1,8 @@
 import { createStore } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import type { FileViewerTarget } from "../lib/file-viewer-target";
 
 /** Where a project's Files window left off: its root and the open file. */
@@ -12,18 +14,24 @@ export interface FilesAppPlace {
 
 const EMPTY_PLACE: FilesAppPlace = { worktreeId: null, path: null };
 
-export function filesAppPlaceStorageKey(workspaceId: string): string {
-  return `compozy:files:v1:${workspaceId}`;
+function placeScopeKey(workspaceId: string, computerId?: ComputerId): string {
+  return isRemoteComputerId(computerId)
+    ? `${normalizeComputerId(computerId)}:${workspaceId}`
+    : workspaceId;
+}
+
+export function filesAppPlaceStorageKey(workspaceId: string, computerId?: ComputerId): string {
+  return `compozy:files:v1:${placeScopeKey(workspaceId, computerId)}`;
 }
 
 function nullableString(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
-function readStoredPlace(workspaceId: string): FilesAppPlace {
+function readStoredPlace(workspaceId: string, computerId?: ComputerId): FilesAppPlace {
   if (typeof window === "undefined") return EMPTY_PLACE;
   try {
-    const raw = window.localStorage.getItem(filesAppPlaceStorageKey(workspaceId));
+    const raw = window.localStorage.getItem(filesAppPlaceStorageKey(workspaceId, computerId));
     if (raw === null) return EMPTY_PLACE;
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return EMPTY_PLACE;
@@ -34,10 +42,17 @@ function readStoredPlace(workspaceId: string): FilesAppPlace {
   }
 }
 
-function writeStoredPlace(workspaceId: string, place: FilesAppPlace): void {
+function writeStoredPlace(
+  workspaceId: string,
+  place: FilesAppPlace,
+  computerId?: ComputerId
+): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(filesAppPlaceStorageKey(workspaceId), JSON.stringify(place));
+    window.localStorage.setItem(
+      filesAppPlaceStorageKey(workspaceId, computerId),
+      JSON.stringify(place)
+    );
   } catch {
     // Storage full or blocked: the place still holds for this app session.
   }
@@ -81,20 +96,31 @@ export const filesAppPlaceStore = createStore({
 });
 
 /** Reads one project's place, hydrating it from storage on first use. */
-export function filesAppPlace(workspaceId: string): FilesAppPlace {
-  const known = filesAppPlaceStore.getSnapshot().context.byWorkspace[workspaceId];
-  return known ?? readStoredPlace(workspaceId);
+export function filesAppPlace(workspaceId: string, computerId?: ComputerId): FilesAppPlace {
+  const scopeKey = placeScopeKey(workspaceId, computerId);
+  const known = filesAppPlaceStore.getSnapshot().context.byWorkspace[scopeKey];
+  return known ?? readStoredPlace(workspaceId, computerId);
 }
 
 /** What the last open request asked a project's Files window to show, until it moves elsewhere. */
-export function filesAppRequestTarget(workspaceId: string): FileViewerTarget | null {
-  return filesAppPlaceStore.getSnapshot().context.targets[workspaceId] ?? null;
+export function filesAppRequestTarget(
+  workspaceId: string,
+  computerId?: ComputerId
+): FileViewerTarget | null {
+  return (
+    filesAppPlaceStore.getSnapshot().context.targets[placeScopeKey(workspaceId, computerId)] ?? null
+  );
 }
 
-function placeFiles(workspaceId: string, patch: Partial<FilesAppPlace>): void {
-  const place = { ...filesAppPlace(workspaceId), ...patch };
-  writeStoredPlace(workspaceId, place);
-  filesAppPlaceStore.trigger.placed({ workspaceId, place });
+function placeFiles(
+  workspaceId: string,
+  patch: Partial<FilesAppPlace>,
+  computerId?: ComputerId
+): void {
+  const scopeKey = placeScopeKey(workspaceId, computerId);
+  const place = { ...filesAppPlace(workspaceId, computerId), ...patch };
+  writeStoredPlace(workspaceId, place, computerId);
+  filesAppPlaceStore.trigger.placed({ workspaceId: scopeKey, place });
 }
 
 /**
@@ -105,10 +131,16 @@ function placeFiles(workspaceId: string, patch: Partial<FilesAppPlace>): void {
 export function requestFilesAppPlace(
   workspaceId: string,
   place: FilesAppPlace,
-  target?: FileViewerTarget
+  target?: FileViewerTarget,
+  computerId?: ComputerId
 ): void {
-  writeStoredPlace(workspaceId, place);
-  filesAppPlaceStore.trigger.requested({ workspaceId, place, ...(target ? { target } : {}) });
+  const scopeKey = placeScopeKey(workspaceId, computerId);
+  writeStoredPlace(workspaceId, place, computerId);
+  filesAppPlaceStore.trigger.requested({
+    workspaceId: scopeKey,
+    place,
+    ...(target ? { target } : {}),
+  });
 }
 
 export interface UseFilesAppPlaceResult extends FilesAppPlace {
@@ -122,25 +154,29 @@ export interface UseFilesAppPlaceResult extends FilesAppPlace {
 }
 
 /** The persisted root and selected path of one project's Files window (`compozy:files:v1:<id>`). */
-export function useFilesAppPlace(workspaceId: string): UseFilesAppPlaceResult {
+export function useFilesAppPlace(
+  workspaceId: string,
+  computerId?: ComputerId
+): UseFilesAppPlaceResult {
+  const scopeKey = placeScopeKey(workspaceId, computerId);
   const known = useSelector(
     filesAppPlaceStore,
-    snapshot => snapshot.context.byWorkspace[workspaceId] ?? null
+    snapshot => snapshot.context.byWorkspace[scopeKey] ?? null
   );
   const request = useSelector(
     filesAppPlaceStore,
-    snapshot => snapshot.context.requests[workspaceId] ?? 0
+    snapshot => snapshot.context.requests[scopeKey] ?? 0
   );
   const requestTarget = useSelector(
     filesAppPlaceStore,
-    snapshot => snapshot.context.targets[workspaceId] ?? null
+    snapshot => snapshot.context.targets[scopeKey] ?? null
   );
-  const place = known ?? readStoredPlace(workspaceId);
+  const place = known ?? readStoredPlace(workspaceId, computerId);
   return {
     ...place,
     request,
     requestTarget,
-    selectRoot: worktreeId => placeFiles(workspaceId, { worktreeId }),
-    openPath: path => placeFiles(workspaceId, { path }),
+    selectRoot: worktreeId => placeFiles(workspaceId, { worktreeId }, computerId),
+    openPath: path => placeFiles(workspaceId, { path }, computerId),
   };
 }

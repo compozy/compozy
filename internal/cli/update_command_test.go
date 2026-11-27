@@ -323,13 +323,7 @@ func TestUpdateTerminalProjection(t *testing.T) {
 					}
 				}))
 				t.Cleanup(server.Close)
-				client := &daemonClient{
-					target: ClientTarget{
-						kind:    clientTargetSSHForward,
-						baseURL: server.URL,
-					},
-					httpClient: server.Client(),
-				}
+				client := testDaemonHTTPClient(t, server)
 				deps.newClient = func(target ClientTarget) (DaemonClient, error) {
 					if target.kind != clientTargetLocal || target.socketPath != paths.DaemonSocket {
 						t.Fatalf("runtime observation target = %#v, want this home's local daemon", target)

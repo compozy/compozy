@@ -220,7 +220,7 @@ func clientManifestOAuth(server agentplugin.ServerSpec) *MCPServerAuthConfig {
 		return nil
 	}
 	auth := &MCPServerAuthConfig{
-		Method:            "oauth",
+		Method:            mcpAuthMethodOAuth,
 		Registration:      "dynamic",
 		ClientID:          server.Auth.ClientID,
 		Scopes:            slices.Clone(server.Auth.Scopes),

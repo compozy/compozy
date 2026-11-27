@@ -1,6 +1,7 @@
 import { createStoreLogic, type EnqueueObject } from "@xstate/store";
 
 import type { ExtensionInstallRequest } from "../types";
+import { marketplaceDependenciesInstalled } from "./marketplace-ui";
 
 /**
  * Two gates, in daemon order: the form builds a valid source-union request, then an unverified
@@ -137,8 +138,12 @@ function enqueueInstall(
   });
 }
 
+/** A failed joint install still names the dependencies it completed, since they stay installed. */
 function installErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message.trim() !== ""
-    ? error.message
-    : "The extension could not be installed.";
+  const message =
+    error instanceof Error && error.message.trim() !== ""
+      ? error.message
+      : "The extension could not be installed.";
+  const installed = marketplaceDependenciesInstalled(error);
+  return installed.length > 0 ? `${message} · Installed first: ${installed.join(", ")}` : message;
 }

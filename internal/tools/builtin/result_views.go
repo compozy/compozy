@@ -70,7 +70,7 @@ var singleResultFamilies = []map[toolspkg.ToolID]SingleResultReason{
 	singleResultProvider,
 	singleResultResources,
 	singleResultVault,
-	singleResultGateway,
+	singleResultRemoteHost,
 	singleResultMcp,
 	singleResultObserve,
 	singleResultLogs,

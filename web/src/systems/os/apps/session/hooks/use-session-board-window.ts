@@ -80,8 +80,9 @@ export function useSessionBoardWindow(
   const onOpen = (session: SessionBoardPayload) => {
     const request = ++openRequest.current;
     const workspaceId = session.workspace_id ?? "";
+    const computerId = board.computerBySessionId?.get(session.id)?.id;
     const open = (agentName: string) =>
-      openInDrawer({ sessionId: session.id, agentName, workspaceId });
+      openInDrawer({ sessionId: session.id, agentName, workspaceId, computerId });
     if (session.agent_name.trim()) {
       open(session.agent_name);
       return;

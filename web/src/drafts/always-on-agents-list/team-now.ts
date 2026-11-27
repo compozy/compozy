@@ -1,5 +1,5 @@
 /** What a teammate is up to, and the way to their profile. */
-import { protoHref } from "@compozy/proto";
+import { protoHref } from "@protohq/cli";
 
 import { PAUSE_SHORT, profileStateOf } from "../always-on-agents-shared/agents-fixtures";
 import type { ListedAgent } from "../always-on-agents-shared/agents-page";

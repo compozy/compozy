@@ -1,5 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
+import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import { fetchTerminals } from "../adapters/terminal-api";
 import type { TerminalProfileScopeParams, TerminalScopeKey, TerminalScopeParams } from "../types";
 import { TERMINAL_ALL_PROFILES_KEY, terminalKeys } from "./query-keys";
@@ -13,34 +15,45 @@ import { TERMINAL_ALL_PROFILES_KEY, terminalKeys } from "./query-keys";
 export function terminalScope(
   workspaceId: string,
   profile: string,
-  aggregate?: false
+  aggregate?: false,
+  computerId?: ComputerId
 ): TerminalProfileQueryScope;
 export function terminalScope(
   workspaceId: string,
   profile: string,
-  aggregate: true
+  aggregate: true,
+  computerId?: ComputerId
 ): TerminalQueryScope;
 export function terminalScope(
   workspaceId: string,
   profile: string,
-  aggregate: boolean
+  aggregate: boolean,
+  computerId?: ComputerId
 ): TerminalQueryScope;
 export function terminalScope(
   workspaceId: string,
   profile: string,
-  aggregate = false
+  aggregate = false,
+  computerId?: ComputerId
 ): TerminalQueryScope {
+  const normalized = normalizeComputerId(computerId);
   return aggregate
     ? {
         key: { workspaceId, profileKey: TERMINAL_ALL_PROFILES_KEY },
         params: { all_profiles: true },
+        computerId: normalized,
       }
-    : { key: { workspaceId, profileKey: profile }, params: { profile } };
+    : {
+        key: { workspaceId, profileKey: profile },
+        params: { profile },
+        computerId: normalized,
+      };
 }
 
 export interface TerminalQueryScope {
   key: TerminalScopeKey;
   params: TerminalScopeParams;
+  computerId?: ComputerId;
 }
 
 export interface TerminalProfileQueryScope extends TerminalQueryScope {
@@ -48,8 +61,10 @@ export interface TerminalProfileQueryScope extends TerminalQueryScope {
 }
 
 export function terminalCatalogQuery(scope: TerminalQueryScope) {
+  const keys = terminalKeys.forComputer(scope.computerId);
   return queryOptions({
-    queryKey: terminalKeys.catalog(scope.key),
-    queryFn: ({ signal }) => fetchTerminals(scope.key.workspaceId, scope.params, signal),
+    queryKey: keys.catalog(scope.key),
+    queryFn: ({ signal }) =>
+      fetchTerminals(scope.key.workspaceId, scope.params, signal, scope.computerId),
   });
 }

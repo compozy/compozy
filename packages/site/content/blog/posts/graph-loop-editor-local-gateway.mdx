@@ -379,8 +379,8 @@ rejected while it's still inside that window.
 </Callout>
 
 Publishing the URL is its own confirmation step, too. A trigger read exposes an `ingress` object once
-the public surface has a verified address, and you confirm the binding explicitly via
-`POST /api/gateway/ingress-bindings`. If the public address changes, the endpoint generation changes
+the public surface has a verified address, and you confirm the binding explicitly. For the current endpoint and setup, see the
+[Remote Computers migration](/docs/migration#remote-computers-0-8-0). If the public address changes, the endpoint generation changes
 and the trigger reports `reconfirmation_required` until you confirm again. A URL existing is never
 proof that delivery is on.
 

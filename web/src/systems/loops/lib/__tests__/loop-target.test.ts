@@ -25,6 +25,19 @@ describe("loop-target", () => {
     expect(setLoopTargetLoop(base, "implement-tasks")).toBe(base);
   });
 
+  it("Should round-trip the fire-time input command through editor changes", () => {
+    const withCommand: LoopTargetDraft = {
+      ...base,
+      input_command: "scripts/next-spec.sh",
+    };
+    expect(setLoopTargetLoop(withCommand, "review-and-fix").input_command).toBe(
+      "scripts/next-spec.sh"
+    );
+    expect(setLoopTargetInput(withCommand, "branch", "main").input_command).toBe(
+      "scripts/next-spec.sh"
+    );
+  });
+
   it("Should set and clear static input values", () => {
     const set = setLoopTargetInput(base, "branch", "main");
     expect(set.inputs).toEqual({ slug: "x", branch: "main" });

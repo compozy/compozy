@@ -116,3 +116,10 @@ shipped defaults, and stored overrides keep winning. The dedicated scenario
 Layouts to Settings › Shortcuts, and mixed scenarios, `J-administer-window-manager` and
 `CH-herdr-keymap-hard-cut` were rewritten in place with dated QA impact notes. Dated reports and
 `evidence/` that mention the preset record historical observations only.
+
+### Product retirement — Remote Gateway (v0.8.0)
+
+Remote Computers replaces the Remote Gateway. The active journeys are in
+`J-operate-remote-computers` and its `RT-computers-*` scenarios. The Gateway-only scenarios,
+connectivity-provider trust and routing cases, and Gateway configuration ceiling case are retired.
+Dated reports, bugs, evidence, and immutable Gateway charters retain their historical observations.

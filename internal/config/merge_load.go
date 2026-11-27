@@ -40,6 +40,11 @@ func ApplyConfigOverlayFile(path string, dst *Config) error {
 }
 
 func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) error {
+	if roleSource != RoleFieldSourceGlobal {
+		// Listener and device policy belong to the installation's operator.
+		overlay.Remote = remoteOverlay{}
+		overlay.Computers = computersOverlay{}
+	}
 	if roleSource == RoleFieldSourceWorkspace || roleSource == RoleFieldSourceWorkspaceProfile {
 		overlay.Tools.Policy.restrictTo(dst.Tools.Policy)
 	}
@@ -96,6 +101,9 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 	}
 
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
+		undecoded = slices.DeleteFunc(undecoded, func(key burnttoml.Key) bool {
+			return len(key) > 0 && key[0] == retiredGatewayKey
+		})
 		undecoded = withoutRetiredProviderFullAccessKeys(withoutDynamicLoopInputKeys(undecoded))
 		if len(undecoded) == 0 {
 			return overlay, nil

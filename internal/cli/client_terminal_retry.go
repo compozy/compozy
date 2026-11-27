@@ -47,9 +47,6 @@ func terminalReconnectableError(err error) bool {
 	if apiErr, ok := errors.AsType[*daemonAPIError](err); ok {
 		return apiErr.statusCode >= http.StatusInternalServerError
 	}
-	if _, ok := errors.AsType[*gatewayClientError](err); ok {
-		return true
-	}
 	if closeErr, ok := errors.AsType[*websocket.CloseError](err); ok {
 		switch closeErr.Code {
 		case websocket.CloseGoingAway,

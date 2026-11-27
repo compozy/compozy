@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/compozy/compozy/internal/apptoken"
+	"github.com/compozy/compozy/internal/ingress"
 	authproviders "github.com/compozy/compozy/internal/providers"
 
 	"github.com/compozy/compozy/internal/agentmemory"
@@ -13,7 +15,6 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -22,9 +23,9 @@ import (
 )
 
 const (
-	handlersLocalhostKey               = "localhost"
-	defaultGatewayIngressRequestLimit  = 60
-	defaultGatewayIngressRequestWindow = time.Minute
+	handlersLocalhostKey        = "localhost"
+	defaultIngressRequestLimit  = 60
+	defaultIngressRequestWindow = time.Minute
 )
 
 type handlerConfig struct {
@@ -72,6 +73,9 @@ type handlerConfig struct {
 	agentSync             core.AgentDefinitionSync
 	contextWindowResolver core.ContextWindowResolver
 	modelCatalog          core.ModelCatalogService
+	account               core.AccountService
+	remote                core.RemoteHostService
+	computers             core.ComputersService
 	providerUsage         core.ProviderUsageService
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService
@@ -95,13 +99,9 @@ type handlerConfig struct {
 	deadEntities          doctor.DeadEntitySource
 	appTokens             core.AppTokenManager
 	openAPI               *core.OpenAPIDocument
-	gateway               core.GatewayService
-	gatewayAdmission      gateway.AdmissionController
-	deviceAuth            gateway.DeviceAuthenticator
-	authLimiter           *gateway.AuthFailureLimiter
-	pairingLimiter        *gateway.AuthFailureLimiter
-	ingressLimiter        *gateway.IngressRateLimiter
-	surfaceSet            SurfaceSet
+	ingress               core.IngressService
+	migrationNotices      core.MigrationNoticeStore
+	ingressLimiter        *ingress.RateLimiter
 	staticFS              fs.FS
 	homePaths             compozyconfig.HomePaths
 	config                compozyconfig.Config
@@ -122,28 +122,11 @@ type handlerConfig struct {
 // Handlers expose request/response and SSE endpoints for the Compozy API.
 type Handlers struct {
 	*core.BaseHandlers
-	staticFS         fs.FS
-	resourceAuth     []gin.HandlerFunc
-	Extensions       ExtensionService
-	boundHost        string
-	deviceAuth       gateway.DeviceAuthenticator
-	gatewayAdmission gateway.AdmissionController
-	authLimiter      *gateway.AuthFailureLimiter
-	pairingLimiter   *gateway.AuthFailureLimiter
-	ingressLimiter   *gateway.IngressRateLimiter
-}
-
-const (
-	defaultGatewayAuthFailureLimit  = 10
-	defaultGatewayAuthFailureWindow = time.Minute
-)
-
-func newDefaultGatewayAuthFailureLimiter() *gateway.AuthFailureLimiter {
-	return gateway.NewAuthFailureLimiter(
-		defaultGatewayAuthFailureLimit,
-		defaultGatewayAuthFailureWindow,
-		func() time.Time { return time.Now().UTC() },
-	)
+	staticFS       fs.FS
+	resourceAuth   []gin.HandlerFunc
+	Extensions     ExtensionService
+	boundHost      string
+	ingressLimiter *ingress.RateLimiter
 }
 
 func newHandlers(cfg *handlerConfig) *Handlers {
@@ -158,43 +141,21 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		cfg.httpPort = cfg.config.HTTP.Port
 	}
 	boundHost := handlerBoundHost(cfg)
-	authLimiter := cfg.authLimiter
-	if authLimiter == nil {
-		authLimiter = newDefaultGatewayAuthFailureLimiter()
-	}
-	// Pairing redemption keeps its own budget: a successful device-authenticated
-	// request resets the device-auth failures for its source, and sharing the
-	// limiter would let that reset also forgive failed pairing attempts.
-	pairingLimiter := cfg.pairingLimiter
-	if pairingLimiter == nil {
-		pairingLimiter = newDefaultGatewayAuthFailureLimiter()
-	}
 	ingressLimiter := cfg.ingressLimiter
 	if ingressLimiter == nil {
-		ingressLimiter = gateway.NewIngressRateLimiter(
-			defaultGatewayIngressRequestLimit,
-			defaultGatewayIngressRequestWindow,
+		ingressLimiter = ingress.NewRateLimiter(
+			defaultIngressRequestLimit,
+			defaultIngressRequestWindow,
 			func() time.Time { return time.Now().UTC() },
 		)
 	}
-	gatewayAdmission := cfg.gatewayAdmission
-	if gatewayAdmission == nil {
-		if admission, ok := cfg.gateway.(gateway.AdmissionController); ok {
-			gatewayAdmission = admission
-		}
-	}
-
 	return &Handlers{
-		BaseHandlers:     core.NewBaseHandlers(coreHandlerConfig(cfg, boundHost)),
-		staticFS:         cfg.staticFS,
-		resourceAuth:     append([]gin.HandlerFunc(nil), cfg.resourceAuth...),
-		Extensions:       cfg.extensions,
-		boundHost:        boundHost,
-		deviceAuth:       cfg.deviceAuth,
-		gatewayAdmission: gatewayAdmission,
-		authLimiter:      authLimiter,
-		pairingLimiter:   pairingLimiter,
-		ingressLimiter:   ingressLimiter,
+		BaseHandlers:   core.NewBaseHandlers(coreHandlerConfig(cfg, boundHost)),
+		staticFS:       cfg.staticFS,
+		resourceAuth:   append([]gin.HandlerFunc(nil), cfg.resourceAuth...),
+		Extensions:     cfg.extensions,
+		boundHost:      boundHost,
+		ingressLimiter: ingressLimiter,
 	}
 }
 
@@ -208,7 +169,6 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 	config.IncludeSessionWorkspaceInSSE = true
 	config.SkillExposures = cfg.skillExposureStore
 	config.SkillExposureEvents = cfg.skillExposureEvents
-	config.GatewayPairingSource = gatewayPairingSource(cfg.surfaceSet)
 	config.TelemetryStatus = cfg.telemetryStatus
 	config.Config = coreConfig
 	config.Logger = cfg.logger
@@ -276,6 +236,9 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		AgentDefinitionSync:    cfg.agentSync,
 		ContextWindowResolver:  cfg.contextWindowResolver,
 		ModelCatalog:           cfg.modelCatalog,
+		Account:                cfg.account,
+		Remote:                 cfg.remote,
+		Computers:              cfg.computers,
 		ProviderUsage:          cfg.providerUsage,
 		MarketplaceCatalog:     cfg.marketplaceCatalog,
 		AgentContextService:    cfg.agentContext,
@@ -289,20 +252,10 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		DeadEntities:           cfg.deadEntities,
 		AppTokens:              cfg.appTokens,
 		OpenAPI:                cfg.openAPI,
-		Gateway:                cfg.gateway,
+		Ingress:                cfg.ingress,
+		MigrationNotices:       cfg.migrationNotices,
 		HomePaths:              cfg.homePaths,
 		AgentLoader:            cfg.agentLoader,
-	}
-}
-
-func gatewayPairingSource(surfaceSet SurfaceSet) string {
-	switch surfaceSet {
-	case SurfaceSetLocal:
-		return string(gateway.PairingSourceLocal)
-	case SurfaceSetPrivate:
-		return string(gateway.PairingSourcePrivate)
-	default:
-		return ""
 	}
 }
 
@@ -334,16 +287,11 @@ func (h *Handlers) resourceAuthMiddleware() []gin.HandlerFunc {
 }
 
 func (h *Handlers) privilegedMutationGuard() gin.HandlerFunc {
-	boundHost := ""
-	if h != nil {
-		boundHost = h.boundHost
-	}
-	loopback := loopbackMutationGuard(boundHost)
 	return func(c *gin.Context) {
 		if c.GetString(appTokenOriginKey) != "" {
-			core.RespondAppTokenError(c, gateway.ErrAppTokenRouteForbidden, true)
+			core.RespondAppTokenError(c, apptoken.ErrRouteForbidden, true)
 			return
 		}
-		loopback(c)
+		c.Next()
 	}
 }

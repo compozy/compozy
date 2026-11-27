@@ -1,0 +1,193 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
+-- name: AdminAccountData :one
+-- Privacy allowlist: addressable account metadata only. A new schema column never enters this export implicitly.
+SELECT jsonb_build_object(
+  'account', jsonb_build_object(
+    'id', a.id, 'email', a.email, 'name', a.name, 'state', a.state, 'suspended_at', a.suspended_at,
+    'first_sign_in_provider', a.first_sign_in_provider, 'cloud_routes_max', a.cloud_routes_max,
+    'security_epoch', a.security_epoch, 'created_at', a.created_at, 'last_seen_at', a.last_seen_at
+  ),
+  'consent', jsonb_build_object(
+    'marketing_opt_in', a.marketing_opt_in, 'marketing_consent_at', a.marketing_consent_at,
+    'marketing_consent_source', a.marketing_consent_source, 'contact_synced_at', a.contact_synced_at,
+    'contact_retry_at', a.contact_retry_at
+  ),
+  'identities', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'provider', i.provider, 'subject', i.subject, 'email', i.email,
+      'created_at', i.created_at, 'last_sign_in_at', i.last_sign_in_at
+    ) ORDER BY i.provider, i.subject)
+    FROM identities i WHERE i.account_id = a.id
+  ), '[]'),
+  'installations', coalesce((
+    SELECT jsonb_agg(jsonb_build_object('id', i.id, 'source', i.source, 'last_seen_at', i.last_seen_at)
+      ORDER BY i.source, i.id)
+    FROM (
+      SELECT d.installation_id AS id, 'device' AS source, max(d.last_seen_at) AS last_seen_at
+      FROM devices d WHERE d.account_id = a.id AND d.installation_id IS NOT NULL GROUP BY d.installation_id
+      UNION ALL
+      SELECT coalesce(c.installation_id, c.id), 'link', max(greatest(c.last_control_at, c.linked_at))
+      FROM computers c WHERE c.account_id = a.id GROUP BY coalesce(c.installation_id, c.id)
+    ) i
+  ), '[]') || coalesce((token_data.value->'installations'), '[]'),
+  'account_tokens', token_data.value->'tokens',
+  'devices', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', d.id, 'name', d.name, 'kind', d.kind, 'installation_id', d.installation_id,
+      'admin', d.admin, 'last_seen_at', d.last_seen_at, 'revoked_at', d.revoked_at
+    ) ORDER BY d.name, d.id)
+    FROM devices d WHERE d.account_id = a.id
+  ), '[]'),
+  'device_keys', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'device_id', k.device_id, 'state', k.state, 'origin', k.origin, 'created_at', k.created_at,
+      'pending_expires_at', k.pending_expires_at, 'activated_at', k.activated_at, 'revoked_at', k.revoked_at
+    ) ORDER BY k.device_id, k.created_at, k.jkt)
+    FROM device_keys k JOIN devices d ON d.id = k.device_id WHERE d.account_id = a.id
+  ), '[]'),
+  'device_sessions', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', s.id, 'device_id', s.device_id, 'provider', s.provider, 'created_at', s.created_at,
+      'last_used_at', s.last_used_at, 'rotated_at', s.rotated_at, 'revoked_at', s.revoked_at
+    ) ORDER BY s.last_used_at DESC, s.id)
+    FROM device_sessions s WHERE s.account_id = a.id
+  ), '[]'),
+  'web_sessions', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'device_id', s.browser_device_id, 'created_at', s.created_at, 'last_used_at', s.last_used_at,
+      'expires_at', s.expires_at, 'revoked_at', s.revoked_at
+    ) ORDER BY s.created_at DESC, s.id_sha256)
+    FROM cloud_web_sessions s WHERE s.account_id = a.id
+  ), '[]'),
+  'computers', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', c.id, 'installation_id', c.installation_id, 'name', c.name, 'platform', c.platform,
+      'version', c.version, 'remote_enabled', c.remote_enabled, 'plan_limited', c.plan_limited,
+      'last_session_at', c.last_session_at, 'last_control_at', c.last_control_at,
+      'linked_at', c.linked_at, 'unlinked_at', c.unlinked_at
+    ) ORDER BY c.name, c.id)
+    FROM computers c WHERE c.account_id = a.id
+  ), '[]'),
+  'tunnels', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'computer_id', t.computer_id, 'hostname', t.hostname, 'state', t.state, 'generation', t.generation,
+      'created_at', t.created_at, 'delete_after', t.delete_after, 'admin_takedown_at', t.admin_takedown_at
+    ) ORDER BY t.hostname)
+    FROM tunnels t JOIN computers c ON c.id = t.computer_id WHERE c.account_id = a.id
+  ), '[]'),
+  'subscriptions', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', s.id, 'source', s.source, 'stripe_customer_id', s.stripe_customer_id, 'status', s.status,
+      'price_id', s.price_id, 'interval', s.interval, 'current_period_end', s.current_period_end,
+      'cancel_at_period_end', s.cancel_at_period_end, 'last_payment_at', s.last_payment_at,
+      'ends_at', s.ends_at, 'granted_by', s.granted_by, 'stripe_synced_at', s.stripe_synced_at,
+      'updated_at', s.updated_at, 'last_invoice_id', s.last_invoice_id, 'refundable_payment', s.refundable_payment
+    ) ORDER BY s.source, s.id)
+    FROM subscriptions s WHERE s.account_id = a.id
+  ), '[]'),
+  'device_scopes', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'device_id', s.device_id, 'computer_id', s.computer_id, 'scopes', s.scopes
+    ) ORDER BY s.device_id, s.computer_id)
+    FROM device_scopes s JOIN devices d ON d.id = s.device_id WHERE d.account_id = a.id
+  ), '[]'),
+  'device_approvals', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', p.id, 'computer_id', p.computer_id, 'device_id', p.device_id, 'state', p.state,
+      'created_at', p.created_at, 'decided_at', p.decided_at, 'decided_by_device', p.decided_by_device,
+      'applied_result', p.applied_result
+    ) ORDER BY p.created_at, p.id)
+    FROM device_approvals p WHERE p.account_id = a.id
+  ), '[]'),
+  'computer_endpoints', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'computer_id', e.computer_id, 'kind', e.kind, 'address', e.address, 'reported_at', e.reported_at
+    ) ORDER BY e.computer_id, e.kind, e.address)
+    FROM computer_endpoints e JOIN computers c ON c.id = e.computer_id WHERE c.account_id = a.id
+  ), '[]'),
+  'computer_approved_keys', coalesce((
+    SELECT jsonb_agg(jsonb_build_object('computer_id', k.computer_id, 'reported_at', k.reported_at)
+      ORDER BY k.computer_id, k.reported_at, k.jkt)
+    FROM computer_approved_keys k JOIN computers c ON c.id = k.computer_id WHERE c.account_id = a.id
+  ), '[]'),
+  'slot_reservations', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', r.id, 'device_id', r.device_id, 'expires_at', r.expires_at,
+      'consumed_at', r.consumed_at, 'released_at', r.released_at
+    ) ORDER BY r.id)
+    FROM slot_reservations r WHERE r.account_id = a.id
+  ), '[]'),
+  'grants_issued', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'computer_id', g.computer_id, 'device_id', g.device_id, 'route', g.route,
+      'issued_at', g.issued_at
+    ) ORDER BY g.issued_at, g.jti)
+    FROM grants_issued g JOIN computers c ON c.id = g.computer_id WHERE c.account_id = a.id
+  ), '[]'),
+  'link_tokens', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'device_id', l.device_id, 'reservation_id', l.reservation_id, 'expires_at', l.expires_at,
+      'used_at', l.used_at, 'result_computer_id', l.result_computer_id
+    ) ORDER BY l.expires_at, l.token_sha256)
+    FROM link_tokens l WHERE l.account_id = a.id
+  ), '[]'),
+  'device_grants', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'provider', g.provider, 'client_name', g.client_name, 'client_platform', g.client_platform,
+      'installation_id', g.installation_id, 'request_location', g.request_location, 'state', g.state,
+      'failed_entries', g.failed_entries, 'expires_at', g.expires_at, 'last_poll_at', g.last_poll_at,
+      'new_account', g.new_account, 'max_age_zero', g.max_age_zero, 'failure_code', g.failure_code
+    ) ORDER BY g.expires_at, g.device_code_sha256)
+    FROM device_grants g WHERE g.account_id = a.id
+  ), '[]'),
+  'enrollment_tokens', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'provider', e.provider, 'max_age_zero', e.max_age_zero, 'expires_at', e.expires_at, 'used_at', e.used_at
+    ) ORDER BY e.expires_at, e.token_sha256)
+    FROM enrollment_tokens e WHERE e.account_id = a.id
+  ), '[]'),
+  'oauth_attempts', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'provider', o.provider, 'max_age_zero', o.max_age_zero, 'created_at', o.created_at,
+      'expires_at', o.expires_at, 'consumed_at', o.consumed_at
+    ) ORDER BY o.created_at, o.state_sha256)
+    FROM cloud_oauth_attempts o JOIN device_grants g ON g.device_code_sha256 = o.device_code_sha256
+    WHERE g.account_id = a.id
+  ), '[]'),
+  'browser_codes', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'device_id', b.device_id, 'computer_id', b.computer_id, 'expires_at', b.expires_at, 'used_at', b.used_at
+    ) ORDER BY b.expires_at, b.code_sha256)
+    FROM browser_codes b WHERE b.account_id = a.id
+  ), '[]'),
+  'billing_checkouts', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', b.id, 'interval', b.interval, 'hostname', b.hostname, 'expired_at', b.expired_at
+    ) ORDER BY b.id)
+    FROM billing_checkouts b WHERE b.account_id = a.id
+  ), '[]'),
+  'contact_addresses', coalesce((
+    SELECT jsonb_agg(c.email ORDER BY c.email) FROM account_contact_addresses c WHERE c.account_id = a.id
+  ), '[]'),
+  'deletion', (
+    SELECT jsonb_build_object('requested_at', j.requested_at, 'retry_at', j.retry_at, 'step', j.step)
+    FROM account_deletion_jobs j WHERE j.account_id = a.id
+  ),
+  'security_email_queue', coalesce((
+    SELECT jsonb_agg(jsonb_build_object('event_id', o.event_id, 'retry_at', o.retry_at) ORDER BY o.event_id)
+    FROM account_email_outbox o JOIN security_events e ON e.id = o.event_id WHERE e.account_id = a.id
+  ), '[]'),
+  'security_events', coalesce((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', e.id, 'type', e.type, 'actor', e.actor, 'at', e.at, 'details', e.details_json
+    ) ORDER BY e.at DESC, e.id DESC)
+    FROM (
+      SELECT id, type, actor, at, details_json FROM security_events WHERE account_id = a.id
+      ORDER BY at DESC, id DESC LIMIT nullif(sqlc.arg(event_limit)::integer, 0)
+    ) e
+  ), '[]')
+)::jsonb AS data
+FROM accounts a
+CROSS JOIN LATERAL (SELECT admin_account_token_data(a.id) AS value) token_data
+WHERE a.id = sqlc.arg(account_id);

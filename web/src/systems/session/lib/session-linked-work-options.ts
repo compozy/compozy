@@ -1,3 +1,4 @@
+import type { ComputerId } from "@/lib/computer-scope";
 import { infiniteQueryOptions, keepPreviousData, queryOptions } from "@tanstack/react-query";
 
 import { isSessionUnavailable } from "../adapters/session-api-errors";
@@ -14,10 +15,10 @@ const SESSION_LINK_CANDIDATES_PAGE = 30;
 const SESSION_LINK_CANDIDATES_STALE_TIME_MS = 30_000;
 
 /** The full list; the catalog stream wakes it, and a visible list rereads stale PR facts. */
-export function sessionLinkedWorkOptions(workspace: string, id: string) {
+export function sessionLinkedWorkOptions(workspace: string, id: string, computerId?: ComputerId) {
   return queryOptions({
-    queryKey: sessionKeys.linkedWork(workspace, id),
-    queryFn: ({ signal }) => fetchSessionLinkedWork(workspace, id, signal),
+    queryKey: sessionKeys.forComputer(computerId).linkedWork(workspace, id),
+    queryFn: ({ signal }) => fetchSessionLinkedWork(workspace, id, signal, computerId),
     refetchInterval: PULL_REQUEST_REREAD_INTERVAL_MS,
     staleTime: SESSION_LINKED_WORK_STALE_TIME_MS,
     retry: (count, error) => !isSessionUnavailable(error) && count < 1,
@@ -33,16 +34,18 @@ export function sessionLinkCandidatesOptions(
   workspace: string,
   id: string,
   kind: SessionLinkCandidateKind,
-  query: string
+  query: string,
+  computerId?: ComputerId
 ) {
   return infiniteQueryOptions({
-    queryKey: sessionKeys.linkCandidates(workspace, id, kind, query),
+    queryKey: sessionKeys.forComputer(computerId).linkCandidates(workspace, id, kind, query),
     queryFn: ({ pageParam, signal }) =>
       searchSessionLinkCandidates(
         workspace,
         id,
         { q: query, kind, page: pageParam, limit: SESSION_LINK_CANDIDATES_PAGE },
-        signal
+        signal,
+        computerId
       ),
     initialPageParam: 1,
     getNextPageParam: (lastPage, _pages, lastPageParam) =>

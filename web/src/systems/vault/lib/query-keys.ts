@@ -1,3 +1,4 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import type { VaultListFilter } from "../types";
 
 function normalizeText(value?: string | null): string {
@@ -5,7 +6,7 @@ function normalizeText(value?: string | null): string {
 }
 
 export const vaultKeys = {
-  all: ["vault"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "vault"),
   lists: () => [...vaultKeys.all, "list"] as const,
   list: (filter: VaultListFilter = {}) =>
     [...vaultKeys.lists(), normalizeText(filter.namespace), normalizeText(filter.prefix)] as const,

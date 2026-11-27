@@ -2042,7 +2042,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 				},
 			},
 			manifest: &Manifest{
-				Gateway: &GatewayRequirement{Permissions: []string{"gateway.private"}},
+
 				Name:    "snapshot",
 				Version: "1.0.0",
 				Resources: ResourcesConfig{
@@ -2112,7 +2112,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 		clone.Info.Capabilities.Provides[0] = "changed"
 		clone.Info.Permissions.Requires[0] = "changed"
 		clone.Manifest.Resources.Skills[0].Path = "changed"
-		clone.Manifest.Gateway.Permissions[0] = "gateway.public"
+
 		clone.Manifest.Subprocess.Env["TOKEN"] = "changed"
 		clone.Manifest.Resources.Publish.Families[0] = "changed"
 		clone.Skills[0].Meta.Name = "changed"
@@ -2128,9 +2128,6 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 		clone.InitializeResult.ImplementedMethods[0] = "changed"
 		clone.InitializeResult.AcceptedCapabilities.Provides[0] = "changed"
 
-		if ext.manifest.Gateway.Permissions[0] != "gateway.private" {
-			t.Fatalf("original gateway permissions mutated to %#v", ext.manifest.Gateway.Permissions)
-		}
 		if ext.info.Capabilities.Provides[0] != "tool.provider" {
 			t.Fatalf("original capabilities mutated to %#v", ext.info.Capabilities.Provides)
 		}
@@ -2661,14 +2658,6 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return err
 		}
-		if h.scenario == "connectivity_secret_error" {
-			return h.sendError(req.ID, -32050, "api_key=sk-connectivity-secret", map[string]string{
-				"token": "sk-connectivity-secret",
-			})
-		}
-		if h.scenario == "connectivity_secret_stdout" {
-			return h.writeRaw("api_key=sk-connectivity-secret\n")
-		}
 		response := fakeInitializeResponse(params)
 		if h.scenario == "heartbeat_source" {
 			response.HeartbeatSourceKinds = []extensionprotocol.HeartbeatSourceKind{
@@ -2681,21 +2670,13 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 				},
 			}
 		}
-		if h.scenario == "connectivity_unimplemented" {
-			response.ImplementedMethods = slices.DeleteFunc(response.ImplementedMethods, func(method string) bool {
-				return method == string(extensionprotocol.ExtensionServiceMethodConnectivityTeardown)
-			})
-		}
 		h.mu.Lock()
 		h.extension = params.Extension.Name
 		h.mu.Unlock()
 		if err := h.sendResult(req.ID, response); err != nil {
 			return err
 		}
-		if h.scenario == "record_initialize" || h.scenario == "auto_exit_record_initialize" ||
-			h.scenario == "connectivity_teardown_hang" || h.scenario == "connectivity_crash_after_establish" ||
-			h.scenario == "connectivity_teardown_refused" || h.scenario == "connectivity_malformed" ||
-			h.scenario == "connectivity_crash" {
+		if h.scenario == "record_initialize" || h.scenario == "auto_exit_record_initialize" {
 			if err := h.recordInitialize(params, response); err != nil {
 				return err
 			}
@@ -2820,71 +2801,11 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 				}},
 			},
 		})
-	case string(extensionprotocol.ExtensionServiceMethodConnectivityEstablish):
-		var params extensioncontract.ConnectivityEstablishRequest
-		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return err
-		}
-		tier := strings.TrimSpace(params.Tier)
-		if h.scenario == "connectivity_wrong_tier" {
-			tier = "public"
-		}
-		endpointURL := "https://gateway.example.test"
-		if h.scenario == "connectivity_endpoint" {
-			endpointURL = h.marker
-		}
-		if err := h.sendResult(req.ID, extensioncontract.ConnectivityReachability{
-			Tier: tier,
-			Endpoints: []extensioncontract.ConnectivityAdvertisedEndpoint{{
-				URL: endpointURL, Scheme: "https", Stability: "stable",
-			}},
-			Health: "healthy",
-		}); err != nil {
-			return err
-		}
-		if h.scenario == "connectivity_crash_after_establish" {
-			if err := appendMarkerLine(h.marker, fmt.Sprintf("%d", os.Getpid())); err != nil {
-				return err
-			}
-			go func() {
-				time.Sleep(5 * time.Millisecond)
-				os.Exit(1)
-			}()
-		}
-		return nil
-	case string(extensionprotocol.ExtensionServiceMethodConnectivityStatus):
-		var params extensioncontract.ConnectivityStatusRequest
-		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return err
-		}
-		endpointURL := "https://gateway.example.test"
-		if h.scenario == "connectivity_endpoint" {
-			endpointURL = h.marker
-		}
-		return h.sendResult(req.ID, extensioncontract.ConnectivityReachability{
-			Tier: strings.TrimSpace(params.Tier),
-			Endpoints: []extensioncontract.ConnectivityAdvertisedEndpoint{{
-				URL: endpointURL, Scheme: "https", Stability: "stable",
-			}},
-			Health: "healthy",
-		})
-	case string(extensionprotocol.ExtensionServiceMethodConnectivityTeardown):
-		if h.scenario == "connectivity_method_not_found" {
-			return h.sendError(req.ID, -32601, "Method not found", nil)
-		}
-		if h.scenario == "connectivity_teardown_hang" {
-			select {}
-		}
-		if h.scenario == "connectivity_teardown_refused" {
-			return h.sendResult(req.ID, extensioncontract.ConnectivityTeardownResponse{Stopped: false})
-		}
-		return h.sendResult(req.ID, extensioncontract.ConnectivityTeardownResponse{Stopped: true})
 	case "shutdown":
 		if h.scenario == "shutdown_hang" {
 			select {}
 		}
-		if h.marker != "" && h.scenario != "tool_call_generation_marker" &&
-			h.scenario != "connectivity_endpoint" && h.scenario != "connectivity_teardown_refused" {
+		if h.marker != "" && h.scenario != "tool_call_generation_marker" {
 			if err := os.WriteFile(h.marker, []byte("shutdown"), 0o600); err != nil {
 				return err
 			}
@@ -3269,21 +3190,6 @@ func appendMarkerLine(path string, line string) (err error) {
 	return err
 }
 
-func markerLineCount(path string) int {
-	payload, err := os.ReadFile(strings.TrimSpace(path))
-	if err != nil {
-		return 0
-	}
-	count := 0
-	for line := range strings.SplitSeq(string(payload), "\n") {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		count++
-	}
-	return count
-}
-
 func envListToMap(t testing.TB, env []string) map[string]string {
 	t.Helper()
 
@@ -3563,4 +3469,105 @@ func loadCachedSkills(t *testing.T, manager *Manager, ext *managedExtension) {
 	if _, err := manager.loadSkillResources(ext); err != nil {
 		t.Fatalf("loadSkillResources(%s) error = %v", ext.instanceKey().runtimeID(), err)
 	}
+}
+
+// Invariant: the real start path refuses a required invalid subprocess input (rules 4-5), and an
+// instance restart relaunches only that instance's runtime (rule 7, Safety Invariant 3).
+// Owner: extension runtime lifecycle; canonical suite: manager instance input launch.
+func TestManagerInstanceInputLaunch(t *testing.T) {
+	t.Parallel()
+	t.Run("Should defer a development base restart to dev reload", func(t *testing.T) {
+		t.Parallel()
+		manager := NewManager(nil)
+		base := InstanceKey{Name: "dev-kit", WorkspaceID: "workspace-a"}
+		manager.devExtensions[base] = &managedExtension{
+			key: base, info: ExtensionInfo{Name: base.Name, Enabled: true, Source: SourceWorkspace},
+		}
+		ctx := testutil.Context(t)
+		deferred := InstanceKey{Name: base.Name, ProfileID: store.DefaultProfileID, WorkspaceID: base.WorkspaceID}
+		if err := manager.RestartInstance(ctx, deferred); !errors.Is(err, ErrDevelopmentRestartDeferred) {
+			t.Fatalf("RestartInstance(default profile) error = %v, want ErrDevelopmentRestartDeferred", err)
+		}
+		profile := InstanceKey{Name: base.Name, ProfileID: "marketing", WorkspaceID: base.WorkspaceID}
+		if err := manager.RestartInstance(ctx, profile); err != nil {
+			t.Fatalf("RestartInstance(profile runtime) error = %v, want the profile runtime invalidated", err)
+		}
+	})
+	t.Run("Should refuse a required invalid input at start and restart only that instance [R-7][R-2]",
+		func(t *testing.T) {
+			t.Parallel()
+			withDaemonVersion(t, "0.5.0")
+			env := newRegistryTestEnv(t)
+			gated := createManagerTestExtension(t, managerTestManifest("ext-input-gated", managerManifestOptions{
+				requiresEnv: []string{"FLAG"},
+			})+`
+[[inputs]]
+id = "flag"
+prompt = "Flag"
+type = "boolean"
+required = true
+binding = { type = "env", name = "FLAG" }
+
+[resources.mcp_servers.flagger]
+command = "flagger"
+env = { FLAG = "flag" }
+`, nil)
+			bystander := createManagerTestExtension(
+				t, managerTestManifest("ext-input-bystander", managerManifestOptions{}), nil,
+			)
+			installManagerFixture(t, env.registry, gated, SourceUser, true)
+			installManagerFixture(t, env.registry, bystander, SourceUser, true)
+			values := map[string]string{"vault:flag": "not-a-boolean"}
+			bindings := &envResolutionBindingStore{bindings: map[string][]EnvBinding{
+				envResolutionBindingKey(gated.manifest.Name, "", ""): {{
+					ExtensionName: gated.manifest.Name, EnvName: "FLAG", SecretRef: "vault:flag", InputID: "flag",
+				}},
+			}}
+			bystanderProcess := newFakeProcess(101)
+			launcher := &fakeLauncher{queue: []*fakeProcess{bystanderProcess, newFakeProcess(202)}}
+			manager := NewManager(
+				env.registry,
+				WithEnvBindingStore(bindings),
+				WithSecretResolver(envResolutionSecretResolver{values: values}),
+				withProcessLauncher(launcher.launch),
+			)
+			if err := manager.Start(testutil.Context(t)); err != nil {
+				if _, ok := errors.AsType[*InputsRequiredError](err); !ok {
+					t.Fatalf("Start() error = %v, want only the input refusal", err)
+				}
+			}
+			t.Cleanup(func() {
+				if err := manager.Stop(testutil.Context(t)); err != nil {
+					t.Fatalf("Stop() cleanup error = %v", err)
+				}
+			})
+			if got := launcher.launchCount(); got != 1 {
+				t.Fatalf("launches after start = %d, want only the bystander", got)
+			}
+			loaded, err := manager.Get(gated.manifest.Name)
+			if err != nil || loaded.Status.Active {
+				t.Fatalf("gated status = %#v error %v, want inactive", loaded, err)
+			}
+
+			values["vault:flag"] = "true"
+			key := InstanceKey{Name: gated.manifest.Name, ProfileID: store.DefaultProfileID}
+			if err := manager.RestartInstance(testutil.Context(t), key); err != nil {
+				t.Fatalf("RestartInstance() error = %v", err)
+			}
+			launcher.mu.Lock()
+			configs := slices.Clone(launcher.config)
+			launcher.mu.Unlock()
+			if len(configs) != 2 || launchEnvValue(configs[1].Env, "FLAG") != "true" {
+				t.Fatalf("launch configs = %d, want one relaunch with FLAG=true", len(configs))
+			}
+			bystanderProcess.mu.Lock()
+			bystanderShutdowns := bystanderProcess.shutdownCnt
+			bystanderProcess.mu.Unlock()
+			if bystanderShutdowns != 0 {
+				t.Fatalf("bystander shutdowns = %d, want the other runtime untouched", bystanderShutdowns)
+			}
+			if loaded, err := manager.Get(gated.manifest.Name); err != nil || !loaded.Status.Active {
+				t.Fatalf("gated status after restart = %#v error %v, want active", loaded, err)
+			}
+		})
 }

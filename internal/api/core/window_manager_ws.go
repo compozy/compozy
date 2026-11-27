@@ -85,6 +85,7 @@ func (h *BaseHandlers) StreamWindowManager(c *gin.Context) {
 		}
 		return
 	}
+	h.closeStreamOnRemotePolicy(c.Request.Context(), conn)
 	var clientCommands windowmanager.ClientCommandConnection
 	if clientID != nil {
 		clientCommands, err = service.AttachClientCommands(c.Request.Context(), workspaceID, *clientID)
@@ -240,7 +241,7 @@ func (s *windowManagerSocket) runEventLoop(
 		case <-s.stop:
 			return s.cleanup(readDone, s.writeClose(websocket.CloseGoingAway, "daemon shutdown"), readObserved)
 		case <-ctx.Done():
-			return s.cleanup(readDone, ctx.Err(), readObserved)
+			return s.cleanup(readDone, errors.Join(ctx.Err(), closeForSignIn(ctx, s.conn)), readObserved)
 		}
 	}
 }

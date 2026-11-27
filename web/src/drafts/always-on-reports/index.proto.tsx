@@ -1,4 +1,4 @@
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 import type { ReactNode } from "react";
 
 import { GENERAL, TRIAGE } from "../always-on-agents-shared/fixtures";

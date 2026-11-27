@@ -1,4 +1,4 @@
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 import { MCP_PANEL_AGENT } from "../mocks/agent-mcp-panel-fixtures";
 import { AgentMcpServersPanel } from "./agent-mcp-servers-panel";
 

@@ -111,19 +111,16 @@ export const handlers: HttpHandler[] = [
     if (name === "" || body.source?.trim() === "") {
       return HttpResponse.json({ error: "extension source and ref are required" }, { status: 400 });
     }
-    const digest = name === "dep-kit-ops" ? "sha256:6f1c0a94d3b27e58" : undefined;
     return HttpResponse.json({
       inputs: [],
       declared_profiles: [{ create: false, credentials: [], name: "default" }],
       name,
-      ...(digest ? { gateway_requirement_digest: digest } : {}),
       placements: [],
     });
   }),
   compozyApiMock.post("/api/extensions", async ({ request }) => {
     const body = (await request.json()) as {
       allow_unverified?: boolean;
-      confirm_gateway_digest?: string;
       ref?: string;
       source?: string;
     };
@@ -145,17 +142,6 @@ export const handlers: HttpHandler[] = [
       );
     }
     const name = ref.split("/").pop() ?? ref;
-    const digest = name === "dep-kit-ops" ? "sha256:6f1c0a94d3b27e58" : undefined;
-    if (digest && body.confirm_gateway_digest !== digest) {
-      return HttpResponse.json(
-        {
-          code: "extension_gateway_confirmation_required",
-          current_digest: digest,
-          error: `${name} declares gateway control permissions that has not been confirmed`,
-        },
-        { status: 409 }
-      );
-    }
     const installed: ExtensionEntry = {
       ...structuredClone(extensionFixtures[0]!),
       digest_matched: source === "github",
@@ -225,28 +211,12 @@ export const handlers: HttpHandler[] = [
     };
     return HttpResponse.json({ enabled: body.enabled, profile });
   }),
-  /** Mirrors the candidate gate used by update: the current digest stands in for the next release. */
-  compozyApiMock.put("/api/extensions/{name}", async ({ params, request, response }) => {
+  compozyApiMock.put("/api/extensions/{name}", ({ params }) => {
     const name = String(params.name);
     const extension = extensionByName(name);
     if (!extension) {
       return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
     }
-    const body = (await request.json().catch(() => ({}))) as { confirm_gateway_digest?: string };
-    const digest = extension.gateway_requirement_digest;
-    if (
-      extension.gateway_confirmation_required &&
-      digest &&
-      body.confirm_gateway_digest !== digest
-    ) {
-      return response(409).json({
-        code: "extension_gateway_confirmation_required",
-        current_digest: digest,
-        error: `${name} update changes gateway control permissions that has not been confirmed`,
-      });
-    }
-    const updated = { ...extension, gateway_confirmation_required: false };
-    extensionsState = extensionsState.map(item => (item.name === name ? updated : item));
     return HttpResponse.json({
       update: {
         current_version: extension.version,

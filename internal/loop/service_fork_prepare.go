@@ -16,6 +16,9 @@ type forkPreparation struct {
 }
 
 func (s *service) prepareForkRun(ctx context.Context, input ForkInput) (forkPreparation, error) {
+	if err := s.checkLocalExecution(); err != nil {
+		return forkPreparation{}, err
+	}
 	source, err := s.store.GetLoopRun(ctx, input.WorkspaceID, input.RunID)
 	if err != nil {
 		return forkPreparation{}, err

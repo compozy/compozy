@@ -19,7 +19,7 @@ import {
   PopoverTrigger,
 } from "@compozy/ui";
 
-import { protoHref } from "@compozy/proto";
+import { protoHref } from "@protohq/cli";
 
 import { MORE_PROJECTS } from "../agent-create/model";
 

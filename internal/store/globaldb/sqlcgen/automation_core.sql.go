@@ -67,7 +67,7 @@ func (q *Queries) DeleteAutomationTriggerOverlay(ctx context.Context, triggerID 
 const getAutomationJob = `-- name: GetAutomationJob :one
 SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
        enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
-	   loop_name, loop_inputs, loop_input_mapping, created_at, updated_at, grant_ceiling
+	   loop_name, loop_inputs, loop_input_mapping, loop_input_command, created_at, updated_at, grant_ceiling
 FROM automation_jobs WHERE id = ?1
 `
 
@@ -93,6 +93,7 @@ func (q *Queries) GetAutomationJob(ctx context.Context, id string) (AutomationJo
 		&i.LoopName,
 		&i.LoopInputs,
 		&i.LoopInputMapping,
+		&i.LoopInputCommand,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.GrantCeiling,
@@ -170,7 +171,7 @@ const getAutomationTrigger = `-- name: GetAutomationTrigger :one
 SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, target_instance_scope, loop_workspace_id, loop_name,
-	   loop_inputs, loop_input_mapping, created_at, updated_at
+	   loop_inputs, loop_input_mapping, loop_input_command, created_at, updated_at
 FROM automation_triggers WHERE id = ?1
 `
 
@@ -201,6 +202,7 @@ func (q *Queries) GetAutomationTrigger(ctx context.Context, id string) (Automati
 		&i.LoopName,
 		&i.LoopInputs,
 		&i.LoopInputMapping,
+		&i.LoopInputCommand,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -211,7 +213,7 @@ const getAutomationTriggerByWebhookID = `-- name: GetAutomationTriggerByWebhookI
 SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, target_instance_scope, loop_workspace_id, loop_name,
-	   loop_inputs, loop_input_mapping, created_at, updated_at
+	   loop_inputs, loop_input_mapping, loop_input_command, created_at, updated_at
 FROM automation_triggers WHERE webhook_id = ?1
 `
 
@@ -242,6 +244,7 @@ func (q *Queries) GetAutomationTriggerByWebhookID(ctx context.Context, webhookID
 		&i.LoopName,
 		&i.LoopInputs,
 		&i.LoopInputMapping,
+		&i.LoopInputCommand,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -266,7 +269,7 @@ INSERT INTO automation_jobs (
   profile_id,
   id, scope, name, agent_name, workspace_id, prompt, schedule, task,
   enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
-	loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
+	loop_name, loop_inputs, loop_input_mapping, loop_input_command, created_at, updated_at
 ) VALUES (
  ?1,
   ?2,
@@ -274,7 +277,7 @@ INSERT INTO automation_jobs (
   ?7, ?8, ?9, ?10,
   ?11, ?12, ?13, ?14,
   ?15, ?16, ?17,
-	?18, ?19, ?20, ?21
+	?18, ?19, ?20, ?21, ?22
 )
 `
 
@@ -298,6 +301,7 @@ type InsertAutomationJobParams struct {
 	LoopName         sql.NullString `json:"loop_name"`
 	LoopInputs       sql.NullString `json:"loop_inputs"`
 	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
+	LoopInputCommand sql.NullString `json:"loop_input_command"`
 	CreatedAt        string         `json:"created_at"`
 	UpdatedAt        string         `json:"updated_at"`
 }
@@ -323,6 +327,7 @@ func (q *Queries) InsertAutomationJob(ctx context.Context, arg InsertAutomationJ
 		arg.LoopName,
 		arg.LoopInputs,
 		arg.LoopInputMapping,
+		arg.LoopInputCommand,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -401,6 +406,7 @@ INSERT INTO automation_triggers (
   id, scope, name, agent_name, workspace_id, prompt, event, filter,
   enabled, retry, fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref,
   target_kind, target_instance_scope, loop_workspace_id, loop_name, loop_inputs, loop_input_mapping,
+  loop_input_command,
 	created_at, updated_at
 ) VALUES (
  ?1,
@@ -410,7 +416,7 @@ INSERT INTO automation_triggers (
   ?11, ?12, ?13, ?14,
   ?15, ?16, ?17,
   ?18, ?19, ?20, ?21,
-	?22, ?23, ?24, ?25
+	?22, ?23, ?24, ?25, ?26
 )
 `
 
@@ -438,6 +444,7 @@ type InsertAutomationTriggerParams struct {
 	LoopName            sql.NullString `json:"loop_name"`
 	LoopInputs          sql.NullString `json:"loop_inputs"`
 	LoopInputMapping    sql.NullString `json:"loop_input_mapping"`
+	LoopInputCommand    sql.NullString `json:"loop_input_command"`
 	CreatedAt           string         `json:"created_at"`
 	UpdatedAt           string         `json:"updated_at"`
 }
@@ -467,6 +474,7 @@ func (q *Queries) InsertAutomationTrigger(ctx context.Context, arg InsertAutomat
 		arg.LoopName,
 		arg.LoopInputs,
 		arg.LoopInputMapping,
+		arg.LoopInputCommand,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -578,8 +586,9 @@ UPDATE automation_jobs SET
   retry = ?11, fire_limit = ?12, source = ?13,
   target_kind = ?14, loop_workspace_id = ?15,
   loop_name = ?16, loop_inputs = ?17,
-	loop_input_mapping = ?18, updated_at = ?19
-WHERE id = ?20
+	loop_input_mapping = ?18, loop_input_command = ?19,
+  updated_at = ?20
+WHERE id = ?21
 `
 
 type UpdateAutomationJobParams struct {
@@ -601,6 +610,7 @@ type UpdateAutomationJobParams struct {
 	LoopName         sql.NullString `json:"loop_name"`
 	LoopInputs       sql.NullString `json:"loop_inputs"`
 	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
+	LoopInputCommand sql.NullString `json:"loop_input_command"`
 	UpdatedAt        string         `json:"updated_at"`
 	ID               string         `json:"id"`
 }
@@ -625,6 +635,7 @@ func (q *Queries) UpdateAutomationJob(ctx context.Context, arg UpdateAutomationJ
 		arg.LoopName,
 		arg.LoopInputs,
 		arg.LoopInputMapping,
+		arg.LoopInputCommand,
 		arg.UpdatedAt,
 		arg.ID,
 	)
@@ -704,8 +715,8 @@ UPDATE automation_triggers SET
   webhook_secret_ref = ?16, target_kind = ?17, target_instance_scope = ?18,
   loop_workspace_id = ?19, loop_name = ?20,
 	loop_inputs = ?21, loop_input_mapping = ?22,
-  updated_at = ?23
-WHERE id = ?24
+  loop_input_command = ?23, updated_at = ?24
+WHERE id = ?25
 `
 
 type UpdateAutomationTriggerParams struct {
@@ -731,6 +742,7 @@ type UpdateAutomationTriggerParams struct {
 	LoopName            sql.NullString `json:"loop_name"`
 	LoopInputs          sql.NullString `json:"loop_inputs"`
 	LoopInputMapping    sql.NullString `json:"loop_input_mapping"`
+	LoopInputCommand    sql.NullString `json:"loop_input_command"`
 	UpdatedAt           string         `json:"updated_at"`
 	ID                  string         `json:"id"`
 }
@@ -759,6 +771,7 @@ func (q *Queries) UpdateAutomationTrigger(ctx context.Context, arg UpdateAutomat
 		arg.LoopName,
 		arg.LoopInputs,
 		arg.LoopInputMapping,
+		arg.LoopInputCommand,
 		arg.UpdatedAt,
 		arg.ID,
 	)

@@ -13,7 +13,12 @@ import (
 // the entry actually deleted holds the verified original; anything else is retained for the
 // operator. The incoming slot serves as the verification slot and is drained first, so a crash in the
 // middle of a disposal is verified again instead of being deleted as staging.
-func finalizeSkillOp(t *skillTarget, journal dirpublish.Journal, payload SkillInstallPayload) error {
+func finalizeSkillOp(
+	ctx context.Context,
+	t *skillTarget,
+	journal dirpublish.Journal,
+	payload SkillInstallPayload,
+) error {
 	if err := trimSkillInstallLog(t.root, t.name); err != nil {
 		return err
 	}
@@ -27,7 +32,7 @@ func finalizeSkillOp(t *skillTarget, journal dirpublish.Journal, payload SkillIn
 		if slot.name == "" {
 			continue
 		}
-		if err := disposeVerified(t, slot.name, journal.IncomingName, want, slot.retain); err != nil {
+		if err := disposeVerified(ctx, t, slot.name, journal.IncomingName, want, slot.retain); err != nil {
 			return err
 		}
 	}
@@ -50,8 +55,8 @@ func skillRetainedName(opID, suffix string) string {
 // if it lands between this digest and the unlink, after the tree already passed the pre-move check,
 // the backup check and this check. Editors that save by rename write to the live skill path, not
 // here. Retaining every verified backup instead would leave a hidden copy of the skill per install.
-func disposeVerified(t *skillTarget, name, aside, want, retain string) error {
-	state, err := recoveryTreeState(t.path(name))
+func disposeVerified(ctx context.Context, t *skillTarget, name, aside, want, retain string) error {
+	state, err := recoveryTreeState(ctx, t.path(name))
 	if err != nil || state == "" {
 		return err
 	}
@@ -60,7 +65,7 @@ func disposeVerified(t *skillTarget, name, aside, want, retain string) error {
 			return fmt.Errorf("set aside %s for verification: %w", name, err)
 		}
 	}
-	moved, err := recoveryTreeState(t.path(aside))
+	moved, err := recoveryTreeState(ctx, t.path(aside))
 	if err != nil {
 		return err
 	}
@@ -70,7 +75,7 @@ func disposeVerified(t *skillTarget, name, aside, want, retain string) error {
 	if err := moveSkillEntry(t, aside, retain); err != nil {
 		return fmt.Errorf("retain changed skill tree %s: %w", name, err)
 	}
-	slog.Warn("skill.install.tree_retained", "skill", t.name, "slot", name, "retained", retain)
+	slog.WarnContext(ctx, "skill.install.tree_retained", "skill", t.name, "slot", name, "retained", retain)
 	return nil
 }
 

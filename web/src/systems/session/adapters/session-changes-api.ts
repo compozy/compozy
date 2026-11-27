@@ -1,11 +1,13 @@
 import {
-  apiClient,
+  apiClientFor,
   apiErrorCode,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
+  type ComputerId,
 } from "@/lib/api-client";
 import type { OperationResponse } from "@/lib/api-contract";
+import { apiErrorDetails, remoteRejectionMessage } from "@/lib/remote-error-copy";
 
 export type SessionChangesSummary = OperationResponse<"getSessionChanges", 200>;
 export type SessionChangeFile = SessionChangesSummary["files"][number];
@@ -21,6 +23,7 @@ export type SessionChangesScope = "branch" | "uncommitted";
 export interface SessionChangesRequest {
   workspaceId: string;
   sessionId: string;
+  computerId?: ComputerId;
   /** Omitted: the daemon picks Branch when HEAD is ahead of the merge base (US-008.AC-3). */
   scope?: SessionChangesScope;
   /** Omitted: the worktree base, else the remote default branch, else `main`/`master`. */
@@ -31,6 +34,7 @@ export interface SessionChangesRequest {
 export interface SessionChangesDetailRequest {
   workspaceId: string;
   sessionId: string;
+  computerId?: ComputerId;
   scope: SessionChangesScope;
   base?: string;
   revision: string;
@@ -46,7 +50,8 @@ export class SessionChangesApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly code: string | null
+    readonly code: string | null,
+    readonly details?: Readonly<Record<string, string>>
   ) {
     super(message);
     this.name = "SessionChangesApiError";
@@ -58,11 +63,14 @@ export function sessionChangesErrorCode(error: unknown): string | null {
 }
 
 function throwChangesError(response: Response, error: unknown, fallback: string): never {
-  throw new SessionChangesApiError(
+  const code = apiErrorCode(error) ?? null;
+  const details = apiErrorDetails(error);
+  const message = remoteRejectionMessage(
+    code,
     defaultApiErrorMessage(fallback, response, error),
-    response.status,
-    apiErrorCode(error) ?? null
+    details
   );
+  throw new SessionChangesApiError(message, response.status, code, details);
 }
 
 function sessionPath(request: { workspaceId: string; sessionId: string }) {
@@ -84,7 +92,7 @@ export async function getSessionChanges(
   signal?: AbortSignal
 ): Promise<SessionChangesSummary> {
   const fallback = "Couldn't read changes";
-  const result = await apiClient.GET(
+  const result = await apiClientFor(request.computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/changes",
     {
       params: { path: sessionPath(request), query: scopeQuery(request.scope, request.base) },
@@ -109,7 +117,7 @@ export async function getSessionChangePatches(
 ): Promise<SessionChangePatches> {
   const fallback = "Couldn't load this diff";
   const renames = targets.some(target => target.oldPath);
-  const result = await apiClient.GET(
+  const result = await apiClientFor(request.computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/patches",
     {
       params: {
@@ -139,7 +147,7 @@ export async function getSessionChangeContents(
   signal?: AbortSignal
 ): Promise<SessionChangeContents> {
   const fallback = "Couldn't load this file";
-  const result = await apiClient.GET(
+  const result = await apiClientFor(request.computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents",
     {
       params: {
@@ -163,11 +171,11 @@ export async function getSessionChangeContents(
 
 /** Base refs for the selector: the default first, then local, then remote-tracking. */
 export async function listSessionChangeBases(
-  request: { workspaceId: string; sessionId: string; query?: string },
+  request: { workspaceId: string; sessionId: string; query?: string; computerId?: ComputerId },
   signal?: AbortSignal
 ): Promise<SessionChangeBases> {
   const fallback = "Couldn't list branches";
-  const result = await apiClient.GET(
+  const result = await apiClientFor(request.computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/bases",
     {
       params: {

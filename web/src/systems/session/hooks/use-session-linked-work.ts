@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -34,15 +35,17 @@ import type { SessionPayload } from "../types";
  */
 export function useSessionLinkMutations(workspaceId: string, sessionId: string, profile: string) {
   const queryClient = useQueryClient();
-  const queryKey = sessionKeys.linkedWork(workspaceId, sessionId);
-  const reread = () => invalidateSessionMutationQueries(queryClient, workspaceId, sessionId);
+  const computerId = useCurrentComputerId();
+  const queryKey = sessionKeys.forComputer(computerId).linkedWork(workspaceId, sessionId);
+  const reread = () =>
+    invalidateSessionMutationQueries(queryClient, workspaceId, sessionId, computerId);
   const settle = (response: SessionLinkedWorkResponse) => {
     queryClient.setQueryData(queryKey, response);
     return reread();
   };
   const add = useMutation({
     mutationFn: (request: SessionWorkLinkRequest) =>
-      addSessionWorkLink(workspaceId, sessionId, profile, request),
+      addSessionWorkLink(workspaceId, sessionId, profile, request, undefined, computerId),
     // Adds run in parallel, so a response can predate its neighbours: only a reread settles them.
     onSuccess: reread,
   });
@@ -52,7 +55,9 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string, 
         workspaceId,
         sessionId,
         profile,
-        linkRequest({ repository: item.repository, branch: item.branch })
+        linkRequest({ repository: item.repository, branch: item.branch }),
+        undefined,
+        computerId
       ),
     onError: (_error, item) => {
       toast.error(`Couldn't refresh ${linkShortName(item)}.`);
@@ -65,7 +70,9 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string, 
         workspaceId,
         sessionId,
         profile,
-        linkRequest({ repository: item.repository, branch: item.branch })
+        linkRequest({ repository: item.repository, branch: item.branch }),
+        undefined,
+        computerId
       ),
     onMutate: async item => {
       await queryClient.cancelQueries({ queryKey });
@@ -91,7 +98,14 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string, 
           label: "Undo",
           // A toast outlives a session switch, so Undo stays on the session it came from.
           onClick: () => {
-            addSessionWorkLink(workspaceId, sessionId, profile, linkRequest(item))
+            addSessionWorkLink(
+              workspaceId,
+              sessionId,
+              profile,
+              linkRequest(item),
+              undefined,
+              computerId
+            )
               .then(settle)
               .catch(() => {
                 toast.error(`Couldn't link ${linkShortName(item)} again.`);
@@ -136,7 +150,7 @@ export function useSessionLinkedWork({
 }: UseSessionLinkedWorkInput): SessionLinkedWorkModel {
   const [clipped, setClipped] = useState(false);
   const list = useQuery({
-    ...sessionLinkedWorkOptions(workspaceId, session.id),
+    ...sessionLinkedWorkOptions(workspaceId, session.id, useCurrentComputerId()),
     // A window that isn't live still shows the whole list; it just stops rereading it.
     enabled: read && !!session.id,
     refetchInterval: enabled ? PULL_REQUEST_REREAD_INTERVAL_MS : false,

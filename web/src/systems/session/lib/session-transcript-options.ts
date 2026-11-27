@@ -1,5 +1,6 @@
 import { infiniteQueryOptions } from "@tanstack/react-query";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { fetchSessionTranscript } from "../adapters/session-api";
 import { sessionKeys } from "./query-keys";
 import { isSessionStreamLive } from "./session-stream-liveness";
@@ -25,21 +26,19 @@ import { shareTranscriptData } from "./session-transcript-sharing";
  * a focus refetch) reconciles with what the stream applied meanwhile instead of
  * replacing it, because the stream will not carry those entries again.
  */
-export function sessionTranscriptOptions(workspace: string, id: string) {
-  const queryKey = sessionKeys.transcript(workspace, id);
+export function sessionTranscriptOptions(workspace: string, id: string, computerId?: ComputerId) {
+  const queryKey = sessionKeys.forComputer(computerId).transcript(workspace, id);
   // A caught-up stream owns this page set. Refocusing an idle live session must
   // not walk its retained history again; explicit invalidations still reread it.
   const shouldRefetch = (query: { state: { isInvalidated: boolean } }) =>
-    query.state.isInvalidated || !isSessionStreamLive(id);
+    query.state.isInvalidated || !isSessionStreamLive(id, computerId);
   return infiniteQueryOptions({
     queryKey,
     queryFn: async ({ client, pageParam, signal }) => {
-      const response = await fetchSessionTranscript(
-        workspace,
-        id,
-        transcriptPageRequest(pageParam),
-        signal
-      );
+      const request = transcriptPageRequest(pageParam);
+      const response = isRemoteComputerId(computerId)
+        ? await fetchSessionTranscript(workspace, id, request, signal, computerId)
+        : await fetchSessionTranscript(workspace, id, request, signal);
       if (!transcriptPageMatchesFence(response, pageParam)) {
         throw new Error("Session transcript changed while loading older messages");
       }

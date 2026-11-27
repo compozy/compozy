@@ -1,47 +1,63 @@
 package httpapi
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/remoteproto"
+)
 
 // RegisterRoutes registers the shared Compozy API routes on the supplied Gin router.
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
-	RegisterSurfaceRoutes(router, handlers, SurfaceSetLocal)
-}
-
-func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 	if handlers == nil {
 		return
 	}
 
+	signIn := core.NewSignInRoutes(router, handlers.BaseHandlers)
 	api := router.Group("/api")
 	api.Use(handlers.WorkspaceReferenceGuard)
-	api.Use(localListenerTierMiddleware())
-	registerWebhookRoutes(api, handlers)
-	api.GET("/mcp/oauth/callback", handlers.completeMCPAuthCallback)
+	signIn.RequireSignedIn(core.SignInAnonymous, func() { registerWebhookRoutes(api, handlers) })
+	signIn.RequireSignedIn(core.SignInLocal, func() {
+		api.GET("/mcp/oauth/callback", handlers.completeMCPAuthCallback)
+	})
 	api.Use(browserRequestProtectionMiddleware(handlers.boundHost))
 
 	if !isLoopbackHost(canonicalHost(handlers.boundHost)) {
 		api = api.Group("", loopbackAPIGuard(handlers.boundHost))
 	}
 
-	registerAppSDKRoutes(api, handlers)
-	registerOperatorRoutes(api, handlers, true)
-	registerAgentKernelRoutes(api, handlers)
-	registerResourceRoutes(api, handlers)
-	registerGatewayRedeemRoute(api, handlers)
-	registerGatewayManagementRoutes(api, handlers, false)
+	operator := operatorRouteGroups{router: api}
+	signIn.RequireSignedIn(core.SignInAnonymous, func() { registerSignedOutOperatorRoutes(operator, handlers) })
+	signIn.RequireSignedIn(core.SignInLocal, func() {
+		registerAppSDKRoutes(api, handlers)
+		core.RegisterIngressRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
+		core.RegisterMigrationNoticeRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
+		registerOperatorRoutes(operator, handlers)
+		registerResourceRoutes(api, handlers)
+	})
+	signIn.RequireSignedIn(core.SignInAccount, func() {
+		core.RegisterComputerRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
+		router.Any(core.ComputerBridgeRoute,
+			browserRequestProtectionMiddleware(handlers.boundHost),
+			loopbackAPIGuard(handlers.boundHost), handlers.privilegedMutationGuard(), handlers.BridgeComputer)
+	})
+	registerAccountRoutes(api, handlers, signIn)
+	registerRemoteHostRoutes(api, handlers, signIn)
+	core.RegisterAgentKernelRoutes(api, handlers.BaseHandlers, signIn)
+	signIn.Validate()
 
 	if engine, ok := router.(*gin.Engine); ok {
 		engine.NoRoute(handlers.serveStaticRoute)
 	}
 }
 
-func registerStatusRoutes(api gin.IRouter, handlers *Handlers) {
-	api.GET("/status", handlers.GetStatus)
-	api.GET("/status/identity", handlers.GetRuntimeIdentity)
-	api.GET("/doctor", handlers.GetDoctor)
+func registerStatusRoutes(api operatorRouteGroups, handlers *Handlers) {
+	api.group("/host", remoteproto.ScopeSessions).GET("/resources", handlers.GetHostResources)
+	diagnostics := api.group("", remoteproto.ScopeSettings)
+	diagnostics.GET("/doctor", handlers.GetDoctor)
 	privileged := handlers.privilegedMutationGuard()
-	api.POST("/drain", privileged, handlers.DrainDaemon)
-	api.POST("/undrain", privileged, handlers.UndrainDaemon)
+	diagnostics.POST("/drain", privileged, handlers.DrainDaemon)
+	diagnostics.POST("/undrain", privileged, handlers.UndrainDaemon)
 }
 
 func registerOnboardingRoutes(api gin.IRouter, handlers *Handlers) {
@@ -57,26 +73,30 @@ func registerFilesystemRoutes(api gin.IRouter, handlers *Handlers) {
 	fsGroup.GET("/browse", handlers.BrowseDirectory)
 }
 
-func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
-	workspaces := api.Group("/workspaces")
-	workspaces.POST("", handlers.CreateWorkspace)
+func registerWorkspaceRoutes(api operatorRouteGroups, handlers *Handlers) {
+	workspaces := api.group("/workspaces", remoteproto.ScopeSessions)
 	workspaces.GET("", handlers.ListWorkspaces)
 	workspaces.GET("/:workspace_id", handlers.GetWorkspace)
-	workspaces.GET("/:workspace_id/files/entries", handlers.ListFileEntries)
-	workspaces.GET("/:workspace_id/files/find", handlers.FindFiles)
-	workspaces.GET("/:workspace_id/files/search", handlers.SearchFileContents)
-	workspaces.GET("/:workspace_id/files/content", handlers.ReadFileContent)
-	workspaces.GET("/:workspace_id/files/raw/*path", sameOriginFetchGuard, handlers.ReadFileBytes)
-	workspaces.GET(
+
+	files := api.group("/workspaces", remoteproto.ScopeFilesR)
+	files.GET("/:workspace_id/files/entries", handlers.ListFileEntries)
+	files.GET("/:workspace_id/files/find", handlers.FindFiles)
+	files.GET("/:workspace_id/files/search", handlers.SearchFileContents)
+	files.GET("/:workspace_id/files/content", handlers.ReadFileContent)
+	files.GET("/:workspace_id/files/raw/*path", sameOriginFetchGuard, handlers.ReadFileBytes)
+	files.GET(
 		"/:workspace_id/worktrees/:worktree_id/files/raw/*path",
 		sameOriginFetchGuard,
 		handlers.ReadWorktreeFileBytes,
 	)
-	workspaces.PATCH("/:workspace_id", handlers.UpdateWorkspace)
-	workspaces.DELETE("/:workspace_id", handlers.DeleteWorkspace)
-	workspaces.POST("/:workspace_id/archive", handlers.ArchiveWorkspace)
-	workspaces.POST("/:workspace_id/unarchive", handlers.UnarchiveWorkspace)
-	workspaces.POST("/resolve", handlers.ResolveWorkspace)
+
+	projectSettings := api.group("/workspaces", remoteproto.ScopeSettings)
+	projectSettings.POST("", handlers.CreateWorkspace)
+	projectSettings.PATCH("/:workspace_id", handlers.UpdateWorkspace)
+	projectSettings.DELETE("/:workspace_id", handlers.DeleteWorkspace)
+	projectSettings.POST("/:workspace_id/archive", handlers.ArchiveWorkspace)
+	projectSettings.POST("/:workspace_id/unarchive", handlers.UnarchiveWorkspace)
+	projectSettings.POST("/resolve", handlers.ResolveWorkspace)
 }
 
 func registerLogsRoutes(api gin.IRouter, handlers *Handlers) {
@@ -91,13 +111,14 @@ func registerSupportRoutes(api gin.IRouter, handlers *Handlers) {
 	support.GET("/bundles/:operation_id/download", handlers.DownloadSupportBundle)
 }
 
-func registerObserveRoutes(api gin.IRouter, handlers *Handlers) {
-	api.GET("/permissions/rollup", handlers.PermissionRollup)
-	api.GET("/permissions", handlers.PermissionEntries)
-	observeGroup := api.Group("/observe")
+func registerObserveRoutes(api operatorRouteGroups, handlers *Handlers) {
+	permissions := api.group("/permissions", remoteproto.ScopeSettings)
+	permissions.GET("/rollup", handlers.PermissionRollup)
+	permissions.GET("", handlers.PermissionEntries)
+	observeGroup := api.group("/observe", remoteproto.ScopeSessions)
 	observeGroup.GET("/overview", handlers.ObserveOverview)
 
-	taskObserveGroup := observeGroup.Group("/tasks")
+	taskObserveGroup := api.group("/observe/tasks", remoteproto.ScopeTasks)
 	taskObserveGroup.GET("/dashboard", handlers.TaskDashboard)
 	taskObserveGroup.GET("/inbox", handlers.TaskInbox)
 }
@@ -121,50 +142,46 @@ func registerResourceRoutes(api gin.IRouter, handlers *Handlers) {
 		return
 	}
 
-	resourcesGroup := api.Group("/resources", auth...)
-	resourcesGroup.GET("", handlers.ListResources)
-	resourcesGroup.GET("/:kind", handlers.ListResources)
-	resourcesGroup.GET("/:kind/:id", handlers.GetResource)
-	resourcesGroup.PUT("/:kind/:id", handlers.PutResource)
-	resourcesGroup.DELETE("/:kind/:id", handlers.DeleteResource)
+	registerResourceEndpoints(api.Group("", auth...), handlers, true)
 }
 
-func registerRemoteResourceReadRoutes(api gin.IRouter, handlers *Handlers) {
-	if handlers == nil {
-		return
-	}
+func registerResourceEndpoints(api gin.IRouter, handlers *Handlers, writable bool) {
 	resourcesGroup := api.Group("/resources")
 	resourcesGroup.GET("", handlers.ListResources)
 	resourcesGroup.GET("/:kind", handlers.ListResources)
 	resourcesGroup.GET("/:kind/:id", handlers.GetResource)
+	if writable {
+		resourcesGroup.PUT("/:kind/:id", handlers.PutResource)
+		resourcesGroup.DELETE("/:kind/:id", handlers.DeleteResource)
+	}
 }
 
-func registerToolRoutes(api gin.IRouter, handlers *Handlers) {
+func registerToolRoutes(api operatorRouteGroups, handlers *Handlers) {
 	privileged := handlers.privilegedMutationGuard()
-	tools := api.Group("/tools")
+	tools := api.group("/tools", remoteproto.ScopeSettings)
 	tools.GET("", handlers.ListTools)
 	tools.POST("/search", handlers.SearchTools)
 	tools.POST("/:id/approvals", privileged, handlers.CreateToolApproval)
-	tools.POST("/:id/invoke", privileged, handlers.InvokeTool)
+	api.toolInvoke(privileged, handlers.InvokeTool)
 	tools.GET("/:id", handlers.GetTool)
 
-	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
+	workspaceSessions := api.group("/workspaces/:workspace_id/sessions", remoteproto.ScopeSessions)
 	workspaceSessions.GET("/:session_id/tools", handlers.ListSessionTools)
 	workspaceSessions.POST("/:session_id/tools/search", handlers.SearchSessionTools)
-	workspaceArtifacts := api.Group("/workspaces/:workspace_id/tool-artifacts")
+	workspaceArtifacts := api.group("/workspaces/:workspace_id/tool-artifacts", remoteproto.ScopeSessions)
 	workspaceArtifacts.GET("/:artifact_id", handlers.ReadToolArtifact)
 
-	toolsets := api.Group("/toolsets")
+	toolsets := api.group("/toolsets", remoteproto.ScopeSettings)
 	toolsets.GET("", handlers.ListToolsets)
 	toolsets.GET("/:id", handlers.GetToolset)
 
-	approvalGrants := api.Group("/tool-approval-grants")
+	approvalGrants := api.group("/tool-approval-grants", remoteproto.ScopeSettings)
 	approvalGrants.PUT("", handlers.privilegedMutationGuard(), handlers.SetToolApprovalGrant)
 	approvalGrants.GET("", handlers.ListToolApprovalGrants)
 	approvalGrants.DELETE("/:id", handlers.privilegedMutationGuard(), handlers.RevokeToolApprovalGrant)
 }
 
-func registerTaskRoutes(api gin.IRouter, handlers *Handlers, includeTaskMutations bool) {
+func registerTaskRoutes(api gin.IRouter, handlers *Handlers, includeTaskMutations, remote bool) {
 	tasks := api.Group("/tasks")
 	tasks.GET("", handlers.ListTasks)
 	tasks.GET("/:id", handlers.GetTask)
@@ -186,11 +203,15 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers, includeTaskMutation
 	taskRuns.GET("/:id/reviews", handlers.ListTaskRunReviews)
 	if includeTaskMutations {
 		taskRuns.POST("/:id/reviews", handlers.RequestTaskRunReview)
-		taskRuns.POST("/:id/start", handlers.StartTaskRun)
-		taskRuns.POST("/:id/attach-session", handlers.AttachTaskRunSession)
+		taskRuns.POST("/:id/cancel", handlers.CancelTaskRun)
+		// Direct start and attach can claim a queued run. Remote operators enqueue instead.
+		if !remote {
+			taskRuns.POST("/:id/start", handlers.StartTaskRun)
+			taskRuns.POST("/:id/attach-session", handlers.AttachTaskRunSession)
+		}
+		// These operator transitions are limited to runs without a claim token.
 		taskRuns.POST("/:id/complete", handlers.CompleteTaskRun)
 		taskRuns.POST("/:id/fail", handlers.FailTaskRun)
-		taskRuns.POST("/:id/cancel", handlers.CancelTaskRun)
 	}
 
 	runs := api.Group("/runs")
@@ -280,12 +301,8 @@ func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
 	marketplace.POST("/sources/:name/refresh", handlers.privilegedMutationGuard(), handlers.RefreshMarketplaceSource)
 }
 
-func registerExtensionRoutes(api gin.IRouter, handlers *Handlers, localOnly bool) {
+func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 	privileged := handlers.privilegedMutationGuard()
-	profileWrite := privileged
-	if !localOnly {
-		profileWrite = handlers.ProfileRemoteWriteForbidden
-	}
 	extensions := api.Group("/extensions")
 	extensions.GET("", handlers.ListExtensions)
 	extensions.GET("/search", handlers.SearchExtensions)
@@ -301,13 +318,15 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers, localOnly bool
 	extensions.GET("/:name/secrets", handlers.ListExtensionSecrets)
 	extensions.PUT("/:name/secrets", privileged, handlers.SetExtensionSecrets)
 	extensions.DELETE("/:name/secrets/:env_name", privileged, handlers.DeleteExtensionSecret)
+	extensions.GET("/:name/inputs", handlers.GetExtensionInputs)
+	extensions.PUT("/:name/inputs", privileged, handlers.SetExtensionInputs)
 	extensions.GET("/:name/inventory", handlers.ExtensionInventory)
 	extensions.GET("/:name", handlers.ExtensionStatus)
 	extensions.POST("/:name/reload", privileged, handlers.ReloadDevExtension)
 	extensions.POST("/:name/restore", privileged, handlers.RestoreExtension)
 	extensions.GET("/:name/logs", handlers.ExtensionLogs)
 	extensions.GET("/:name/enablement", handlers.ListExtensionEnablement)
-	extensions.PUT("/:name/enablement", profileWrite, handlers.SetExtensionEnablement)
+	extensions.PUT("/:name/enablement", privileged, handlers.SetExtensionEnablement)
 	extensions.GET("/:name/preview", handlers.PreviewExtensionEnable)
 }
 
@@ -319,10 +338,6 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.POST("/reload", privileged, handlers.ReloadSettings)
 	settings.GET("/general", handlers.GetSettingsGeneral)
 	settings.GET("/persona", handlers.GetSettingsPersona)
-	settings.GET("/update", handlers.GetSettingsUpdate)
-	settings.POST("/update/check", privileged, handlers.CheckSettingsUpdate)
-	settings.POST("/update/apply", privileged, handlers.ApplySettingsUpdate)
-	settings.POST("/update/cancel", privileged, handlers.CancelSettingsUpdate)
 	settings.PATCH("/general", privileged, handlers.UpdateSettingsGeneral)
 	settings.PATCH("/persona", privileged, handlers.UpdateSettingsPersona)
 	settings.GET("/roles", handlers.GetSettingsRoles)
@@ -362,10 +377,6 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.GET("/hooks", handlers.ListSettingsHooks)
 	settings.PUT("/hooks/:name", privileged, handlers.PutSettingsHook)
 	settings.DELETE("/hooks/:name", privileged, handlers.DeleteSettingsHook)
-
-	actions := settings.Group("/actions")
-	actions.POST("/restart", privileged, handlers.TriggerSettingsRestart)
-	actions.GET("/restart/:operation_id", handlers.GetSettingsRestartStatus)
 }
 
 func registerSettingsMCPRoutes(settings gin.IRouter, handlers *Handlers, privileged gin.HandlerFunc) {
@@ -385,13 +396,14 @@ func registerSettingsMCPRoutes(settings gin.IRouter, handlers *Handlers, privile
 	settings.DELETE("/mcp-servers/:name", privileged, handlers.DeleteSettingsMCPServer)
 }
 
-func registerVaultRoutes(api gin.IRouter, handlers *Handlers) {
+func registerVaultRoutes(api operatorRouteGroups, handlers *Handlers) {
 	privileged := handlers.privilegedMutationGuard()
-	vaultGroup := api.Group("/vault")
-	vaultGroup.GET("/secrets", privileged, handlers.ListVaultSecrets)
-	vaultGroup.GET("/secrets/metadata", privileged, handlers.GetVaultSecretMetadata)
-	vaultGroup.PUT("/secrets", privileged, handlers.PutVaultSecret)
-	vaultGroup.DELETE("/secrets", privileged, handlers.DeleteVaultSecret)
+	names := api.group("/vault", remoteproto.ScopeSessions)
+	names.GET("/secrets", privileged, handlers.ListVaultSecrets)
+	names.GET("/secrets/metadata", privileged, handlers.GetVaultSecretMetadata)
+	values := api.group("/vault", remoteproto.ScopeSettings)
+	values.PUT("/secrets", privileged, handlers.PutVaultSecret)
+	values.DELETE("/secrets", privileged, handlers.DeleteVaultSecret)
 }
 
 func registerProviderRoutes(api gin.IRouter, handlers *Handlers) {
@@ -401,10 +413,9 @@ func registerProviderRoutes(api gin.IRouter, handlers *Handlers) {
 	providers.POST("/:provider_id/auth/probe", handlers.ProbeProviderAuth)
 }
 
-func registerModelCatalogRoutes(api gin.IRouter, handlers *Handlers) {
-	modelCatalog := api.Group("/model-catalog")
-	modelCatalog.GET("/*catalog_path", handlers.ModelCatalogRoute)
-	modelCatalog.POST("/*catalog_path", handlers.ModelCatalogRoute)
+func registerModelCatalogRoutes(api operatorRouteGroups, handlers *Handlers) {
+	api.group("/model-catalog", remoteproto.ScopeSessions).GET("/*catalog_path", handlers.ModelCatalogRoute)
+	api.group("/model-catalog", remoteproto.ScopeSettings).POST("/*catalog_path", handlers.ModelCatalogRoute)
 }
 
 func registerOpenAIModelRoutes(api gin.IRouter, handlers *Handlers) {
@@ -412,9 +423,8 @@ func registerOpenAIModelRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {
-	webhooks := api.Group("/webhooks", handlers.gatewayIngressRateLimitMiddleware())
-	webhooks.POST("/global/:endpoint", handlers.DeliverGlobalWebhook)
-	webhooks.POST("/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
+	registerWebhookEndpoints(api, handlers.ingressRateLimitMiddleware(),
+		handlers.DeliverGlobalWebhook, handlers.DeliverWorkspaceWebhook)
 }
 
 func registerProviderUsageRoutes(api gin.IRouter, handlers *Handlers) {

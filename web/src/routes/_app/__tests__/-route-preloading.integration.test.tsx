@@ -13,6 +13,10 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { RouterContext } from "@/integrations/tanstack-query/root-context";
+
+import { prepareAppProfile } from "../-app-preload";
+
 import {
   useAgent,
   agentTeamOptions,
@@ -356,11 +360,11 @@ function createDeferred<T>() {
 }
 
 function createRunEntryRouter(queryClient: QueryClient) {
-  const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({});
+  const root = createRootRouteWithContext<RouterContext>()({});
   const app = createRoute({
     getParentRoute: () => root,
     id: "_app",
-    beforeLoad: AppRoute.options.beforeLoad,
+    beforeLoad: ({ context }) => prepareAppProfile(context.queryClient),
     loader: args => invokeLoader(AppRoute, args),
   });
   const task = createRoute({
@@ -405,7 +409,7 @@ const cases: PreloadCase[] = [
     ],
   },
   {
-    name: "home → workspace/agent/exact-active-session options",
+    name: "home → workspace/agent/working-now session options",
     load: queryClient => invokeLoader(HomeRoute, context(queryClient)),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
@@ -414,7 +418,13 @@ const cases: PreloadCase[] = [
         // Must mirror useHomeWorkingNow exactly: sort last_activity, limit 6,
         // workspace-scoped. A limit/sort drift here reintroduces the refetch.
         useSessions(workspace.id, {
-          filters: { state: "active", type: "user", sort: "last_activity", limit: 6 },
+          filters: {
+            state: "active",
+            badge: "running,waiting",
+            type: "user",
+            sort: "last_activity",
+            limit: 6,
+          },
         });
       }),
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.fetchAgents, adapterMocks.fetchSessions],

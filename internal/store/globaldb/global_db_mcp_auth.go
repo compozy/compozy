@@ -34,6 +34,10 @@ func (g *VaultRepo) SaveMCPAuthToken(ctx context.Context, token mcpauth.TokenRec
 	if err != nil {
 		return fmt.Errorf("store: marshal MCP auth token scopes: %w", err)
 	}
+	requestedScopesJSON, err := json.Marshal(normalized.RequestedScopes)
+	if err != nil {
+		return fmt.Errorf("store: marshal MCP auth token requested scopes: %w", err)
+	}
 	prefix, err := vault.MCPSecretOwnerPrefix(normalized.Target.VaultTarget())
 	if err != nil {
 		return fmt.Errorf("store: build MCP auth token ref: %w", err)
@@ -82,6 +86,7 @@ func (g *VaultRepo) SaveMCPAuthToken(ctx context.Context, token mcpauth.TokenRec
 			Issuer:                normalized.Issuer,
 			ClientID:              normalized.ClientID,
 			ScopesJson:            string(scopesJSON),
+			RequestedScopesJson:   string(requestedScopesJSON),
 			AccessTokenRef:        accessTokenRef,
 			RefreshTokenRef:       refreshTokenRef,
 			TokenType:             normalized.TokenType,
@@ -192,6 +197,7 @@ func normalizeMCPAuthToken(token mcpauth.TokenRecord, now time.Time) (mcpauth.To
 		token.TokenType = globalDBMCPAuthBearerValue
 	}
 	token.Scopes = trimTokenScopes(token.Scopes)
+	token.RequestedScopes = trimTokenScopes(token.RequestedScopes)
 	if token.ObtainedAt.IsZero() {
 		token.ObtainedAt = now.UTC()
 	}
@@ -319,6 +325,11 @@ func mcpAuthTokenFromGenerated(row sqlcgen.McpAuthToken) (mcpauth.TokenRecord, e
 	if strings.TrimSpace(row.ScopesJson) != "" {
 		if err := json.Unmarshal([]byte(row.ScopesJson), &token.Scopes); err != nil {
 			return mcpauth.TokenRecord{}, fmt.Errorf("store: decode MCP auth token scopes: %w", err)
+		}
+	}
+	if strings.TrimSpace(row.RequestedScopesJson) != "" {
+		if err := json.Unmarshal([]byte(row.RequestedScopesJson), &token.RequestedScopes); err != nil {
+			return mcpauth.TokenRecord{}, fmt.Errorf("store: decode MCP auth token requested scopes: %w", err)
 		}
 	}
 	if row.ExpiresAt.Valid && strings.TrimSpace(row.ExpiresAt.String) != "" {

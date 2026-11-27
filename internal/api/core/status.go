@@ -84,10 +84,6 @@ func (h *BaseHandlers) statusPayloadWithAggregate(
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect automation health: %w", err)
 	}
-	gatewayStatus, err := h.runtimeGatewayStatusPayload(ctx)
-	if err != nil {
-		return contract.StatusPayload{}, fmt.Errorf("api: collect gateway status: %w", err)
-	}
 	schemaStreams, err := h.schemaStreamStatusPayloads(ctx)
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect schema stream status: %w", err)
@@ -115,7 +111,6 @@ func (h *BaseHandlers) statusPayloadWithAggregate(
 		Daemon: h.daemonStatusPayload(
 			&health,
 			sessionSummary.Total,
-			gatewayStatus,
 			schemaStreams,
 		),
 		Sessions:         sessionSummary,
@@ -143,17 +138,6 @@ func (h *BaseHandlers) validateStatusDependencies(ctx context.Context) error {
 		return errors.New("api: session manager is required for status")
 	}
 	return nil
-}
-
-func (h *BaseHandlers) runtimeGatewayStatusPayload(ctx context.Context) (*contract.GatewayStatusPayload, error) {
-	if h.Gateway == nil {
-		return nil, nil
-	}
-	payload, err := h.GatewayStatus(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &payload, nil
 }
 
 func (h *BaseHandlers) sessionAggregate(ctx context.Context) (contract.SessionAggregatePayload, error) {

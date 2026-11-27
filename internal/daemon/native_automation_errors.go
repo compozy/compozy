@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/store"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -13,7 +14,7 @@ import (
 
 func nativeAutomationToolError(id toolspkg.ToolID, err error) error {
 	switch {
-	case errors.Is(err, store.ErrWorkspaceArchived):
+	case errors.Is(err, store.ErrWorkspaceArchived), errors.Is(err, admission.ErrLocalExecutionDisabled):
 		return nativeHTTPStatusToolError(id, err, http.StatusConflict)
 	case err == nil:
 		return nil

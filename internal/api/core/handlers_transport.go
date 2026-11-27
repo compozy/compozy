@@ -77,7 +77,7 @@ func (h *BaseHandlers) logSessionReadError(operation string, sessionID string, e
 	logAttrs := []any{
 		handlersOperationKey,
 		operation,
-		"session_id",
+		sessionIDKey,
 		strings.TrimSpace(sessionID),
 	}
 	logAttrs = append(logAttrs, attrs...)

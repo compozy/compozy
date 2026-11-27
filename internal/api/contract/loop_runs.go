@@ -80,6 +80,19 @@ type LoopRunPayload struct {
 	Inputs            map[string]any        `json:"inputs,omitempty"`
 	Attention         *LoopRunAttention     `json:"attention,omitzero"`
 	Progress          LoopRunProgress       `json:"progress"`
+	Terminal          *LoopRunTerminal      `json:"terminal,omitzero"`
+}
+
+// LoopRunTerminal carries the settled terminal cause projected from the run's
+// last status change, so readers need not inspect workspace artifacts or events.
+type LoopRunTerminal struct {
+	Status     LoopRunStatus `json:"status"`
+	Cause      string        `json:"cause,omitempty"`
+	ReasonCode string        `json:"reason_code,omitempty"`
+	GateID     string        `json:"gate_id,omitempty"`
+	NodeID     string        `json:"node_id,omitempty"`
+	Message    string        `json:"message,omitempty"`
+	At         time.Time     `json:"at,omitzero"`
 }
 
 // LoopRunAttention summarizes operator action required by one run.

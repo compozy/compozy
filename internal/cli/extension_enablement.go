@@ -31,7 +31,11 @@ func setExtensionProfileEnablement(
 	if err != nil {
 		return ExtensionEnablementRecord{}, err
 	}
-	return enablement.SetExtensionEnablement(cmd.Context(), name, resolution.Profile.Name, enabled)
+	record, err := enablement.SetExtensionEnablement(cmd.Context(), name, resolution.Profile.Name, enabled)
+	if apiErr, ok := errors.AsType[*extensionOperationAPIError](err); ok && enabled {
+		apiErr.enabling = true
+	}
+	return record, err
 }
 
 func extensionEnablementBundle(item ExtensionEnablementRecord) outputBundle {

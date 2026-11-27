@@ -1,8 +1,12 @@
 import { Button, Empty, toast } from "@compozy/ui";
 import { AlertCircle, FolderOpen, TerminalSquare } from "@compozy/ui/icons";
 
+import { ComputerScopeContext } from "@/lib/computer-scope-context";
+import { remoteRejectionMessage } from "@/lib/remote-error-copy";
+import { ComputerChip, toComputerView } from "@/systems/computers";
 import { parsePositiveDurationMilliseconds } from "@/systems/settings";
 import {
+  TerminalApiError,
   TerminalJournalPanel,
   TerminalRecordingPlayer,
   TerminalRecordingSkeleton,
@@ -51,9 +55,11 @@ export function TerminalWindow({ windowId }: { windowId: string }) {
 function TerminalWindowController({ windowId }: { windowId: string }) {
   const controller = useTerminalWindowControllerState(windowId);
   return (
-    <TerminalWindowControllerContext value={controller}>
-      <TerminalWindowLoadBoundary windowId={windowId} />
-    </TerminalWindowControllerContext>
+    <ComputerScopeContext value={controller.computerId}>
+      <TerminalWindowControllerContext value={controller}>
+        <TerminalWindowLoadBoundary windowId={windowId} />
+      </TerminalWindowControllerContext>
+    </ComputerScopeContext>
   );
 }
 
@@ -113,9 +119,12 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     answer,
     catalog,
     close,
+    computerId,
     coordinator,
     create,
     createRequested,
+    isRemote,
+    remoteComputer,
     windowedTerminalIds,
     inputRequests,
     resolvedInputRequests,
@@ -137,7 +146,11 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     retargetSearch,
     workspaceId,
   } = useTerminalWindowControllerContext();
-  const openTerminal = viewer ? () => create.mutate(viewer) : undefined;
+  const openTerminal = isRemote
+    ? () => create.mutate(null)
+    : viewer
+      ? () => create.mutate(viewer)
+      : undefined;
   const retargetTerminal = (terminalId: string) => {
     void coordinator.userRetarget(windowId, {
       app: "terminal",
@@ -208,9 +221,13 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     <TerminalWindowApp
       hostChrome
       actions={actions}
+      computerId={computerId}
       createIntent={createRequested}
       detachedTtl={terminalSettings?.detached_ttl}
       exitRetentionMs={parsePositiveDurationMilliseconds(terminalSettings?.exit_retention)}
+      headerStatusExtra={
+        remoteComputer ? <ComputerChip computer={toComputerView(remoteComputer)} /> : undefined
+      }
       inputRequestTitles={new Map(terminals.map(terminal => [terminal.id, terminal.title]))}
       inputRequests={inputRequests.data ?? []}
       isHostShortcut={isHostShortcut}
@@ -344,6 +361,12 @@ function TerminalWindowError({
   retry: () => Promise<unknown>;
   title: string;
 }) {
+  const description =
+    error instanceof TerminalApiError
+      ? remoteRejectionMessage(error.code, error.message, error.details)
+      : error instanceof Error
+        ? error.message
+        : undefined;
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
       <Empty
@@ -353,7 +376,7 @@ function TerminalWindowError({
           </Button>
         }
         className="max-w-md"
-        description={error instanceof Error ? error.message : undefined}
+        description={description}
         icon={AlertCircle}
         title={title}
       />

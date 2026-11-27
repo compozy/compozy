@@ -101,7 +101,7 @@ The same management contract is available at:
 | `DELETE /api/app-tokens/{app_token_id}`                                | `200` with `app_token`, `changed`, and `canceled` |
 
 Use local HTTP without a foreign `Origin`, or the daemon's Unix socket. App-token management is not
-exposed on Gateway listeners. The [API reference](/docs/api) supplies TypeScript and Go SDK calls.
+exposed on remote routes. The [API reference](/docs/api) supplies TypeScript and Go SDK calls.
 No native `compozy__*` tools or `config.toml` keys are introduced for app tokens; agents use the
 structured CLI or local HTTP/UDS surfaces.
 

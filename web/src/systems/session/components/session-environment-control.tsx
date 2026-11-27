@@ -9,6 +9,7 @@ import {
 import { Link2 } from "@compozy/ui/icons";
 import { SessionWorktreeBindingDialog } from "./session-worktree-binding-dialog";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import type { SessionWorktreeBinding } from "../hooks/use-session-worktree-binding";
 import { useSessionEnvironmentControl } from "../hooks/use-session-environment-control";
 import { requestSessionLinkDialog } from "../hooks/use-session-link-dialog";
@@ -17,6 +18,7 @@ import { SessionWorktreeForkDialog } from "./session-worktree-fork-dialog";
 
 interface SessionEnvironmentControlProps {
   binding: SessionWorktreeBinding;
+  computerId?: ComputerId;
   workspaceId: string;
   workspaceName: string;
   sessionId: string;
@@ -30,6 +32,7 @@ export interface SessionEnvironmentControlHandle {
 /** Changes the environment in place or opens the existing worktree fork flow. */
 export function SessionEnvironmentControl({
   binding,
+  computerId,
   workspaceId,
   workspaceName,
   sessionId,
@@ -38,6 +41,7 @@ export function SessionEnvironmentControl({
 }: SessionEnvironmentControlProps & { ref?: Ref<SessionEnvironmentControlHandle> }) {
   const control = useSessionEnvironmentControl({
     ref,
+    computerId,
     sessionId,
     workspaceId,
     currentWorktreeId: binding.worktreeId,

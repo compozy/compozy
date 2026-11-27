@@ -318,7 +318,7 @@ func prepareLoopRunInputs(
 	loopName string,
 	options loopRunOptions,
 ) (map[string]any, error) {
-	values, err := parseLoopInputFlags(options.inputs)
+	rawInputs, err := parseLoopInputFlagText(options.inputs)
 	if err != nil {
 		return nil, err
 	}
@@ -330,7 +330,7 @@ func prepareLoopRunInputs(
 	if err := loopResponse.Loop.Definition.Decode(&definition); err != nil {
 		return nil, fmt.Errorf("cli: decode Loop input declarations: %w", err)
 	}
-	values, err = normalizeLoopRunInputs(definition, values)
+	values, err := normalizeLoopRunInputs(definition, rawInputs)
 	if err != nil {
 		return nil, err
 	}

@@ -22,18 +22,17 @@ var (
 )
 
 // SkillInstallLocks is the in-process keyed mutex per physical skill. It queues callers inside one
-// daemon; the dirpublish lock next to the skill serializes daemons of other homes. It also remembers
-// the daemon's committed auto-approvals whose review row is still unprojected, and carries the
-// daemon's pending catalog refresh, shared by every copy of the skill service.
+// daemon; the dirpublish lock next to the skill serializes daemons of other homes. It also carries
+// the daemon's pending catalog refresh, shared by every copy of the skill service.
 type SkillInstallLocks struct {
 	mu   sync.Mutex
 	held map[string]*skillKeyLock
-	// unprojected maps an instance ID to its committed auto-approvals whose projection failed.
-	unprojected map[string]map[string]struct{}
 	// publishMu serializes a catalog refresh with its publishPending update; publishPending is set
 	// while a committed change still needs a catalog refresh.
 	publishMu      sync.Mutex
 	publishPending bool
+	// unprojected maps an instance ID to its committed auto-approvals whose projection failed.
+	unprojected map[string]map[string]struct{}
 }
 
 type skillKeyLock struct {
@@ -82,10 +81,8 @@ func (l *SkillInstallLocks) lock(ctx context.Context, key string) (func(), error
 	}
 }
 
-// markUnprojected remembers a committed auto-approval whose review row is still pending, so the
-// instance's daily cap fails closed until Reconcile projects it (Business Rule 14).
-// ponytail: in memory, so a daemon restart forgets it; persist it if restarts with a failed
-// projection matter.
+// markUnprojected makes the cap fail closed while an automatic approval may be committed and its
+// review is still pending. Startup recovery records projection failures again from the install log.
 func (l *SkillInstallLocks) markUnprojected(instanceID, reviewID string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

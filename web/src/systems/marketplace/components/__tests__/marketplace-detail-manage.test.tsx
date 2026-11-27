@@ -17,10 +17,26 @@ import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 import { handlers as statusHandlers } from "@/systems/status/mocks";
 import { extensionFixtures } from "@/systems/extensions/mocks";
-import type { ExtensionEntry, ExtensionLogEventSource } from "@/systems/extensions";
+import type {
+  ExtensionEntry,
+  ExtensionLogEventSource,
+  ExtensionUnmetDependency,
+} from "@/systems/extensions";
 import { marketplaceCatalogFixture } from "../../mocks";
 import type { MarketplaceCatalogEntryResponse } from "../../types";
 import { MarketplaceDetailExtensionInstalled } from "../marketplace-detail-extension-installed";
+
+function unmetDependency(
+  fields: Pick<ExtensionUnmetDependency, "name" | "state"> & Partial<ExtensionUnmetDependency>
+): ExtensionUnmetDependency {
+  return {
+    depth: 1,
+    ref: fields.name,
+    required_by: ["ops-extension"],
+    source: "marketplace",
+    ...fields,
+  };
+}
 
 const mocks = vi.hoisted(() => ({
   extensionEnabled: true,
@@ -45,8 +61,15 @@ const mocks = vi.hoisted(() => ({
     severity: string;
     title: string;
   }>,
-  extensionGatewayConfirmationRequired: false,
-  extensionGatewayDigest: undefined as string | undefined,
+  extensionInputs: [] as Array<{
+    active: boolean;
+    id: string;
+    set: boolean;
+    state?: string;
+    type: string;
+  }>,
+  extensionMissingInputs: [] as string[],
+  extensionUnmetDependencies: [] as ExtensionUnmetDependency[],
   extensionLogs: [] as Array<{
     message: string;
     sequence: number;
@@ -82,8 +105,6 @@ function extensionPayload(): ExtensionEntry {
     contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 0 },
     workspace_id: mocks.extensionWorkspaceId ?? undefined,
     bound_env_keys: mocks.extensionBoundEnvKeys,
-    gateway_confirmation_required: mocks.extensionGatewayConfirmationRequired,
-    gateway_requirement_digest: mocks.extensionGatewayDigest,
     diagnostics: [
       {
         id: "healthy",
@@ -95,7 +116,9 @@ function extensionPayload(): ExtensionEntry {
         title: "Healthy",
       },
     ],
-    inputs: [],
+    inputs: mocks.extensionInputs,
+    missing_inputs: mocks.extensionMissingInputs,
+    unmet_dependencies: mocks.extensionUnmetDependencies,
     declared_profiles: mocks.extensionDeclaredProfiles,
     dormant_placements: mocks.extensionPlacements.filter(item => item.dormant),
     enabled: mocks.extensionEnabled,
@@ -111,7 +134,7 @@ function extensionPayload(): ExtensionEntry {
     health_message: "Runtime handshake is healthy.",
     origin_path: mocks.extensionOriginPath,
     overrides_published: mocks.extensionDev,
-    permissions: ["gateway/status"],
+    permissions: ["sessions/list"],
     placements: mocks.extensionPlacements,
     pid: 4242,
     provenance: {
@@ -152,6 +175,30 @@ const server = setupServer(
       extension: "ops-extension",
       format: mocks.extensionFormat,
       items: mocks.extensionInventory,
+    })
+  ),
+  http.get("*/api/extensions/:name/inputs", () =>
+    HttpResponse.json({
+      extension: "ops-extension",
+      workspace_id: "",
+      profile: "default",
+      enabled: true,
+      inputs: [
+        {
+          id: "pager_token",
+          prompt: "Pager token",
+          type: "secret",
+          required: true,
+          binding: { type: "env", name: "PAGER_TOKEN" },
+          targets: ["subprocess"],
+          state: "missing",
+        },
+      ],
+      missing: ["pager_token"],
+      invalid: [],
+      daemon_env: [],
+      missing_env: [],
+      mcp_auth_servers: [],
     })
   ),
   http.get("*/api/extensions/:name/logs", () =>
@@ -252,8 +299,9 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionFormat = "compozy";
     mocks.extensionInventory = [];
     mocks.extensionInventoryDiagnostics = [];
-    mocks.extensionGatewayConfirmationRequired = false;
-    mocks.extensionGatewayDigest = undefined;
+    mocks.extensionInputs = [];
+    mocks.extensionMissingInputs = [];
+    mocks.extensionUnmetDependencies = [];
     mocks.extensionPlacements = [];
     mocks.extensionUpdateAvailable = false;
     mocks.extensionWorkspaceId = null;
@@ -274,7 +322,7 @@ describe("Marketplace installed-detail management", () => {
     // Access and the operator facts stay reachable one step deeper.
     await openRailCard(user, "What it can do");
     expect(screen.getByText("tool.provider")).toBeInTheDocument();
-    expect(screen.getByText("gateway/status")).toBeInTheDocument();
+    expect(screen.getByText("sessions/list")).toBeInTheDocument();
     const advanced = await openRailCard(user, "Advanced");
     expect(screen.queryByTestId("extension-format-badge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("extension-skipped-components")).not.toBeInTheDocument();
@@ -356,21 +404,6 @@ describe("Marketplace installed-detail management", () => {
     // A binding the manifest no longer declares is listed, never presented as in use.
     expect(within(environment).getByText("LEGACY_TOKEN")).toBeInTheDocument();
     expect(within(environment).getByText("Set · no longer used")).toBeInTheDocument();
-  });
-
-  it("Should surface the gateway digest and its consent state when participation is declared", async () => {
-    mocks.extensionGatewayDigest = "sha256:6f1c0a94d3b27e58";
-    mocks.extensionGatewayConfirmationRequired = true;
-    await renderDetail(extensionDetailData());
-
-    // A pending remote-access confirmation opens Advanced by itself.
-    expect(
-      within(screen.getByTestId("marketplace-extension-advanced")).getByText("Remote access")
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("extension-gateway-consent")).toHaveTextContent(
-      "confirmation required"
-    );
-    expect(screen.getByText("sha256:6f1c0a94d3b27e58")).toBeInTheDocument();
   });
 
   it("Should show declared profile setup and dormant placement recovery", async () => {
@@ -477,6 +510,63 @@ describe("Marketplace installed-detail management", () => {
 
     expect(await screen.findByRole("menuitem", { name: "Unlink local copy…" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Provenance" })).not.toBeInTheDocument();
+  });
+
+  // T-13: Setup… is offered only for an extension that declares inputs.
+  it("Should hide Setup… when the extension declares no inputs", async () => {
+    const user = userEvent.setup();
+    await renderDetail(extensionDetailData());
+
+    await user.click(screen.getByRole("button", { name: "Actions for ops-extension" }));
+
+    expect(await screen.findByRole("menuitem", { name: "Provenance" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Setup…" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-extension-setup-notice")).not.toBeInTheDocument();
+  });
+
+  it("Should open the Setup dialog from Actions when the extension declares inputs", async () => {
+    const user = userEvent.setup();
+    mocks.extensionInputs = [
+      { active: true, id: "pager_token", set: true, state: "set", type: "secret" },
+    ];
+    await renderDetail(extensionDetailData());
+
+    await user.click(screen.getByRole("button", { name: "Actions for ops-extension" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Setup…" }));
+
+    expect(await screen.findByTestId("extension-setup-dialog")).toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-extension-setup-notice")).not.toBeInTheDocument();
+  });
+
+  it("Should open the Setup dialog from the missing-inputs notice", async () => {
+    const user = userEvent.setup();
+    mocks.extensionInputs = [
+      { active: false, id: "pager_token", set: false, state: "missing", type: "secret" },
+    ];
+    mocks.extensionMissingInputs = ["pager_token"];
+    await renderDetail(extensionDetailData());
+
+    const notice = screen.getByTestId("marketplace-extension-setup-notice");
+    expect(notice).toHaveTextContent("Needs setup: 1 required input");
+    await user.click(within(notice).getByRole("button", { name: "Set up" }));
+
+    const dialog = await screen.findByTestId("extension-setup-dialog");
+    expect(await within(dialog).findByTestId("extension-input-pager_token")).toHaveFocus();
+  });
+
+  // T-20 [US-014.AC-3]: the rail names each unmet dependency with the action that resolves it.
+  it("Should show an unmet-dependency notice per dependency on the installed rail", async () => {
+    mocks.extensionUnmetDependencies = [
+      unmetDependency({ name: "acme-core", min_version: "0.4.0", state: "missing" }),
+      unmetDependency({ name: "acme-net", state: "disabled" }),
+    ];
+    await renderDetail(extensionDetailData());
+
+    const missing = screen.getByTestId("marketplace-extension-dependency-notice-acme-core");
+    expect(missing).toHaveTextContent("Missing dependency: acme-core");
+    expect(within(missing).getByRole("button", { name: "Install" })).toBeInTheDocument();
+    const disabled = screen.getByTestId("marketplace-extension-dependency-notice-acme-net");
+    expect(within(disabled).getByRole("button", { name: "Turn on" })).toBeInTheDocument();
   });
 
   it("Should show a recoverable state when installed extension management fails", async () => {

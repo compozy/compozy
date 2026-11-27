@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import type {
   DiscoveredWorktreePayload,
   WorktreeNestEntry,
@@ -15,6 +16,7 @@ interface DiscoveredTarget {
 interface WorktreeTarget {
   workspaceId: string;
   worktree: WorktreePayload;
+  computerId?: ComputerId;
 }
 
 export interface WorktreeDialogTargets {
@@ -34,8 +36,16 @@ export interface WorktreeDialogTargets {
   requestRemove: (workspaceId: string, entry: WorktreeNestEntry) => void;
   requestResolveMissing: (workspaceId: string, entry: WorktreeNestEntry) => void;
   requestContext: (workspaceId: string, entry: WorktreeNestEntry) => void;
-  requestResolveMissingWorktree: (workspaceId: string, worktree: WorktreePayload) => void;
-  requestContextWorktree: (workspaceId: string, worktree: WorktreePayload) => void;
+  requestResolveMissingWorktree: (
+    workspaceId: string,
+    worktree: WorktreePayload,
+    computerId?: ComputerId
+  ) => void;
+  requestContextWorktree: (
+    workspaceId: string,
+    worktree: WorktreePayload,
+    computerId?: ComputerId
+  ) => void;
   requestContextCleanup: () => void;
   closeAdopt: () => void;
   closeRemove: () => void;
@@ -82,11 +92,13 @@ export function useWorktreeDialogTargets(): WorktreeDialogTargets {
         setContextTarget({ workspaceId, worktree: entry.worktree });
       }
     },
-    requestResolveMissingWorktree: (workspaceId, worktree) => {
-      setMissingTarget({ workspaceId, worktree });
+    requestResolveMissingWorktree: (workspaceId, worktree, computerId) => {
+      setMissingTarget({ workspaceId, worktree, ...(computerId ? { computerId } : {}) });
     },
-    requestContextWorktree: (workspaceId, worktree) => {
-      if (worktree.state === "ready") setContextTarget({ workspaceId, worktree });
+    requestContextWorktree: (workspaceId, worktree, computerId) => {
+      if (worktree.state === "ready") {
+        setContextTarget({ workspaceId, worktree, ...(computerId ? { computerId } : {}) });
+      }
     },
     requestContextCleanup: () => {
       if (!contextTarget) return;

@@ -49,6 +49,27 @@ export function isSessionRunning(session: SessionPayload): boolean {
   return hasActivePrompt(session);
 }
 
+/** The daemon's subagent summary counts a live subagent under the session. */
+function hasLiveSubagents(session: SessionPayload): boolean {
+  return (session.subagent_summary?.live ?? 0) > 0;
+}
+
+/**
+ * The session's own work is running: its turn or a live subagent (#1926). The sidebar's
+ * leading column reads it for session rows and for the folders that hold them.
+ */
+export function isSessionWorkRunning(session: SessionPayload): boolean {
+  return isSessionRunning(session) || hasLiveSubagents(session);
+}
+
+/** Work runs below the session: a live subagent of it or of a descendant, or a running descendant. */
+export function hasRunningDescendant(
+  session: SessionPayload,
+  descendants: readonly SessionPayload[]
+): boolean {
+  return hasLiveSubagents(session) || descendants.some(isSessionWorkRunning);
+}
+
 export function hasRunningSession(sessions: SessionPayload[] | undefined): boolean {
   return sessions?.some(isSessionRunning) ?? false;
 }

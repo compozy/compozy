@@ -25,6 +25,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/extensionmcp"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -38,6 +39,8 @@ func TestExtensionSecrets(t *testing.T) {
 	t.Run("Should remove all installation state after the second input secret write fails [IT-020]",
 		testExtensionInputInstallRollback)
 	t.Run("Should inject a global binding only after enable", testExtensionSecretBindingEnableInjection)
+	t.Run("Should reuse only the required inputs of each workspace and profile on enable",
+		testWorkspaceExtensionInputEnablement)
 	t.Run(
 		"Should prefer a development binding and fall back to the profile binding",
 		testExtensionSecretDevBindingIsolation,
@@ -164,6 +167,7 @@ type extensionSecretIntegrationHarnessOptions struct {
 	actorWorkspaceID string
 	allowUnverified  bool
 	failingVault     bool
+	withProfiles     bool
 	workspaceID      string
 }
 
@@ -205,6 +209,15 @@ func newExtensionSecretIntegrationHarness(
 		extensionpkg.WithLogger(discardLogger()),
 		extensionpkg.WithSecretResolver(vaultService),
 		extensionpkg.WithEnvBindingStore(db.ExtensionEnvRepo),
+	}
+	var profiles *profilepkg.Manager
+	if opts.withProfiles {
+		profiles, err = profilepkg.NewManager(profilepkg.WithStore(db),
+			profilepkg.WithHomePaths(homePaths), profilepkg.WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		managerOptions = append(managerOptions, extensionpkg.WithProfileNameResolver(profiles))
 	}
 	var workspaceResolver *daemonExtensionWorkspaceResolverStub
 	var workspaceRoot string
@@ -248,6 +261,7 @@ func newExtensionSecretIntegrationHarness(
 	service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:  registry,
 		Runtime:   manager,
+		Profiles:  profiles,
 		HomePaths: homePaths,
 		Logger:    discardLogger(),
 		Now:       time.Now,
@@ -1086,6 +1100,262 @@ func testExtensionSecretBindingEnableInjection(t *testing.T) {
 		string(mustExtensionTransportJSON(t, events)),
 		[]string{secretValue},
 	)
+}
+
+func testWorkspaceExtensionInputEnablement(t *testing.T) {
+	t.Parallel()
+
+	const (
+		name      = "workspace-input-kit"
+		workspace = "ws-input-kit"
+		other     = "ws-unconfigured"
+		secret    = "workspace-input-fixture-secret"
+	)
+	ctx := t.Context()
+	harness := newExtensionSecretIntegrationHarness(t, extensionSecretIntegrationHarnessOptions{
+		actorReason: "workspace input enablement", workspaceID: workspace, allowUnverified: true, withProfiles: true,
+	})
+	service := harness.service
+	marketing, err := service.profiles.Create(ctx, profilepkg.CreateInput{Name: "marketing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stamp := store.FormatTimestamp(service.now())
+	for id, root := range map[string]string{workspace: harness.workspaceRoot, other: t.TempDir()} {
+		if _, err := harness.db.DB().ExecContext(ctx, `INSERT INTO workspaces
+			(id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`, id, root, id, stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dir := writeBoundSecretExtensionFixture(t, t.TempDir(), name)
+	manifestPath := filepath.Join(dir, "extension.toml")
+	manifest, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest = bytes.Replace(
+		manifest,
+		[]byte(`min_compozy_version = "0.5.0"`),
+		[]byte(`min_compozy_version = "0.7.9"`),
+		1,
+	)
+	manifest = append(manifest, []byte(`
+[[inputs]]
+id = "token"
+prompt = "Token"
+type = "secret"
+required = true
+binding = { type = "env", name = "BOUND_SECRET" }
+`)...)
+	if err := os.WriteFile(manifestPath, manifest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	actor := harness.actor
+	actor.ReadScope = store.ReadScope{AllProfiles: true}
+	installed, err := service.Install(ctx, contract.InstallExtensionRequest{
+		Source: contract.InstallExtensionSourceLocalPath, Ref: dir, AllowUnverified: true,
+		WorkspaceID: workspace, Inputs: setupValues("token", secret),
+	}, actor)
+	if err != nil || installed.PID == 0 || len(installed.MissingEnv) != 0 {
+		t.Fatalf("workspace install: pid=%d missing=%v error=%v", installed.PID, installed.MissingEnv, err)
+	}
+	setEnabled := func(profile string, enabled bool) error {
+		t.Helper()
+		result, err := service.SetEnablement(ctx, name, contract.SetExtensionEnablementRequest{
+			Profile: profile, Enabled: enabled,
+		}, actor)
+		if err == nil && (result.Profile != profile || result.Enabled != enabled) {
+			t.Fatalf("enablement result = %#v, want %s enabled=%t", result, profile, enabled)
+		}
+		return err
+	}
+	assertMissing := func(err error) {
+		t.Helper()
+		required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
+		if !ok || len(required.MissingEnv) != 1 || required.MissingEnv[0] != "BOUND_SECRET" {
+			t.Fatalf("enablement error = %v, want required BOUND_SECRET", err)
+		}
+		assertSecretsAbsent(t, "input refusal", err.Error(), []string{secret})
+	}
+	otherProfile := extensionpkg.InstallationScope{ProfileID: marketing.ID, WorkspaceID: other}
+	if err := service.registry.AttachInstallation(ctx, name, otherProfile); err != nil {
+		t.Fatal(err)
+	}
+	if err := setEnabled("default", false); err != nil {
+		t.Fatal(err)
+	}
+	eventWriter := service.eventWriter
+	eventFailure := errors.New("injected enablement event failure")
+	service.eventWriter = &daemonExtensionEventStoreStub{writeErr: eventFailure}
+	err = setEnabled("default", true)
+	service.eventWriter = eventWriter
+	if !errors.Is(err, eventFailure) || errors.Is(err, extensionpkg.ErrExtensionInputsRequired) {
+		t.Fatalf("enablement rollback = %v, want only the event failure", err)
+	}
+	stillEnabled, err := service.registry.IsEnabledForProfileContext(ctx, name, store.DefaultProfileID)
+	if err != nil || stillEnabled {
+		t.Fatalf("failed enable restored disabled state = %t, error = %v", !stillEnabled, err)
+	}
+	if err := setEnabled("default", true); err != nil {
+		t.Fatal(err)
+	}
+	active, err := service.installedTargetStatus(ctx, name, extensionMutationTarget{
+		scope: extensionpkg.InstallationScope{WorkspaceID: workspace}, profile: extensionDefaultProfileLens(),
+	})
+	if err != nil || !active.Enabled || active.PID == 0 {
+		t.Fatalf("profile re-enable: enabled=%t pid=%d error=%v", active.Enabled, active.PID, err)
+	}
+	if err := service.registry.DetachInstallation(ctx, name, otherProfile); err != nil {
+		t.Fatal(err)
+	}
+	if err := setEnabled("marketing", false); err != nil {
+		t.Fatal(err)
+	}
+	assertMissing(setEnabled("marketing", true))
+
+	foreign := extensionpkg.InstallationScope{ProfileID: store.DefaultProfileID, WorkspaceID: other}
+	if err := service.registry.AttachInstallation(ctx, name, foreign); err != nil {
+		t.Fatal(err)
+	}
+	if err := setEnabled("default", false); err != nil {
+		t.Fatal(err)
+	}
+	err = setEnabled("default", true)
+	assertMissing(err)
+	if !strings.Contains(err.Error(), other) {
+		t.Fatal("operator refusal did not identify the missing workspace")
+	}
+	_, err = service.Enable(ctx, name, contract.EnableExtensionRequest{}, actor)
+	assertMissing(err)
+	agent, err := taskpkg.DeriveAgentSessionActorContext("session-enable", workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
+	_, err = service.SetEnablement(ctx, name, contract.SetExtensionEnablementRequest{
+		Profile: "default", Enabled: true,
+	}, agent)
+	assertMissing(err)
+	if strings.Contains(err.Error(), other) {
+		t.Fatal("agent input refusal named another workspace")
+	}
+	agentTransport := newExtensionTransportEngine(service, agent, "uds")
+	for _, action := range []string{"enable", "disable"} {
+		denied := performExtensionTransportRequest(
+			t,
+			agentTransport,
+			http.MethodPost,
+			"/extensions/"+name+"/"+action,
+			nil,
+		)
+		if denied.Code != http.StatusNotFound || strings.Contains(denied.Body.String(), other) ||
+			strings.Contains(denied.Body.String(), "BOUND_SECRET") {
+			t.Fatalf(
+				"legacy agent %s status = %d, want global not found without workspace readiness",
+				action,
+				denied.Code,
+			)
+		}
+	}
+	if err := service.registry.DetachInstallation(ctx, name, foreign); err != nil {
+		t.Fatal(err)
+	}
+	enabled, err := service.Enable(ctx, name, contract.EnableExtensionRequest{}, actor)
+	if err != nil || !enabled.Extension.Enabled || enabled.Extension.PID == 0 {
+		t.Fatalf("enable after detaching unconfigured workspace: enabled=%t pid=%d error=%v",
+			enabled.Extension.Enabled, enabled.Extension.PID, err)
+	}
+	assertSecretsAbsent(t, "enable result", string(mustExtensionTransportJSON(t, enabled)), []string{secret})
+
+	// Keep another profile enabled so the shared workspace runtime attempts to start.
+	if err := service.registry.SetEnabledForProfile(name, marketing.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.DeleteExtensionSecret(ctx, name, "BOUND_SECRET",
+		newExtensionSecretIntegrationActor(t, workspace, "unbind workspace input")); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.reloadExtensions(ctx, name); !errors.Is(err, extensionpkg.ErrExtensionInputsRequired) {
+		t.Fatalf("unconfigured runtime reload = %v, want required input failure", err)
+	}
+	if err := setEnabled("default", false); err != nil {
+		t.Fatalf("disable unconfigured workspace install: %v", err)
+	}
+	if err := service.registry.SetEnabledForProfile(name, store.DefaultProfileID, true); err != nil {
+		t.Fatal(err)
+	}
+	disabled := performExtensionTransportRequest(
+		t,
+		harness.transport,
+		http.MethodPost,
+		"/extensions/"+name+"/disable",
+		nil,
+	)
+	var payload contract.ExtensionResponse
+	if err := json.Unmarshal(disabled.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if disabled.Code != http.StatusOK || payload.Extension.Enabled {
+		t.Fatalf(
+			"workspace disable with missing inputs: status=%d enabled=%t",
+			disabled.Code,
+			payload.Extension.Enabled,
+		)
+	}
+	assertSecretsAbsent(t, "disable result", disabled.Body.String(), []string{secret})
+	otherEnabled, err := service.registry.IsEnabledForProfileContext(ctx, name, marketing.ID)
+	if err != nil || !otherEnabled {
+		t.Fatalf("disable changed other profile: enabled=%t error=%v", otherEnabled, err)
+	}
+
+	if err := setEnabled("marketing", false); err != nil {
+		t.Fatal(err)
+	}
+	target := extensionInputsTarget{Name: name, WorkspaceID: workspace, Profile: "marketing"}
+	if _, err := service.SetInputs(
+		ctx,
+		target,
+		setupValues("token", "marketing-workspace-fixture-secret"),
+		actor,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := setEnabled("marketing", true); err != nil {
+		t.Fatalf("enable configured profile with unconfigured default profile: %v", err)
+	}
+	manager := service.runtime.(*extensionpkg.Manager)
+	key := extensionpkg.ProfileInstanceKey(name, marketing.ID, workspace)
+	if _, err := manager.ProvideToolsForInstance(ctx, key); err != nil {
+		t.Fatalf("discover tools in configured profile: %v", err)
+	}
+	runtime, err := manager.GetForInstance(key)
+	if err != nil || !runtime.Status.Active || runtime.Status.PID == 0 {
+		t.Fatalf("configured profile runtime did not start on discovery: %v", err)
+	}
+	base, err := manager.GetForInstance(extensionpkg.ProfileInstanceKey(name, store.DefaultProfileID, workspace))
+	if err != nil || base.Status.Active || base.Status.PID != 0 {
+		t.Fatalf("unconfigured default profile unexpectedly started: %v", err)
+	}
+
+	origin := filepath.Join(harness.workspaceRoot, "input-overlay")
+	generation := writeBoundSecretExtensionGenerationWithEnv(t, origin, name, "2.0.0", []string{"BOUND_SECRET"})
+	dev, err := service.Dev(ctx, contract.DevLinkExtensionRequest{
+		OriginPath: origin, GenerationHash: generation,
+	}, newExtensionSecretIntegrationActor(t, workspace, "link workspace input overlay"))
+	if err != nil || !dev.Dev || len(dev.MissingEnv) != 1 || dev.MissingEnv[0] != "BOUND_SECRET" {
+		t.Fatalf("development overlay: linked=%t missing=%v error=%v", dev.Dev, dev.MissingEnv, err)
+	}
+	if err := setEnabled("default", true); err != nil {
+		t.Fatalf("profile enable with development overlay: %v", err)
+	}
+	if err := setEnabled("default", false); err != nil {
+		t.Fatal(err)
+	}
+	enabled, err = service.Enable(ctx, name, contract.EnableExtensionRequest{}, actor)
+	if err != nil || !enabled.Extension.Enabled || !enabled.Extension.Dev {
+		t.Fatalf("legacy enable with development overlay: enabled=%t dev=%t error=%v",
+			enabled.Extension.Enabled, enabled.Extension.Dev, err)
+	}
 }
 
 func writeBoundSecretExtensionFixture(t *testing.T, root, name string) string {

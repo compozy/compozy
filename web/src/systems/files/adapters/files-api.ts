@@ -1,11 +1,13 @@
 import {
-  apiClient,
+  apiClientFor,
   apiErrorCode,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
 } from "@/lib/api-client";
 import type { OperationResponse } from "@/lib/api-contract";
+import type { ComputerId } from "@/lib/computer-scope";
+import { apiErrorDetails, remoteRejectionMessage } from "@/lib/remote-error-copy";
 
 export type FileEntriesResponse = OperationResponse<"listSessionFileEntries", 200>;
 export type FileEntry = FileEntriesResponse["entries"][number];
@@ -32,15 +34,16 @@ export interface FileSearchParams {
  * (resolved by the daemon); a workspace root names the checkout or one of its worktrees.
  */
 export type FilesRootRef =
-  | { kind: "session"; workspaceId: string; sessionId: string }
-  | { kind: "workspace"; workspaceId: string; worktreeId?: string };
+  | { kind: "session"; workspaceId: string; sessionId: string; computerId?: ComputerId }
+  | { kind: "workspace"; workspaceId: string; worktreeId?: string; computerId?: ComputerId };
 
 /** A failed files read with the daemon's deterministic error code (`file_not_found`, …). */
 export class FilesApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly code: string | null
+    readonly code: string | null,
+    readonly details?: Readonly<Record<string, string>>
   ) {
     super(message);
     this.name = "FilesApiError";
@@ -52,11 +55,14 @@ export function filesErrorCode(error: unknown): string | null {
 }
 
 function throwFilesError(response: Response, error: unknown, fallback: string): never {
-  throw new FilesApiError(
+  const code = apiErrorCode(error) ?? null;
+  const details = apiErrorDetails(error);
+  const message = remoteRejectionMessage(
+    code,
     defaultApiErrorMessage(fallback, response, error),
-    response.status,
-    apiErrorCode(error) ?? null
+    details
   );
+  throw new FilesApiError(message, response.status, code, details);
 }
 
 /** Lists one directory level of the root; `path` is `""` for the root itself. */
@@ -70,9 +76,10 @@ export async function listFileEntries(
   const query = { ...(path ? { path } : {}), show_ignored: options.showIgnored };
   // A refresh skips the daemon's short-lived status snapshot; expansions reuse it.
   const headers = options.fresh ? { "Cache-Control": "no-cache" } : undefined;
+  const client = apiClientFor(root.computerId);
   const result =
     root.kind === "session"
-      ? await apiClient.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries", {
+      ? await client.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries", {
           params: {
             path: { workspace_id: root.workspaceId, session_id: root.sessionId },
             // A session owned by another profile still resolves, as the transcript read does.
@@ -81,7 +88,7 @@ export async function listFileEntries(
           headers,
           signal,
         })
-      : await apiClient.GET("/api/workspaces/{workspace_id}/files/entries", {
+      : await client.GET("/api/workspaces/{workspace_id}/files/entries", {
           params: {
             path: { workspace_id: root.workspaceId },
             query: { ...query, ...(root.worktreeId ? { worktree_id: root.worktreeId } : {}) },
@@ -107,16 +114,17 @@ export async function readFileContent(
 ): Promise<FileContentResponse> {
   const fallback = "Couldn't read this file";
   const query = { path, ...(options.reveal ? { reveal: true } : {}) };
+  const client = apiClientFor(root.computerId);
   const result =
     root.kind === "session"
-      ? await apiClient.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/files/content", {
+      ? await client.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/files/content", {
           params: {
             path: { workspace_id: root.workspaceId, session_id: root.sessionId },
             query: { ...query, all_profiles: true },
           },
           signal,
         })
-      : await apiClient.GET("/api/workspaces/{workspace_id}/files/content", {
+      : await client.GET("/api/workspaces/{workspace_id}/files/content", {
           params: {
             path: { workspace_id: root.workspaceId },
             query: { ...query, ...(root.worktreeId ? { worktree_id: root.worktreeId } : {}) },
@@ -136,16 +144,17 @@ export async function findFiles(
   signal?: AbortSignal
 ): Promise<FileFindResponse> {
   const fallback = "Couldn't search files";
+  const client = apiClientFor(root.computerId);
   const result =
     root.kind === "session"
-      ? await apiClient.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/files/find", {
+      ? await client.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/files/find", {
           params: {
             path: { workspace_id: root.workspaceId, session_id: root.sessionId },
             query: { q, all_profiles: true },
           },
           signal,
         })
-      : await apiClient.GET("/api/workspaces/{workspace_id}/files/find", {
+      : await client.GET("/api/workspaces/{workspace_id}/files/find", {
           params: {
             path: { workspace_id: root.workspaceId },
             query: { q, ...(root.worktreeId ? { worktree_id: root.worktreeId } : {}) },
@@ -173,16 +182,17 @@ export async function searchFileContents(
     ...(params.include.length > 0 ? { include: params.include } : {}),
     ...(params.exclude.length > 0 ? { exclude: params.exclude } : {}),
   };
+  const client = apiClientFor(root.computerId);
   const result =
     root.kind === "session"
-      ? await apiClient.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/files/search", {
+      ? await client.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/files/search", {
           params: {
             path: { workspace_id: root.workspaceId, session_id: root.sessionId },
             query: { ...query, all_profiles: true },
           },
           signal,
         })
-      : await apiClient.GET("/api/workspaces/{workspace_id}/files/search", {
+      : await client.GET("/api/workspaces/{workspace_id}/files/search", {
           params: {
             path: { workspace_id: root.workspaceId },
             query: { ...query, ...(root.worktreeId ? { worktree_id: root.worktreeId } : {}) },

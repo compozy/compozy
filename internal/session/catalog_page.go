@@ -100,7 +100,14 @@ type ListPage struct {
 	NextCursor string
 	HasMore    bool
 	Total      int
-	Limit      int
+	// Working counts the sessions in Total whose badge is running, with the facets' working
+	// notion: durable rows by their catalog badge, live rows by their live badge. It is nil
+	// when Total is skipped or counts pins (pinned sort).
+	Working *int
+	// NeedsYou counts the sessions in Total whose badge needs the operator, with the facets'
+	// needs-you notion and the same presence rule as Working.
+	NeedsYou *int
+	Limit    int
 	// Placements carries folder membership for page sessions that have one.
 	Placements map[string]store.SessionPlacement
 }
@@ -206,6 +213,11 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	candidates, page.Total, page.HasMore = cutSessionCatalogPage(
 		candidates, normalized, durable, activeMatches, position,
 	)
+	if !normalized.SkipTotal && normalized.Sort != ListSortPinned {
+		working, needsYou := signalSessionCatalogMatches(activeMatches, activeByID)
+		page.Working = new(durable.Working + working)
+		page.NeedsYou = new(durable.NeedsYou + needsYou)
+	}
 	page.Sessions = projectSessionCatalogPage(candidates, activeByID)
 	m.decorateMCPAuthorities(ctx, page.Sessions, nil)
 	if err := m.populateCatalogRelations(
@@ -229,6 +241,28 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		}
 	}
 	return page, nil
+}
+
+// signalSessionCatalogMatches counts the live matches whose live badge is running or needs
+// the operator, as CatalogFacets counts its active overlay.
+func signalSessionCatalogMatches(
+	activeMatches []store.SessionInfo,
+	activeByID map[string]*Info,
+) (working, needsYou int) {
+	for index := range activeMatches {
+		info := sessionInfoFromCatalog(&activeMatches[index])
+		if active := activeByID[info.ID]; active != nil {
+			info = active
+		}
+		badge := BadgeForInfo(info)
+		if badge == BadgeRunning {
+			working++
+		}
+		if ClassForBadge(badge) == AttentionNeedsYou {
+			needsYou++
+		}
+	}
+	return working, needsYou
 }
 
 func mergeSessionCatalogCandidates(

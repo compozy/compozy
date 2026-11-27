@@ -11,7 +11,6 @@
 - Subagents
 - Provider usage (experimental)
 - MCP serve and onboarding
-- Gateway exposure and device authentication
 - Remote CLI profiles and SSH forwards
 - Automation suggestions
 
@@ -552,6 +551,10 @@ removes the effective effort claim. An explicit refusal on a healthy process is 
 new prompt request, without repeating the same intent as rollback or replacing the process.
 Reasoning is also read from the latest provider option; `max` and `ultra` are sent unchanged only when
 advertised by the selected model.
+During ACP session startup or a live model switch, CompozyOS briefly waits for a late
+`config_option_update` before returning `reasoning_option_missing` or `reasoning_effort_unsupported`.
+Supply the effort via `reasoning_effort` or the provider's ACP option. Supplying both for the same
+option is refused even if the option appears after the model switch.
 
 Session attachments are durable, workspace/session-scoped refs. Upload with
 `POST /api/workspaces/:workspace_id/sessions/:session_id/attachments` or
@@ -1209,7 +1212,7 @@ also accept WebSocket upgrades. Each text message is one complete SSE frame, pre
 events and redaction while leaving HTTP/1.1 connections free for commands across browser tabs.
 Resume session catalog/log streams with the exact prior event id in `last_event_id`; the
 `Last-Event-ID` header takes precedence. Preserve the original scope and filters, and mint a fresh
-stream ticket on every remote gateway reconnect. Worktree catalog wakes require refetch on reconnect.
+stream ticket on every hosted browser reconnect. Worktree catalog wakes require refetch on reconnect.
 
 Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`. Every session read carries `lineage.kind`: `""` (root), `provenance` (created with a parent, the default), `recovery` (`session new --parent <id> --lineage-kind recovery` or `"lineage_kind": "recovery"` on create; only `provenance`/`recovery` are accepted there, and only with a parent), `spawn` (governed spawned or spawn-role sessions), `continue`, or `fork` (these two also carry `origin_agent_name`; forks carry `origin_message_id`; request `result_view: "full"` on native session reads for those origin fields). Sessions created before kinds existed read `spawn`/`provenance`/`""` automatically. `continue`/`fork` sessions are top-level, not children: lists show them as their own rows and they never count as the source's active child, but `parent=`/`root=` still match their stored fields, so filter on `lineage.kind` to separate them.
 
@@ -1323,7 +1326,7 @@ effective cooldown end. During a cooldown, background refreshes send no request;
 refresh per account may retry until the next success.
 
 Collectors exist for `codex`, `claude`, `openrouter`, `vercel-ai-gateway`, `zai`, `moonshot`,
-`kimi-cli`, `cursor`, and `gemini`. A custom provider whose own ID has no collector collects through
+`kimi-cli`, `cursor`, `gemini`, and `agy`. A custom provider whose own ID has no collector collects through
 its `runtime_provider`'s collector with its own launch environment (for example its own
 `CLAUDE_CONFIG_DIR`) and bound secrets; every other provider reports `unsupported` (`no_collector`).
 A native-CLI alias must set its account variable to a non-empty value in its own `command` (a leading
@@ -1336,9 +1339,9 @@ its own sign-in") and no credential is read; inherited daemon values never count
 may renew its own login). Codex runs only with its file credential store; `keyring`/`auto` report
 `unsupported` (`auth_store_unsupported`) and CompozyOS never changes that setting.
 
-Refresh intent is `background` (scheduler, popover open, agents, gateway devices, app tokens) or
+Refresh intent is `background` (scheduler, popover open, agents, remote devices, app tokens) or
 `explicit` (local desktop Refresh/Allow and the local CLI). Keychain reads require
-`provider_usage.providers.claude.keychain_access = true`. Background refreshes reuse a valid cached
+`provider_usage.providers.<id>.keychain_access = true`, valid only for `claude` and `agy`. Background refreshes reuse a valid cached
 Claude token, then silently reread the exact routed Keychain item after expiry, account changes, or
 daemon restart. Before a background secret read, a noninteractive metadata check requires an unlocked
 keychain, `/usr/bin/security` in the decrypt ACL, its `apple-tool:` partition, and no confirmation
@@ -1350,6 +1353,14 @@ the process group on timeout, canceling a waiting client. A prompt could briefly
 window; this is not an absolute macOS no-dialog guarantee. `keychain_read_timeout` is an additive
 `needs_consent` diagnostic with an explicit Refresh action.
 CompozyOS never redeems Claude Code refresh tokens or writes its credentials.
+The `agy` collector (macOS only; other hosts and agy aliases report `unsupported`) reads the
+Antigravity CLI's go-keyring login (`gemini`/`antigravity` item) through the same reader and
+preflight on every collection, then posts to Google's `retrieveUserQuotaSummary`. Each enabled quota
+bucket becomes a percent-only window labeled with its group (for example
+`Claude and GPT models · Weekly`; `5h` buckets are `Session`). It never refreshes the CLI's token:
+an expired access token reports `auth_expired` until the CLI runs again and renews it.
+If `agy` is missing on the daemon host, the collector reports `unsupported` with installation
+guidance before attempting a Keychain read.
 Foreign-origin app tokens may read but not refresh (`app_token_route_forbidden`). An agent without
 a `profile` reads its own session profile; naming another fails with `profile_session_conflict`.
 
@@ -1357,14 +1368,15 @@ Per-row recovery: `signed_out` → the operator signs in with the provider's own
 includes a Claude login missing from the Keychain, `auth_missing`); `needs_consent`
 `keychain_consent_required`/`keychain_denied` (OS denial or an unsafe background preflight) → the operator clicks
 **Allow**/**Try again** or runs
-`compozy config set provider_usage.providers.claude.keychain_access true` then
-`compozy provider usage refresh claude` on the daemon host. Agents cannot grant consent: native config
-tools refuse `provider_usage.providers.claude.keychain_access`. `keychain_token_expired` or
+`compozy config set provider_usage.providers.<claude|agy>.keychain_access true` then
+`compozy provider usage refresh <claude|agy>` on the daemon host. Agents cannot grant consent: native
+config tools refuse every `provider_usage.providers.<id>.keychain_access`. `keychain_token_expired` or
 `keychain_read_timeout` → an explicit
 local refresh; `rate_limited`/`error`/`stale` → retry later; `disabled` → re-enable under
 `provider_usage.providers.<id>.enabled`. After a daemon restart rows are `refreshing` until their first
 collection. With consent and readable credentials, Claude recovers automatically; if OS authorization
-is required, refresh explicitly on the host. An expired native credential requires `claude /login`.
+is required, refresh explicitly on the host. An expired native credential requires `claude /login`;
+an expired agy login recovers after any `agy` run renews it (or `compozy provider auth login agy`).
 
 ## MCP Serve
 
@@ -1410,123 +1422,6 @@ prompt cancel. Recap, repair, inspect, and Soul refresh remain CLI/HTTP/UDS mana
 the live registry exposes a matching tool. `compozy__clarify` asks from inside the active session;
 `compozy__session_clarify_answer` answers a pending question on another session authorized by
 workspace access policy; its approval authority and self-target restrictions still apply.
-
-## Gateway Exposure and Device Authentication
-
-Gateway policy is operator-global desired state. Inspect its effective posture in
-`.daemon.gateway` from `compozy status -o json`, through `GET /api/status`, or directly through
-`GET /api/gateway/status` on the private HTTP listener or UDS. The status reports enabled tiers,
-durable surfaces, provider state, resolved loopback listener addresses, paired devices, and any
-refusal that prevented exposure. A configured port of `0` asks the daemon to select a free port;
-use the resolved status address instead of assuming a default.
-
-Run `compozy gateway audit -o json`, call `GET /api/gateway/audit`, or use the `audit` action of
-`compozy__gateway` to check the same posture as ranked findings. A completed report always has
-`ran=true`; an empty result also has `no_findings=true`, so it cannot be confused with a skipped
-check. Findings have stable `id`, `severity`, and `remediation` fields. Provider downtime is a
-finding, not an audit transport error. The audit only reads current state, so re-run it after a
-repair to confirm that the finding cleared.
-
-Manage tier surfaces, providers, pairings, and devices through the private authenticated HTTP
-listener or UDS under `/api/gateway`. Mint pairing artifacts with `POST /api/gateway/pairings`, redeem them with
-`POST /api/gateway/pairings/redeem`, and list, rename, or revoke devices with `GET /api/gateway/devices`,
-`PATCH /api/gateway/devices/{id}`, and `DELETE /api/gateway/devices/{id}`. Pairing mint and redeem are physically absent from
-the public listener. Browser redemption installs a `Secure`, `HttpOnly`, `SameSite=Lax` cookie and
-does not return the raw credential. CLI redemption generates and durably stores the credential on
-the client before sending it over TLS; the daemon stores only its hash.
-
-Select a connectivity provider with `POST /providers/{name}/enable`, naming the exact tier, live
-install source, current confirmed control digest, and expected generation. Read status first and do
-not reconstruct a digest. A third-party provider whose live registry digest changed fails closed
-until the extension requirement and Gateway provider selection both confirm the current value.
-Disable it with `POST /providers/{name}/disable?tier=<private|public>`. Only one provider may own a
-tier; replace that selection explicitly instead of racing two enables.
-
-Before enabling the bundled Tailscale provider, bind an auth key from the operator's Tailscale
-account through hidden input:
-
-    compozy extension secrets set tailscale --env TS_AUTHKEY
-
-The provider embeds `tsnet`; do not install or supervise a separate Tailscale client. The live
-manifest must include the selected tier as `gateway.private` or `gateway.public` in
-`channel_scopes`; a mismatch fails before provider code starts.
-
-Bundled private Tailscale proof uses a loopback TCP relay into the embedded tsnet node, retaining
-core TLS hostname and exact tier nonce validation. It requires no host Tailscale client or host
-Tailnet route. The relay is private-tier-only and never advertised. Probe diagnostics distinguish
-DNS, refused/unreachable connections, timeout, TLS certificate failure, HTTP status and nonce
-mismatch without exposing the challenge. Inspect the reported class; HTTP 200 at `/` is not proof.
-
-Public endpoint proof resolves through authenticated DNS-over-TLS at
-`gateway.verify.public_dns_resolver`, not the host resolver, so MagicDNS cannot turn a Funnel proof
-into a private-tailnet connection. A provider waiting for public DNS remains staged and unadvertised
-while bounded recovery retries. Read `gateway status -o json` until the public tier reports
-`advertised=true` (the human rendering shows summary counts only); disable the provider to stop a
-staged attempt.
-
-Authenticated streaming over a tier listener uses a short-lived, single-use ticket. Obtain one with
-`POST /api/gateway/stream-tickets`, then pass it as the `ticket` query parameter on the SSE or
-WebSocket request. A consumed, expired, malformed, or revoked-device ticket is rejected uniformly;
-mint a fresh ticket for each reconnect. Revoking a device invalidates its future requests and closes
-its registered live streams.
-
-Tier listeners bind to daemon-owned loopback sockets. Connectivity providers publish those local
-listeners; they do not replace Gateway authentication or expose UDS-only APIs. The private tier owns
-operator management and the full operator surface. The public tier exposes only the selected
-operator and ingress surface union, never pairing mint or redeem and never ingress-binding
-management.
-
-Webhook triggers expose public-ingress projections. Read the trigger's `ingress`; use its URL only
-when `reachability=live`. Confirm one
-subject through the private listener or UDS with `POST /api/gateway/ingress-bindings` and
-`{subject_kind, subject_id, confirmed:true}`. Remove it with
-`DELETE /api/gateway/ingress-bindings/{subject_kind}/{subject_id}`. Subject scope and workspace are
-resolved by the daemon, not accepted from the caller. An endpoint-generation change produces
-`reconfirmation_required`. Public ingress has no store-and-forward queue: when the daemon or provider
-is offline, the sender must retry the failed delivery.
-
-Gateway API errors use stable codes. Branch on the returned code instead of matching prose. The
-repairable policy and state codes are `gateway_exposure_refused`, `gateway_consent_required`,
-`gateway_provider_trust_stale`, `gateway_digest_confirmation_required`,
-`gateway_endpoint_unverified`, `gateway_provider_degraded`, `gateway_generation_conflict`, and
-`gateway_tier_provider_conflict`. Authentication, pairing, device, ticket, ingress, and local-only
-failures use their matching `gateway_device_*`, `gateway_pairing_*`, `gateway_stream_ticket_invalid`,
-`gateway_ingress_*`, and `gateway_local_only_operation` codes.
-
-### Remote CLI profiles and SSH forwards
-
-Pair a direct HTTPS client with `compozy pair mint`. The command writes the raw artifact to the
-private `0600` file named by `artifact_ref`; transfer that file out of band, then redeem its contents
-on the client with `compozy pair redeem <artifact> --name <name> --address https://host[:port]`.
-CLI output never contains the raw artifact. Use `--use` to make the profile active immediately, or
-select it later with `compozy connect use <name>`. Inspect
-non-secret metadata with `compozy connect list -o json`; `compozy connect remove <name>` removes both
-the profile and its client-local credential. `compozy connect use local` returns the CLI to UDS.
-Move the same revocable identity to another client with `compozy connect export <name>
---passphrase-file <private-file> --output-file <bundle>` and `compozy connect import <bundle>
---passphrase-file <private-file>`. The bundle uses passphrase-derived authenticated encryption;
-protect it like a key. Copying `config.toml` alone never transfers an identity.
-When a remote profile is active, commands report the selected target on stderr while structured
-stdout remains parseable. `compozy open` uses the selected HTTPS origin.
-
-Direct profiles can operate sessions; read tasks; and use Loops, settings,
-extensions, and private Gateway management. Task mutations, task-run queue and scheduler authority,
-agent-internal routes, run lifecycle mutations, and resource mutations are local-only and fail before network I/O. Use the
-local daemon or an SSH forward when that authority is required. Each remote SSE or WebSocket connect
-and reconnect mints a fresh single-use stream ticket. A dropped stream reports
-`gateway_stream_interrupted`; accepted work continues on the daemon and can be observed after
-reconnect.
-
-Use `compozy connect ssh <host>` when direct HTTPS is unavailable or local-equivalent authority is
-needed. The command uses the system OpenSSH client and its existing configuration and agent, checks
-that the remote `compozy` version exactly matches, starts the remote daemon only when necessary,
-requires its HTTP listener to be loopback-only, and creates a loopback-only local forward. Pass
-`--remote-home <path>` to run every remote probe and lifecycle command with that `COMPOZY_HOME`.
-An intentional close tears down only its tunnel and stops the remote daemon only if this invocation
-started the same process. Concurrent connects to an SSH-owned daemon return `gateway_ssh_busy`
-instead of racing its lifecycle. An unexpected tunnel loss leaves that daemon running so accepted work can
-be observed after reconnect. Changed host keys fail closed; install, version, reachability, and
-tunnel-loss failures use stable `gateway_ssh_*` codes.
 
 ## Automation Suggestions
 
@@ -1623,9 +1518,10 @@ the interruption and resumption; CLI, HTTP/UDS and native reads share the same p
 
 A session that was idle when the restart began has no interrupted turn. Unless it is an instance
 main or needed for an interrupted worker, an eligible wake, or an undelivered child shutdown notice,
-boot leaves it `stopped` with `stop_reason: "shutdown"`. Prompt it with `compozy__session_prompt` (or
-`compozy session prompt`) to resume the same session in place with its history and parent; reach for
-`session continue` only to change agent or runtime, since it creates a new session.
+boot leaves it `stopped` with `stop_reason: "shutdown"`. An eligible idle instance main reopens
+even when its last turn handled a peer reply or a subagent wake. Prompt a shutdown-stopped
+session with `compozy__session_prompt` or `compozy session prompt` to resume it in place with its
+history and parent. Use `session continue` to create a session with a different agent or runtime.
 
 Automatic continuation is skipped for explicit stops, pending approval or clarification, maintenance
 commands, completed turns, archived sessions, changed provider binding/runtime selection/permission
@@ -1751,7 +1647,8 @@ process, and old events can omit this additive object. No retry-after seconds ar
 Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning` on the
 session resource/status or `compozy__session_describe` with `result_view: "full"`. Provider updates
 restart the quiet window. Verified tools,
-active children, reconciled Loop runs, future task leases, future scheduled waits, active/delivering
+children starting, stopping, running a turn or waiting on current work, unfinished subagent
+delegations, reconciled Loop runs, future task leases, future scheduled waits, active/delivering
 monitors until their deadline, and awaited
 replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
 watch not yet delivered) prevent inactivity termination; an armed watch stops counting once it expires
@@ -1786,13 +1683,19 @@ ACP session id, retains its idle or monitor-waiting badge, records no supervisio
 `session.post_stop` hook (the process-level `agent.stopped` hook still fires). Agents without
 `session/load` keep their runtime. Treat `runtime.status: "unbound"` on an active session as
 released, not broken: just prompt it. The next prompt from any surface (composer, CLI, HTTP/UDS,
-`compozy__session_prompt`, reply delivery, wake) rebinds transparently with `session/load`; if the
-load fails it starts a fresh ACP session and replays the bounded transcript
+`compozy__session_prompt`, reply delivery, wake) rebinds transparently with `session/load` using a
+90-second default control budget. If the load fails it starts a fresh ACP session and replays the bounded transcript
 (`session.derive.max_replay_bytes`); a prompt selecting another provider/model binds that route and
 carries the transcript like a live runtime switch. If the daemon exits uncleanly while a runtime is
 released, boot recovery ends the session `stopped` with `stop_reason: "shutdown"` and detail
 "daemon exited while the idle session runtime was released" (not a failure); a later prompt resumes
 it with `session/load`.
+
+If the load times out and replay fails, the prompt returns `session_rebind_timeout` with
+`retryable: true` (HTTP/UDS `504`). The message was never sent. Retry the prompt, or use Continue or
+Fork to carry the conversation to a fresh provider session. The optional `provider_error` contains
+redacted diagnostics.
+
 The deprecated `session.limits.timeout` key is not enforced and ends no session; see
 `references/configuration.md`.
 
@@ -1897,7 +1800,10 @@ private context, and a failed transport dispatch produces no receipt.
 
 `GET /api/sessions` preserves exact filtered `page.total` by default. HTTP/UDS consumers that only
 need cursor continuation may use `skip_total=true`; that response omits `page.total`, never substitutes
-a loaded count, and retains `has_more`, `next_cursor`, and `limit`. Attention/badge filtering happens
+a loaded count, and retains `has_more`, `next_cursor`, and `limit`. Beside `page.total`, `page.working`
+counts the sessions in that total whose badge is running, and `page.needs_you` those whose badge needs
+you, under the same scope and filters; both are omitted with `skip_total=true` and on `sort=pinned`,
+which counts pins. Attention/badge filtering happens
 before the SQL page cut. Paged reads do not sweep expired attach leases or acquire the writer.
 
 For one workspace and profile, pass `folder=<folder-id>` for a session folder or `folder=@root`
@@ -2230,7 +2136,7 @@ go tool pprof -tagfocus session_id=sess-example cpu.pprof
 ```
 
 The experimental `GET /api/daemon/profile/{kind}` route exists only on UDS, never HTTP or
-Gateway listeners. Kinds are `cpu`, `heap`, `allocs`, `goroutine`, `mutex`, `block`, and
+remote listeners. Kinds are `cpu`, `heap`, `allocs`, `goroutine`, `mutex`, `block`, and
 `threadcreate`. CPU, mutex and block use `seconds` (default 30, range 1–120); snapshots
 reject `seconds`. A concurrent CPU capture returns `409 profile_busy`; mutex/block
 captures share a separate exclusive sampling window. Cancellation stops sampling.

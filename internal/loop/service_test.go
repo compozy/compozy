@@ -501,8 +501,8 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		resolved := compileDefinition(t, validDefinition())
 		effective, err := loop.ResolveEffectiveConfig(
 			resolved,
-			loop.LoopDefaults{Delivery: loop.LoopConfig{IterationCap: new(0)}},
-			&loop.LoopConfig{HumanGateEnabled: new(false)},
+			loop.DefaultLoopDefaults(),
+			&loop.LoopConfig{IterationCap: new(0), HumanGateEnabled: new(false)},
 			loop.LoopConfig{},
 		)
 		if err != nil {
@@ -511,11 +511,50 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		if effective.IterationCap != 0 || effective.HumanGateEnabled {
 			t.Fatalf("effective zero/false = iteration:%d gate:%t", effective.IterationCap, effective.HumanGateEnabled)
 		}
-		if got := effective.Sources["/iteration_cap"]; got != loop.EffectiveConfigSourceDeliveryDefaults {
-			t.Fatalf("iteration source = %q, want delivery defaults", got)
+		if got := effective.Sources["/iteration_cap"]; got != loop.EffectiveConfigSourceLoopConfig {
+			t.Fatalf("iteration source = %q, want loop_config", got)
 		}
 		if got := effective.Sources["/human_gate_enabled"]; got != loop.EffectiveConfigSourceLoopConfig {
 			t.Fatalf("human gate source = %q, want loop config", got)
+		}
+	})
+
+	t.Run("Should fall back to the delivery iteration cap when the definition omits it", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Contract.IterationCap = 0
+		resolved := compileDefinition(t, definition)
+		effective, err := loop.ResolveEffectiveConfig(resolved, loop.DefaultLoopDefaults(), nil, loop.LoopConfig{})
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+		}
+		if got := effective.IterationCap; got != 50 {
+			t.Fatalf("IterationCap = %d, want 50", got)
+		}
+		if got := effective.Sources["/iteration_cap"]; got != loop.EffectiveConfigSourceDeliveryDefaults {
+			t.Fatalf("iteration source = %q, want delivery defaults", got)
+		}
+	})
+
+	t.Run("Should apply an authored iteration cap to a watch-source Loop", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := &loop.ResolvedDefinition{Definition: dsl.Definition{
+			Contract: dsl.Contract{IterationCap: 2},
+			Graph: dsl.Graph{Nodes: []dsl.Node{{
+				ID: "watch", Class: dsl.NodeClassSource, Kind: string(dsl.SourceWatchSource),
+			}}},
+		}}
+		effective, err := loop.ResolveEffectiveConfig(resolved, loop.DefaultLoopDefaults(), nil, loop.LoopConfig{})
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+		}
+		if got := effective.IterationCap; got != 2 {
+			t.Fatalf("watch IterationCap = %d, want 2", got)
+		}
+		if got := effective.Sources["/iteration_cap"]; got != loop.EffectiveConfigSourceDefinition {
+			t.Fatalf("watch iteration source = %q, want definition", got)
 		}
 	})
 
@@ -606,10 +645,12 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 		store := newFakeLoopStore()
 		iterationCap := 12
 		var resolvedWorkspace loop.WorkspaceID
+		definition := validDefinition()
+		definition.Contract.IterationCap = 0
 		svc := newTestServiceWithOptions(
 			t,
 			store,
-			validDefinition(),
+			definition,
 			loop.WithDefaultsResolver(func(
 				_ context.Context,
 				ws loop.WorkspaceID,

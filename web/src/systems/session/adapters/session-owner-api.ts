@@ -1,4 +1,5 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import { apiClient, apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
 
 import type { SessionOwnerResponse, SessionPayload } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
@@ -12,12 +13,16 @@ async function fetchSessionByIDWithQuery(
   sessionId: string,
   query: SessionByIDQuery,
   fallback: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.GET("/api/sessions/{session_id}", {
-    params: { path: { session_id: sessionId }, query },
-    signal,
-  });
+  const { data, error, response } = await apiClientFor(computerId).GET(
+    "/api/sessions/{session_id}",
+    {
+      params: { path: { session_id: sessionId }, query },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, fallback, sessionId);
   }
@@ -60,13 +65,15 @@ export async function fetchSessionOwner(
 export async function fetchSessionById(
   sessionId: string,
   scope: ProfileScopeParams,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
   return fetchSessionByIDWithQuery(
     sessionId,
     { ...scope, include_health: true },
     `Failed to fetch session "${sessionId}"`,
-    signal
+    signal,
+    computerId
   );
 }
 

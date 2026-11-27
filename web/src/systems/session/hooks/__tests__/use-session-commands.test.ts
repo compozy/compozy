@@ -136,7 +136,8 @@ describe("useSessionCommands", () => {
       2,
       WORKSPACE_ID,
       SESSION_ID,
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      "local"
     );
   });
 });

@@ -45,7 +45,7 @@ func agentSkillReviewOperations() []OperationSpec {
 		}
 		if decision.path == "revert" {
 			responses = append(responses, ResponseSpec{
-				Status: 409, Description: "Revert refused, with its reason",
+				Status: 409, Description: "Revert refused; eligibility failures include a reason",
 				Body: contract.AgentSkillRevertConflictPayload{},
 			})
 		}

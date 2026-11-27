@@ -35,6 +35,8 @@ const (
 	ToolIDSessionArchive ToolID = "compozy__session_archive"
 	// ToolIDSessionUnarchive restores one archived runtime session.
 	ToolIDSessionUnarchive ToolID = "compozy__session_unarchive"
+	// ToolIDSessionArchiveStopped archives every eligible stopped thread of a workspace.
+	ToolIDSessionArchiveStopped ToolID = "compozy__session_archive_stopped"
 	// ToolIDSessionCleanup previews or deletes archived session history in bulk.
 	ToolIDSessionCleanup ToolID = "compozy__session_cleanup"
 	// ToolIDSessionLater stops a session tree and parks it in Later.
@@ -193,9 +195,16 @@ const (
 	// ToolIDObserveMetrics reads daemon observability health and metrics.
 	ToolIDObserveMetrics ToolID = "compozy__observe_metrics"
 	// ToolIDObserveSearch searches redacted observability events.
-	ToolIDObserveSearch ToolID = "compozy__observe_search"
-	// ToolIDGateway inspects gateway posture and performs permission-gated management actions.
-	ToolIDGateway ToolID = "compozy__gateway"
+	ToolIDObserveSearch       ToolID = "compozy__observe_search"
+	ToolIDRemoteStatus        ToolID = "compozy__remote_status"
+	ToolIDComputerSetupCancel ToolID = "compozy__computer_setup_cancel"
+	ToolIDComputerSetupAnswer ToolID = "compozy__computer_setup_answer"
+	ToolIDComputerSetupStatus ToolID = "compozy__computer_setup_status"
+	ToolIDComputerList        ToolID = "compozy__computer_list"
+	ToolIDComputerStatus      ToolID = "compozy__computer_status"
+	ToolIDComputerAdd         ToolID = "compozy__computer_add"
+	ToolIDComputerRemove      ToolID = "compozy__computer_remove"
+	ToolIDAccountStatus       ToolID = "compozy__account_status"
 	// ToolIDTaskList lists task summaries through the task service.
 	ToolIDTaskList ToolID = "compozy__task_list"
 	// ToolIDTaskRead reads one task view through the task service.
@@ -380,8 +389,6 @@ const (
 	ToolsetIDProviderModels ToolsetID = "compozy__provider_models"
 	// ToolsetIDObserve groups read-only observability tools.
 	ToolsetIDObserve ToolsetID = "compozy__observe"
-	// ToolsetIDGateway groups gateway inspection and permission-gated management.
-	ToolsetIDGateway ToolsetID = "compozy__gateway"
 	// ToolsetIDConfig groups validated config tools.
 	ToolsetIDConfig ToolsetID = "compozy__config"
 	// ToolsetIDHooks groups hook introspection and mutable config-backed hook tools.

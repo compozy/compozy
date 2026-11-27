@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -152,6 +153,9 @@ func nativeLoopApproveError(id toolspkg.ToolID, err error) error {
 func nativeLoopToolError(id toolspkg.ToolID, err error) error {
 	if err == nil {
 		return nil
+	}
+	if errors.Is(err, admission.ErrLocalExecutionDisabled) {
+		return nativeHTTPStatusToolError(id, err, http.StatusConflict)
 	}
 	if conflict, ok := errors.AsType[*core.LoopVersionConflictError](err); ok {
 		return nativeLoopVersionConflictToolError(id, err, conflict.CurrentVersion)

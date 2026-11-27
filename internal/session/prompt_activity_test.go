@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/toolmeta"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
@@ -1449,6 +1450,103 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 		}
 		if info := target.Info(); info.RuntimeStatus != RuntimeStatusReady || info.ACPSessionID != acpSessionID {
 			t.Fatalf("rebound runtime = %s, ACP session = %q", info.RuntimeStatus, info.ACPSessionID)
+		}
+	})
+	t.Run("Should replay after a timed out released-session load with a renewed hosted launch", func(t *testing.T) {
+		for _, tc := range []struct {
+			name            string
+			loadTimeout     bool
+			replayFails     bool
+			wantRebindError bool
+		}{
+			{name: "timed out load replays with a re-minted hosted launch", loadTimeout: true},
+			{name: "timed out load reports a typed error when replay startup fails",
+				loadTimeout: true, replayFails: true, wantRebindError: true},
+			{name: "non-timeout load failure re-mints the hosted launch before replay"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				hosted := newRecordingReplayLauncher()
+				h, target, clock, advance := idleReleaseHarness(t, nil, WithHostedMCPLauncher(hosted))
+				t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+				acpSessionID := target.Info().ACPSessionID
+				superviseFor(t, h, clock, advance, 3)
+				requestsBefore := len(hosted.launchRequests())
+				hosted.mu.Lock()
+				cancelsBefore := len(hosted.cancels)
+				hosted.mu.Unlock()
+
+				loadCause := errors.New("provider refused to load the stored session")
+				if tc.loadTimeout {
+					loadCause = acp.ErrLoadSessionTimeout
+				}
+				replayCause := errors.New("replay process start failed")
+				h.driver.mu.Lock()
+				h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+					if opts.ResumeSessionID != "" {
+						return nil, fmt.Errorf("%w: %w", acp.ErrLoadSessionFailed, loadCause)
+					}
+					if tc.replayFails {
+						return nil, replayCause
+					}
+					return newFakeProcess(
+						opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("replay-%d", sequence),
+					), nil
+				}
+				h.driver.mu.Unlock()
+
+				events, promptErr := h.manager.Prompt(testutil.Context(t), target.ID, "after idle release")
+				if tc.wantRebindError {
+					if promptErr == nil {
+						t.Fatal("Prompt() error = nil, want typed session rebind timeout")
+					}
+					rebindErr, ok := errors.AsType[*RebindTimeoutError](promptErr)
+					if !ok || rebindErr == nil || !errors.Is(promptErr, acp.ErrLoadSessionTimeout) ||
+						!errors.Is(promptErr, replayCause) {
+						t.Fatalf("Prompt() error = %v, want timeout and replay causes", promptErr)
+					}
+				} else {
+					if promptErr != nil {
+						t.Fatalf("Prompt() error = %v", promptErr)
+					}
+					drainPromptEvents(t, events)
+				}
+
+				requests := hosted.launchRequests()
+				if wantRequests := requestsBefore + 2; len(requests) != wantRequests {
+					t.Fatalf("hosted launch request count = %d, want %d; requests = %+v",
+						len(requests), wantRequests, requests)
+				}
+				if last := requests[len(requests)-1]; last != (HostedMCPLaunchRequest{
+					EagerTools: true, SessionID: target.ID, ProfileID: store.DefaultProfileID,
+					WorkspaceID: h.workspaceID, AgentName: "coder",
+				}) {
+					t.Fatalf("replay launch request = %+v, want same session launch identity", last)
+				}
+				hosted.mu.Lock()
+				canceled := slices.Clone(hosted.cancels[cancelsBefore:])
+				hosted.mu.Unlock()
+				if tc.replayFails && (!slices.Equal(canceled, []string{target.ID}) ||
+					target.Info().RuntimeStatus != RuntimeStatusUnbound) {
+					t.Fatalf("failed replay left runtime %s with canceled launches %v",
+						target.Info().RuntimeStatus, canceled)
+				}
+
+				h.driver.mu.Lock()
+				starts := slices.Clone(h.driver.startCalls)
+				h.driver.mu.Unlock()
+				if len(starts) < 3 || starts[len(starts)-2].ResumeSessionID != acpSessionID ||
+					starts[len(starts)-1].ResumeSessionID != "" {
+					t.Fatalf("released runtime starts = %+v, want load of %q followed by transcript replay",
+						starts, acpSessionID)
+				}
+				lastServers := starts[len(starts)-1].MCPServers
+				if len(lastServers) != 1 ||
+					!slices.Contains(lastServers[0].Args, toolmeta.HostedBindNonceFlag) ||
+					!slices.Contains(lastServers[0].Args, fmt.Sprintf("nonce-%d", len(requests))) {
+					t.Fatalf("replay MCP servers = %+v, want launch nonce for request %d",
+						lastServers, len(requests))
+				}
+			})
 		}
 	})
 	// Invariant: an early-stop mark is attention state, so releasing the idle runtime keeps it.

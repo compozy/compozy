@@ -185,13 +185,16 @@ type TokenRecord struct {
 	DefinitionFingerprint string
 	Issuer                string
 	ClientID              string
-	Scopes                []string
-	AccessToken           string
-	RefreshToken          string
-	TokenType             string
-	ExpiresAt             time.Time
-	ObtainedAt            time.Time
-	UpdatedAt             time.Time
+	// Scopes is the granted set; RFC 6749 §3.3 lets it be narrower than RequestedScopes.
+	Scopes []string
+	// RequestedScopes is the set login asked for. Rows written before it existed leave it empty.
+	RequestedScopes []string
+	AccessToken     string
+	RefreshToken    string
+	TokenType       string
+	ExpiresAt       time.Time
+	ObtainedAt      time.Time
+	UpdatedAt       time.Time
 }
 
 // ClientRegistration is durable, target-scoped OAuth registration state. Secret

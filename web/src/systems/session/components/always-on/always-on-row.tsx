@@ -29,7 +29,11 @@ import {
   type AgentInstancePayload,
 } from "@/systems/agent";
 
-import { useAlwaysOnRowActions, type AlwaysOnRowActions } from "../../hooks/use-always-on-row";
+import {
+  useAlwaysOnCurrentId,
+  useAlwaysOnRowActions,
+  type AlwaysOnRowActions,
+} from "../../hooks/use-always-on-row";
 import type { SessionListTarget } from "../../types";
 import { AlwaysOnCrewPopover } from "./always-on-crew-popover";
 import { AlwaysOnHoverCardContent } from "./always-on-hover-card";
@@ -124,7 +128,7 @@ function Seat({
                 <button
                   aria-current={current ? "page" : undefined}
                   aria-label={spoken(instance)}
-                  className={cn(SEAT, current && "bg-selected")}
+                  className={cn(SEAT, current && "bg-selected hover:bg-selected")}
                   data-testid={`always-on-seat-${instance.id}`}
                   onClick={() => void actions.open(instance)}
                   type="button"
@@ -189,6 +193,8 @@ function AlwaysOnSeats({
   className,
 }: AlwaysOnRowProps) {
   const actions = useAlwaysOnRowActions(onOpenSession);
+  // The agent whose session is open, through its main session or a side chat or child under it.
+  const currentId = useAlwaysOnCurrentId(instances, currentSessionId);
   const ordered = agentInstancesByUrgency(instances);
   const shown = ordered.slice(0, limit);
   const hidden = ordered.length - shown.length;
@@ -196,6 +202,7 @@ function AlwaysOnSeats({
     <div
       aria-label="Always-on agents"
       className={cn("flex min-w-0 items-center gap-1", className)}
+      data-current={currentId ? "true" : undefined}
       data-testid="always-on-row"
       role="toolbar"
     >
@@ -203,7 +210,7 @@ function AlwaysOnSeats({
       {shown.map(instance => (
         <Seat
           actions={actions}
-          current={instance.main_session_id === currentSessionId}
+          current={instance.id === currentId}
           instance={instance}
           key={instance.id}
           surface={surface}
@@ -211,6 +218,8 @@ function AlwaysOnSeats({
       ))}
       {hidden > 0 ? (
         <AlwaysOnCrewPopover
+          currentId={currentId}
+          currentInside={currentId !== undefined && !shown.some(({ id }) => id === currentId)}
           hidden={hidden}
           instances={instances}
           onOpen={instance => void actions.open(instance)}

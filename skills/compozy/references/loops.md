@@ -402,7 +402,8 @@ exhausted budget up to success.
 - `done` — the goal was verified. The only success outcome.
 - `no-op` — ran, found nothing to do. A clean watch tick is `no-op`, not a fake `done`.
 - `blocked` — an external dependency blocked progress (missing dependency/credential/resource, a
-  human-gate `reject`, or a `loop.gate.pre` denial).
+  human-gate `reject`, a `loop.gate.pre` denial, or an authored `on_result` with
+  `terminal_status: blocked`).
 - `failed` — an unrecoverable node/gate error or a `loop.generation.pre` denial.
 - `canceled` — an operator cancellation, with cause `operator_cancel`.
 - `exhausted` — the iteration cap or an authored `max_fan_out` bound tripped before the goal.
@@ -413,6 +414,9 @@ When the coordinator decides a terminal, `loop why -o json` reports `outcome.rea
 `outcome.node_id`, and `outcome.message` (also on the terminal `status_changed` event); for example
 `no_ready_nodes` names the node that can never run and its unsettled dependencies. Quote them
 instead of guessing. `completion_state` reports collect coverage only, never success.
+`loop status` and `loop runs` project the same cause as `run.terminal` (`status`, `cause`,
+`reason_code`, `gate_id`, `node_id`, `message`, `at`), so a settled run's own record answers why it
+stopped without reading workspace artifacts or the event stream.
 
 Failure streaks are evaluated per node across generations, so a healthy sibling cannot reset a
 failing node's breaker. An unbounded watch run also stalls after consecutive failed generations;
@@ -634,9 +638,38 @@ criterion with `expect: stdout_contains`, set the typed `contains` field to the 
 substring.
 
 Gate `on_result` keys are `pass`, `approval`, `fail`, `blocked`, `error`, `timeout`, and
-`invalid_output`. Values are `continue`, `revise`, `next_generation`, `escalate`, `halt`, or an
-in-body direct target written as `{route: node_id}`. The old `branch` action is invalid. An
+`invalid_output`. Values are `continue`, `revise`, `next_generation`, `escalate`, `halt`, an
+in-body direct target written as `{route: node_id}`, or a terminal override written as
+`{action: halt, terminal_status: <state>}`. The old `branch` action is invalid. An
 `approval` outcome may only `escalate` or `halt`; an object route cannot bypass approval.
+
+Use the object form to choose the status a `halt` settles with instead of the default `failed`:
+
+```yaml
+on_result:
+  fail: { action: halt, terminal_status: blocked }
+  error: { action: halt, terminal_status: failed }
+```
+
+`terminal_status` is only valid with `action: halt`, must belong to the closed terminal
+vocabulary (`done`, `no-op`, `blocked`, `failed`, `exhausted`, `stalled`, `canceled`), and, when
+`contract.terminal_states` is declared, must appear in that set. The linter reports both checks.
+Omitting the key keeps today's behavior: `halt` settles `failed` and `blocked` verdicts settle
+`blocked`.
+
+The synthetic contract/definition-of-done gate accepts the same grammar under
+`contract.on_result`. It has no forward targets, so `{route: node_id}` is rejected there; use an
+action object. It also requires at least one `contract.verification` criterion, because the
+definition-of-done gate is skipped without one. Without `contract.on_result`, a rejected
+definition-of-done verdict still schedules the next generation (`next_generation`).
+
+```yaml
+contract:
+  terminal_states: [done, blocked, failed]
+  on_result:
+    fail: { action: halt, terminal_status: blocked }
+    error: { action: halt, terminal_status: failed }
+```
 
 `run-agent` and `goal` accept one `params.environment` with mode `root`, `worktree`, `per_run`, or
 `directory`. The node value wins over the Loop default; otherwise execution uses the workspace root.
@@ -649,6 +682,16 @@ Web authors only `root` and `worktree`; API/CLI-authored `directory` and `per_ru
 visible and unchanged in Web until replaced.
 The retired `params.cwd` fails validation; migrate it to
 `params.environment: {mode: directory, directory: <path>}`.
+
+The effective iteration cap comes from the first applicable source: per-run
+`config_overrides.iteration_cap`, the stored per-Loop `iteration_cap` set through
+`compozy loop configure --name <name> --set iteration_cap=<n>`, a positive
+`contract.iteration_cap`, or `[loops.defaults.delivery]` or `[loops.defaults.watch]` as selected
+by the graph. An omitted or zero contract cap uses the configured fallback. Zero in a config
+or override layer means unbounded. Read the current effective cap in `loop inspect -o json` at
+`loop.effective_config.iteration_cap` and a run's pinned cap in `loop status -o json` at
+`run.iteration_cap`. A run that would exceed its cap ends `exhausted` with reason
+`iteration_cap_exceeded`.
 
 `run-loop.params.config_overrides` applies one direct-run configuration layer to the child started
 by that node. It works in `await` and `detach`, has per-run precedence, never writes the child's
@@ -888,10 +931,10 @@ or lint returns `watch_events_filter_too_broad`; its output excludes record cont
 metadata such as `record_type`, `sequence`, `turn_id`, `agent_name`, and `session_id`.
 
 A Loop with a `watch-events` node holds `watching` between wakes and **never stalls on silence** — a
-quiet subscription is healthy dormancy. It keeps the delivery default `iteration_cap: 50` unless the
-definition sets `0`; only `watch-source` selects the unbounded watch default. The
-parked read-model (active subscriptions, per-stream cursors, `last_wake_at`) is exposed on the run
-detail (`compozy loop status --run-id <id> -o json`, HTTP/UDS parity) only while the Loop is dormant
+quiet subscription is healthy dormancy. It uses the delivery fallback of `50` when there is no
+positive contract cap or override. To run unbounded, set the per-Loop config override to
+`iteration_cap: 0`. The run detail (`compozy loop status --run-id <id> -o json`, HTTP/UDS parity)
+exposes active subscriptions, per-stream cursors, and `last_wake_at` only while the Loop is dormant
 on events.
 
 ### Reusing A Recovered Review Child

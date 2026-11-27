@@ -11,7 +11,7 @@ import (
 
 func BenchmarkHandleSessionUpdateAgentMessage(b *testing.B) {
 	proc := &AgentProcess{}
-	active, err := proc.beginPrompt("turn-bench", 1)
+	active, err := proc.beginPrompt(b.Context(), "turn-bench", 1)
 	if err != nil {
 		b.Fatalf("beginPrompt() error = %v", err)
 	}

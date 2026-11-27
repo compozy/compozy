@@ -43,6 +43,7 @@ func buildSessionGoalDefinition(
 		Meta:        dsl.Meta{Name: loop.InlineGoalLoopName, Version: 1},
 		Concurrency: dsl.ConcurrencyAllow,
 		Inputs:      map[string]dsl.Input{},
+		// Use delivery defaults for Loop generations. The Goal node owns its turn limit.
 		Contract: dsl.Contract{
 			Goal:             contract.Objective,
 			DefinitionOfDone: "The objective is satisfied against the stated verification and constraints.",
@@ -58,9 +59,8 @@ func buildSessionGoalDefinition(
 					dsl.TerminalStalled,
 				},
 			},
-			IterationCap: 1,
-			NoProgress:   dsl.NoProgress{Window: 1},
-			Budget:       dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
+			NoProgress: dsl.NoProgress{Window: 1},
+			Budget:     dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
 		},
 		Graph: dsl.Graph{
 			Nodes: []dsl.Node{{

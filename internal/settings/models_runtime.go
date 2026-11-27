@@ -89,11 +89,6 @@ type AutomationSection struct {
 	Links   []OperationalLink
 }
 
-// GatewaySection is the remote gateway section read model.
-type GatewaySection struct {
-	Config compozyconfig.GatewayConfig
-}
-
 // WindowManagerSection is the window-manager section read model.
 type WindowManagerSection struct {
 	Config             compozyconfig.WindowManagerConfig

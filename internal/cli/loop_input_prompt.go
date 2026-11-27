@@ -28,26 +28,44 @@ type loopInputCatalogClient interface {
 	ListProviderModels(context.Context, ProviderModelListQuery) (ProviderModelListRecord, error)
 }
 
-func normalizeLoopRunInputs(definition dsl.Definition, values map[string]any) (map[string]any, error) {
-	if values == nil {
-		values = map[string]any{}
-	}
-	for field, input := range definition.Inputs {
-		value, present := values[field]
-		if !present || input.Type != dsl.InputTypeRuntime {
-			continue
+// normalizeLoopRunInputs coerces --input text by the declared input type. The
+// CLI cannot coerce before fetching the definition: a string input must keep
+// "false" or "0" verbatim, while the same text is a boolean or number elsewhere.
+func normalizeLoopRunInputs(definition dsl.Definition, raw map[string]string) (map[string]any, error) {
+	values := make(map[string]any, len(raw))
+	for field, text := range raw {
+		value, err := normalizeLoopRunInput(field, definition.Inputs[field], text)
+		if err != nil {
+			return nil, err
 		}
+		values[field] = value
+	}
+	return values, nil
+}
+
+func normalizeLoopRunInput(field string, input dsl.Input, raw string) (any, error) {
+	value := parseLoopValue(raw)
+	switch input.Type {
+	case dsl.InputTypeString, dsl.InputTypeFile, dsl.InputTypeAgent, dsl.InputTypeRef:
+		// Quoted JSON text stays an escape hatch: `--input f='"false"'` yields
+		// the string false, and any other text is passed through verbatim.
+		if text, ok := value.(string); ok {
+			return text, nil
+		}
+		return raw, nil
+	case dsl.InputTypeRuntime:
 		expression, ok := value.(string)
 		if !ok {
-			continue
+			return value, nil
 		}
 		runtime, err := parseLoopRuntimeExpression(expression)
 		if err != nil {
 			return nil, fmt.Errorf("cli: parse runtime input %q: %w", field, err)
 		}
-		values[field] = runtimeInputMap(runtime)
+		return runtimeInputMap(runtime), nil
+	default:
+		return value, nil
 	}
-	return values, nil
 }
 
 func promptForMissingLoopInputs(

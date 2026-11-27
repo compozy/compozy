@@ -18,12 +18,12 @@ func (a *activePromptState) failIngest(cause error) {
 	}
 }
 
-func (p *AgentProcess) forwardIngestEvents(active *activePromptState) {
+func (p *AgentProcess) forwardIngestEvents(ctx context.Context, active *activePromptState) {
 	defer close(active.events)
 	// Process death must not discard events already accepted for durable append.
 	// The session manager owns this consumer until the closed gate is drained.
 	for {
-		event, err := active.ingest.Next(context.Background())
+		event, err := active.ingest.Next(ctx)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return

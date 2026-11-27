@@ -7,7 +7,6 @@ import (
 	"github.com/compozy/compozy/internal/session"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
@@ -45,7 +44,6 @@ type daemonRuntimeState struct {
 	coordinator       *coordinatorRuntime
 	spawnReaper       *spawnReaper
 	scheduler         *schedulerRuntime
-	gateway           gateway.Policy
 	toolRegistry      toolspkg.Registry
 	clarify           *clarifyBridge
 	hooks             hookRuntime

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -325,6 +326,7 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 			Issuer:                "https://issuer.example",
 			ClientID:              "client",
 			Scopes:                []string{"read", "write"},
+			RequestedScopes:       []string{"read", "write", "admin"},
 			AccessToken:           "access-token",
 			RefreshToken:          "refresh-token",
 			TokenType:             "Bearer",
@@ -397,6 +399,9 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 		}
 		if len(token.Scopes) != 2 || token.Scopes[0] != "read" || token.Scopes[1] != "write" {
 			t.Fatalf("token scopes = %#v", token.Scopes)
+		}
+		if !slices.Equal(token.RequestedScopes, []string{"read", "write", "admin"}) {
+			t.Fatalf("token requested scopes = %#v, want the login request preserved", token.RequestedScopes)
 		}
 		if !token.ExpiresAt.Equal(expiresAt) {
 			t.Fatalf("token expires_at = %s, want %s", token.ExpiresAt, expiresAt)

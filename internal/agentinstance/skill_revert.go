@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -72,21 +73,27 @@ type RevertEligibility struct {
 // RevertEligibility reads the install log and the live tree without locks; Revert evaluates the same
 // rule under both skill locks before writing.
 func (s *SkillProposalService) RevertEligibility(
-	_ context.Context,
+	ctx context.Context,
 	review SkillReview,
 	targetRoot string,
 ) (RevertEligibility, error) {
 	if reason := revertPrecondition(review, targetRoot); reason != "" {
 		return RevertEligibility{Reason: reason}, nil
 	}
+	if err := ctx.Err(); err != nil {
+		return RevertEligibility{}, err
+	}
 	root, err := fileutil.CanonicalPathWithExistingPrefix(targetRoot)
 	if err != nil {
 		return RevertEligibility{}, err
 	}
+	if review.SkillKey != skillKeyFor(review.WorkspaceID, root, review.SkillName) {
+		return RevertEligibility{Reason: SkillRevertTargetUnavailable}, nil
+	}
 	if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
 		return RevertEligibility{Reason: SkillRevertTargetUnavailable}, nil
 	}
-	return readRevertEligibility(review, root, review.SkillName)
+	return s.readRevertEligibility(ctx, review, root, review.SkillName)
 }
 
 // revertPrecondition is the part of eligibility that needs no files.
@@ -106,16 +113,32 @@ func revertPrecondition(review SkillReview, targetRoot string) string {
 // readRevertEligibility applies the file part of Business Rule 11: the review must be the install
 // log's current writer, the live tree must equal its installed digest, and an edit's base snapshot
 // must still verify.
-func readRevertEligibility(review SkillReview, root, name string) (RevertEligibility, error) {
+func (s *SkillProposalService) readRevertEligibility(
+	ctx context.Context,
+	review SkillReview,
+	root, name string,
+) (RevertEligibility, error) {
+	if err := ctx.Err(); err != nil {
+		return RevertEligibility{}, err
+	}
 	entries, err := readSkillInstallLog(root, name)
 	if err != nil {
 		return RevertEligibility{}, err
 	}
+	if len(entries) == 0 {
+		return RevertEligibility{Reason: SkillRevertTargetUnavailable}, nil
+	}
 	current := currentSkillWriter(entries)
 	if current == nil || current.ReviewID != review.ID {
+		if slices.ContainsFunc(entries, func(entry skillInstallLogEntry) bool {
+			return entry.Action == SkillInstallActionRevert && entry.ReviewID == review.ID &&
+				entry.InstanceID == review.InstanceID && entry.HomeID == s.HomeID
+		}) {
+			return RevertEligibility{Reason: SkillRevertNotApproved}, nil
+		}
 		return RevertEligibility{Reason: SkillRevertSuperseded}, nil
 	}
-	live, err := skillTreeState(filepath.Join(root, name))
+	live, err := skillTreeState(ctx, filepath.Join(root, name))
 	if errors.Is(err, ErrSkillTreeUnsupported) {
 		return RevertEligibility{Reason: SkillRevertChangedOnDisk}, nil
 	}
@@ -126,7 +149,10 @@ func readRevertEligibility(review SkillReview, root, name string) (RevertEligibi
 		return RevertEligibility{Reason: SkillRevertChangedOnDisk}, nil
 	}
 	if review.Kind == SkillProposalEdit {
-		if _, err := readSkillSnapshot(review); err != nil {
+		if _, err := readSkillSnapshot(ctx, review); err != nil {
+			if ctx.Err() != nil {
+				return RevertEligibility{}, err
+			}
 			return RevertEligibility{Reason: SkillRevertTargetUnavailable}, nil
 		}
 	}
@@ -175,6 +201,9 @@ func (s *SkillProposalService) Revert(
 		return SkillInstallResult{}, err
 	}
 	defer func() { err = errors.Join(err, t.close()) }()
+	if t.parent == nil || review.SkillKey != skillKeyFor(instance.WorkspaceID, t.root, t.name) {
+		return SkillInstallResult{}, &SkillRevertConflictError{Name: t.name, Reason: SkillRevertTargetUnavailable}
+	}
 	return s.revertLocked(ctx, t, instance, id, operator)
 }
 
@@ -184,9 +213,6 @@ func (s *SkillProposalService) revertLocked(
 	instance Instance,
 	id, operator string,
 ) (SkillInstallResult, error) {
-	if t.parent == nil {
-		return SkillInstallResult{}, &SkillRevertConflictError{Name: t.name, Reason: SkillRevertTargetUnavailable}
-	}
 	blocked, warning, err := s.reconcileSkill(ctx, t)
 	if err != nil {
 		return SkillInstallResult{}, err
@@ -206,14 +232,18 @@ func (s *SkillProposalService) revertLocked(
 	default:
 		return SkillInstallResult{}, ErrSkillReviewStale
 	}
-	eligibility, err := readRevertEligibility(review, t.root, t.name)
+	eligibility, err := s.readRevertEligibility(ctx, review, t.root, t.name)
 	if err != nil {
 		return SkillInstallResult{}, err
+	}
+	if eligibility.Reason == SkillRevertNotApproved {
+		// Reconciliation confirmed the revert in the log even if its database projection still failed.
+		return SkillInstallResult{Warning: warning}, nil
 	}
 	if !eligibility.Allowed {
 		return SkillInstallResult{}, &SkillRevertConflictError{Name: t.name, Reason: eligibility.Reason}
 	}
-	op, err := s.revertOp(t, instance, review, operator)
+	op, err := s.revertOp(ctx, t, instance, review, operator)
 	if err != nil {
 		return SkillInstallResult{}, err
 	}
@@ -232,6 +262,7 @@ func (s *SkillProposalService) revertLocked(
 // snapshot, verified again, and restores the review's previous writer only when that writer's installed
 // digest is the restored base; otherwise the restored contents have no writer (operator-authored).
 func (s *SkillProposalService) revertOp(
+	ctx context.Context,
 	t *skillTarget,
 	instance Instance,
 	review SkillReview,
@@ -260,18 +291,24 @@ func (s *SkillProposalService) revertOp(
 			op.next = &previous
 		}
 	}
-	base, err := readSkillSnapshot(review)
+	base, err := readSkillSnapshot(ctx, review)
 	if err != nil {
+		if contextErr := ctx.Err(); contextErr != nil {
+			return skillOp{}, contextErr
+		}
 		return skillOp{}, errors.Join(
 			&SkillRevertConflictError{Name: t.name, Reason: SkillRevertTargetUnavailable},
 			err,
 		)
 	}
 	op.stage = func(dir string) error {
-		if err := writeSkillTreeFiles(dir, base); err != nil {
+		if err := writeSkillTreeFiles(ctx, dir, base); err != nil {
 			return err
 		}
-		staged, err := SkillTreeDigest(dir)
+		staged, err := SkillTreeDigest(ctx, dir)
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
+		}
 		if err != nil || staged != review.BaseDigest {
 			return errors.Join(&SkillRevertConflictError{Name: t.name, Reason: SkillRevertTargetUnavailable}, err)
 		}

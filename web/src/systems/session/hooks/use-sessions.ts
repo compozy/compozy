@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import {
@@ -55,6 +56,30 @@ export function useSession(id: string) {
   return useQuery(sessionScopedDetailOptions(id, params, { enabled: !pending && !deleted }));
 }
 
+/**
+ * A session's id and lineage, sharing `useSession`'s cache entry without polling it or
+ * re-rendering on the rest of its live detail.
+ */
+export function useSessionLineage(id: string, enabled = true) {
+  const { params } = useProfileReadScope();
+  const pending = useSessionDeletionPending(id);
+  const deleted = useSessionDeletedByOperator(id);
+  return useQuery({
+    ...sessionScopedDetailOptions(id, params, {
+      enabled: enabled && !pending && !deleted,
+      liveTail: false,
+    }),
+    select: session => ({
+      id: session.id,
+      lineage: session.lineage && {
+        kind: session.lineage.kind,
+        parent_session_id: session.lineage.parent_session_id,
+        root_session_id: session.lineage.root_session_id,
+      },
+    }),
+  }).data;
+}
+
 export function useSessionById(id: string, workspace: string) {
   const { params } = useProfileReadScope();
   const pending = useSessionDeletionPending(id);
@@ -68,7 +93,7 @@ export function useSessionById(id: string, workspace: string) {
 
 export function useSessionGoal(workspaceId: string, sessionId: string, enabled = true) {
   return useQuery({
-    ...sessionGoalOptions(workspaceId, sessionId),
+    ...sessionGoalOptions(workspaceId, sessionId, useCurrentComputerId()),
     enabled: enabled && workspaceId !== "" && sessionId !== "",
   });
 }
@@ -88,7 +113,7 @@ export function useSessionUsage(
   const { runtimeWorkspaceId } = useActiveWorkspace();
   const workspaceId = workspace ?? runtimeWorkspaceId ?? "";
   return useQuery({
-    ...sessionUsageOptions(workspaceId, id, sessionState),
+    ...sessionUsageOptions(workspaceId, id, sessionState, useCurrentComputerId()),
     enabled: Boolean(workspaceId) && Boolean(id) && (options?.enabled ?? true),
   });
 }

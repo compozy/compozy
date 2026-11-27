@@ -14,7 +14,7 @@ import {
   dialogShellClass,
 } from "@compozy/ui";
 
-import { protoHref } from "@compozy/proto";
+import { protoHref } from "@protohq/cli";
 
 import { goToState } from "../always-on-agents-shared/go-to-state";
 import type { AgentState } from "../always-on-agents-shared/agent-state";

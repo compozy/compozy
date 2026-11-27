@@ -23,7 +23,7 @@ export interface SessionListBranchToggleProps {
   session: SessionPayload;
   /** Child sessions that fold under the row (a revealed subagent never counts). */
   childCount: number;
-  /** The most urgent child state while the child list is not showing. */
+  /** The most urgent child state while the child list is not showing; only escalations draw. */
   childSignal: ChildSessionSignalState | null;
   subagentCounts: SessionSubagentCounts | null;
   segment: SessionThreadSegment | null;
@@ -41,11 +41,20 @@ interface Indicator {
   label: string;
 }
 
+/**
+ * Running work sits in the row's leading mark column (#1926), so the branch keeps
+ * only what a fold must never hide: a descendant that needs you or failed.
+ */
+function escalation(glyph: StateGlyphState | null): StateGlyphState | null {
+  return glyph === "attention" || glyph === "failed" ? glyph : null;
+}
+
 const pluralize = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
 
 /**
  * The meta line's branch control: one discreet indicator per kind of
- * descendant (child sessions, subagents) and one chevron for the fold. With
+ * descendant (child sessions, subagents), with an escalation glyph only when one
+ * needs you or failed, and one chevron for the fold. With
  * one kind the indicator and chevron are a single toggle; with both, the
  * indicators become segments a rubber pill travels between, and the selected
  * segment folds the branch when pressed again.
@@ -66,7 +75,7 @@ export function SessionListBranchToggle({
       segment: "children",
       icon: CornerDownRight,
       text: String(childCount),
-      glyph: childSignal,
+      glyph: escalation(childSignal),
       label: pluralize(childCount, "child session"),
     });
   }
@@ -76,7 +85,7 @@ export function SessionListBranchToggle({
       segment: "subagents",
       icon: Bot,
       text: chip?.text ?? String(subagentCounts.total),
-      glyph: chip?.glyph ?? null,
+      glyph: escalation(chip?.glyph ?? null),
       label: chip?.ariaLabel ?? pluralize(subagentCounts.total, "subagent"),
     });
   }

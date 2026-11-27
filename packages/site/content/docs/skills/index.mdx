@@ -428,19 +428,23 @@ An agent can also propose a change to a skill already installed for it (`mode: "
 changes only the files it names; every other installed file, including binary and executable files,
 is kept exactly. `show` prints the installed digest as `Base:`, Runs automatically for the change and
 for the installed skill, how many files are modified, added and removed, and a diff of each changed
-file. Approval applies only while the installed skill still matches that base; if it changed, approval
-fails with `skill_review_base_stale` and you can only reject.
+file. The CLI and Web viewer flag modified files when redacted text in the installed version
+can hide changes from the diff. The edit can contain up to 64 files and 1 MiB of file contents.
+Approval requires the reviewed install target and a skill that still matches the base. If the
+target moved or the skill changed, approval fails with `skill_review_base_stale` and you can only reject.
 
 To undo the latest approval of a skill, run `compozy agent skill review revert <review-id>
 --expected-digest <reviewed-digest>`. A reverted new skill is removed; a reverted edit restores the
 previous files exactly, including their permissions. Only the newest approval of a skill can be
 reverted, and only while the installed files still match it; otherwise revert fails with
 `skill_review_revert_conflict` and a reason (`superseded`, `changed_on_disk`, `legacy` or
-`target_unavailable`). The review detail reports whether revert is allowed now.
+`target_unavailable`). A moved agent-local root or missing install history makes the target
+unavailable. The review detail reports whether revert is allowed now.
 
-You can let one trusted always-on agent install its own low-risk lessons without review:
-`compozy agent instance skill-auto-approve on <agent>`, or the **Auto-approve skills** switch on its
-place. Only you can turn it on; the agent can turn it off. A proposal is then approved automatically
+The per-instance `skill_auto_approve` setting defaults to `false`, including for existing instances.
+Enable it with `compozy agent instance skill-auto-approve on <agent>` or the **Auto-approve skills**
+switch on the agent's place. Only an operator can turn it on. The agent can turn it off.
+A proposal is then approved automatically
 only when its lesson has `high` confidence, the resulting skill runs nothing automatically (no hooks,
 MCP servers or scripts, counting files kept from the installed skill), an edit changes a skill that
 agent installed and that nobody changed since, and the agent has had fewer than 3 automatic approvals

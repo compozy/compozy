@@ -6,7 +6,7 @@ export type LoopKind = "read-only" | "workspace";
 /** Kind filter values, including the "all" pass-through. */
 export type LoopKindFilter = "all" | LoopKind;
 
-/** The unbounded iteration-cap glyph (watch loops declare `iteration_cap: 0`). */
+/** The glyph for an effective iteration cap of zero. */
 export const UNBOUNDED_CAP = "∞";
 
 /** Only workspace-sourced loops are writable; every other source must be forked first. */
@@ -36,11 +36,6 @@ export function loopCategory(entry: LoopCatalogEntry): string | null {
 /** Declared-input count for the row meta line. */
 export function loopInputCount(entry: LoopCatalogEntry): number {
   return entry.inputs ? Object.keys(entry.inputs).length : 0;
-}
-
-/** True when the loop runs unbounded (watch loops). */
-export function isUnboundedCap(entry: LoopCatalogEntry): boolean {
-  return entry.contract.iteration_cap === 0;
 }
 
 /** Iteration-cap label, rendering `0` as the unbounded glyph. */

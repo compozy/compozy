@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentmemory"
+	"github.com/compozy/compozy/internal/apptoken"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/providers"
 
 	"github.com/compozy/compozy/internal/api/core"
@@ -13,7 +15,6 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
-	"github.com/compozy/compozy/internal/gateway"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
@@ -27,81 +28,82 @@ import (
 
 // RuntimeDeps captures the composition-root dependencies available to server factories.
 type RuntimeDeps struct {
-	AgentInstances        *core.AgentInstanceAPI
-	Subagents             session.SubagentService
-	SessionMonitors       core.SessionMonitorService
-	SessionProcesses      core.SessionProcessService
-	Config                compozyconfig.Config
-	AgentProbeConfig      *agentProbeConfigState
-	HomePaths             compozyconfig.HomePaths
-	Logger                *slog.Logger
-	Sessions              SessionManager
-	DrainController       core.DaemonDrainController
-	Tasks                 taskpkg.Manager
-	ToolRegistry          toolspkg.Registry
-	Toolsets              core.ToolsetRegistry
-	ToolArtifacts         toolspkg.ToolArtifactStore
-	SessionAttachments    attachmentspkg.Store
-	SessionFiles          core.SessionFileSearcher
-	FileTree              core.FileTreeReader
-	SessionChanges        core.SessionChangesReader
-	ToolApprovals         toolspkg.ApprovalTokenIssuer
-	ApprovalCoordinator   toolspkg.ApprovalCoordinator
-	CmdPalette            cmdpalette.Registry
-	ApprovalGrants        toolspkg.ApprovalGrantStore
-	Clarify               toolspkg.ClarifyBroker
-	HostedMCP             *mcppkg.HostedService
-	MCPHostAPI            mcppkg.HostAPIInvoker
-	Observer              Observer
-	SchemaStreams         core.SchemaStreamStatusReader
-	Automation            core.AutomationManager
-	Loops                 core.LoopService
-	Registry              Registry
-	Profiles              *profile.Manager
-	RuntimeMemory         doctor.RuntimeMemorySnapshotSource
-	HostLoad              doctor.HostLoadSnapshotSource
-	TelemetryStatus       core.TelemetryStatusSource
-	DeadEntities          doctor.DeadEntitySource
-	WorkspaceResolver     workspacepkg.RuntimeResolver
-	WorkspaceService      core.WorkspaceService
-	Worktrees             core.WorktreeService
-	WorkspaceAccess       workspaceaccess.Policy
-	AgentCatalog          core.AgentCatalog
-	AgentResolver         session.AgentResolver
-	AgentDefinitionSync   core.AgentDefinitionSync
-	ModelCatalog          core.ModelCatalogService
-	ProviderUsage         core.ProviderUsageService
-	MarketplaceCatalog    core.MarketplaceCatalogService
-	AgentContext          *situation.Service
-	SoulAuthoring         core.SoulAuthoringService
-	AgentMemory           *agentmemory.Store
-	SoulHistoryPurger     core.SoulHistoryPurger
-	SoulRefresher         core.SoulRefresher
-	HeartbeatAuthor       core.HeartbeatAuthoringService
-	HeartbeatPurger       core.HeartbeatHistoryPurger
-	HeartbeatStatus       core.HeartbeatStatusService
-	HeartbeatWake         core.HeartbeatWakeService
-	SessionHealth         core.SessionHealthReader
-	WakeEvents            core.HeartbeatWakeEventReader
-	CoordinatorRole       CoordinatorRoleResolver
-	Roles                 core.RolesStatusProvider
-	SkillsRegistry        core.SkillsRegistry
-	SkillResources        core.SkillResourceSyncer
-	Settings              core.SettingsService
-	SettingsRestart       core.SettingsRestartController
-	SettingsUpdate        core.SettingsUpdateController
-	SupportBundles        core.SupportBundleService
-	Vault                 core.VaultService
-	Extensions            udsapi.ExtensionService
-	Resources             core.ResourceService
-	WindowManagers        *windowManagerRegistry
-	Terminals             *terminalpkg.Service
-	AppTokens             *gateway.DeviceService
-	Gateway               *gateway.Service
-	GatewayChallenges     *gateway.ChallengeRegistry
-	GatewayAuthLimiter    *gateway.AuthFailureLimiter
-	GatewayPairingLimiter *gateway.AuthFailureLimiter
-	StartedAt             time.Time
+	AgentInstances      *core.AgentInstanceAPI
+	Subagents           session.SubagentService
+	SessionMonitors     core.SessionMonitorService
+	SessionProcesses    core.SessionProcessService
+	Config              compozyconfig.Config
+	AgentProbeConfig    *agentProbeConfigState
+	HomePaths           compozyconfig.HomePaths
+	Logger              *slog.Logger
+	Sessions            SessionManager
+	DrainController     core.DaemonDrainController
+	Tasks               taskpkg.Manager
+	ToolRegistry        toolspkg.Registry
+	Toolsets            core.ToolsetRegistry
+	ToolArtifacts       toolspkg.ToolArtifactStore
+	SessionAttachments  attachmentspkg.Store
+	SessionFiles        core.SessionFileSearcher
+	FileTree            core.FileTreeReader
+	SessionChanges      core.SessionChangesReader
+	ToolApprovals       toolspkg.ApprovalTokenIssuer
+	ApprovalCoordinator toolspkg.ApprovalCoordinator
+	CmdPalette          cmdpalette.Registry
+	ApprovalGrants      toolspkg.ApprovalGrantStore
+	Clarify             toolspkg.ClarifyBroker
+	HostedMCP           *mcppkg.HostedService
+	MCPHostAPI          mcppkg.HostAPIInvoker
+	Observer            Observer
+	SchemaStreams       core.SchemaStreamStatusReader
+	Automation          core.AutomationManager
+	Loops               core.LoopService
+	Registry            Registry
+	Profiles            *profile.Manager
+	RuntimeMemory       doctor.RuntimeMemorySnapshotSource
+	HostLoad            doctor.HostLoadSnapshotSource
+	TelemetryStatus     core.TelemetryStatusSource
+	DeadEntities        doctor.DeadEntitySource
+	WorkspaceResolver   workspacepkg.RuntimeResolver
+	WorkspaceService    core.WorkspaceService
+	Worktrees           core.WorktreeService
+	WorkspaceAccess     workspaceaccess.Policy
+	AgentCatalog        core.AgentCatalog
+	AgentResolver       session.AgentResolver
+	AgentDefinitionSync core.AgentDefinitionSync
+	ModelCatalog        core.ModelCatalogService
+	Account             core.AccountService
+	Remote              core.RemoteHostService
+	Computers           core.ComputersService
+	ProviderUsage       core.ProviderUsageService
+	MarketplaceCatalog  core.MarketplaceCatalogService
+	AgentContext        *situation.Service
+	SoulAuthoring       core.SoulAuthoringService
+	AgentMemory         *agentmemory.Store
+	SoulHistoryPurger   core.SoulHistoryPurger
+	SoulRefresher       core.SoulRefresher
+	HeartbeatAuthor     core.HeartbeatAuthoringService
+	HeartbeatPurger     core.HeartbeatHistoryPurger
+	HeartbeatStatus     core.HeartbeatStatusService
+	HeartbeatWake       core.HeartbeatWakeService
+	SessionHealth       core.SessionHealthReader
+	WakeEvents          core.HeartbeatWakeEventReader
+	CoordinatorRole     CoordinatorRoleResolver
+	Roles               core.RolesStatusProvider
+	SkillsRegistry      core.SkillsRegistry
+	SkillResources      core.SkillResourceSyncer
+	Settings            core.SettingsService
+	SettingsRestart     core.SettingsRestartController
+	SettingsUpdate      core.SettingsUpdateController
+	SupportBundles      core.SupportBundleService
+	Vault               core.VaultService
+	Extensions          udsapi.ExtensionService
+	Resources           core.ResourceService
+	WindowManagers      *windowManagerRegistry
+	Terminals           *terminalpkg.Service
+	AppTokens           *apptoken.Service
+	Ingress             *ingress.Manager
+	MigrationNotices    core.MigrationNoticeStore
+	StartedAt           time.Time
 
 	OnProviderAuthSuccess func()
 	ProviderAuthVerdicts  *providers.AuthVerdicts

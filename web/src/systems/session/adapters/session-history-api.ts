@@ -1,4 +1,5 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
+import { apiClient, apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
 import type {
   FetchSessionEventsParams,
@@ -36,9 +37,10 @@ export async function fetchSessionRecap(
 export async function fetchSessionUsage(
   workspaceId: string,
   id: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionUsagePayload> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/usage",
     {
       params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
@@ -94,9 +96,10 @@ export async function fetchSessionHistory(
 export async function fetchSessionUsageTurns(
   workspaceId: string,
   id: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionUsageTurnsResponse> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns",
     {
       params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },

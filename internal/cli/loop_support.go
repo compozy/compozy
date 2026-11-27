@@ -111,11 +111,13 @@ func loopConfigPayloadFromDomain(ctx context.Context, cfg *looppkg.LoopConfig) (
 	return &payload, nil
 }
 
-func parseLoopInputFlags(flags []string) (map[string]any, error) {
+// parseLoopInputFlagText keeps --input text exactly as the operator typed it.
+// Loop runs and forks coerce it only once the declared input types are known.
+func parseLoopInputFlagText(flags []string) (map[string]string, error) {
 	if len(flags) == 0 {
 		return nil, nil
 	}
-	values := make(map[string]any, len(flags))
+	values := make(map[string]string, len(flags))
 	for _, flag := range flags {
 		key, value, err := splitLoopKeyValue(flag)
 		if err != nil {
@@ -124,7 +126,7 @@ func parseLoopInputFlags(flags []string) (map[string]any, error) {
 		if _, exists := values[key]; exists {
 			return nil, fmt.Errorf("cli: duplicate --input key %q", key)
 		}
-		values[key] = parseLoopValue(value)
+		values[key] = value
 	}
 	return values, nil
 }

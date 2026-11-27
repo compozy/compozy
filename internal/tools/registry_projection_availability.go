@@ -110,23 +110,31 @@ func (r *RuntimeRegistry) PolicyProjection(ctx context.Context, scope Scope, inp
 func (r *RuntimeRegistry) policyProjection(
 	ctx context.Context, scope Scope, inputs PolicyInputs,
 ) ([]ToolView, error) {
+	views, _, err := r.policyProjectionWithHealth(ctx, scope, inputs)
+	return views, err
+}
+
+// policyProjectionWithHealth also reports whether a failed provider was left out of the views.
+func (r *RuntimeRegistry) policyProjectionWithHealth(
+	ctx context.Context, scope Scope, inputs PolicyInputs,
+) ([]ToolView, bool, error) {
 	cache := &policyResolutionCache{values: map[policyResolutionScope]policyResolution{
 		{registry: r, scope: scope}: {inputs: clonePolicyInputs(inputs)},
 	}}
 	ctx = context.WithValue(ctx, policyResolutionKey{}, cache)
 	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	evaluator, err := r.evaluatorFor(ctx, scope, index.ids())
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	views := make([]ToolView, 0, len(index.entries))
 	for _, entry := range index.entries {
 		decision, err := evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		views = append(
 			views,
@@ -136,7 +144,7 @@ func (r *RuntimeRegistry) policyProjection(
 			},
 		)
 	}
-	return views, nil
+	return views, index.degraded, nil
 }
 
 // DiagnosticProjection returns all indexed tools with effective diagnostics for the supplied scope.

@@ -5,6 +5,8 @@
  * fields, and projects onto the exact job or trigger request at save time.
  */
 
+import { LOCAL_COMPUTER_ID, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import type {
   AutomationJob,
   AutomationTrigger,
@@ -107,18 +109,26 @@ export type AutomationFormDraft = CreateAutomationJobRequest &
     start: AutomationStart;
     event: string;
     conditions: AutomationCondition[];
+    /** Target computer that owns and runs a scheduled job (`_uiux.md` U4, UT-094). */
+    computerId?: ComputerId;
   };
 
 export interface CreateAutomationFormDraftOptions {
   start?: AutomationStart;
   /** Preselects Does = Start a Loop with this Loop (Loop page "Automate"). */
   loop?: string;
+  /** Preselects the computer a scheduled job will live on (defaults to local). */
+  computerId?: ComputerId;
 }
 
 /** A new automation in the active project, schedule-first unless a start is preselected. */
 export function createAutomationFormDraft(
   activeWorkspaceId?: string | null,
-  { start = "schedule", loop }: CreateAutomationFormDraftOptions = {}
+  {
+    start = "schedule",
+    loop,
+    computerId = LOCAL_COMPUTER_ID,
+  }: CreateAutomationFormDraftOptions = {}
 ): AutomationFormDraft {
   const job = createAutomationJobDraft(activeWorkspaceId);
   const draft: AutomationFormDraft = {
@@ -126,6 +136,7 @@ export function createAutomationFormDraft(
     start: "schedule",
     event: DEFAULT_EVENT,
     conditions: [],
+    computerId: normalizeComputerId(computerId),
   };
   const seeded = loop
     ? {
@@ -139,9 +150,33 @@ export function createAutomationFormDraft(
   return setAutomationFormStart(seeded, start);
 }
 
+/** Switches the computer a new scheduled job will live on, clearing computer-local project selection. */
+export function setAutomationFormComputer(
+  draft: AutomationFormDraft,
+  computerId: ComputerId
+): AutomationFormDraft {
+  const nextComputerId = normalizeComputerId(computerId);
+  if (normalizeComputerId(draft.computerId) === nextComputerId) return draft;
+  return {
+    ...draft,
+    computerId: nextComputerId,
+    scope: "global",
+    workspace_id: undefined,
+  };
+}
+
 /** Edit draft for a persisted job. */
-export function automationJobToFormDraft(job: AutomationJob): AutomationFormDraft {
-  return { ...automationJobToDraft(job), start: "schedule", event: DEFAULT_EVENT, conditions: [] };
+export function automationJobToFormDraft(
+  job: AutomationJob,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+): AutomationFormDraft {
+  return {
+    ...automationJobToDraft(job),
+    start: "schedule",
+    event: DEFAULT_EVENT,
+    conditions: [],
+    computerId: normalizeComputerId(computerId),
+  };
 }
 
 /** Edit draft for a persisted trigger; a webhook trigger is a link start. */

@@ -68,6 +68,9 @@ func buildExtensionManagerOptions(
 	if deps.EnvBindings != nil {
 		opts = append(opts, extensionpkg.WithEnvBindingStore(deps.EnvBindings))
 	}
+	if deps.InputRows != nil {
+		opts = append(opts, extensionpkg.WithInputRowReader(deps.InputRows))
+	}
 	if deps.Profiles != nil {
 		opts = append(opts, extensionpkg.WithProfileNameResolver(deps.Profiles))
 	}

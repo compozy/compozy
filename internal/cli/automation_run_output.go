@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 
 	"time"
 
@@ -21,6 +22,7 @@ func automationRunBundle(item RunRecord) outputBundle {
 				{Label: "Job ID", Value: stringOrDash(item.JobID)},
 				{Label: "Trigger ID", Value: stringOrDash(item.TriggerID)},
 				{Label: sessionIDLabel, Value: stringOrDash(item.SessionID)},
+				{Label: "Loop Run ID", Value: stringOrDash(item.LoopRunID)},
 				{Label: "Fire ID", Value: stringOrDash(item.FireID)},
 				{Label: automationStatusValue, Value: stringOrDash(string(item.Status))},
 				{Label: automationAttemptValue, Value: strconv.Itoa(item.Attempt)},
@@ -28,6 +30,7 @@ func automationRunBundle(item RunRecord) outputBundle {
 				{Label: automationStartedValue, Value: stringOrDash(formatOptionalTime(item.StartedAt))},
 				{Label: automationEndedValue, Value: stringOrDash(formatOptionalTime(item.EndedAt))},
 				{Label: automationErrorValue, Value: stringOrDash(item.Error)},
+				{Label: cliReasonValue, Value: stringOrDash(automationRunMetadataString(item.Metadata, "reason"))},
 				{Label: "Delivery Error", Value: stringOrDash(item.DeliveryError)},
 			}), nil
 		},
@@ -39,6 +42,7 @@ func automationRunBundle(item RunRecord) outputBundle {
 				"job_id",
 				"trigger_id",
 				automationSessionIDKey,
+				"loop_run_id",
 				"fire_id",
 				automationStatusKey,
 				automationAttemptKey,
@@ -46,6 +50,7 @@ func automationRunBundle(item RunRecord) outputBundle {
 				automationStartedAtKey,
 				automationEndedAtKey,
 				automationErrorKey,
+				"reason",
 				"delivery_error",
 			}, []string{
 				item.ID,
@@ -54,6 +59,7 @@ func automationRunBundle(item RunRecord) outputBundle {
 				item.JobID,
 				item.TriggerID,
 				item.SessionID,
+				item.LoopRunID,
 				item.FireID,
 				string(item.Status),
 				strconv.Itoa(item.Attempt),
@@ -61,6 +67,7 @@ func automationRunBundle(item RunRecord) outputBundle {
 				formatOptionalTime(item.StartedAt),
 				formatOptionalTime(item.EndedAt),
 				item.Error,
+				automationRunMetadataString(item.Metadata, "reason"),
 				item.DeliveryError,
 			}), nil
 		},
@@ -215,4 +222,19 @@ func automationFilterRows(filter map[string]string) [][]string {
 		rows = append(rows, []string{key, filter[key]})
 	}
 	return rows
+}
+
+func automationRunMetadataString(metadata map[string]any, key string) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	value, ok := metadata[key]
+	if !ok {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
 }

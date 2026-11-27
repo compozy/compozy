@@ -1,4 +1,5 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
+import { apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
 import type {
   SessionGoalCommandRequest,
@@ -11,9 +12,10 @@ import { sessionWorkspacePath } from "./session-workspace-path";
 export async function fetchSessionGoal(
   workspaceId: string,
   id: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionGoalResponse> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/goal",
     {
       params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
@@ -30,9 +32,10 @@ export async function mutateSessionGoal(
   workspaceId: string,
   id: string,
   request: SessionGoalCommandRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionGoalCommandResult> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/goal",
     {
       params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },

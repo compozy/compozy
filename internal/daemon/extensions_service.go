@@ -66,6 +66,9 @@ type daemonExtensionService struct {
 	builtinEnrollments []bundledEnrollment
 	// restoreRollbackTimeout overrides the restore rollback budget for tests; zero uses builtinRestoreRollbackTimeout.
 	restoreRollbackTimeout time.Duration
+	// dependencyUpdateHintTimeout overrides the dependency update-hint lookup budget for tests; zero uses
+	// dependencyUpdateCheckTimeout.
+	dependencyUpdateHintTimeout time.Duration
 	// partialRowRemoval overrides the removal of a partially enrolled built-in row during restore rollback for tests;
 	// nil uses extensionpkg.RemoveManagedExtension.
 	partialRowRemoval func(ctx context.Context, name string) error

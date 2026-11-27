@@ -109,7 +109,7 @@ func (env e2eLaneEnv) Cleanup() error {
 	return env.cleanup()
 }
 
-func prepareE2ELaneEnv(needStampedDaemon, needDatabaseSeeder bool) (e2eLaneEnv, error) {
+func prepareE2ELaneEnv(needStampedDaemon, needWebBinaries bool) (e2eLaneEnv, error) {
 	var cleanups []func() error
 	daemonPath, cleanup, err := resolveOrBuildLaneBinary(daemonBinaryEnvVar, func(outputPath string) error {
 		return runCommandInDir(
@@ -149,10 +149,8 @@ func prepareE2ELaneEnv(needStampedDaemon, needDatabaseSeeder bool) (e2eLaneEnv, 
 		daemonBinaryEnvVar: daemonPath,
 		driverBinaryEnvVar: driverPath,
 	}
-	if needDatabaseSeeder {
-		cleanups, err = addLaneBinary(
-			values, cleanups, dbSeederBinaryEnvVar, "runtime-database-seeder", buildDatabaseSeederBinary,
-		)
+	if needWebBinaries {
+		cleanups, err = addWebLaneBinaries(values, cleanups)
 		if err != nil {
 			return e2eLaneEnv{}, errors.Join(err, runCleanups(cleanups))
 		}
@@ -210,9 +208,27 @@ func addLaneBinary(
 	return append(cleanups, cleanup), nil
 }
 
+func addWebLaneBinaries(values map[string]string, cleanups []func() error) ([]func() error, error) {
+	cleanups, err := addLaneBinary(
+		values, cleanups, dbSeederBinaryEnvVar, "runtime-database-seeder", buildDatabaseSeederBinary,
+	)
+	if err != nil || os.Getenv("COMPOZY_E2E_PERF") == "1" {
+		return cleanups, err
+	}
+	// Playwright starts and stops a fresh lab for each selected remote scenario.
+	return addLaneBinary(values, cleanups, "COMPOZY_E2E_REMOTETEST_BIN", "remotetest", buildRemoteTestBinary)
+}
+
 func buildCatalogBinary(outputPath string) error {
 	return runCommandInDir(
 		context.Background(), ".", "go", "build", "-o", outputPath, "./cmd/compozy-catalog",
+	)
+}
+
+func buildRemoteTestBinary(outputPath string) error {
+	return runCommandInDir(
+		context.Background(), ".", "go", "build", "-tags", "integration",
+		"-o", outputPath, "./internal/testutil/remotetest/cmd/remotetest",
 	)
 }
 

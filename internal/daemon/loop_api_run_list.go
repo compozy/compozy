@@ -70,6 +70,15 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 		applyLoopRunListSummary(&payload, summaries[run.ID])
 		payloads = append(payloads, payload)
 	}
+	terminalCauses, err := s.loopRunTerminalCauses(ctx, runs)
+	if err != nil {
+		return contract.LoopRunsResponse{}, err
+	}
+	for index := range payloads {
+		if cause, ok := terminalCauses[looppkg.RunID(payloads[index].ID)]; ok {
+			applyLoopRunTerminalCause(&payloads[index], cause)
+		}
+	}
 	if request.storeQuery.OperationalOrder {
 		sortLoopRunList(payloads)
 	}

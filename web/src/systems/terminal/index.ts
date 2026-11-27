@@ -80,6 +80,11 @@ export {
   takeChooseSessionTerminalQuote,
 } from "./lib/terminal-quote-choose";
 export {
+  clearPendingTerminalCommand,
+  holdPendingTerminalCommand,
+  takePendingTerminalCommand,
+} from "./lib/terminal-pending-command";
+export {
   clearPendingTerminalQuote,
   holdPendingTerminalQuote,
   peekPendingTerminalQuote,

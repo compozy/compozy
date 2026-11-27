@@ -17,16 +17,26 @@ func loopStatusOutputBundle(response *contract.LoopRunResponse) outputBundle {
 		return writeJSONLine(cmd, response)
 	}
 	bundle.human = func() (string, error) {
-		run := renderHumanSection("Loop run", []keyValue{
+		fields := []keyValue{
 			{Label: "ID", Value: stringOrDash(response.Run.ID)},
 			{Label: "Loop", Value: stringOrDash(response.Run.LoopName)},
 			{Label: automationStatusValue, Value: stringOrDash(string(response.Run.Status))},
-			{Label: "Completion", Value: stringOrDash(string(response.Run.CompletionState))},
-			{Label: cliGenerationValue, Value: strconv.FormatInt(response.Run.Generation, 10)},
-			{Label: "Best Generation", Value: formatOptionalInt64(response.Run.BestGeneration)},
-			{Label: "Best Score", Value: formatOptionalFloat64(response.Run.BestScore)},
-			{Label: cliCompletedValue, Value: stringOrDash(formatOptionalTime(response.Run.CompletedAt))},
-		})
+		}
+		if terminal := response.Run.Terminal; terminal != nil {
+			fields = append(fields,
+				keyValue{Label: "Terminal cause", Value: stringOrDash(terminal.Cause)},
+				keyValue{Label: "Terminal reason", Value: stringOrDash(terminal.ReasonCode)},
+				keyValue{Label: "Deciding node", Value: stringOrDash(terminal.NodeID)},
+			)
+		}
+		fields = append(fields,
+			keyValue{Label: "Completion", Value: stringOrDash(string(response.Run.CompletionState))},
+			keyValue{Label: cliGenerationValue, Value: strconv.FormatInt(response.Run.Generation, 10)},
+			keyValue{Label: "Best Generation", Value: formatOptionalInt64(response.Run.BestGeneration)},
+			keyValue{Label: "Best Score", Value: formatOptionalFloat64(response.Run.BestScore)},
+			keyValue{Label: cliCompletedValue, Value: stringOrDash(formatOptionalTime(response.Run.CompletedAt))},
+		)
+		run := renderHumanSection("Loop run", fields)
 		rows := make([][]string, 0, len(response.Generations))
 		for _, generation := range response.Generations {
 			rows = append(rows, []string{
@@ -143,10 +153,7 @@ func (item loopRunCLIJSONItem) MarshalJSON() ([]byte, error) {
 }
 
 func loopRunSummaryRow(run *contract.LoopRunPayload, now func() time.Time) []string {
-	status := string(run.Status)
-	if run.Attention != nil {
-		status = loopNeedsYouLabel
-	}
+	status := loopRunStatusLabel(run)
 	progress := "—"
 	if run.Progress.StepsTotal > 0 && !terminalLoopStatus(string(run.Status)) {
 		progress = fmt.Sprintf(
@@ -183,6 +190,18 @@ func formatLoopReadDuration(duration time.Duration) string {
 		return fmt.Sprintf("%dm", int64(duration/time.Minute))
 	}
 	return duration.String()
+}
+
+func loopRunStatusLabel(run *contract.LoopRunPayload) string {
+	if run.Attention != nil {
+		return loopNeedsYouLabel
+	}
+	status := string(run.Status)
+	if run.Terminal != nil && strings.TrimSpace(run.Terminal.ReasonCode) != "" &&
+		string(run.Terminal.Status) == status {
+		status += " (" + strings.TrimSpace(run.Terminal.ReasonCode) + ")"
+	}
+	return status
 }
 
 func loopRunSummaryTOONRow(run *contract.LoopRunPayload) []string {

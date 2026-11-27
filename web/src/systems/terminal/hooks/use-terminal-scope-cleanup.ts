@@ -1,6 +1,8 @@
 import { destroyTerminalInstance } from "@compozy/ui";
 import { useEffect, useState } from "react";
 
+import type { ComputerId } from "@/lib/computer-scope";
+
 import { terminalInstanceKey, terminalScopeKey } from "../lib/terminal-scope-key";
 import type { TerminalStore } from "../contexts/terminal-store-handle";
 import type { TerminalInfo } from "../types";
@@ -43,16 +45,18 @@ function releaseTerminalScope(owner: TerminalScopeOwner): void {
 export function useTerminalScopeCleanup({
   workspaceId,
   profile,
+  computerId,
   terminals,
   store,
 }: {
   workspaceId: string;
   profile: string;
+  computerId?: ComputerId;
   terminals: readonly TerminalInfo[];
   store: TerminalStore;
 }) {
   const [owner] = useState<TerminalScopeOwner>(() => ({ keys: new Set<string>() }));
-  const scopeKey = terminalScopeKey(workspaceId, profile);
+  const scopeKey = terminalScopeKey(workspaceId, profile, computerId);
   const terminalIdSignature = JSON.stringify(
     terminals.flatMap(terminal => (terminal.profile_name === profile ? [terminal.id] : []))
   );
@@ -61,9 +65,11 @@ export function useTerminalScopeCleanup({
 
   useEffect(() => {
     const terminalIds = JSON.parse(terminalIdSignature) as string[];
-    const live = new Set(terminalIds.map(id => terminalInstanceKey(workspaceId, profile, id)));
+    const live = new Set(
+      terminalIds.map(id => terminalInstanceKey(workspaceId, profile, id, computerId))
+    );
     store.trigger.scopeBound({ scopeKey });
     store.trigger.panesReconciled({ scopeKey, terminalIds });
     reconcileTerminalInstances(owner, live);
-  }, [terminalIdSignature, owner, profile, scopeKey, store, workspaceId]);
+  }, [computerId, terminalIdSignature, owner, profile, scopeKey, store, workspaceId]);
 }

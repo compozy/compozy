@@ -5,6 +5,7 @@ import type { useExtensionInstanceScope } from "@/systems/extensions";
 import type { ExtensionInstallRequest, MarketplaceCatalogListing } from "../types";
 import {
   formatMarketplaceVersion,
+  marketplaceDependenciesInstalled,
   marketplaceEntrySlug,
   marketplaceErrorCode,
   marketplaceErrorMessage,
@@ -48,9 +49,14 @@ export function updatedToast(name: string, version: string | null | undefined) {
   toast.success(display ? `${name} updated to ${display}` : `${name} updated`);
 }
 
+/** A failed install still names the dependencies it completed, since they stay installed. */
 export function reportFailure(error: unknown, fallback: string) {
   const message = marketplaceErrorMessage(error, fallback);
-  const code = marketplaceErrorCode(error);
-  if (code) toast.error(message, { description: code });
+  const installed = marketplaceDependenciesInstalled(error);
+  const details = [
+    installed.length > 0 ? `Installed first: ${installed.join(", ")}` : "",
+    marketplaceErrorCode(error) ?? "",
+  ].filter(Boolean);
+  if (details.length > 0) toast.error(message, { description: details.join(" · ") });
   else toast.error(message);
 }

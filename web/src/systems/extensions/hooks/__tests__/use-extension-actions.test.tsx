@@ -41,7 +41,6 @@ vi.mock("../../adapters/extensions-api", async () => {
   };
 });
 
-import { ExtensionsApiError } from "../../adapters/extensions-api";
 import {
   useRemoveExtension,
   useToggleExtension,
@@ -210,25 +209,6 @@ describe("useUpdateExtension", () => {
       inputs,
     });
   });
-  it("Should carry the ratified digest on a confirmed update retry", async () => {
-    const { wrapper } = setup();
-    const { result } = renderHook(() => useUpdateExtension(), { wrapper });
-
-    await act(async () => {
-      await result.current.mutateAsync({
-        allowUnverified: true,
-        confirmGatewayDigest: "sha256:6f1c0a94d3b27e58",
-        name: "dep-kit-ops",
-        version: "1.1.0",
-      });
-    });
-
-    expect(mocks.updateExtension).toHaveBeenCalledWith("dep-kit-ops", {
-      allow_unverified: true,
-      confirm_gateway_digest: "sha256:6f1c0a94d3b27e58",
-      version: "1.1.0",
-    });
-  });
 
   it("Should invalidate the cached kit inventory after a successful update", async () => {
     const { queryClient, wrapper } = setup();
@@ -241,25 +221,6 @@ describe("useUpdateExtension", () => {
     });
 
     await waitFor(() => expect(queryClient.getQueryState(inventoryKey)?.isInvalidated).toBe(true));
-  });
-
-  it("Should stay silent for a gateway-confirmation refusal instead of toasting it", async () => {
-    const { wrapper } = setup();
-    mocks.updateExtension.mockRejectedValue(
-      new ExtensionsApiError("confirmation required", 409, "daemon", {
-        code: "extension_gateway_confirmation_required",
-        currentDigest: "sha256:6f1c0a94d3b27e58",
-      })
-    );
-    const { result } = renderHook(() => useUpdateExtension(), { wrapper });
-
-    await act(async () => {
-      await expect(result.current.mutateAsync({ name: "dep-kit-ops" })).rejects.toThrow(
-        "confirmation required"
-      );
-    });
-
-    expect(mocks.toastError).not.toHaveBeenCalled();
   });
 });
 

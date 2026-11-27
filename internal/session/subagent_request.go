@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -19,23 +20,60 @@ import (
 
 const subagentRoleGeneral = "general"
 
-func normalizeSubagentRequest(req SubagentRequest) (SubagentRequest, error) {
+func normalizeIsolation(req *SubagentRequest) error {
 	if req.Isolation == "" {
 		req.Isolation = subagentIsolationShared
 	}
 	if req.Isolation != subagentIsolationShared && req.Isolation != SubagentIsolationWorktree {
-		return req, invalidSubagent("isolation must be shared or worktree.")
+		return invalidSubagent("isolation must be shared or worktree.")
 	}
 	req.BaseRef = strings.TrimSpace(req.BaseRef)
 	if req.BaseRef != "" && req.Isolation != SubagentIsolationWorktree {
-		return req, invalidSubagent(`base_ref requires isolation "worktree".`)
+		return invalidSubagent(`base_ref requires isolation "worktree".`)
 	}
+	return nil
+}
 
+func validateHandoff(req *SubagentRequest) error {
+	req.PriorSubagentID = strings.TrimSpace(req.PriorSubagentID)
+	if utf8.RuneCountInString(req.PriorSubagentID) > 64 {
+		return invalidSubagent("prior_subagent_id exceeds 64 characters.")
+	}
+	if req.Handoff != nil {
+		handoff := *req.Handoff
+		handoff.Objections = strings.TrimSpace(handoff.Objections)
+		handoff.Findings = strings.TrimSpace(handoff.Findings)
+		req.Handoff = &handoff
+		if utf8.RuneCountInString(req.Handoff.Objections) > 40000 {
+			return invalidSubagent("handoff.objections exceeds 40000 characters.")
+		}
+		if utf8.RuneCountInString(req.Handoff.Findings) > 40000 {
+			return invalidSubagent("handoff.findings exceeds 40000 characters.")
+		}
+		if len(handoff.Files) > 64 {
+			return invalidSubagent("handoff.files exceeds 64 items.")
+		}
+		for _, file := range handoff.Files {
+			if utf8.RuneCountInString(file) > 1024 {
+				return invalidSubagent("handoff.files item exceeds 1024 characters.")
+			}
+		}
+	}
+	return nil
+}
+
+func normalizeSubagentRequest(req SubagentRequest) (SubagentRequest, error) {
+	if err := normalizeIsolation(&req); err != nil {
+		return req, err
+	}
 	if strings.TrimSpace(req.Task) == "" {
 		return req, invalidSubagent("task is required.")
 	}
 	if utf8.RuneCountInString(req.Task) > 120000 {
 		return req, invalidSubagent("task exceeds 120000 characters.")
+	}
+	if err := validateHandoff(&req); err != nil {
+		return req, err
 	}
 	req.Title = strings.TrimSpace(req.Title)
 	if req.Title == "" {
@@ -43,6 +81,10 @@ func normalizeSubagentRequest(req SubagentRequest) (SubagentRequest, error) {
 	}
 	if utf8.RuneCountInString(req.Title) > 512 {
 		return req, invalidSubagent("title exceeds 512 characters.")
+	}
+	req.Task = formatTaskWithHandoff(req.Task, req.PriorSubagentID, req.Handoff)
+	if utf8.RuneCountInString(req.Task) > 120000 {
+		return req, invalidSubagent("task exceeds 120000 characters.")
 	}
 	if req.Role == "" {
 		req.Role = subagentRoleGeneral
@@ -103,6 +145,44 @@ func subagentFingerprint(req SubagentRequest) (string, error) {
 	sum := sha256.Sum256(payload)
 	return hex.EncodeToString(sum[:]), nil
 }
+func formatTaskWithHandoff(task, priorID string, handoff *SubagentHandoff) string {
+	if priorID == "" && handoff == nil {
+		return task
+	}
+	var sb strings.Builder
+	sb.WriteString("[Corrective / follow-up round")
+	if priorID != "" {
+		sb.WriteString(" for prior subagent ")
+		sb.WriteString(priorID)
+	}
+	sb.WriteString("]\n")
+	if handoff != nil {
+		if handoff.Objections != "" {
+			sb.WriteString("\nUnresolved objections / verification failures:\n")
+			sb.WriteString(handoff.Objections)
+			sb.WriteString("\n")
+		}
+		if handoff.Findings != "" {
+			sb.WriteString("\nPrior findings / retained context:\n")
+			sb.WriteString(handoff.Findings)
+			sb.WriteString("\n")
+		}
+		if len(handoff.Files) > 0 {
+			sb.WriteString("\nRelevant inspected / modified files:\n")
+			for _, f := range handoff.Files {
+				if trimmed := strings.TrimSpace(f); trimmed != "" {
+					sb.WriteString("- ")
+					sb.WriteString(trimmed)
+					sb.WriteString("\n")
+				}
+			}
+		}
+	}
+	sb.WriteString("\n---\nTask:\n")
+	sb.WriteString(task)
+	return sb.String()
+}
+
 func subagentPrompt(role, task string) string {
 	if role == subagentRoleGeneral {
 		return task
@@ -123,32 +203,21 @@ func subagentInherited(info *Info) SubagentTarget {
 	}
 }
 
-// resolveSubagentTarget applies provider-scoped defaults while keeping inherited
-// reasoning effort attached to its original model. Explicit child effort wins.
-func resolveSubagentTarget(inherited, requested, defaults SubagentTarget) SubagentTarget {
+func resolveSubagentTarget(inherited, requested, defaults SubagentTarget, namedRuntime bool) SubagentTarget {
 	target := requested
-	if target.Agent == "" {
-		target.Agent = inherited.Agent
-	}
-	if target.Provider == "" {
-		target.Provider = inherited.Provider
-	}
+	target.Agent = cmp.Or(requested.Agent, inherited.Agent)
+	target.Provider = cmp.Or(defaults.Provider, requested.Provider, inherited.Provider)
 	base := defaults
-	if target.Provider == inherited.Provider {
+	// Preserve omitted selections on the caller's provider for callers without a configured target runtime.
+	if !namedRuntime && compozyconfig.CanonicalProviderName(target.Provider) ==
+		compozyconfig.CanonicalProviderName(inherited.Provider) {
 		base = inherited
 	}
-	if target.Model == "" {
-		target.Model = base.Model
+	target.Model = cmp.Or(requested.Model, base.Model)
+	if target.Model == base.Model {
+		target.ReasoningEffort = cmp.Or(requested.ReasoningEffort, base.ReasoningEffort)
 	}
-	if target.ReasoningEffort == "" && target.Model == base.Model {
-		target.ReasoningEffort = base.ReasoningEffort
-	}
-	if target.Speed == "" {
-		target.Speed = base.Speed
-		if target.Speed == "" {
-			target.Speed = string(speedpkg.SpeedNormal)
-		}
-	}
+	target.Speed = cmp.Or(requested.Speed, base.Speed, string(speedpkg.SpeedNormal))
 	if target.ACPOptions == nil {
 		target.ACPOptions = acp.CloneSessionConfigOptionSelections(base.ACPOptions)
 	}

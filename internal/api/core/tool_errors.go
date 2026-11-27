@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -163,16 +164,7 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 			payload.Message = toolErr.Message
 		}
 		payload.Layer = toolErrorLayer(toolErr.ReasonCodes)
-		payload.Details = contract.ToolOperatorFailureDetails(toolErr.Operator)
-		if terminalErr, terminal := errors.AsType[*terminalpkg.Error](err); terminal &&
-			contract.IsTerminalErrorCode(contract.TerminalErrorCode(terminalErr.Code)) {
-			for key, value := range contract.TerminalErrorToolDetailsFromDomain(terminalErr) {
-				if payload.Details == nil {
-					payload.Details = make(map[string]json.RawMessage)
-				}
-				payload.Details[key] = value
-			}
-		}
+		payload.Details = toolFailureDetails(err, toolErr)
 		if toolErr.PartialResult != nil {
 			partial := *toolErr.PartialResult
 			payload.PartialResult = &partial
@@ -193,6 +185,26 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 		payload.Message = http.StatusText(status)
 	}
 	return contract.ToolErrorResponse{Error: payload}
+}
+
+func toolFailureDetails(err error, toolErr *toolspkg.ToolError) map[string]json.RawMessage {
+	details := contract.ToolOperatorFailureDetails(toolErr.Operator)
+	if len(toolErr.RemoteDetails) > 0 {
+		if details == nil {
+			details = make(map[string]json.RawMessage, len(toolErr.RemoteDetails))
+		}
+		maps.Copy(details, toolErr.RemoteDetails)
+	}
+	if terminalErr, terminal := errors.AsType[*terminalpkg.Error](err); terminal &&
+		contract.IsTerminalErrorCode(contract.TerminalErrorCode(terminalErr.Code)) {
+		for key, value := range contract.TerminalErrorToolDetailsFromDomain(terminalErr) {
+			if details == nil {
+				details = make(map[string]json.RawMessage)
+			}
+			details[key] = value
+		}
+	}
+	return details
 }
 
 func safeToolErrorMessage(status int, code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) string {

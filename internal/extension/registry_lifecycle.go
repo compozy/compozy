@@ -13,6 +13,11 @@ import (
 // IsEnabledForProfile returns the effective state for one installed or dev-linked extension.
 // Enablement rows are exceptions: an absent row means enabled.
 func (r *Registry) IsEnabledForProfile(name string, profileID string) (bool, error) {
+	return r.IsEnabledForProfileContext(registryContext(), name, profileID)
+}
+
+// IsEnabledForProfileContext reads the effective enablement under the caller's context.
+func (r *Registry) IsEnabledForProfileContext(ctx context.Context, name, profileID string) (bool, error) {
 	if err := r.checkReady("read extension profile enablement"); err != nil {
 		return false, err
 	}
@@ -25,7 +30,7 @@ func (r *Registry) IsEnabledForProfile(name string, profileID string) (bool, err
 		return false, err
 	}
 	var enabled bool
-	err = r.readDB.QueryRowContext(registryContext(), `
+	err = r.readDB.QueryRowContext(ctx, `
 		SELECT COALESCE((
 			SELECT enabled
 			FROM extension_profile_enablement

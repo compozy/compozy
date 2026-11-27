@@ -15,24 +15,25 @@ DELETE FROM vault_secrets WHERE ref = sqlc.arg(ref);
 INSERT INTO mcp_auth_tokens (
   scope, workspace_id, owner, server_name, definition_fingerprint, issuer, client_id, scopes_json,
   access_token_ref, refresh_token_ref,
-  token_type, expires_at, obtained_at, updated_at
+  token_type, expires_at, obtained_at, updated_at, requested_scopes_json
 ) VALUES (
   sqlc.arg(scope), sqlc.arg(workspace_id), sqlc.arg(owner), sqlc.arg(server_name), sqlc.arg(definition_fingerprint),
   sqlc.arg(issuer), sqlc.arg(client_id), sqlc.arg(scopes_json),
   sqlc.arg(access_token_ref), sqlc.arg(refresh_token_ref), sqlc.arg(token_type),
-  sqlc.narg(expires_at), sqlc.arg(obtained_at), sqlc.arg(updated_at)
+  sqlc.narg(expires_at), sqlc.arg(obtained_at), sqlc.arg(updated_at), sqlc.arg(requested_scopes_json)
 )
 ON CONFLICT(scope, workspace_id, owner, server_name) DO UPDATE SET
   definition_fingerprint = excluded.definition_fingerprint, issuer = excluded.issuer,
   client_id = excluded.client_id, scopes_json = excluded.scopes_json,
   access_token_ref = excluded.access_token_ref, refresh_token_ref = excluded.refresh_token_ref,
   token_type = excluded.token_type, expires_at = excluded.expires_at,
-  obtained_at = excluded.obtained_at, updated_at = excluded.updated_at;
+  obtained_at = excluded.obtained_at, updated_at = excluded.updated_at,
+  requested_scopes_json = excluded.requested_scopes_json;
 
 -- name: GetMCPAuthToken :one
 SELECT scope, workspace_id, owner, server_name, definition_fingerprint, issuer, client_id, scopes_json,
        access_token_ref, refresh_token_ref,
-       token_type, expires_at, obtained_at, updated_at
+       token_type, expires_at, obtained_at, updated_at, requested_scopes_json
 FROM mcp_auth_tokens
 WHERE scope = sqlc.arg(scope)
   AND workspace_id = sqlc.arg(workspace_id)
@@ -42,7 +43,7 @@ WHERE scope = sqlc.arg(scope)
 -- name: ListMCPAuthTokens :many
 SELECT scope, workspace_id, owner, server_name, definition_fingerprint, issuer, client_id, scopes_json,
        access_token_ref, refresh_token_ref,
-       token_type, expires_at, obtained_at, updated_at
+       token_type, expires_at, obtained_at, updated_at, requested_scopes_json
 FROM mcp_auth_tokens ORDER BY scope ASC, workspace_id ASC, owner ASC, server_name ASC;
 
 -- name: GetMCPAuthTokenRefs :one

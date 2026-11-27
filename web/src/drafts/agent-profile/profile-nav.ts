@@ -1,4 +1,4 @@
-import { protoHref } from "@compozy/proto";
+import { protoHref } from "@protohq/cli";
 
 /** Reaches a profile state from any prototype that shows the agent page. */
 export function goToProfile(state: string) {

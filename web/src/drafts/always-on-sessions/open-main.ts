@@ -1,4 +1,4 @@
-import { protoHref } from "@compozy/proto";
+import { protoHref } from "@protohq/cli";
 
 import type { DraftInstance } from "../always-on-agents-shared/fixtures";
 

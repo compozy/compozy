@@ -3,7 +3,10 @@ package gate
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 const (
@@ -62,13 +65,13 @@ func (e *Evaluator) route(gate Gate, verdict Verdict, in GateInput) RouteDecisio
 	}
 	resultKey := routeResultKey(verdict.Outcome)
 	if resultKey == resultKeyApproval {
-		decision, ok := parseRouteOverride(gate.OnResult[resultKey], placement)
+		decision, ok := parseRouteOverride(gate.OnResult[resultKey], placement, in.Contract)
 		if ok && approvalRouteAllowed(decision.Action) {
 			return decision
 		}
 		return defaultRoute(placement, verdict.Outcome)
 	}
-	if decision, ok := parseRouteOverride(gate.OnResult[resultKey], placement); ok {
+	if decision, ok := parseRouteOverride(gate.OnResult[resultKey], placement, in.Contract); ok {
 		return decision
 	}
 	return defaultRoute(placement, verdict.Outcome)
@@ -112,7 +115,7 @@ func routeResultKey(outcome VerdictOutcome) string {
 	}
 }
 
-func parseRouteOverride(value any, placement Placement) (RouteDecision, bool) {
+func parseRouteOverride(value any, placement Placement, contract *dsl.Contract) (RouteDecision, bool) {
 	if value == nil {
 		return RouteDecision{}, false
 	}
@@ -121,38 +124,70 @@ func parseRouteOverride(value any, placement Placement) (RouteDecision, bool) {
 		action := RouteAction(strings.TrimSpace(typed))
 		return normalizeRouteDecision(RouteDecision{Placement: placement, Action: action}, placement)
 	case map[string]any:
-		return parseRouteMap(typed, placement)
+		return parseRouteMap(typed, placement, contract)
 	case map[string]string:
 		routeMap := make(map[string]any, len(typed))
 		for key, routeValue := range typed {
 			routeMap[key] = routeValue
 		}
-		return parseRouteMap(routeMap, placement)
+		return parseRouteMap(routeMap, placement, contract)
 	case json.RawMessage:
 		var decoded any
 		if err := json.Unmarshal(typed, &decoded); err != nil {
 			return RouteDecision{}, false
 		}
-		return parseRouteOverride(decoded, placement)
+		return parseRouteOverride(decoded, placement, contract)
 	default:
 		return RouteDecision{}, false
 	}
 }
 
-func parseRouteMap(routeMap map[string]any, placement Placement) (RouteDecision, bool) {
-	if len(routeMap) != 1 {
+func parseRouteMap(routeMap map[string]any, placement Placement, contract *dsl.Contract) (RouteDecision, bool) {
+	if target, ok := routeString(routeMap["route"]); ok {
+		if len(routeMap) != 1 || placement != PlacementInBody {
+			return RouteDecision{}, false
+		}
+		return normalizeRouteDecision(RouteDecision{
+			Placement:  placement,
+			Action:     RouteContinue,
+			Target:     target,
+			ReasonCode: fmt.Sprintf("gate_route_%s", target),
+		}, placement)
+	}
+	rawAction, ok := routeString(routeMap["action"])
+	if !ok {
 		return RouteDecision{}, false
 	}
-	target, ok := routeString(routeMap["route"])
-	if !ok || placement != PlacementInBody {
-		return RouteDecision{}, false
+	for key := range routeMap {
+		if key != "action" && key != "terminal_status" {
+			return RouteDecision{}, false
+		}
 	}
-	return normalizeRouteDecision(RouteDecision{
-		Placement:  placement,
-		Action:     RouteContinue,
-		Target:     target,
-		ReasonCode: fmt.Sprintf("gate_route_%s", target),
-	}, placement)
+	decision := RouteDecision{Placement: placement, Action: RouteAction(rawAction)}
+	if rawTerminal, exists := routeMap["terminal_status"]; exists {
+		terminal, terminalOK := routeString(rawTerminal)
+		if !terminalOK || decision.Action != RouteHalt {
+			return RouteDecision{}, false
+		}
+		if !authoredTerminalStatusAllowed(terminal, contract) {
+			return RouteDecision{}, false
+		}
+		decision.TerminalStatus = terminal
+	}
+	return normalizeRouteDecision(decision, placement)
+}
+
+// authoredTerminalStatusAllowed validates an authored terminal_status against the
+// closed terminal enum and, when declared, the contract's terminal_states set.
+func authoredTerminalStatusAllowed(value string, contract *dsl.Contract) bool {
+	state := dsl.TerminalState(value)
+	if !dsl.IsKnownTerminalState(state) {
+		return false
+	}
+	if contract == nil || contract.ContractLifecycleState == nil || len(contract.TerminalStates) == 0 {
+		return true
+	}
+	return slices.Contains(contract.TerminalStates, state)
 }
 
 func routeString(value any) (string, bool) {
@@ -172,16 +207,32 @@ func normalizeRouteDecision(decision RouteDecision, placement Placement) (RouteD
 	if !routeAllowed(decision.Action, placement) {
 		return RouteDecision{}, false
 	}
-	if decision.Action == RouteHalt && decision.TerminalStatus == "" {
-		decision.TerminalStatus = terminalFailed
-	}
-	if decision.Action == RouteEscalate && decision.TerminalStatus == "" {
-		decision.TerminalStatus = statusNeedsApproval
+	if decision.TerminalStatus == "" {
+		decision.TerminalStatus = DefaultTerminalStatus(decision.Action)
 	}
 	if decision.ReasonCode == "" {
 		decision.ReasonCode = fmt.Sprintf("gate_route_%s", decision.Action)
 	}
 	return decision, true
+}
+
+// DefaultTerminalStatus is the status an action settles with when the author
+// did not override it. It is shared by routing and terminal construction so the
+// two conventions cannot drift.
+func DefaultTerminalStatus(action RouteAction) string {
+	switch action {
+	case RouteHalt:
+		return terminalFailed
+	case RouteEscalate:
+		return statusNeedsApproval
+	default:
+		return ""
+	}
+}
+
+// RouteAllowed reports whether action is legal for the gate placement.
+func RouteAllowed(action RouteAction, placement Placement) bool {
+	return routeAllowed(action, placement)
 }
 
 func routeAllowed(action RouteAction, placement Placement) bool {

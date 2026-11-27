@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import {
   terminalCatalogQuery,
   terminalScope,
@@ -17,14 +18,17 @@ import {
  */
 export function useSessionTerminalCatalogEntry(
   terminalId: string,
-  scope: { workspaceId: string; profile: string }
+  scope: { workspaceId: string; profile: string; computerId?: ComputerId }
 ): TerminalInfo | undefined {
   useTerminalCatalogStream({
     workspaceId: scope.workspaceId,
     profileKey: scope.profile,
+    computerId: scope.computerId,
     allProfiles: false,
   });
-  const catalog = useQuery(terminalCatalogQuery(terminalScope(scope.workspaceId, scope.profile)));
+  const catalog = useQuery(
+    terminalCatalogQuery(terminalScope(scope.workspaceId, scope.profile, false, scope.computerId))
+  );
   if (!catalog.data) return undefined;
   return catalog.data.find(terminal => terminal.id === terminalId);
 }

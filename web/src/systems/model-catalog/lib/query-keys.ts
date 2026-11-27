@@ -1,7 +1,9 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+
 export const modelCatalogKeys = {
-  all: ["model-catalog"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "model-catalog"),
   /** One browser-lifetime readiness refresh, separate from catalog invalidation. */
-  initialReadiness: ["model-catalog-readiness", "initial"] as const,
+  initialReadiness: computerQueryKey(LOCAL_COMPUTER_ID, "model-catalog-readiness", "initial"),
   /** Aggregate cross-provider list (`GET /api/model-catalog/models`). */
   allModels: (
     view?: "curated" | "all",
@@ -17,7 +19,7 @@ export const modelCatalogKeys = {
       sourceId ?? "",
       Boolean(includeStale),
     ] as const,
-  sourceStatus: ["model-catalog", "sources", "status"] as const,
+  sourceStatus: computerQueryKey(LOCAL_COMPUTER_ID, "model-catalog", "sources", "status"),
   providers: () => [...modelCatalogKeys.all, "providers"] as const,
   providerRoot: (providerId: string) =>
     [...modelCatalogKeys.providers(), providerId.trim()] as const,
