@@ -4047,7 +4047,7 @@ func testDaemonMCPSettingsCheckRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	active := createBoundFixtureBackedSession(t, ctx, harness, agent, "mcp-check")
-	retainActivationCatalog(t, ctx, harness, agent, active.ID)
+	retained := retainActivationCatalog(t, ctx, harness, agent, active.ID)
 	mcpPath := "/api/workspaces/" + active.WorkspaceID + "/sessions/" + active.ID + "/mcp"
 	catalogReportsFailure := func() bool {
 		var body compozycontract.SessionMCPResponse
@@ -4087,15 +4087,7 @@ func testDaemonMCPSettingsCheckRecovery(t *testing.T) {
 	}) {
 		t.Fatalf("session MCP after successful check = %+v", sessionMCP.CompozyServers)
 	}
-	activationCallHostedTool(
-		t,
-		ctx,
-		harness,
-		agent,
-		active.ID,
-		"mcp__echo__echo",
-		map[string]any{"message": "recovered"},
-	)
+	callToolOnActivationClient(t, ctx, retained, "mcp__echo__echo", map[string]any{"message": "recovered"})
 }
 
 func activationSessionHasTool(ctx context.Context, harness *e2etest.RuntimeHarness, sessionID, tool string) bool {
@@ -4164,7 +4156,9 @@ func activationPromptHTTP(
 
 // The protocol test owns the provider-side client and acknowledges the initial catalog
 // before changing sources, so the next prompt compares against tools actually served.
-func retainActivationCatalog(t *testing.T, ctx context.Context, harness *e2etest.RuntimeHarness, agent, id string) {
+func retainActivationCatalog(
+	t *testing.T, ctx context.Context, harness *e2etest.RuntimeHarness, agent, id string,
+) *sdkmcp.ClientSession {
 	t.Helper()
 	client := activationHostedClient(t, ctx, harness, agent, id)
 	t.Cleanup(func() {
@@ -4175,6 +4169,7 @@ func retainActivationCatalog(t *testing.T, ctx context.Context, harness *e2etest
 	if _, err := client.ListTools(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
+	return client
 }
 
 func activationHostedClient(
@@ -4215,6 +4210,17 @@ func activationCallHostedTool(
 			t.Error(err)
 		}
 	}()
+	return callToolOnActivationClient(t, ctx, client, tool, input)
+}
+
+func callToolOnActivationClient(
+	t *testing.T,
+	ctx context.Context,
+	client *sdkmcp.ClientSession,
+	tool string,
+	input map[string]any,
+) *sdkmcp.CallToolResult {
+	t.Helper()
 	var listed *sdkmcp.ListToolsResult
 	waitForRuntimeCondition(t, "activated hosted tool", 10*time.Second, func() bool {
 		var err error

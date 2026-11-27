@@ -17,6 +17,7 @@ func (p *MCPProvider) CheckMCPServer(ctx context.Context, scope Scope, name stri
 		if mcpSourceServerName(source) != name {
 			continue
 		}
+		// A rejected listing is shown as a failed source in the refreshed session catalog.
 		_, err := p.CheckMCPSource(ctx, source, func(ctx context.Context) ([]MCPToolDescriptor, error) {
 			return p.discoverSource(ctx, source, p.discoveryBudget)
 		})
