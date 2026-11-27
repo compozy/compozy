@@ -109,6 +109,12 @@ E2E-008, which use acpmock.
     `compozy__subagent_capabilities` to choose a target and `compozy__subagent_delegate` for the
     reviews, with no Claude `Task` or `Agent` calls. Confirm the resulting managed children appear in
     `compozy__subagent_status` and the session tree. Record the daemon version and tool calls.
+17. **Target runtime precedence (#1993).** Start a Codex session and configure a workspace agent on
+    another provider with a specific model and reasoning effort. Delegate with only `target.agent`
+    and confirm the provider, model, and effort on both the delegation record and the child session.
+    Repeat with a named agent on Codex using a different model and effort from the parent. Repeat with
+    explicit provider, model, and effort overrides and confirm they take precedence. Omit the target
+    and confirm that the child inherits the parent's active runtime.
 
 QA impact 2026-10-08 (subagents): new in this change; no prior verdict.
 

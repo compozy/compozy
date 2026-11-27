@@ -141,7 +141,7 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 		// Invariant: selecting a child model cannot carry the parent's model-specific effort.
 		// Owner: subagent target resolution; canonical suite: this function.
 		parent := SubagentTarget{Provider: "claude", Model: "opus", ReasoningEffort: "medium"}
-		child := resolveSubagentTarget(parent, SubagentTarget{Model: "haiku"}, SubagentTarget{})
+		child := resolveSubagentTarget(parent, SubagentTarget{Model: "haiku"}, SubagentTarget{}, true)
 		if child.Model != "haiku" || child.ReasoningEffort != "" {
 			t.Fatalf("child = %#v, want Haiku without inherited effort", child)
 		}
@@ -149,6 +149,7 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 			parent,
 			SubagentTarget{Model: "sonnet", ReasoningEffort: "high"},
 			SubagentTarget{},
+			true,
 		)
 		if explicit.ReasoningEffort != "high" {
 			t.Fatalf("explicit effort = %q, want high", explicit.ReasoningEffort)
@@ -156,7 +157,7 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 	})
 	t.Run("Should default omitted runtime speed to normal", func(t *testing.T) {
 		t.Parallel()
-		target := resolveSubagentTarget(SubagentTarget{}, SubagentTarget{}, SubagentTarget{})
+		target := resolveSubagentTarget(SubagentTarget{}, SubagentTarget{}, SubagentTarget{}, true)
 		row := presentSubagent(store.SessionSubagent{Origin: store.SubagentOriginDelegated})
 		if target.Speed != "normal" || row.RuntimeSpeed != "normal" {
 			t.Fatal(target, row)
@@ -171,13 +172,106 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 			ReasoningEffort: "xhigh",
 			Speed:           "normal",
 		}
-		got := resolveSubagentTarget(in, SubagentTarget{}, SubagentTarget{})
+		got := resolveSubagentTarget(in, SubagentTarget{}, SubagentTarget{}, true)
 		if got.Model != "opus" || got.ReasoningEffort != "xhigh" || got.Agent != "claude" {
 			t.Fatal(got)
 		}
-		got = resolveSubagentTarget(in, SubagentTarget{Provider: "codex"}, SubagentTarget{Model: "sol", Speed: "fast"})
+		got = resolveSubagentTarget(
+			in,
+			SubagentTarget{Provider: "codex"},
+			SubagentTarget{Model: "sol", Speed: "fast"},
+			false,
+		)
 		if got.Model != "sol" || got.ReasoningEffort != "" || got.Speed != "fast" {
 			t.Fatal(got)
+		}
+	})
+	t.Run("Should resolve the configured target runtime before falling back to the caller", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range []string{"caller", "reviewer"} {
+			workspace.Config.Providers[name] = compozyconfig.ProviderConfig{
+				Command: "go", AuthMode: compozyconfig.ProviderAuthModeNone,
+				Models: compozyconfig.ProviderModelsConfig{
+					Default:   name + "-default",
+					Reasoning: compozyconfig.ProviderReasoningConfig{Apply: compozyconfig.ReasoningApplyACPOption},
+				},
+			}
+		}
+		workspace.Agents = []compozyconfig.AgentDef{
+			{Name: "coder", Provider: "caller", Prompt: "Code."},
+			{
+				Name:            "reviewer",
+				Provider:        "reviewer",
+				Model:           "reviewer-model",
+				ReasoningEffort: "medium",
+				Prompt:          "Review.",
+			},
+			{
+				Name:            "same-provider",
+				Provider:        "caller",
+				Model:           "same-provider-model",
+				ReasoningEffort: "low",
+				Prompt:          "Review.",
+			},
+			{Name: "model-only", Model: "configured-model", ReasoningEffort: "low", Prompt: "Review."},
+			{Name: "no-runtime", Prompt: "Review."},
+			{Name: "operator-override", Prompt: "Review."},
+		}
+		workspace.Config.Agents.Overrides = map[string]compozyconfig.AgentOverride{
+			"operator-override": {Provider: "reviewer", Model: "override-model", ReasoningEffort: "medium"},
+		}
+		h.resolver.upsert(&workspace)
+		runtime := managerSubagentRuntime{h.manager}
+		parent := &Info{
+			WorkspaceID: h.workspaceID, AgentName: "coder", Provider: "caller",
+			Model: "active-model", ReasoningEffort: "high",
+		}
+		for _, tc := range []struct {
+			name                    string
+			request                 SubagentTarget
+			provider, model, effort string
+		}{
+			{"Should select a named agent on another provider", SubagentTarget{Agent: "reviewer"},
+				"reviewer", "reviewer-model", "medium"},
+			{"Should select a named agent on the caller's provider", SubagentTarget{Agent: "same-provider"},
+				"caller", "same-provider-model", "low"},
+			{"Should select a named agent's model with a fallback provider", SubagentTarget{Agent: "model-only"},
+				"caller", "configured-model", "low"},
+			{"Should use the operator's agent runtime override", SubagentTarget{Agent: "operator-override"},
+				"reviewer", "override-model", "medium"},
+			{"Should honor explicit runtime overrides", SubagentTarget{Agent: "reviewer", Provider: "caller",
+				Model: "explicit-model", ReasoningEffort: "xhigh"}, "caller", "explicit-model", "xhigh"},
+			{"Should use the selected provider's defaults when only the provider is overridden",
+				SubagentTarget{Agent: "reviewer", Provider: "caller"}, "caller", "caller-default", ""},
+			{"Should keep configured effort when only the same model is selected",
+				SubagentTarget{Agent: "reviewer", Model: "reviewer-model"}, "reviewer", "reviewer-model", "medium"},
+			{"Should drop configured effort when a different model is selected",
+				SubagentTarget{Agent: "reviewer", Model: "different-model"}, "reviewer", "different-model", ""},
+			{"Should honor explicit effort with the named agent's model",
+				SubagentTarget{Agent: "reviewer", ReasoningEffort: "high"}, "reviewer", "reviewer-model", "high"},
+			{"Should resolve defaults for an explicit runtime without a named agent",
+				SubagentTarget{Provider: "caller"}, "caller", "caller-default", ""},
+			{"Should inherit the caller's runtime when no target is specified", SubagentTarget{},
+				"caller", "active-model", "high"},
+			{"Should inherit the caller's runtime when the named agent specifies none", SubagentTarget{Agent: "no-runtime"},
+				"caller", "active-model", "high"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				got, err := runtime.Resolve(t.Context(), parent, tc.request)
+				if err != nil {
+					t.Fatalf("Resolve() error = %v", err)
+				}
+				if got.Provider != tc.provider || got.Model != tc.model || got.ReasoningEffort != tc.effort {
+					t.Fatalf("runtime = %s/%s/%s, want %s/%s/%s",
+						got.Provider, got.Model, got.ReasoningEffort, tc.provider, tc.model, tc.effort)
+				}
+			})
 		}
 	})
 	t.Run("Should enforce permission mode ranks UT-011", func(t *testing.T) {

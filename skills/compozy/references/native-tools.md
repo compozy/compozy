@@ -442,12 +442,15 @@ or unavailable.
 2. `compozy__subagent_delegate` takes a required, self-contained `task` (≤ 120,000 characters). The
    child receives the task and any structured handoff. Include the facts it needs because the parent
    history and attachments are unavailable. Optional `title` (≤ 512), `role` (`general`, `implementation`,
-   `research`, `review`, `design`, `test`), `target` (`agent`, `provider`, `model`, `reasoning_effort`, `speed`, `acp_options`; omitted
-   fields inherit from the caller, and the model is inherited only when the provider is unchanged),
+   `research`, `review`, `design`, `test`), `target` (`agent`, `provider`, `model`, `reasoning_effort`, `speed`, `acp_options`),
    `mode`, `timeout_ms`, `idempotency_key` (defaults to the tool call id), `permission_mode` (in an always-on lineage it is bounded by the child's configured level, and `inherit` uses that level), and
    `tools`/`skills`/`mcp_servers`/`workspace_paths`. Unlike `session_spawn`, omitted permission lists
    inherit the caller's full budget, `[]` means none, and every value can only narrow
    (`permission_escalation_denied` otherwise). There is no TTL, depth, or count cap.
+   A named agent uses its configured provider, model, and reasoning effort. Explicit runtime
+   selections take precedence. A different provider uses its own model defaults, and a different
+   model uses its own reasoning defaults. If neither the named agent nor the call specifies a
+   provider, model, or effort, the child inherits the caller's runtime.
    `isolation` defaults to `shared`. Choose `worktree` for a separate branch; `base_ref` is valid only
    with `worktree`. For a fresh delegation it defaults to the caller checkout's current HEAD
    commit. See corrective rounds below for linked delegations. Uncommitted changes are not copied.

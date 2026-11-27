@@ -538,7 +538,8 @@ func (r *subagentTestRuntime) Snapshot(_ context.Context, id string) (subagentSn
 	return snap, nil
 }
 func (r *subagentTestRuntime) Resolve(_ context.Context, info *Info, target SubagentTarget) (SubagentTarget, error) {
-	return resolveSubagentTarget(subagentInherited(info), target, SubagentTarget{Model: "default"}), nil
+	inheritRuntime := target.Provider == "" || target.Provider == info.Provider
+	return resolveSubagentTarget(subagentInherited(info), target, SubagentTarget{Model: "default"}, inheritRuntime), nil
 }
 
 func (r *subagentTestRuntime) PermissionLimit(

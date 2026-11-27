@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -49,16 +50,9 @@ func (m *Manager) SubagentPermissionLimit(
 	if err != nil {
 		return SubagentPermissionLimit{}, err
 	}
-	agent, provider := subagentRequestedIdentity(parent, requested)
-	resolved, err := resolveWorkspaceSessionAgentForType(
-		agent,
-		provider,
-		SessionTypeSpawned,
-		&workspace,
-		m.agentResolver,
-	)
+	resolved, _, err := m.resolveSubagentAgent(&workspace, subagentInherited(parent), requested)
 	if err != nil {
-		return SubagentPermissionLimit{}, subagentResolveError(agent, err)
+		return SubagentPermissionLimit{}, err
 	}
 	return SubagentPermissionLimit{Mode: m.startPermissions(resolved.Permissions), ChildOwnsLevel: true}, nil
 }
@@ -80,16 +74,9 @@ func (r managerSubagentRuntime) Resolve(
 		return SubagentTarget{}, err
 	}
 	inherited := subagentInherited(parent)
-	agent, provider := subagentRequestedIdentity(parent, requested)
-	resolved, err := resolveWorkspaceSessionAgentForType(
-		agent,
-		provider,
-		SessionTypeSpawned,
-		&workspace,
-		r.m.agentResolver,
-	)
+	resolved, inheritRuntime, err := r.m.resolveSubagentAgent(&workspace, inherited, requested)
 	if err != nil {
-		return SubagentTarget{}, subagentResolveError(agent, err)
+		return SubagentTarget{}, err
 	}
 	// Gate before probes and delegation reservation, so a disabled target is refused with
 	// provider_disabled instead of provider_unavailable or a settled failed child (BR-4).
@@ -100,27 +87,31 @@ func (r managerSubagentRuntime) Resolve(
 			Err:     err,
 		}
 	}
-	option, err := r.providerOption(ctx, &workspace.Config, provider)
+	option, err := r.providerOption(ctx, &workspace.Config, resolved.Provider)
 	if err != nil {
 		return SubagentTarget{}, err
 	}
 	if !option.CanDelegate {
 		return SubagentTarget{}, &SubagentError{
-			Code:    subagentProviderUnavailable,
-			Message: fmt.Sprintf("Provider %s is unavailable: %s", provider, strings.Join(option.Constraints, " ")),
-			Err:     ErrSubagentTargetUnavailable,
+			Code: subagentProviderUnavailable,
+			Message: fmt.Sprintf(
+				"Provider %s is unavailable: %s",
+				resolved.Provider,
+				strings.Join(option.Constraints, " "),
+			),
+			Err: ErrSubagentTargetUnavailable,
 		}
 	}
 	target := resolveSubagentTarget(
 		inherited,
 		requested,
 		SubagentTarget{
-			Agent:           agent,
-			Provider:        provider,
+			Provider:        resolved.Provider,
 			Model:           resolved.Model,
 			ReasoningEffort: resolved.ReasoningEffort,
 			Speed:           string(resolved.SpeedValue()),
 		},
+		inheritRuntime,
 	)
 	if err := validateSubagentModel(target.Model, target.Provider, option.Models); err != nil {
 		return SubagentTarget{}, err
@@ -128,17 +119,37 @@ func (r managerSubagentRuntime) Resolve(
 	return target, nil
 }
 
-// subagentRequestedIdentity fills an omitted agent or provider from the parent.
-func subagentRequestedIdentity(parent *Info, requested SubagentTarget) (agent, provider string) {
-	inherited := subagentInherited(parent)
-	agent, provider = requested.Agent, requested.Provider
-	if agent == "" {
-		agent = inherited.Agent
+func (m *Manager) resolveSubagentAgent(
+	workspace *workspacepkg.ResolvedWorkspace,
+	inherited, requested SubagentTarget,
+) (compozyconfig.ResolvedAgent, bool, error) {
+	agentName := cmp.Or(requested.Agent, inherited.Agent)
+	agent, err := resolveWorkspaceSessionAgentDefinition(agentName, SessionTypeSpawned, workspace, m.agentResolver)
+	if err != nil {
+		return compozyconfig.ResolvedAgent{}, false, subagentResolveError(agentName, err)
 	}
-	if provider == "" {
-		provider = inherited.Provider
+
+	cfg := workspace.Config
+	override, _ := cfg.AgentOverride(agentName)
+	configuredProvider := cmp.Or(strings.TrimSpace(override.Provider), strings.TrimSpace(agent.Provider))
+	namedRuntime := requested.Agent != "" && (configuredProvider != "" ||
+		override.Model != "" || strings.TrimSpace(agent.Model) != "" ||
+		override.ReasoningEffort != "" || strings.TrimSpace(agent.ReasoningEffort) != "")
+	provider := requested.Provider
+	if !namedRuntime {
+		provider = cmp.Or(provider, inherited.Provider)
+	} else if configuredProvider == "" && strings.TrimSpace(cfg.Defaults.Provider) == "" {
+		cfg.Defaults.Provider = inherited.Provider
 	}
-	return agent, provider
+	resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, compozyconfig.RuntimeOverrides{
+		Provider: provider, Model: requested.Model, Reasoning: requested.ReasoningEffort,
+	})
+	if err != nil {
+		return compozyconfig.ResolvedAgent{}, false, subagentResolveError(agentName, err)
+	}
+	inheritRuntime := !namedRuntime && requested.Provider == "" && requested.Model == "" &&
+		requested.ReasoningEffort == ""
+	return resolved, inheritRuntime, nil
 }
 
 func subagentResolveError(agent string, err error) error {
