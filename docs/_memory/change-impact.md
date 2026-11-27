@@ -5,6 +5,7 @@
 - **CLI / HTTP / UDS / native tools:** the existing host and controller status fields report public TLS failures. The host uses `retrying` and its existing diagnosis text, and the controller uses `needs_attention` with `hosted_route_tls_failed` when the TLS failure is the most specific connection error. The JSON and OpenAPI shapes are unchanged.
 - **Compatibility and isolation:** assigned hostnames, tunnel records, and entitlement checks are preserved. The probe sends no credentials and checks the returned computer ID and tunnel root. No config, extension, hook, or workspace boundary changes.
 - **Web / docs / official skill:** existing status views render the diagnosis. The remote host, controller, deploy runbook, and official Computers skill document it. `TestDaemonHostedRoute` and QA scenarios `RT-computers-operator` and `RT-computers-webhook-ingress` cover status and the gated ingress URL.
+- **Billing renewal:** `TestDaemonBilling` and `RT-computers-billing` check that the retained hostname returns to `ready` after renewal.
 
 ## Antigravity (`agy`) provider usage collector — 2026-11-27
 

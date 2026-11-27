@@ -225,6 +225,10 @@ func (h *hostedRun) observeProcess(
 		}
 		if next.Mode != credentials.Mode {
 			edge = hostedEdgeObservation{}
+			if next.Mode == remoteproto.HostedTunnelActive {
+				// Publish the active mode so the listener can serve the descriptor to the edge probe.
+				h.publish(ctx, next.Hostname, next.Mode, hostedStateStarting, "")
+			}
 		}
 		credentials = next
 	}
@@ -259,6 +263,7 @@ func (h *hostedRun) observeEdge(
 		observation.missed = false
 		h.publish(ctx, hostname, mode, remoteproto.HostedRouteReady, "")
 	case errors.Is(err, remoteproto.ErrDescriptorPlanRequired):
+		observation.next = now.Add(hostedEdgeRetry)
 		observation.missed = false
 		h.publish(ctx, hostname, mode, remoteproto.HostedTunnelEntitlementOnly, "")
 	case errors.Is(err, remoteproto.ErrDescriptorTLS):

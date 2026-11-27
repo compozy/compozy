@@ -210,6 +210,7 @@ func TestDaemonBilling(t *testing.T) {
 					readControllerComputer(t, controller, c).Status == string(computers.Connected)
 			})
 			waitComputerRoute(t, controller, a, remoteproto.RouteCloud)
+			waitHostedRouteReady(t, host)
 			deliverStripeEvent(t, f, "evt_stale_cancellation", stripeSubUpdated, sub.ID)
 			lease := readRemoteDaemonStatus(t, host).Entitlement
 			if account := billingAccount(t, f, owner); account.Plan != "pro" || lease == nil || lease.Plan != "pro" {
