@@ -1783,7 +1783,7 @@ func TestCooperativePromptCancellation(t *testing.T) {
 		case <-ctx.Done():
 			t.Fatal(ctx.Err())
 		}
-		if proc.currentPrompt() != active || active.steerContext.Err() != nil {
+		if proc.currentPrompt() != active || active.promptContext.Err() != nil {
 			t.Fatal("cooperative cancellation detached the active prompt")
 		}
 		if err := driver.Cancel(ctx, proc); err != nil {

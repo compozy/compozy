@@ -188,7 +188,7 @@ func withACPTestTerminalCore(t testing.TB, registry *toolruntime.Registry) Local
 
 func beginACPTestRun(t testing.TB, process *AgentProcess, turnID string) *activePromptState {
 	t.Helper()
-	active, err := process.beginPromptForRun(turnID, "run-"+turnID, 1, trace.SpanContext{}, 8)
+	active, err := process.beginPromptForRun(t.Context(), turnID, "run-"+turnID, 1, trace.SpanContext{}, 8)
 	if err != nil {
 		t.Fatalf("beginPromptForRun() error = %v", err)
 	}

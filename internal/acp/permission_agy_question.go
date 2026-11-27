@@ -42,7 +42,9 @@ func (p *AgentProcess) answerAgyInteractionQuestion(
 		p.logAgyInteraction(ctx, "unavailable", nil)
 		return canceled
 	}
-	answer, err := p.elicitationAsker(ctx, question)
+	askCtx, cancel := p.clarificationContext(ctx)
+	defer cancel()
+	answer, err := p.elicitationAsker(askCtx, question)
 	if err != nil {
 		p.logAgyInteraction(ctx, "unanswered", err)
 		return canceled

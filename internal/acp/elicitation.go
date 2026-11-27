@@ -105,16 +105,8 @@ func (p *AgentProcess) askElicitationQuestions(
 		p.logElicitation(ctx, slog.LevelInfo, "elicitation.declined", "unavailable")
 		return nil, elicitationOutcomeDecline
 	}
-	askCtx := ctx
-	var cancelAsk context.CancelFunc
-	if active := p.currentPrompt(); active != nil && active.promptContext != nil {
-		askCtx, cancelAsk = context.WithCancel(ctx)
-		stopPromptCancellation := context.AfterFunc(active.promptContext, cancelAsk)
-		defer func() {
-			stopPromptCancellation()
-			cancelAsk()
-		}()
-	}
+	askCtx, cancel := p.clarificationContext(ctx)
+	defer cancel()
 	answers := make([]toolspkg.ClarifyAnswer, 0, len(questions))
 	for _, question := range questions {
 		answer, err := asker(askCtx, question.question)
@@ -131,12 +123,28 @@ func (p *AgentProcess) askElicitationQuestions(
 	return answers, ""
 }
 
+func (p *AgentProcess) clarificationContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	askCtx, cancel := context.WithCancel(ctx)
+	active := p.currentPrompt()
+	if active == nil {
+		return askCtx, cancel
+	}
+	stop := context.AfterFunc(active.promptContext, cancel)
+	if active.promptContext.Err() != nil {
+		cancel()
+	}
+	return askCtx, func() {
+		stop()
+		cancel()
+	}
+}
+
 // elicitationErrorOutcome maps an asker failure to the ACP response variant.
 // A canceled turn answers cancel; every other failure answers decline so the
 // provider turn keeps its named refusal instead of waiting.
 func (p *AgentProcess) elicitationErrorOutcome(ctx, askCtx context.Context, err error) string {
 	switch {
-	case ctx.Err() != nil:
+	case ctx.Err() != nil, errors.Is(askCtx.Err(), context.Canceled):
 		return elicitationOutcomeCancel
 	case errors.Is(err, ErrElicitationUnavailable):
 		return elicitationOutcomeDecline

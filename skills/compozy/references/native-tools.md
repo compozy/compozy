@@ -600,6 +600,9 @@ zero-based `{choice,text,fallback}`. It is not approval. A provider select quest
 `elicitation/create`) accepts only a choice; a text answer to it is refused as invalid. CLI: `compozy session clarify pending|answer`
 (choice presentation is one-based).
 
+ACP elicitation and Antigravity interaction questions follow `[tools.clarify] timeout`. Canceling
+the active turn clears its pending provider question.
+
 `compozy__session_list` accepts `board_column: ["needs_you", "working", "waiting", "in_review", "done"]`
 and `children: "exclude"` (default `include`). Columns filter before pagination/counting;
 unknown values return `tool_invalid_input`. Excluding children removes every session with a parent,

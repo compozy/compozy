@@ -11,15 +11,12 @@ import (
 func (d *Driver) steerConcurrentPrompt(
 	proc *AgentProcess, active *activePromptState, request acpsdk.PromptRequest,
 ) (SteerResult, error) {
-	if active.steerContext == nil {
-		return SteerResult{}, ErrSteerTurnMismatch
-	}
 	run, ok := proc.beginChildTask()
 	if !ok {
 		return SteerResult{}, errProcessExited
 	}
 	response, err := acpsdk.SendRequestAsync[wirePromptResponse](
-		proc.conn, active.steerContext, acpsdk.AgentMethodSessionPrompt, request,
+		proc.conn, active.promptContext, acpsdk.AgentMethodSessionPrompt, request,
 	)
 	if err != nil {
 		proc.finishChildTask(run)

@@ -1060,6 +1060,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	proc.terminals.scope.SessionID = "compozy-session"
 	active, err := proc.beginPromptForRun(
+		t.Context(),
 		"turn-terminal-lifecycle",
 		"run-terminal-lifecycle",
 		17,
@@ -1275,7 +1276,7 @@ func TestHandleCreateTerminalStopsTerminalOnRegistrationFailure(t *testing.T) {
 		}
 
 		active, err := proc.beginPromptForRun(
-			"turn-terminal-create-failure", "run-terminal-create-failure", 1, trace.SpanContext{}, 4,
+			t.Context(), "turn-terminal-create-failure", "run-terminal-create-failure", 1, trace.SpanContext{}, 4,
 		)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
@@ -3453,5 +3454,5 @@ func (p *AgentProcess) beginPrompt(
 	bufferSize int,
 	cancelFns ...context.CancelFunc,
 ) (*activePromptState, error) {
-	return p.beginPromptState(turnID, "", 0, trace.SpanContext{}, bufferSize, cancelFns...)
+	return p.beginPromptState(context.Background(), turnID, "", 0, trace.SpanContext{}, bufferSize, cancelFns...)
 }

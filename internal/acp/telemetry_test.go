@@ -228,7 +228,7 @@ func TestActiveTraceContextFollowsTheActivePrompt(t *testing.T) {
 		for index := range turns {
 			turnID := fmt.Sprintf("turn-%d", index)
 			sc := trace.NewSpanContext(trace.SpanContextConfig{TraceID: turnTraceID(turnID), SpanID: trace.SpanID{1}})
-			active, err := proc.beginPromptState(turnID, "", 0, sc, 1)
+			active, err := proc.beginPromptState(t.Context(), turnID, "", 0, sc, 1)
 			if err != nil {
 				t.Fatalf("beginPromptState(%s) error = %v", turnID, err)
 			}

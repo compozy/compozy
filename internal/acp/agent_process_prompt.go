@@ -16,7 +16,6 @@ import (
 type activePromptState struct {
 	promptContext         context.Context
 	steerMu               sync.Mutex
-	steerContext          context.Context
 	steerWG               sync.WaitGroup
 	finishing             bool
 	turnID                string
@@ -66,6 +65,7 @@ type toolCallProjection struct {
 const maxPendingToolResults = 128
 
 func (p *AgentProcess) beginPromptForRun(
+	ctx context.Context,
 	turnID string,
 	runID string,
 	generation int64,
@@ -77,10 +77,11 @@ func (p *AgentProcess) beginPromptForRun(
 	if runID == "" || generation <= 0 {
 		return nil, errors.New("acp: prompt run identity is incomplete")
 	}
-	return p.beginPromptState(turnID, runID, generation, traceCtx, bufferSize, cancelFns...)
+	return p.beginPromptState(ctx, turnID, runID, generation, traceCtx, bufferSize, cancelFns...)
 }
 
 func (p *AgentProcess) beginPromptState(
+	ctx context.Context,
 	turnID string,
 	runID string,
 	generation int64,
@@ -104,6 +105,7 @@ func (p *AgentProcess) beginPromptState(
 		cancel = cancelFns[0]
 	}
 	active := &activePromptState{
+		promptContext:        ctx,
 		turnID:               turnID,
 		runID:                runID,
 		generation:           generation,
