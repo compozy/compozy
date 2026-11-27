@@ -21,5 +21,6 @@ qa_status: pending
 9. Repeat the in-window deletion with refunds temporarily unavailable. Verify Stripe cancels immediately. Restore refunds and confirm the deletion job completes the refund and continues account cleanup.
 10. In staging, open **Manage billing** on the Pro account and confirm the portal allows switching between the staging monthly and annual prices, updating the payment method, and scheduling cancellation.
 11. In the billing integration fixture, deliver an `invoice.paid` event for a subscription outside the configured Pro prices. Confirm the webhook acknowledges it and the Compozy account's billing records and plan stay unchanged.
+12. On staging, load the upgrade and Checkout success pages at phone and desktop widths. Confirm the respective artwork loads on both pages and the image requests return HTTP 200.
 
 Use IT-111 for deletion and IT-060 through IT-066, IT-074, IT-082, IT-109, E2E-012, and E2E-013 as the integration evidence.

@@ -304,6 +304,23 @@ func TestCloudSubscriptionRefresh(t *testing.T) {
 func TestCloudBillingCheckout(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should serve the purchase and success artwork in both viewport sizes", func(t *testing.T) {
+		t.Parallel()
+		f, _ := newBillingFixture(t, nil)
+		for _, file := range []string{
+			"cone-1280.jpg", "cone-portrait-1280.jpg", "converge-1280.jpg", "converge-portrait-1280.jpg",
+		} {
+			res := f.request(t, http.MethodGet, "/brand/visuals/"+file, nil)
+			if contentType := http.DetectContentType(
+				res.body,
+			); res.StatusCode != http.StatusOK ||
+				contentType != "image/jpeg" {
+				t.Errorf("%s: got HTTP %d with content type %q, want HTTP 200 with a JPEG", file,
+					res.StatusCode, contentType)
+			}
+		}
+	})
+
 	t.Run("Should pass server-owned prices and leave an expired checkout Free (UT-137, IT-061)", func(t *testing.T) {
 		// Safety Invariant 34. A suspended account cannot issue a new Stripe checkout.
 		t.Parallel()
