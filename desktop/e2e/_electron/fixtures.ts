@@ -224,7 +224,8 @@ async function terminateRuntime(home: string, environment: NodeJS.ProcessEnv): P
     await command(runtime, ["daemon", "stop"], environment);
     await waitForProcessExit(pid);
   }
-  await waitForPathRemoval(join(home, "daemon.sock"));
+  // Windows daemon stop terminates the process directly, leaving the AF_UNIX socket file behind.
+  if (process.platform !== "win32") await waitForPathRemoval(join(home, "daemon.sock"));
 }
 
 async function waitForProcessExit(pid: number): Promise<void> {
