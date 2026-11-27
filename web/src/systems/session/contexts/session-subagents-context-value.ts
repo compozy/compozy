@@ -1,3 +1,4 @@
+import type { ComputerId } from "@/lib/computer-scope";
 import { createContext } from "react";
 
 import type { SubagentOpenOptions } from "../components/subagents/subagent-card";
@@ -15,6 +16,7 @@ export interface SubagentNavigationTarget {
   workspaceId: string;
   /** Reveal provider-native work inside this parent session. */
   subagentId?: string;
+  computerId?: ComputerId;
 }
 
 export interface SubagentNavigation {

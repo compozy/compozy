@@ -1,5 +1,8 @@
 import { AuiConfig, AuiProvider } from "@assistant-ui/react";
 import { SessionNativeSubagentActivity } from "@/components/assistant-ui/session-native-subagent-activity";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { isRemoteComputerId, normalizeComputerId } from "@/lib/computer-scope";
+import { ComputerScopeContext } from "@/lib/computer-scope-context";
 import { useSelector, useStore } from "@xstate/store-react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight } from "@compozy/ui/icons";
@@ -38,7 +41,8 @@ function SubagentTranscript({
     subagent.origin === "provider_native"
       ? subagent.parent_session_id
       : (subagent.child_session_id ?? "");
-  const query = useQuery(sessionDetailOptions(workspaceId, childId));
+  const computerId = useCurrentComputerId();
+  const query = useQuery(sessionDetailOptions(workspaceId, childId, computerId));
   if (!childId)
     return (
       <p role="status" className="p-4 text-small-body text-muted-foreground">
@@ -158,7 +162,7 @@ function SubagentDrawerSelection({
   onClose,
   returnFocus,
 }: {
-  selected: { subagent: SubagentView; workspaceId: string } | null;
+  selected: ReturnType<SessionWindowDrawerStore["getSnapshot"]>["context"]["selected"];
   navigation: SubagentNavigation;
   children: ReactNode;
   width: number;
@@ -169,13 +173,15 @@ function SubagentDrawerSelection({
   const roster = useSessionSubagents(
     selected?.workspaceId ?? "",
     selected?.subagent.parent_session_id ?? "",
-    { enabled: selected !== null }
+    { enabled: selected !== null, computerId: selected?.computerId }
   );
   const subagent = selected
     ? (roster.subagents.find(row => row.id === selected.subagent.id) ?? selected.subagent)
     : null;
   const target =
-    selected && subagent ? subagentNavigationTarget(subagent, selected.workspaceId) : null;
+    selected && subagent
+      ? subagentNavigationTarget(subagent, selected.workspaceId, selected.computerId)
+      : null;
   return (
     <ResizableDrawer
       open={selected !== null}
@@ -220,9 +226,11 @@ function SubagentDrawerSelection({
       }
       content={
         subagent && selected ? (
-          <>
+          <ComputerScopeContext
+            key={`${selected.computerId ?? "local"}:${selected.workspaceId}:${subagent.id}`}
+            value={normalizeComputerId(selected.computerId)}
+          >
             <SubagentRemovalGuard
-              key={`${selected.workspaceId}:${subagent.parent_session_id}:${subagent.id}`}
               subagent={subagent}
               workspaceId={selected.workspaceId}
               onClose={onClose}
@@ -232,7 +240,7 @@ function SubagentDrawerSelection({
               workspaceId={selected.workspaceId}
               navigation={navigation}
             />
-          </>
+          </ComputerScopeContext>
         ) : null
       }
     >
@@ -257,26 +265,29 @@ export function SessionSubagentDrawer({
   const ownStore = useStore(sessionWindowDrawerLogic);
   const store = sharedStore ?? ownStore;
   const state = useSelector(store, snapshot => snapshot.context);
+  const windowComputerId = useCurrentComputerId();
   return (
     <SubagentDrawerContext
       value={{
         store,
-        content: (subagent, workspaceId) => (
+        content: (subagent, workspaceId, computerId = windowComputerId) => (
           <div
             className={
               subagent.origin === "provider_native" ? "flex flex-col" : "flex h-96 flex-col"
             }
           >
-            <SubagentContent
-              subagent={subagent}
-              workspaceId={workspaceId}
-              navigation={{ openSession }}
-              embedded
-            />
+            <ComputerScopeContext value={computerId}>
+              <SubagentContent
+                subagent={subagent}
+                workspaceId={workspaceId}
+                navigation={{ openSession }}
+                embedded
+              />
+            </ComputerScopeContext>
           </div>
         ),
-        open: (subagent, options, workspaceId) => {
-          const target = subagentNavigationTarget(subagent, workspaceId);
+        open: (subagent, options, workspaceId, computerId = windowComputerId) => {
+          const target = subagentNavigationTarget(subagent, workspaceId, computerId);
           if (options.newWindow && subagent.origin !== "provider_native") {
             if (target) {
               store.trigger.closed();
@@ -287,6 +298,7 @@ export function SessionSubagentDrawer({
           store.trigger.opened({
             subagent,
             workspaceId,
+            ...(isRemoteComputerId(computerId) ? { computerId } : {}),
             trigger: document.activeElement instanceof HTMLElement ? document.activeElement : null,
           });
         },

@@ -1,3 +1,4 @@
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { createStore } from "@xstate/store";
 
 import type { SubagentView } from "../components/subagents/types";
@@ -8,6 +9,7 @@ interface SubagentRevealRequest {
   workspaceId: string;
   sessionId: string;
   subagentId: string;
+  computerId?: ComputerId;
 }
 
 /** One pending user navigation, retained while its parent window mounts. Never persisted. */
@@ -26,10 +28,13 @@ export const subagentRevealStore = createStore({
 /** Delegated work owns a session; provider-native work lives in the parent's transcript. */
 export function subagentNavigationTarget(
   subagent: SubagentView,
-  workspaceId: string
+  workspaceId: string,
+  computerId?: ComputerId
 ): SubagentNavigationTarget | null {
+  const owner = isRemoteComputerId(computerId) ? { computerId } : {};
   const child = subagent.child_session_id;
-  if (child) return { sessionId: child, agentName: subagent.runtime.agent ?? "", workspaceId };
+  if (child)
+    return { sessionId: child, agentName: subagent.runtime.agent ?? "", workspaceId, ...owner };
   if (subagent.origin !== "provider_native" || !subagent.parent_session_id) return null;
   return {
     sessionId: subagent.parent_session_id,
@@ -37,5 +42,6 @@ export function subagentNavigationTarget(
     agentName: "",
     workspaceId,
     subagentId: subagent.id,
+    ...owner,
   };
 }

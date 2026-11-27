@@ -59,6 +59,7 @@ export function useSessionWindowOpenSession({
         workspaceId: target.workspaceId,
         sessionId: target.sessionId,
         subagentId: target.subagentId,
+        ...(target.computerId ? { computerId: target.computerId } : {}),
       });
     }
     const search = manager.getState().windows[windowId]?.route?.search;

@@ -1,4 +1,5 @@
 import type { HTMLAttributes, MouseEvent, ReactElement } from "react";
+import type { ComputerId } from "@/lib/computer-scope";
 
 import { StateGlyph, TreeBranchNode, cn } from "@compozy/ui";
 
@@ -24,11 +25,15 @@ export function SessionListSubagentRow({
   onDelete,
   menuTestId,
   workspace,
+  workspaceId,
+  computerId,
   profile,
 }: {
   subagent: SubagentView;
   current: boolean;
   workspace?: string;
+  workspaceId?: string;
+  computerId?: ComputerId;
   profile?: string;
   onOpen?: (event: MouseEvent<HTMLButtonElement>) => void;
   /** Opens the delete confirmation; absent hides the verb. */
@@ -38,7 +43,7 @@ export function SessionListSubagentRow({
   /** The right-click trigger's test id; the row derives its menu items from it. */
   menuTestId?: string;
 }) {
-  const selected = useSubagentDrawerSelected(subagent.id);
+  const selected = useSubagentDrawerSelected(subagent.id, workspaceId, computerId);
   const display = subagentDisplay(subagent);
   const word = display.word;
   const identity = useAgentIdentityView(subagent.runtime.agent ?? "", { workspace, profile });

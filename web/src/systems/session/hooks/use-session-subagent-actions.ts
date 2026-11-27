@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
 import { use, useCallback } from "react";
 
-import { isRemoteComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, normalizeComputerId } from "@/lib/computer-scope";
 import { toast } from "@compozy/ui";
 
 import { cancelSubagent, deleteSubagent } from "../adapters/subagent-api";
@@ -61,7 +61,7 @@ export function useSessionSubagentActions(): SessionSubagentActionsModel {
 
   const deletion = useMutation({
     mutationFn: ({ subagent, scope }: PendingSubagentDelete) =>
-      scope.computerId
+      isRemoteComputerId(scope.computerId)
         ? deleteSubagent(scope.workspaceId, subagent.id, scope.profile, undefined, scope.computerId)
         : deleteSubagent(scope.workspaceId, subagent.id, scope.profile),
     onSuccess: (_data, { subagent, scope }) => {
@@ -79,12 +79,13 @@ export function useSessionSubagentActions(): SessionSubagentActionsModel {
       });
       void invalidateWorkspaceSessionCatalog(queryClient, workspaceId, computerId);
       void queryClient.invalidateQueries({ queryKey: keys.attentionSummary() });
-      if (drawer && !isRemoteComputerId(computerId)) {
-        const selected = drawer.store.getSnapshot().context.selected;
-        if (selected?.workspaceId === workspaceId && selected.subagent.id === subagent.id) {
-          drawer.store.trigger.closed();
-        }
-      }
+      const selected = drawer?.store.getSnapshot().context.selected;
+      if (
+        selected?.workspaceId === workspaceId &&
+        selected.subagent.id === subagent.id &&
+        normalizeComputerId(selected.computerId) === normalizeComputerId(computerId)
+      )
+        drawer?.store.trigger.closed();
       store.trigger.deleteClosed();
     },
     onError: error => {
@@ -123,7 +124,7 @@ export function useSessionSubagentActions(): SessionSubagentActionsModel {
       if (!hasSubagentScope(scope)) return;
       const { workspaceId, sessionId, profile, computerId } = scope;
       const keys = sessionKeys.forComputer(computerId);
-      const request = computerId
+      const request = isRemoteComputerId(computerId)
         ? cancelSubagent(workspaceId, subagent.id, profile, "", computerId)
         : cancelSubagent(workspaceId, subagent.id, profile);
       void request

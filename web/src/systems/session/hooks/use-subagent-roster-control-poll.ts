@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -31,12 +32,13 @@ export function useSubagentRosterControlPoll({
   intervalMs: number | false;
 }): void {
   const queryClient = useQueryClient();
+  const computerId = useCurrentComputerId();
   useEffect(() => {
     if (!enabled) return;
     // A read from this activation must not confirm the next prompt's roster.
     return () => {
       const filter = {
-        queryKey: sessionKeys.subagentRosterPoll(workspaceId, sessionId),
+        queryKey: sessionKeys.forComputer(computerId).subagentRosterPoll(workspaceId, sessionId),
         exact: true,
       };
       // Other windows may still need the shared stopped-history read.
@@ -46,9 +48,9 @@ export function useSubagentRosterControlPoll({
           queryClient.refetchQueries({ ...filter, type: "active" }, { cancelRefetch: false })
         );
     };
-  }, [enabled, queryClient, sessionId, workspaceId]);
+  }, [computerId, enabled, queryClient, sessionId, workspaceId]);
   const poll = useQuery({
-    ...sessionSubagentRosterPollOptions(workspaceId, sessionId),
+    ...sessionSubagentRosterPollOptions(workspaceId, sessionId, computerId),
     enabled: enabled && workspaceId !== "" && sessionId !== "",
     refetchInterval: query => {
       const terminal =
@@ -66,8 +68,8 @@ export function useSubagentRosterControlPoll({
   useEffect(() => {
     if (!page) return;
     queryClient.setQueryData<SubagentRoster>(
-      sessionKeys.subagentRoster(workspaceId, sessionId),
+      sessionKeys.forComputer(computerId).subagentRoster(workspaceId, sessionId),
       applySubagentsSnapshot({ session_id: sessionId, subagents: page.subagents })
     );
-  }, [page, queryClient, sessionId, workspaceId]);
+  }, [computerId, page, queryClient, sessionId, workspaceId]);
 }

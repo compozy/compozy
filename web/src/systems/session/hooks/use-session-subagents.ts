@@ -7,7 +7,8 @@ import {
 } from "@tanstack/react-query";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
-import type { ComputerId } from "@/lib/computer-scope";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { cancelSubagent } from "../adapters/subagent-api";
 import type { SubagentView } from "../components/subagents/types";
 import { sessionDetailOptions } from "../lib/query-options";
@@ -38,6 +39,7 @@ export interface SessionSubagentsModel {
 }
 
 export interface SessionSubagentsOptions {
+  computerId?: ComputerId;
   /** Read nothing while false (a closed hover preview). */
   enabled?: boolean;
   /**
@@ -104,6 +106,7 @@ export function useSessionSubagents(
   workspaceId: string,
   sessionId: string,
   {
+    computerId: owner,
     enabled = true,
     allPages = true,
     coldRead = true,
@@ -111,24 +114,29 @@ export function useSessionSubagents(
   }: SessionSubagentsOptions = {}
 ): SessionSubagentsModel {
   const queryClient = useQueryClient();
+  const computerId = useCurrentComputerId(owner);
   const scoped = enabled && workspaceId !== "" && sessionId !== "";
-  const live = useLiveSubagentRoster(workspaceId, sessionId, scoped);
-  const query = usePagedSubagents(workspaceId, sessionId, scoped && coldRead && live === null, {
+  const canReadCatalog = scoped && coldRead;
+  const live = useLiveSubagentRoster(workspaceId, sessionId, scoped, computerId);
+  const catalogActive = canReadCatalog && live === null;
+  const query = usePagedSubagents(workspaceId, sessionId, catalogActive, computerId, {
     allPages,
     confirmOnMount,
   });
-  const complete = query.isSuccess && !query.hasNextPage;
+  const complete = catalogActive && query.isSuccess && !query.hasNextPage;
+  const catalogRows = catalogActive ? query.data?.pages : undefined;
 
   return {
     subagents:
-      live?.rows ??
-      query.data?.pages.flatMap(page => page.subagents.map(subagentViewFromPayload)) ??
-      [],
+      live?.rows ?? catalogRows?.flatMap(page => page.subagents.map(subagentViewFromPayload)) ?? [],
     complete: live !== null || complete,
     confirmed: live !== null || (complete && query.isFetchedAfterMount && !query.isFetching),
-    failed: live === null && query.isError,
-    retry: () => void query.refetch(),
-    stop: subagent => stopSubagent(queryClient, workspaceId, sessionId, live !== null, subagent),
+    failed: catalogActive && query.isError,
+    retry: () => {
+      if (catalogActive) void query.refetch();
+    },
+    stop: subagent =>
+      stopSubagent(queryClient, workspaceId, sessionId, live !== null, subagent, computerId),
   };
 }
 
@@ -137,10 +145,11 @@ function usePagedSubagents(
   workspaceId: string,
   sessionId: string,
   enabled: boolean,
+  computerId: ComputerId,
   { allPages, confirmOnMount }: SessionSubagentsOptions
 ) {
   const query = useInfiniteQuery({
-    ...sessionSubagentsOptions(workspaceId, sessionId),
+    ...sessionSubagentsOptions(workspaceId, sessionId, computerId),
     enabled,
     ...(confirmOnMount ? { refetchOnMount: "always" as const } : {}),
   });
@@ -158,16 +167,21 @@ async function stopSubagent(
   workspaceId: string,
   sessionId: string,
   live: boolean,
-  subagent: SubagentView
+  subagent: SubagentView,
+  computerId: ComputerId
 ): Promise<void> {
   const parent = await queryClient.fetchQuery({
-    ...sessionDetailOptions(workspaceId, sessionId),
+    ...sessionDetailOptions(workspaceId, sessionId, computerId),
     staleTime: 0,
   });
-  await cancelSubagent(workspaceId, subagent.id, parent.profile_name);
+  if (isRemoteComputerId(computerId)) {
+    await cancelSubagent(workspaceId, subagent.id, parent.profile_name, "", computerId);
+  } else {
+    await cancelSubagent(workspaceId, subagent.id, parent.profile_name);
+  }
   if (!live) {
     await queryClient.invalidateQueries({
-      queryKey: sessionKeys.subagents(workspaceId, sessionId),
+      queryKey: sessionKeys.forComputer(computerId).subagents(workspaceId, sessionId),
     });
   }
 }

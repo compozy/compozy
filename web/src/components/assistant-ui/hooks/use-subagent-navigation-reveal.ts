@@ -1,5 +1,7 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { useSelector } from "@xstate/store-react";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { normalizeComputerId } from "@/lib/computer-scope";
 
 import { notifyUser } from "@/lib/user-feedback";
 import { subagentRevealStore } from "@/systems/session";
@@ -93,9 +95,12 @@ async function revealSubagent(
 
 /** Reveal through the transcript's paging and scroll owner, including virtualized history. */
 export function useSubagentNavigationReveal(options: SubagentRevealOptions) {
+  const computerId = useCurrentComputerId();
   const request = useSelector(subagentRevealStore, snapshot => {
     const pending = snapshot.context.request;
-    return pending?.sessionId === options.sessionId && pending.workspaceId === options.workspaceId
+    return pending?.sessionId === options.sessionId &&
+      pending.workspaceId === options.workspaceId &&
+      normalizeComputerId(pending.computerId) === computerId
       ? pending
       : null;
   });

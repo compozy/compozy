@@ -1,5 +1,5 @@
 import { use, useMemo, type MouseEvent } from "react";
-import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import { computerCanOperateSessions, useComputers } from "@/systems/computers";
 import { sessionRowKeyFor } from "../../lib/session-row-ref";
 import { SubagentDrawerContext } from "../../contexts/subagent-drawer-context";
@@ -47,9 +47,8 @@ export function SessionListSubagentBranch({
   onSelectSession,
   testIdPrefix,
 }: SessionListSubagentBranchProps) {
-  const localDrawer = use(SubagentDrawerContext);
+  const drawer = use(SubagentDrawerContext);
   const remote = isRemoteComputerId(computerId);
-  const drawer = remote ? null : localDrawer;
   const { computers } = useComputers({ enabled: remote, passive: true });
   const computer = computers.find(row => row.id === computerId);
   const canOperate =
@@ -74,16 +73,21 @@ export function SessionListSubagentBranch({
   }, [actions, canOperate, workspaceId, sessionId, profile, computerId, remote]);
   const open = (subagent: SubagentView, event: MouseEvent<HTMLButtonElement>) => {
     if (drawer) {
-      drawer.open(subagent, { newWindow: event.metaKey || event.ctrlKey }, workspaceId);
+      drawer.open(
+        subagent,
+        { newWindow: event.metaKey || event.ctrlKey },
+        workspaceId,
+        normalizeComputerId(computerId)
+      );
       return;
     }
-    const target = subagentNavigationTarget(subagent, workspaceId);
+    const target = subagentNavigationTarget(subagent, workspaceId, computerId);
     if (!target) return;
     onSelectSession({
       id: target.sessionId,
       agent_name: target.agentName,
       workspace_id: workspaceId,
-      ...(remote ? { computerId } : {}),
+      ...(target.computerId ? { computerId: target.computerId } : {}),
       ...(target.subagentId ? { subagentId: target.subagentId } : {}),
     });
   };
@@ -98,6 +102,8 @@ export function SessionListSubagentBranch({
           <SessionListSubagentRow
             key={subagent.id}
             subagent={subagent}
+            computerId={normalizeComputerId(computerId)}
+            workspaceId={workspaceId}
             workspace={workspace}
             profile={profile}
             menuTestId={`${testIdPrefix}-subagent-menu-${subagent.id}`}
