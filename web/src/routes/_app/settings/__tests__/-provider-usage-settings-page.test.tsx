@@ -291,24 +291,27 @@ describe("ProviderUsageSettingsPage", () => {
     expect(codex).not.toBeChecked();
   });
 
-  it("Should show Claude Keychain access only when the daemon supports it", async () => {
+  it("Should show each Keychain provider's access only when the daemon supports it", async () => {
     const view = renderPage();
     await screen.findByTestId("settings-provider-usage-provider-codex");
-    expect(screen.queryByTestId("settings-provider-usage-keychain")).toBeNull();
+    expect(screen.queryByTestId("settings-provider-usage-keychain-claude")).toBeNull();
+    expect(screen.queryByTestId("settings-provider-usage-keychain-agy")).toBeNull();
     view.unmount();
 
     const mac = renderPage({ section: { ...SECTION, keychain_supported: true } });
-    expect(await screen.findByTestId("settings-provider-usage-keychain")).not.toBeChecked();
+    expect(await screen.findByTestId("settings-provider-usage-keychain-claude")).not.toBeChecked();
+    expect(screen.getByTestId("settings-provider-usage-keychain-agy")).not.toBeChecked();
     mac.unmount();
 
-    // Consent stays withdrawable wherever it was saved.
+    // Consent stays withdrawable wherever it was saved, without showing the other provider.
     renderPage({
       section: {
         ...SECTION,
-        config: { ...SECTION.config, providers: { claude: { keychain_access: true } } },
+        config: { ...SECTION.config, providers: { agy: { keychain_access: true } } },
       },
     });
-    expect(await screen.findByTestId("settings-provider-usage-keychain")).toBeChecked();
+    expect(await screen.findByTestId("settings-provider-usage-keychain-agy")).toBeChecked();
+    expect(screen.queryByTestId("settings-provider-usage-keychain-claude")).toBeNull();
   });
 
   it("Should hide the cadence but keep providers editable while the feature is off (UT-012)", async () => {
@@ -397,11 +400,33 @@ describe("ProviderUsageSettingsPage", () => {
     ).toHaveAttribute("data-kind", "openrouter");
   });
 
+  it("Should save Antigravity Keychain consent under the agy provider", async () => {
+    const user = userEvent.setup();
+    renderPage({ section: { ...SECTION, keychain_supported: true } });
+
+    await user.click(await screen.findByTestId("settings-provider-usage-keychain-agy"));
+    await user.click(screen.getByTestId("settings-page-provider-usage-save"));
+
+    const patch = await waitFor(() => {
+      const request = vi
+        .mocked(globalThis.fetch)
+        .mock.calls.map(([input]) => input as Request)
+        .find(candidate => candidate.method === "PATCH");
+      expect(request).toBeDefined();
+      return request as Request;
+    });
+    const body = (await patch.clone().json()) as {
+      config: { providers: Record<string, { keychain_access?: boolean }> };
+    };
+    expect(body.config.providers.agy?.keychain_access).toBe(true);
+    expect(body.config.providers.claude?.keychain_access).not.toBe(true);
+  });
+
   it("Should carry the active profile into the consent apply", async () => {
     const user = userEvent.setup();
     renderPage({ activeProfile: "work", section: { ...SECTION, keychain_supported: true } });
 
-    await user.click(await screen.findByTestId("settings-provider-usage-keychain"));
+    await user.click(await screen.findByTestId("settings-provider-usage-keychain-claude"));
     await user.click(screen.getByTestId("settings-page-provider-usage-save"));
 
     await waitFor(() => {

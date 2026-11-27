@@ -63,7 +63,7 @@ func applyProviderUsageSettings(editor *compozyconfig.OverlayEditor, cfg compozy
 	providers := make(map[string]any, len(cfg.Providers))
 	for id, provider := range cfg.Providers {
 		values := map[string]any{"enabled": provider.Enabled}
-		if id == "claude" {
+		if compozyconfig.ProviderUsageKeychainProvider(id) {
 			values["keychain_access"] = provider.KeychainAccess
 		}
 		providers[id] = values

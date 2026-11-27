@@ -95,14 +95,14 @@ func applyProviderUsageConfigValue(cfg *compozyconfig.ProviderUsageConfig, path 
 }
 
 // settingsProviderUsagePayloadFromConfig mirrors the settings section read DTO:
-// keychain_access is sent only for claude, the one provider it is valid for.
+// keychain_access is sent only for the Keychain providers it is valid for.
 func settingsProviderUsagePayloadFromConfig(
 	cfg compozyconfig.ProviderUsageConfig,
 ) contract.SettingsProviderUsagePayload {
 	providers := make(map[string]contract.SettingsProviderUsageProviderPayload, len(cfg.Providers))
 	for id, provider := range cfg.Providers {
 		entry := contract.SettingsProviderUsageProviderPayload{Enabled: new(provider.Enabled)}
-		if id == "claude" {
+		if compozyconfig.ProviderUsageKeychainProvider(id) {
 			entry.KeychainAccess = new(provider.KeychainAccess)
 		}
 		providers[id] = entry

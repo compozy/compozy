@@ -90,8 +90,10 @@ func (r *providerUsageRuntime) ReconcileConfig(ctx context.Context, next *config
 	previous := r.resolver.cfg.ProviderUsage
 	r.resolver.cfg = config.CloneConfig(next)
 	r.resolver.mu.Unlock()
-	if previous.ClaudeKeychainAccess() && !next.ProviderUsage.ClaudeKeychainAccess() {
-		r.ClearCredentials("", "claude")
+	for _, id := range config.ProviderUsageKeychainProviders() {
+		if previous.KeychainAccess(id) && !next.ProviderUsage.KeychainAccess(id) {
+			r.ClearCredentials("", id)
+		}
 	}
 	if err := r.SetEnabled(ctx, next.ProviderUsage.Enabled); err != nil {
 		return err
@@ -107,21 +109,25 @@ func (r *providerUsageRuntime) ReconcileConfig(ctx context.Context, next *config
 
 // ApplyConsent runs only after the full settings transaction became active.
 func (r *providerUsageRuntime) ApplyConsent(ctx context.Context, previous, next config.ProviderUsageConfig) {
-	if profile, local := core.ProviderUsageConsentProfile(
-		ctx,
-	); local && !previous.ClaudeKeychainAccess() && next.ClaudeKeychainAccess() &&
-		next.ProviderEnabled("claude") {
+	profile, local := core.ProviderUsageConsentProfile(ctx)
+	if !local {
+		return
+	}
+	for _, id := range config.ProviderUsageKeychainProviders() {
+		if previous.KeychainAccess(id) || !next.KeychainAccess(id) || !next.ProviderEnabled(id) {
+			continue
+		}
 		// Wait zero admits a daemon-owned flight; caller cancellation cannot own it.
 		_, err := r.Refresh(
 			ctx,
 			providerusage.RefreshRequest{
 				ProfileID:   profile,
-				ProviderIDs: []string{"claude"},
+				ProviderIDs: []string{id},
 				Intent:      providerusage.IntentExplicit,
 			},
 		)
 		if err != nil {
-			r.ClearCredentials(profile, "claude")
+			r.ClearCredentials(profile, id)
 		}
 	}
 }

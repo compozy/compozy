@@ -46,6 +46,7 @@ func DefaultRegistry(options RegistryOptions) Registry {
 		NewKimiCLICollector(collectorOptions("kimi-cli")...),
 		NewCursorCollector(collectorOptions("cursor")...),
 		NewGeminiCollector(collectorOptions("gemini")...),
+		NewAgyCollector(collectorOptions(agyProviderID), WithAgyKeychain(options.Keychain)),
 	}
 	registry := make(Registry, len(collectors))
 	for _, collector := range collectors {

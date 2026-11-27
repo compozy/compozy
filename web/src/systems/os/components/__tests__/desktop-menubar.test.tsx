@@ -13,14 +13,15 @@
 // shell).
 // Owning layer: desktop-menubar.tsx. Canonical suite: this file.
 // Boundary: daemon reads and refreshes run over a stubbed `fetch`.
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { toast, UIProvider } from "@compozy/ui";
 import { resetProfileViews } from "@/systems/profiles";
 import type { ProviderUsageEnvelope } from "@/systems/provider-usage";
+import { createDeferred } from "@/test/event-recorder";
 import type { WorkspacePayload, WorktreeListingByWorkspace } from "@/systems/workspace";
 import { primaryWorkspaceFixture, worktreeListingFixture } from "@/systems/workspace/mocks";
 import {
@@ -775,5 +776,64 @@ describe("DesktopMenubar provider usage control", () => {
     } else {
       expect(notify).not.toHaveBeenCalled();
     }
+  });
+
+  it("Should preserve overlapping Keychain grants when the browser is offline", async () => {
+    const user = userEvent.setup();
+    const claude = statusTargets(NOW).needsConsent;
+    const agy = { ...claude, provider_id: "agy", provider_name: "Antigravity" };
+    const usage = usageEnvelope([claude, agy], { keychain_supported: true }, NOW);
+    renderMenubar({ activeOverlay: "usage", usage });
+
+    type Providers = Record<string, { keychain_access?: boolean }>;
+    let providers: Providers = {};
+    const saves: Providers[] = [];
+    const firstSave = createDeferred<void>();
+    vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      const request = input as Request;
+      const { pathname } = new URL(request.url);
+      if (pathname.startsWith("/api/provider-usage")) return jsonResponse(usage);
+      if (pathname !== "/api/settings/provider-usage") return jsonResponse({}, 404);
+      if (request.method === "PATCH") {
+        const { config } = (await request.json()) as { config: { providers: Providers } };
+        saves.push(config.providers);
+        if (saves.length === 1) await firstSave.promise;
+        providers = config.providers;
+        return jsonResponse({
+          section: "provider-usage",
+          scope: "user",
+          restart_required: false,
+          warnings: [],
+        });
+      }
+      return jsonResponse({
+        section: "provider-usage",
+        scope: "user",
+        available_scopes: ["user"],
+        keychain_supported: true,
+        config: { enabled: true, refresh_interval: "5m0s", providers },
+      });
+    });
+
+    const popover = within(await screen.findByTestId("os-usage-popover"));
+    const wasOnline = onlineManager.isOnline();
+    onTestFinished(() => onlineManager.setOnline(wasOnline));
+    onlineManager.setOnline(false);
+    await user.click(popover.getByRole("button", { name: "Claude, Needs access" }));
+    await user.click(popover.getByRole("button", { name: "Allow" }));
+    try {
+      await waitFor(() => expect(saves).toHaveLength(1));
+      await user.click(popover.getByRole("button", { name: "Claude, Needs access" }));
+      await user.click(popover.getByRole("button", { name: "Antigravity, Needs access" }));
+      await user.click(popover.getByRole("button", { name: "Allow" }));
+    } finally {
+      firstSave.resolve();
+    }
+    await waitFor(() =>
+      expect(saves[1]).toEqual({
+        claude: { keychain_access: true },
+        agy: { keychain_access: true },
+      })
+    );
   });
 });
