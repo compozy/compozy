@@ -4,17 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
-// Approve installs a pending `new` review through the install transaction. Approving a review
+// Approve installs a pending review through the install transaction: a `new` review only while its
+// target is absent, an `edit` only while the installed tree still equals its base. Approving a review
 // whose install already committed is an idempotent success with no writes. A Warning on the result
 // reports a post-commit projection or publication failure; the skill is installed regardless.
 func (s *SkillProposalService) Approve(
@@ -42,7 +40,8 @@ func (s *SkillProposalService) Approve(
 	if !proposedSkillName.MatchString(draft.Name) || draft.Name != review.SkillName {
 		return SkillInstallResult{}, ErrSkillReviewInvalid
 	}
-	t, err := s.acquireSkill(ctx, targetRoot, draft.Name, true)
+	isEdit := review.Kind == SkillProposalEdit
+	t, err := s.acquireSkill(ctx, targetRoot, draft.Name, !isEdit)
 	if err != nil {
 		return SkillInstallResult{}, err
 	}
@@ -51,6 +50,16 @@ func (s *SkillProposalService) Approve(
 			err = errors.Join(err, closeErr)
 		}
 	}()
+	if isEdit && t.parent == nil {
+		return SkillInstallResult{}, skillBaseStaleError(t.name)
+	}
+	if isEdit && review.SkillKey != skillKeyFor(instance.WorkspaceID, t.root, t.name) {
+		return SkillInstallResult{}, fmt.Errorf(
+			"%w: the install target for %s changed",
+			ErrSkillReviewBaseStale,
+			t.name,
+		)
+	}
 	return s.approveLocked(ctx, t, instance, id, digest, operator, draft)
 }
 
@@ -78,9 +87,12 @@ func (s *SkillProposalService) approveLocked(
 		return SkillInstallResult{}, err
 	}
 	current := currentSkillWriter(entries)
-	live, err := skillTreeState(t.dir)
+	live, err := skillTreeState(ctx, t.dir)
 	if errors.Is(err, ErrSkillTreeUnsupported) {
 		// Something that is not a skill tree occupies the target name.
+		if review.Kind == SkillProposalEdit {
+			return SkillInstallResult{}, errors.Join(skillBaseStaleError(t.name), err)
+		}
 		return SkillInstallResult{}, errors.Join(skillTargetExistsError(t.name), err)
 	}
 	if err != nil {
@@ -97,22 +109,20 @@ func (s *SkillProposalService) approveLocked(
 		return SkillInstallResult{Warning: warning}, nil
 	case review.State != SkillReviewPending:
 		return SkillInstallResult{}, ErrSkillReviewStale
-	case review.Kind != SkillProposalNew:
-		return SkillInstallResult{}, ErrSkillReviewInvalid
-	case live != "":
-		return SkillInstallResult{}, skillTargetExistsError(t.name)
 	}
-	result, err := s.runSkillOp(ctx, t, skillOp{
+	op := skillOp{
 		reviewID: review.ID, instanceID: instance.ID, action: SkillInstallActionInstall,
 		decidedVia: skillDecidedViaOperator, decidedBy: operator,
-		changed: skillTargetExistsError(t.name),
-		stage:   func(dir string) error { return writeSkillInstallStage(dir, draft) },
-		prev:    current,
+		prev: current,
 		next: &SkillInstallMarker{
 			ReviewID: review.ID, InstanceID: instance.ID, HomeID: s.HomeID,
 			DecidedVia: skillDecidedViaOperator, DecidedBy: operator,
 		},
-	})
+	}
+	if err := prepareSkillInstallOp(ctx, &op, t, review, draft, live); err != nil {
+		return SkillInstallResult{}, err
+	}
+	result, err := s.runSkillOp(ctx, t, op)
 	if err != nil {
 		return SkillInstallResult{}, err
 	}
@@ -130,20 +140,68 @@ func skillTargetExistsError(name string) error {
 		ErrSkillReviewTargetExists, name)
 }
 
-func writeSkillInstallStage(stage string, draft SkillDraft) error {
-	for _, file := range draft.Files {
-		if !fs.ValidPath(file.Path) || file.Path == "." || strings.ContainsAny(file.Path, "\\\x00:") {
-			return ErrSkillReviewInvalid
+func skillBaseStaleError(name string) error {
+	return fmt.Errorf("%w: %s changed after this edit was proposed; reject it and ask for a new proposal",
+		ErrSkillReviewBaseStale, name)
+}
+
+// prepareSkillInstallOp sets the step-2 expectation and the staged tree of an approval: a `new`
+// review needs an absent target; an `edit` needs the live tree to equal its base, and stages the
+// overlay of the live base, which must equal the reviewed ProposedDigest.
+func prepareSkillInstallOp(
+	ctx context.Context,
+	op *skillOp,
+	t *skillTarget,
+	review SkillReview,
+	draft SkillDraft,
+	live string,
+) error {
+	switch review.Kind {
+	case SkillProposalNew:
+		if live != "" {
+			return skillTargetExistsError(t.name)
 		}
-		path := filepath.Join(stage, filepath.FromSlash(file.Path))
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			return err
+		op.changed = skillTargetExistsError(t.name)
+		tree := draftSkillTree(draft)
+		op.stage = func(dir string) error { return writeSkillInstallStage(ctx, dir, tree) }
+		return nil
+	case SkillProposalEdit:
+		if live == "" || live != review.BaseDigest {
+			return skillBaseStaleError(t.name)
 		}
-		if err := writeSkillFile(path, []byte(file.Content), 0o600); err != nil {
-			return err
+		// The saved snapshot is what revert restores: an approval it could never undo is refused.
+		if _, err := readSkillSnapshot(ctx, review); err != nil {
+			if contextErr := ctx.Err(); contextErr != nil {
+				return contextErr
+			}
+			return errors.Join(ErrSkillReviewInvalid, err)
 		}
+		base, err := readSkillBase(ctx, t.dir)
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
+		}
+		if err != nil || base.Digest() != review.BaseDigest {
+			return errors.Join(skillBaseStaleError(t.name), err)
+		}
+		tree, err := applySkillOverlay(base, draft)
+		if err != nil || tree.Digest() != review.ProposedDigest {
+			return errors.Join(ErrSkillReviewInvalid, err)
+		}
+		op.preExists, op.preDigest = true, review.BaseDigest
+		op.changed = skillBaseStaleError(t.name)
+		op.next.InstalledDigest = review.ProposedDigest
+		op.stage = func(dir string) error { return writeSkillInstallStage(ctx, dir, tree) }
+		return nil
+	default:
+		return ErrSkillReviewInvalid
 	}
-	for _, file := range draft.Files {
+}
+
+func writeSkillInstallStage(ctx context.Context, stage string, tree SkillTree) error {
+	if err := writeSkillTreeFiles(ctx, stage, tree); err != nil {
+		return err
+	}
+	for _, file := range tree {
 		if filepath.Base(file.Path) == skillDefinitionFile {
 			if _, err := skills.ParseSkillFile(filepath.Join(stage, filepath.FromSlash(file.Path))); err != nil {
 				return err

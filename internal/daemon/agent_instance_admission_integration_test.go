@@ -637,7 +637,7 @@ func runSkillInstallStartupReconcile(t *testing.T, removeAgent bool) {
 	if err := os.WriteFile(filepath.Join(target, "SKILL.md"), skillBody, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	staged, err := agentinstance.SkillTreeDigest(target)
+	staged, err := agentinstance.SkillTreeDigest(t.Context(), target)
 	if err != nil {
 		t.Fatal(err)
 	}

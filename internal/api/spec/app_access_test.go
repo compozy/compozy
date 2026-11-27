@@ -303,11 +303,12 @@ func TestAppAccessPolicy(t *testing.T) {
 			"planSessionHistoryCleanup", "getSessionHistoryCleanup", "stopSessionHistoryCleanup",
 			// Archive stopped sessions in bulk: operators and the native tool only.
 			"archiveStoppedSessions",
-			// Skill review: drafts an agent proposed and the operator-only approve/reject decision.
+			// Skill review: drafts an agent proposed and the operator-only approve/reject/revert decision.
 			"listAgentSkillReviews",
 			"getAgentSkillReview",
 			"approveAgentSkillReview",
 			"rejectAgentSkillReview",
+			"revertAgentSkillReview",
 			// Install conflicts: listing and resolving retained conflicts is operator-only.
 			"listAgentSkillInstallConflicts",
 			"resolveAgentSkillInstallConflict",

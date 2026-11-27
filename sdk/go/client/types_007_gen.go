@@ -7,6 +7,39 @@ import (
 	"time"
 )
 
+// CreateTriggerRequest is a daemon API value.
+type CreateTriggerRequest struct {
+	TargetInstanceScope string            `json:"target_instance_scope,omitempty"`
+	Scope               ModelScope        `json:"scope"`
+	Name                string            `json:"name"`
+	TargetKind          TargetKind        `json:"target_kind,omitempty"`
+	AgentName           string            `json:"agent_name"`
+	WorkspaceID         string            `json:"workspace_id,omitempty"`
+	Prompt              string            `json:"prompt,omitempty"`
+	Event               string            `json:"event"`
+	Filter              map[string]string `json:"filter,omitempty"`
+	LoopTarget          *LoopTarget       `json:"loop_target,omitempty"`
+	Enabled             *bool             `json:"enabled,omitempty"`
+	Retry               *RetryConfig      `json:"retry,omitempty"`
+	FireLimit           *FireLimitConfig  `json:"fire_limit,omitempty"`
+	WebhookID           string            `json:"webhook_id,omitempty"`
+	EndpointSlug        string            `json:"endpoint_slug,omitempty"`
+	WebhookSecretValue  string            `json:"webhook_secret_value,omitempty"`
+}
+
+// CreateWorkspaceFolderRequest is a daemon API value.
+type CreateWorkspaceFolderRequest struct {
+	Name string `json:"name"`
+}
+
+// CreateWorkspaceRequest is a daemon API value.
+type CreateWorkspaceRequest struct {
+	RootDir      string   `json:"root_dir"`
+	Name         string   `json:"name,omitempty"`
+	AddDirs      []string `json:"add_dirs,omitempty"`
+	DefaultAgent string   `json:"default_agent,omitempty"`
+}
+
 // CreateWorktreeRequest is a daemon API value.
 type CreateWorktreeRequest struct {
 	Name           string `json:"name,omitempty"`
@@ -403,46 +436,4 @@ type ExtensionCommandGroupPayload struct {
 	Extension string `json:"extension"`
 	Path      string `json:"path"`
 	Summary   string `json:"summary"`
-}
-
-// ExtensionCommandPayload is a daemon API value.
-type ExtensionCommandPayload struct {
-	Extension        string        `json:"extension"`
-	Verb             string        `json:"verb"`
-	ToolID           string        `json:"tool_id"`
-	Summary          string        `json:"summary"`
-	Example          string        `json:"example,omitempty"`
-	Flags            []CommandFlag `json:"flags"`
-	RiskClass        RiskClass     `json:"risk_class"`
-	ApprovalRequired bool          `json:"approval_required"`
-}
-
-// ExtensionCommandsResponse is a daemon API value.
-type ExtensionCommandsResponse struct {
-	Commands []ExtensionCommandPayload      `json:"commands"`
-	Groups   []ExtensionCommandGroupPayload `json:"groups"`
-}
-
-// ExtensionContentsPayload is a daemon API value.
-type ExtensionContentsPayload struct {
-	Skills     int `json:"skills"`
-	MCPServers int `json:"mcp_servers"`
-	Hooks      int `json:"hooks"`
-	Loops      int `json:"loops"`
-	Agents     int `json:"agents"`
-}
-
-// ExtensionDeclaredProfilePayload is a daemon API value.
-type ExtensionDeclaredProfilePayload struct {
-	Name                   string                         `json:"name"`
-	Exists                 bool                           `json:"exists"`
-	CreatedByExtension     bool                           `json:"created_by_extension"`
-	NeedsSetup             bool                           `json:"needs_setup"`
-	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
-}
-
-// ExtensionDependencyConsent is a daemon API value.
-type ExtensionDependencyConsent struct {
-	ExpectedDigest  string `json:"expected_digest,omitempty"`
-	AllowUnverified bool   `json:"allow_unverified,omitzero"`
 }

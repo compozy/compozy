@@ -48,7 +48,7 @@ func newAgentSkillCommand(deps commandDeps) *cobra.Command {
 	root := &cobra.Command{Use: "skill", Short: "Manage proposed agent skills (experimental)"}
 	review := &cobra.Command{Use: "review", Short: "Review proposed skill contents before activation"}
 	root.AddCommand(review, newAgentSkillInstallConflictCommand(deps))
-	for _, action := range []string{agentListKey, configShowKey, loopApproveKey, "reject"} {
+	for _, action := range []string{agentListKey, configShowKey, loopApproveKey, "reject", skillReviewRevertAction} {
 		review.AddCommand(newAgentSkillReviewAction(deps, action))
 	}
 	return root
@@ -72,7 +72,7 @@ func newAgentSkillReviewAction(deps commandDeps, action string) *cobra.Command {
 		cmd.Flags().StringVar(&cursor, "cursor", "", "Continue from next_cursor")
 		cmd.Flags().IntVar(&limit, "limit", 50, "Page size (1-100)")
 	}
-	if action == loopApproveKey || action == "reject" {
+	if action == loopApproveKey || action == "reject" || action == skillReviewRevertAction {
 		cmd.Flags().StringVar(&digest, "expected-digest", "", "Require the digest shown during review")
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
@@ -123,9 +123,22 @@ func newAgentSkillReviewAction(deps commandDeps, action string) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		return writeInstanceOutput(cmd, result, fmt.Sprintf("%s: %s\n", result.Review.Name, result.Review.State))
+		return writeInstanceOutput(cmd, result, agentSkillDecisionText(action, result.Review))
 	}
 	return cmd
+}
+
+const skillReviewRevertAction = "revert"
+
+func agentSkillDecisionText(action string, review contract.AgentSkillReviewPayload) string {
+	switch {
+	case action != skillReviewRevertAction:
+		return fmt.Sprintf("%s: %s\n", review.Name, review.State)
+	case review.Kind == skillReviewKindEdit:
+		return fmt.Sprintf("Reverted %s to its previous contents.\n", review.Name)
+	default:
+		return fmt.Sprintf("Reverted %s. The skill was removed.\n", review.Name)
+	}
 }
 
 func agentSkillReviewTable(reviews []contract.AgentSkillReviewPayload) string {
@@ -149,7 +162,11 @@ func agentSkillReviewText(review contract.AgentSkillReviewPayload) string {
 	if kind == "" {
 		kind = "new"
 	}
-	fmt.Fprintf(&text, "%s (%s) · %s\nDigest: %s\n", review.Name, kind, review.State, review.Digest)
+	fmt.Fprintf(&text, "%s (%s) · %s\nDigest: %s", review.Name, kind, review.State, review.Digest)
+	if review.BaseDigest != "" {
+		fmt.Fprintf(&text, "   Base: %s", review.BaseDigest)
+	}
+	text.WriteString("\n")
 	if lesson := review.Lesson; lesson != nil {
 		fmt.Fprintf(&text, "Lesson (%s confidence)\n  Cue:      %s\n  Lesson:   %s\n  Evidence: %s\n",
 			lesson.Confidence, lesson.Cue, lesson.Lesson, lesson.Evidence)
@@ -158,6 +175,10 @@ func agentSkillReviewText(review contract.AgentSkillReviewPayload) string {
 	}
 	if len(review.EvidenceSessionIDs) > 0 {
 		fmt.Fprintf(&text, "  Sessions: %s\n", strings.Join(review.EvidenceSessionIDs, ", "))
+	}
+	if kind == skillReviewKindEdit {
+		agentSkillEditText(&text, review)
+		return text.String()
 	}
 	fmt.Fprintf(
 		&text,

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -82,16 +83,41 @@ func (h *BaseHandlers) ListAgentSkillReviews(c *gin.Context) {
 }
 
 func (h *BaseHandlers) GetAgentSkillReview(c *gin.Context) {
-	review, _, ok := h.skillReviewTarget(c)
+	review, instance, ok := h.skillReviewTarget(c)
 	if !ok {
 		return
 	}
-	payload, err := skillReviewPayload(review, true)
+	payload, err := skillReviewPayload(c.Request.Context(), review, true)
 	if err != nil {
 		h.skillReviewError(c, err)
 		return
 	}
+	payload.Revert = h.AgentInstances.skillRevertEligibility(c.Request.Context(), review, instance)
 	c.JSON(http.StatusOK, contract.AgentSkillReviewResponse{Review: payload})
+}
+
+// skillRevertEligibility is the detail's revert field: the same rule Revert evaluates under the lock.
+func (api *AgentInstanceAPI) skillRevertEligibility(
+	ctx context.Context,
+	review agentinstance.SkillReview,
+	instance agentinstance.Instance,
+) *contract.AgentSkillRevertEligibility {
+	if api.SkillTarget == nil {
+		return nil
+	}
+	target, _, err := api.SkillTarget(ctx, instance)
+	if errors.Is(err, agentinstance.ErrSkillReviewNoTarget) {
+		target, err = "", nil
+	}
+	var eligibility agentinstance.RevertEligibility
+	if err == nil {
+		eligibility, err = api.SkillProposals.RevertEligibility(ctx, review, target)
+	}
+	if err != nil {
+		slog.WarnContext(ctx, "skill.review.revert_eligibility_failed", "review_id", review.ID, "error", err)
+		return nil
+	}
+	return &contract.AgentSkillRevertEligibility{Allowed: eligibility.Allowed, Reason: eligibility.Reason}
 }
 
 func (h *BaseHandlers) skillReviewTarget(c *gin.Context) (agentinstance.SkillReview, agentinstance.Instance, bool) {
@@ -107,10 +133,24 @@ func (h *BaseHandlers) skillReviewTarget(c *gin.Context) (agentinstance.SkillRev
 	return review, instance, ok
 }
 
-func (h *BaseHandlers) ApproveAgentSkillReview(c *gin.Context) { h.decideAgentSkillReview(c, true) }
-func (h *BaseHandlers) RejectAgentSkillReview(c *gin.Context)  { h.decideAgentSkillReview(c, false) }
+// Skill review decisions on POST /agent-skill-reviews/:id/<decision>.
+const (
+	skillReviewApprove = "approve"
+	skillReviewReject  = "reject"
+	skillReviewRevert  = "revert"
+)
 
-func (h *BaseHandlers) decideAgentSkillReview(c *gin.Context, approve bool) {
+func (h *BaseHandlers) ApproveAgentSkillReview(c *gin.Context) {
+	h.decideAgentSkillReview(c, skillReviewApprove)
+}
+func (h *BaseHandlers) RejectAgentSkillReview(c *gin.Context) {
+	h.decideAgentSkillReview(c, skillReviewReject)
+}
+func (h *BaseHandlers) RevertAgentSkillReview(c *gin.Context) {
+	h.decideAgentSkillReview(c, skillReviewRevert)
+}
+
+func (h *BaseHandlers) decideAgentSkillReview(c *gin.Context, decision string) {
 	actor, ok := h.instanceActor(c)
 	if !ok {
 		return
@@ -149,25 +189,21 @@ func (h *BaseHandlers) decideAgentSkillReview(c *gin.Context, approve bool) {
 	}
 	ctx := c.Request.Context()
 	target, _, targetErr := api.SkillTarget(ctx, instance)
-	if approve {
-		if targetErr != nil {
+	if targetErr != nil {
+		if decision == skillReviewApprove || !errors.Is(targetErr, agentinstance.ErrSkillReviewNoTarget) {
 			h.skillReviewError(c, targetErr)
 			return
 		}
+		target = ""
+	}
+	switch decision {
+	case skillReviewApprove:
 		// A post-commit projection or publication warning is logged by the service and retried by
 		// Reconcile; the skill is installed either way.
 		_, err = api.SkillProposals.Approve(ctx, actor, instance, review.ID, input.Digest, operator, target)
-	} else {
-		// An instance without an installation target never installs anything, so its reviews reject
-		// without the skill lock. Any other target failure refuses the rejection: without the install
-		// log, a committed approval whose projection is still pending cannot be told apart.
-		if targetErr != nil && !errors.Is(targetErr, agentinstance.ErrSkillReviewNoTarget) {
-			h.skillReviewError(c, targetErr)
-			return
-		}
-		if targetErr != nil {
-			target = ""
-		}
+	case skillReviewRevert:
+		_, err = api.SkillProposals.Revert(ctx, actor, instance, review.ID, input.Digest, operator, target)
+	default:
 		err = api.SkillProposals.Reject(ctx, actor, instance, review.ID, input.Digest, operator, target)
 	}
 	if err != nil {
@@ -194,6 +230,8 @@ func (api *AgentInstanceAPI) ProposeSkill(
 		Name:        input.Name,
 		Description: input.Description,
 		Body:        input.Body,
+		Mode:        agentinstance.SkillProposalMode(input.Mode),
+		RemovePaths: input.RemovePaths,
 		Lesson: agentinstance.SkillLesson{
 			Cue:        input.Lesson.Cue,
 			Lesson:     input.Lesson.Lesson,
@@ -211,7 +249,7 @@ func (api *AgentInstanceAPI) ProposeSkill(
 	if err != nil {
 		return contract.AgentSkillReviewResponse{}, err
 	}
-	payload, err := skillReviewPayload(result.Review, false)
+	payload, err := skillReviewPayload(ctx, result.Review, false)
 	return contract.AgentSkillReviewResponse{Review: payload, DuplicateOfPending: result.Duplicate}, err
 }
 
@@ -233,6 +271,9 @@ var skillReviewErrorStatuses = []struct {
 	{agentinstance.ErrSkillReviewTargetExists, 409}, {agentinstance.ErrSkillInstallBusy, 409},
 	{agentinstance.ErrSkillInstallConflict, 409}, {agentinstance.ErrSkillInstallConflictNotFound, 404},
 	{agentinstance.ErrSkillInstallConflictResolving, 409},
+	{agentinstance.ErrSkillReviewBaseStale, 409}, {agentinstance.ErrSkillReviewBaseMissing, 409},
+	{agentinstance.ErrSkillReviewBaseUnsupported, 422}, {agentinstance.ErrSkillProposeNoChange, 409},
+	{agentinstance.ErrSkillProposeInvalidRemove, 422}, {agentinstance.ErrSkillReviewRevertConflict, 409},
 }
 
 // SkillReviewErrorStatus returns the stable code and HTTP status of a skill review domain error.
@@ -247,6 +288,10 @@ func SkillReviewErrorStatus(err error) (string, int, bool) {
 
 func (h *BaseHandlers) skillReviewError(c *gin.Context, err error) {
 	if code, status, ok := SkillReviewErrorStatus(err); ok {
+		if reason := agentinstance.SkillRevertReason(err); reason != "" {
+			c.JSON(status, contract.AgentSkillRevertConflictPayload{Code: code, Reason: reason, Error: err.Error()})
+			return
+		}
 		c.JSON(status, contract.ErrorPayload{Code: code, Error: err.Error()})
 		return
 	}

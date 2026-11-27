@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -1578,9 +1579,10 @@ func TestAgentDraftCommand(t *testing.T) {
 // Invariant: CLI decisions bind the shown digest, and explicit digests remain authoritative.
 // Owning layer: CLI transport; canonical suite: TestAgentSkillReviewCommands.
 func TestAgentSkillReviewCommands(t *testing.T) {
-	for _, action := range []string{"list", "show", "approve", "reject"} {
+	for _, action := range []string{"list", "show", "approve", "reject", "revert"} {
 		t.Run("Should forward skill review "+action, func(t *testing.T) {
 			t.Parallel()
+			var decisions atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				if action == "list" {
@@ -1595,6 +1597,7 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 					return
 				}
 				if r.Method == "POST" {
+					decisions.Add(1)
 					if r.URL.Path != "/api/agent-skill-reviews/skr-test/"+action {
 						t.Errorf("decision path: %s", r.URL)
 					}
@@ -1603,7 +1606,7 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 						t.Error(err)
 					}
 					want := "sha256:shown"
-					if action == "reject" {
+					if action == "reject" || action == "revert" {
 						want = "sha256:expected"
 					}
 					if input.Digest != want {
@@ -1637,19 +1640,36 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 			} else {
 				args = append(args, "skr-test")
 			}
-			if action == "reject" {
+			if action == "reject" || action == "revert" {
 				args = append(args, "--expected-digest", "sha256:expected")
 			}
 			output, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
 			if err != nil {
 				t.Fatal(err)
 			}
+			if action == "revert" && decisions.Load() != 1 {
+				t.Fatalf("revert sent %d decision requests, want one", decisions.Load())
+			}
 			if action == "show" &&
 				(!strings.Contains(output, "Runs automatically") || !strings.Contains(output, "Review changes.")) {
 				t.Fatalf("review: %s", output)
 			}
+			// E2E-004 output contract: a reverted new skill says it was removed.
+			if action == "revert" && output != "Reverted review. The skill was removed.\n" {
+				t.Fatalf("revert output = %q", output)
+			}
 		})
 	}
+	t.Run("Should describe a reverted edit as its previous contents [E2E-004]", func(t *testing.T) {
+		t.Parallel()
+		got := agentSkillDecisionText(
+			"revert",
+			contract.AgentSkillReviewPayload{Name: "release-checklist", Kind: "edit"},
+		)
+		if got != "Reverted release-checklist to its previous contents.\n" {
+			t.Fatalf("revert text = %q", got)
+		}
+	})
 	showReview := func(t *testing.T, review string) string {
 		t.Helper()
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -1705,6 +1725,44 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 			"Check the changelog.\n"
 		if output != want {
 			t.Fatalf("show output:\n%s\nwant:\n%s", output, want)
+		}
+	})
+	t.Run("Should print base counts, change counts and the diff of an edit [UT-044 UT-045]", func(t *testing.T) {
+		t.Parallel()
+		output := showReview(t, `{"id":"skr-test","name":"release-checklist","kind":"edit","state":"pending",`+
+			`"digest":"sha256:a90b","base_digest":"sha256:5c2d","evidence_session_ids":[],`+
+			`"runs_automatically":{"hooks":0,"mcp_servers":0,"scripts":1},`+
+			`"base_runs_automatically":{"hooks":0,"mcp_servers":0,"scripts":2},`+
+			`"changes":[{"path":"SKILL.md","change":"modified"},{"path":"assets/flow.png","change":"unchanged"},`+
+			`{"path":"scripts/old.sh","change":"removed"},{"path":"scripts/tool","change":"modified"},`+
+			`{"path":"added.md","change":"added"},{"path":"removed.md","change":"removed"}],`+
+			`"files":[{"path":"SKILL.md","content":"1. Run make gate.\n2. Confirm the freeze calendar.\n"},`+
+			`{"path":"scripts/tool","content":"echo replacement\n"},{"path":"added.md","content":""}],`+
+			`"base_files":[{"path":"SKILL.md","content":"1. Run make gate.\n","redacted":true},`+
+			`{"path":"assets/flow.png","binary":true,"size":18234},{"path":"scripts/old.sh","content":"echo old\n"},`+
+			`{"path":"scripts/tool","binary":true,"size":3615},{"path":"removed.md","content":""}]}`)
+		for _, want := range []string{
+			"release-checklist (edit) · pending\nDigest: sha256:a90b   Base: sha256:5c2d\n",
+			"Runs automatically: 0 hooks, 0 MCP servers (base: 0 hooks, 0 MCP servers)\n",
+			"Supporting scripts: 1 (base: 2)\n",
+			"Files: 2 modified, 1 added, 2 removed\n",
+			"File added.md added\n",
+			"File removed.md removed\n",
+			"SKILL.md: The diff may hide changes to redacted text in the installed file.\n",
+			"--- a/SKILL.md\n+++ b/SKILL.md\n",
+			"+2. Confirm the freeze calendar.\n",
+			"--- a/scripts/old.sh\n+++ /dev/null\n",
+			"-echo old\n",
+			"Binary file scripts/tool (3615 bytes) modified\n",
+			"--- /dev/null\n+++ b/scripts/tool\n",
+			"+echo replacement\n",
+		} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("edit show output missing %q:\n%s", want, output)
+			}
+		}
+		if strings.Contains(output, "flow.png") {
+			t.Fatalf("unchanged binary file printed:\n%s", output)
 		}
 	})
 	t.Run("Should say no lesson was recorded for a legacy review [UT-042]", func(t *testing.T) {

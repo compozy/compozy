@@ -7,6 +7,56 @@ import (
 	"time"
 )
 
+// FileEntryPayload is a daemon API value.
+type FileEntryPayload struct {
+	Name            string `json:"name"`
+	Path            string `json:"path"`
+	Kind            string `json:"kind"`
+	Size            int64  `json:"size,omitzero"`
+	Symlink         bool   `json:"symlink,omitzero"`
+	Ignored         bool   `json:"ignored,omitzero"`
+	Sensitive       bool   `json:"sensitive,omitzero"`
+	GitStatus       string `json:"git_status,omitempty"`
+	ContainsChanges bool   `json:"contains_changes,omitzero"`
+}
+
+// FileFindMatch is a daemon API value.
+type FileFindMatch struct {
+	Path        string  `json:"path"`
+	Kind        string  `json:"kind"`
+	Sensitive   bool    `json:"sensitive,omitzero"`
+	Score       int     `json:"score"`
+	MatchRanges [][]int `json:"match_ranges"`
+}
+
+// FileFindResponse is a daemon API value.
+type FileFindResponse struct {
+	Root           FileRootPayload `json:"root"`
+	Query          string          `json:"query"`
+	Results        []FileFindMatch `json:"results"`
+	IndexedFiles   int             `json:"indexed_files"`
+	IndexTruncated bool            `json:"index_truncated"`
+}
+
+// FileParseKind is a daemon API value.
+type FileParseKind string
+
+// FileRootPayload is a daemon API value.
+type FileRootPayload struct {
+	Kind        string `json:"kind"`
+	WorkspaceID string `json:"workspace_id"`
+	WorktreeID  string `json:"worktree_id,omitempty"`
+	Name        string `json:"name"`
+	Branch      string `json:"branch,omitempty"`
+}
+
+// FileSearchFile is a daemon API value.
+type FileSearchFile struct {
+	Path             string            `json:"path"`
+	Matches          []FileSearchMatch `json:"matches"`
+	TruncatedMatches bool              `json:"truncated_matches,omitzero"`
+}
+
 // FileSearchMatch is a daemon API value.
 type FileSearchMatch struct {
 	Line       int     `json:"line"`
@@ -394,56 +444,4 @@ type HeartbeatAuthorityPayload struct {
 	Digest        string              `json:"digest"`
 	Status        string              `json:"status"`
 	CheckIns      CheckInsPolicy      `json:"check_ins"`
-}
-
-// HeartbeatConfigProvenancePayload is a daemon API value.
-type HeartbeatConfigProvenancePayload struct {
-	Digest string                       `json:"digest"`
-	Subset HeartbeatConfigSubsetPayload `json:"subset"`
-}
-
-// HeartbeatConfigSubsetPayload is a daemon API value.
-type HeartbeatConfigSubsetPayload struct {
-	Enabled                      bool   `json:"enabled"`
-	MaxBodyBytes                 int64  `json:"max_body_bytes"`
-	ContextProjectionBytes       int64  `json:"context_projection_bytes"`
-	MinInterval                  string `json:"min_interval"`
-	DefaultInterval              string `json:"default_interval"`
-	WakeCooldown                 string `json:"wake_cooldown"`
-	MaxWakesPerCycle             int    `json:"max_wakes_per_cycle"`
-	ActiveSessionOnly            bool   `json:"active_session_only"`
-	AllowActiveHoursPreferences  bool   `json:"allow_active_hours_preferences"`
-	WakeEventRetention           string `json:"wake_event_retention"`
-	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
-	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
-}
-
-// HeartbeatContextProjectionPayload is a daemon API value.
-type HeartbeatContextProjectionPayload struct {
-	Sources []Ref    `json:"sources,omitempty"`
-	Include []string `json:"include,omitzero"`
-}
-
-// HeartbeatDeleteByPathRequest is a daemon API value.
-type HeartbeatDeleteByPathRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	ExpectedDigest string `json:"expected_digest"`
-}
-
-// HeartbeatFrontmatterPayload is a daemon API value.
-type HeartbeatFrontmatterPayload struct {
-	Actions     []ActionDecl                           `json:"actions"`
-	CheckIns    CheckInsPolicy                         `json:"check_ins"`
-	Version     int                                    `json:"version"`
-	Enabled     bool                                   `json:"enabled"`
-	Summary     string                                 `json:"summary,omitempty"`
-	Preferences HeartbeatFrontmatterPreferencesPayload `json:"preferences"`
-	Context     HeartbeatContextProjectionPayload      `json:"context"`
-}
-
-// HeartbeatFrontmatterPreferencesPayload is a daemon API value.
-type HeartbeatFrontmatterPreferencesPayload struct {
-	MinInterval  string                       `json:"min_interval,omitempty"`
-	ActiveHours  []HeartbeatTimeWindowPayload `json:"active_hours,omitempty"`
-	QuietWindows []HeartbeatTimeWindowPayload `json:"quiet_windows,omitempty"`
 }

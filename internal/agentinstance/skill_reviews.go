@@ -34,7 +34,11 @@ type SkillReview struct {
 	DecidedAt       *time.Time
 	Kind            SkillProposalMode
 	// BaseDigest is the tree digest of the captured base of an edit; "" for new skills and legacy rows.
-	BaseDigest         string
+	BaseDigest string
+	// SnapshotPath is the lossless base snapshot of an edit, kept for the review's lifetime; "" for new.
+	SnapshotPath string
+	// ProposedDigest is the tree digest of what approval installs; display and install check only.
+	ProposedDigest     string
 	Lesson             SkillLesson
 	EvidenceSessionIDs []string
 	// DecidedVia is "" while pending, "operator" or "auto_approve" once decided.
@@ -47,6 +51,9 @@ type SkillReview struct {
 	// PrevInstallMarker is the install-log `previous` writer this approval replaced (JSON of a
 	// SkillInstallMarker); nil when there was none.
 	PrevInstallMarker []byte
+	// RevertedBy and RevertedAt record the operator revert of an approved review.
+	RevertedBy string
+	RevertedAt *time.Time
 }
 
 // SkillKey identifies one physical skill: "workspace:<workspace_id>/<name>" for workspace targets,
@@ -83,6 +90,9 @@ type SkillReviewStore interface {
 	// Idempotent: a review that is no longer pending is left unchanged.
 	ProjectApproval(ctx context.Context, m SkillInstallMarker, installedDigest string, prevMarker []byte,
 		decidedAt time.Time) error
+	// ProjectRevert projects a committed revert install-log entry: an approved review becomes reverted
+	// with the entry's operator and commit time. Idempotent: any other state is left unchanged.
+	ProjectRevert(ctx context.Context, reviewID, operator string, revertedAt time.Time) error
 	// DecideReject records an operator rejection of a pending review; anything else is stale.
 	DecideReject(ctx context.Context, id, digest, operator string) error
 }

@@ -305,6 +305,7 @@ var completionCommandOptOut = map[string]struct{}{
 	"agent skill review show":              {}, // skill review ID
 	"agent skill review approve":           {}, // skill review ID
 	"agent skill review reject":            {}, // skill review ID
+	"agent skill review revert":            {}, // skill review ID
 	"app-token update":                     {}, // app token ID
 	"app-token revoke":                     {}, // app token ID
 	"approvals show":                       {}, // tool approval request ID

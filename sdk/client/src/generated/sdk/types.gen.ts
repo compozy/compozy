@@ -899,8 +899,21 @@ export type AgentSkillAutomaticContents = {
   scripts: number;
 };
 
+export type AgentSkillBaseFile = {
+  binary?: boolean;
+  content?: string;
+  path: string;
+  redacted?: boolean;
+  size?: number;
+};
+
 export type AgentSkillDraftFile = {
   content: string;
+  path: string;
+};
+
+export type AgentSkillFileChange = {
+  change: string;
   path: string;
 };
 
@@ -939,6 +952,11 @@ export type AgentSkillLesson = {
   lesson: string;
 };
 
+export type AgentSkillRevertEligibility = {
+  allowed: boolean;
+  reason?: string;
+};
+
 export type AgentSkillReviewDecisionRequest = {
   digest: string;
 };
@@ -946,6 +964,9 @@ export type AgentSkillReviewDecisionRequest = {
 export type AgentSkillReviewPayload = {
   agent: string;
   base_digest?: string;
+  base_files?: Array<AgentSkillBaseFile>;
+  base_runs_automatically?: AgentSkillAutomaticContents | null;
+  changes?: Array<AgentSkillFileChange>;
   created_at: string;
   decided_at?: string | null;
   decided_by?: string;
@@ -960,6 +981,9 @@ export type AgentSkillReviewPayload = {
   name: string;
   problem?: string;
   profile_id: string;
+  revert?: AgentSkillRevertEligibility | null;
+  reverted_at?: string | null;
+  reverted_by?: string;
   runs_automatically: AgentSkillAutomaticContents;
   state: string;
   workspace_id: string;
@@ -17213,6 +17237,74 @@ export type RejectAgentSkillReviewResponses = {
 
 export type RejectAgentSkillReviewResponse =
   RejectAgentSkillReviewResponses[keyof RejectAgentSkillReviewResponses];
+
+export type RevertAgentSkillReviewData = {
+  /**
+   * JSON request body
+   */
+  body: AgentSkillReviewDecisionRequest;
+  path: {
+    /**
+     * Review ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-skill-reviews/{id}/revert";
+};
+
+export type RevertAgentSkillReviewErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type RevertAgentSkillReviewError =
+  RevertAgentSkillReviewErrors[keyof RevertAgentSkillReviewErrors];
+
+export type RevertAgentSkillReviewResponses = {
+  /**
+   * Decided review
+   */
+  200: AgentSkillReviewResponse;
+};
+
+export type RevertAgentSkillReviewResponse =
+  RevertAgentSkillReviewResponses[keyof RevertAgentSkillReviewResponses];
 
 export type GetAgentContextData = {
   body?: never;

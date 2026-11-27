@@ -264,7 +264,7 @@ export interface AgentInstanceAway {
 
 /** A skill an always-on agent proposed, with its exact contents (S9). */
 export type AgentSkillReviewPayload = OperationResponse<"getAgentSkillReview", 200>["review"];
-export type AgentSkillReviewState = "pending" | "approved" | "rejected";
+export type AgentSkillReviewState = "pending" | "approved" | "rejected" | "reverted";
 /** The evidence-backed lesson a proposal carries; absent on reviews created before lessons. */
 export type AgentSkillLessonPayload = NonNullable<AgentSkillReviewPayload["lesson"]>;
 

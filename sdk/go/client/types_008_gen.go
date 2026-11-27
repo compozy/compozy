@@ -7,6 +7,48 @@ import (
 	"time"
 )
 
+// ExtensionCommandPayload is a daemon API value.
+type ExtensionCommandPayload struct {
+	Extension        string        `json:"extension"`
+	Verb             string        `json:"verb"`
+	ToolID           string        `json:"tool_id"`
+	Summary          string        `json:"summary"`
+	Example          string        `json:"example,omitempty"`
+	Flags            []CommandFlag `json:"flags"`
+	RiskClass        RiskClass     `json:"risk_class"`
+	ApprovalRequired bool          `json:"approval_required"`
+}
+
+// ExtensionCommandsResponse is a daemon API value.
+type ExtensionCommandsResponse struct {
+	Commands []ExtensionCommandPayload      `json:"commands"`
+	Groups   []ExtensionCommandGroupPayload `json:"groups"`
+}
+
+// ExtensionContentsPayload is a daemon API value.
+type ExtensionContentsPayload struct {
+	Skills     int `json:"skills"`
+	MCPServers int `json:"mcp_servers"`
+	Hooks      int `json:"hooks"`
+	Loops      int `json:"loops"`
+	Agents     int `json:"agents"`
+}
+
+// ExtensionDeclaredProfilePayload is a daemon API value.
+type ExtensionDeclaredProfilePayload struct {
+	Name                   string                         `json:"name"`
+	Exists                 bool                           `json:"exists"`
+	CreatedByExtension     bool                           `json:"created_by_extension"`
+	NeedsSetup             bool                           `json:"needs_setup"`
+	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
+}
+
+// ExtensionDependencyConsent is a daemon API value.
+type ExtensionDependencyConsent struct {
+	ExpectedDigest  string `json:"expected_digest,omitempty"`
+	AllowUnverified bool   `json:"allow_unverified,omitzero"`
+}
+
 // ExtensionDependencyPayload is a daemon API value.
 type ExtensionDependencyPayload struct {
 	Name             string   `json:"name"`
@@ -396,54 +438,4 @@ type FileEntriesResponse struct {
 	Entries           []FileEntryPayload `json:"entries"`
 	Truncated         bool               `json:"truncated"`
 	StatusUnavailable bool               `json:"status_unavailable,omitzero"`
-}
-
-// FileEntryPayload is a daemon API value.
-type FileEntryPayload struct {
-	Name            string `json:"name"`
-	Path            string `json:"path"`
-	Kind            string `json:"kind"`
-	Size            int64  `json:"size,omitzero"`
-	Symlink         bool   `json:"symlink,omitzero"`
-	Ignored         bool   `json:"ignored,omitzero"`
-	Sensitive       bool   `json:"sensitive,omitzero"`
-	GitStatus       string `json:"git_status,omitempty"`
-	ContainsChanges bool   `json:"contains_changes,omitzero"`
-}
-
-// FileFindMatch is a daemon API value.
-type FileFindMatch struct {
-	Path        string  `json:"path"`
-	Kind        string  `json:"kind"`
-	Sensitive   bool    `json:"sensitive,omitzero"`
-	Score       int     `json:"score"`
-	MatchRanges [][]int `json:"match_ranges"`
-}
-
-// FileFindResponse is a daemon API value.
-type FileFindResponse struct {
-	Root           FileRootPayload `json:"root"`
-	Query          string          `json:"query"`
-	Results        []FileFindMatch `json:"results"`
-	IndexedFiles   int             `json:"indexed_files"`
-	IndexTruncated bool            `json:"index_truncated"`
-}
-
-// FileParseKind is a daemon API value.
-type FileParseKind string
-
-// FileRootPayload is a daemon API value.
-type FileRootPayload struct {
-	Kind        string `json:"kind"`
-	WorkspaceID string `json:"workspace_id"`
-	WorktreeID  string `json:"worktree_id,omitempty"`
-	Name        string `json:"name"`
-	Branch      string `json:"branch,omitempty"`
-}
-
-// FileSearchFile is a daemon API value.
-type FileSearchFile struct {
-	Path             string            `json:"path"`
-	Matches          []FileSearchMatch `json:"matches"`
-	TruncatedMatches bool              `json:"truncated_matches,omitzero"`
 }

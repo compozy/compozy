@@ -574,6 +574,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent-skill-reviews/{id}/revert": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Decide a skill review as the operator (experimental) */
+    post: operations["revertAgentSkillReview"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent/context": {
     parameters: {
       query?: never;
@@ -9833,8 +9850,20 @@ export interface components {
       mcp_servers: number;
       scripts: number;
     };
+    AgentSkillBaseFile: {
+      binary?: boolean;
+      content?: string;
+      path: string;
+      redacted?: boolean;
+      /** Format: int64 */
+      size?: number;
+    };
     AgentSkillDraftFile: {
       content: string;
+      path: string;
+    };
+    AgentSkillFileChange: {
+      change: string;
       path: string;
     };
     AgentSkillInstallConflictPayload: {
@@ -9868,12 +9897,24 @@ export interface components {
       evidence: string;
       lesson: string;
     };
+    AgentSkillRevertConflictPayload: {
+      code: string;
+      error: string;
+      reason?: string;
+    };
+    AgentSkillRevertEligibility: {
+      allowed: boolean;
+      reason?: string;
+    };
     AgentSkillReviewDecisionRequest: {
       digest: string;
     };
     AgentSkillReviewPayload: {
       agent: string;
       base_digest?: string;
+      base_files?: components["schemas"]["AgentSkillBaseFile"][];
+      base_runs_automatically?: components["schemas"]["AgentSkillAutomaticContents"] | null;
+      changes?: components["schemas"]["AgentSkillFileChange"][];
       /** Format: date-time */
       created_at: string;
       /** Format: date-time */
@@ -9890,6 +9931,10 @@ export interface components {
       name: string;
       problem?: string;
       profile_id: string;
+      revert?: components["schemas"]["AgentSkillRevertEligibility"] | null;
+      /** Format: date-time */
+      reverted_at?: string | null;
+      reverted_by?: string;
       runs_automatically: components["schemas"]["AgentSkillAutomaticContents"];
       state: string;
       workspace_id: string;
@@ -28292,6 +28337,109 @@ export interface operations {
     };
   };
   rejectAgentSkillReview: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Review ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentSkillReviewDecisionRequest"];
+      };
+    };
+    responses: {
+      /** @description Decided review */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentSkillReviewResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  revertAgentSkillReview: {
     parameters: {
       query?: {
         /** @description Act as this profile by name */
