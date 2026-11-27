@@ -1,0 +1,98 @@
+{
+    "version": 3,
+    "key": "sessions-by-computer",
+    "sequence": 1,
+    "review": {
+        "status": "approved",
+        "updatedAt": "2026-11-27T17:38:28.456Z"
+    },
+    "events": [
+        {
+            "id": "1ef761d4-213f-4094-afc9-c31973d541c1",
+            "type": "approved",
+            "at": "2026-11-27T17:38:28.456Z",
+            "author": "reviewer",
+            "commit": "27b8a232a04eac2c3da117438c7558202fa9b667",
+            "openCount": 0
+        }
+    ],
+    "comments": [
+        {
+            "id": "sessions-by-computer-1",
+            "slug": "sessions-by-computer",
+            "status": "resolved",
+            "createdAt": "2026-11-27T17:13:30.712Z",
+            "updatedAt": "2026-11-27T17:16:48.376Z",
+            "resolvedAt": "2026-11-27T17:16:37.198Z",
+            "context": {
+                "commit": "27b8a232a04eac2c3da117438c7558202fa9b667",
+                "state": "list-together-project",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1859,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "[data-testid=\"draft-group-local-ws_checkout\"] > div:nth-of-type(1) > button",
+                "testId": "draft-group-local-ws_checkout",
+                "tag": "button",
+                "text": "checkout-web MacBook Pro 2",
+                "source": "src/systems/session/components/session-list/session-list-group-toggle.tsx:33:5",
+                "sourceChain": [
+                    "src/systems/session/components/session-list/session-list-group-toggle.tsx:33:5",
+                    "src/drafts/sessions-by-computer-kit/rail-tree.tsx:185:9",
+                    "src/drafts/sessions-by-computer-kit/rail-tree.tsx:184:7",
+                    "src/drafts/sessions-by-computer-kit/rail-tree.tsx:183:5",
+                    "src/drafts/sessions-by-computer-kit/computer-rail.tsx:105:9",
+                    "src/drafts/sessions-by-computer-kit/computer-rail.tsx:171:12",
+                    "src/drafts/sessions-by-computer-kit/computer-rail.tsx:227:9",
+                    "src/drafts/sessions-by-computer-kit/computer-rail.tsx:174:5"
+                ],
+                "rect": {
+                    "x": 71,
+                    "y": 223,
+                    "width": 314,
+                    "height": 28
+                },
+                "rectNormalized": {
+                    "x": 0.038192576654115115,
+                    "y": 0.19324090121317158,
+                    "width": 0.1689080150618612,
+                    "height": 0.024263431542461005
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "2a64c047-fbdf-42b4-b742-e6e94c1f2b8d",
+                    "at": "2026-11-27T17:13:30.765Z",
+                    "editedAt": null,
+                    "body": "faça uma versão com o icone no lugar do chevron, o nome e depois o Macbook Pro pra eu ver como fica",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "423a485a-1d02-412e-ae60-9f92fabdf05b",
+                    "at": "2026-11-27T17:16:37.198Z",
+                    "editedAt": "2026-11-27T17:16:48.376Z",
+                    "body": "Added state list-together-mark (Together, computer mark first). Each Together group now reads: computer icon in the chevron's cell, then the project, then the computer name. Hovering or focusing the header shows the chevron. A folded group with a needs-you or working session shows that state glyph instead of the icon. list-together-project keeps the current version for comparison. Changes: optional mark prop on SessionListGroupToggle and SessionListDisclosureMark, and the draft rail. Verified: proto check clean; captured at 1859x1154 dark and light; hovered the header (chevron shows) and folded checkout-web on MacBook Pro (needs-you glyph shows); no console errors.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "76d8aa6d-559d-4fbb-8482-574a061d6f56",
+                            "name": "list-together-mark-1859-dark.png",
+                            "type": "image/png",
+                            "size": 134413,
+                            "width": 1859,
+                            "height": 1154,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

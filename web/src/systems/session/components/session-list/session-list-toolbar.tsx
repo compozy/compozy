@@ -41,6 +41,8 @@ export interface SessionListToolbarProps {
   newFolderUnavailable?: string | null;
   /** Replaces the plain `+`: the live list's menu with Add always-on agent. */
   createMenu?: ReactNode;
+  /** Together or Separate, in View options; absent when the window shows one computer. */
+  computerLayout?: SessionViewOptionsMenuProps["computerLayout"];
   /** "Archive stopped" over the list's scope, in View options. */
   archiveStopped?: SessionViewOptionsMenuProps["archiveStopped"];
   testIdPrefix: string;
@@ -77,6 +79,7 @@ export function SessionListToolbar({
   onNewFolder,
   newFolderUnavailable,
   createMenu,
+  computerLayout,
   archiveStopped,
   testIdPrefix,
 }: SessionListToolbarProps) {
@@ -101,6 +104,7 @@ export function SessionListToolbar({
       />
       <SessionViewOptionsMenu
         archiveStopped={archiveStopped}
+        computerLayout={computerLayout}
         groupBy={groupBy}
         groupByOptions={groupByOptions}
         onGroupByChange={onGroupByChange}

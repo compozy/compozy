@@ -17,7 +17,8 @@ import {
   Pill,
 } from "@compozy/ui";
 
-import { alignLines, splitLines, ToolDiffBody } from "@/systems/session";
+import { ToolDiffBody } from "@/systems/session/components/tool-renderers/tool-diff-body";
+import { alignLines, splitLines } from "@/systems/session/lib/tool-diff-stat";
 
 import { hasInvisibleCharacters, skillMarkdownRead } from "../../lib/agent-skill-markdown-read";
 import {

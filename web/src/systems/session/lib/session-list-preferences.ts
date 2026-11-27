@@ -18,9 +18,12 @@ export const SESSION_LIST_SORTS = [
   "manual",
 ] as const;
 export const SESSION_LIST_GROUP_BYS = ["none", "project", "profile"] as const;
+/** With remote computers in view: one merged list, or one section per computer. */
+export const SESSION_LIST_COMPUTER_LAYOUTS = ["together", "separate"] as const;
 
 export type SessionListSort = (typeof SESSION_LIST_SORTS)[number];
 export type SessionListGroupBy = (typeof SESSION_LIST_GROUP_BYS)[number];
+export type SessionListComputerLayout = (typeof SESSION_LIST_COMPUTER_LAYOUTS)[number];
 
 export interface SessionListPreferences {
   sort: SessionListSort;
