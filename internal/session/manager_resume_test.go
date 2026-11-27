@@ -863,6 +863,7 @@ func TestResumeMonitorOwner(t *testing.T) {
 		expired      bool
 		parentStop   bool
 		idleParent   bool
+		delivery     string
 		wantResume   bool
 		wantErr      string
 	}{
@@ -890,6 +891,8 @@ func TestResumeMonitorOwner(t *testing.T) {
 		{name: "Should refuse a changed route for a settled waiting session", cause: CauseShutdown, fromBoundary: true, changed: "route", wantErr: "route_changed"},
 		{name: "Should preserve explicit stop for a settled waiting session", cause: CauseUserRequested, fromBoundary: true, wantErr: ErrMonitorOwnerStopped.Error()},
 		{name: "Should refuse a waiting session without a durable binding", cause: CauseShutdown, fromBoundary: true, noBinding: true, wantErr: "binding_unknown"},
+		{name: "Should resume a settled waiting session whose last turn was an after_turn wake", cause: CauseShutdown, fromBoundary: true, delivery: store.SessionInputDeliveryAfterTurn, wantResume: true},
+		{name: "Should refuse a settled waiting session whose last turn was a maintenance command", cause: CauseShutdown, fromBoundary: true, delivery: string(PromptDeliveryMaintenance), wantErr: "maintenance_command"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(
@@ -940,6 +943,14 @@ func TestResumeMonitorOwner(t *testing.T) {
 			if tc.expired {
 				meta := readMeta(t, target.MetaPath())
 				meta.Lineage.TTLExpiresAt = new(h.manager.now().Add(-time.Hour))
+				if err := store.WriteSessionMeta(target.MetaPath(), &meta); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.delivery != "" {
+				// A boundary persisted by an earlier daemon may carry a queue ordering such as after_turn.
+				meta := readMeta(t, target.MetaPath())
+				meta.RestartBoundary.Delivery = tc.delivery
 				if err := store.WriteSessionMeta(target.MetaPath(), &meta); err != nil {
 					t.Fatal(err)
 				}

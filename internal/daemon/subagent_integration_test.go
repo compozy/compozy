@@ -4663,7 +4663,9 @@ func TestReplyWatchCrashIntegration(t *testing.T) {
 		}
 		d := reopenSubagentIntegrationDaemon(t, state.Home, &state.Config)
 		m := d.sessions.(*session.Manager)
-		// Boot classifies the lost ACP runtime as dead; recovery still must not retry a committed handoff.
+		// Boot classifies the lost ACP runtime as dead; recovery still must not retry a committed handoff:
+		// exactly one reply turn carries the watch. The interrupted reply turn may get at most one ordinary
+		// restart-continuation turn, like any other interrupted turn.
 		for range 2 {
 			if err := m.ReplyWatches().Deliver(t.Context(), state.Watch); err != nil {
 				t.Fatal(err)
@@ -4680,12 +4682,27 @@ func TestReplyWatchCrashIntegration(t *testing.T) {
 			state.Sender,
 			store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 100},
 		)
-		if err != nil || len(rows) != 1 {
-			t.Fatalf("reply turns after crash = %d, %v", len(rows), err)
+		if err != nil {
+			t.Fatal(err)
 		}
-		event, err := transcript.UnmarshalAgentEvent(rows[0].Content)
-		if err != nil || event.Synthetic == nil || event.Synthetic.WakeEventID != state.Watch {
-			t.Fatal(event, err)
+		replies, continuations := 0, 0
+		for _, row := range rows {
+			event, err := transcript.UnmarshalAgentEvent(row.Content)
+			if err != nil || event.Synthetic == nil {
+				t.Fatal(event, err)
+			}
+			switch {
+			case event.Synthetic.WakeEventID == state.Watch:
+				replies++
+			case event.Synthetic.Kind == "restart_continuation":
+				continuations++
+			default:
+				t.Fatalf("unexpected synthetic turn after crash = %+v", event.Synthetic)
+			}
+		}
+		if replies != 1 || continuations > 1 {
+			t.Fatalf("reply turns after crash = %d, restart continuations = %d; want 1 and at most 1",
+				replies, continuations)
 		}
 		watch, err := d.registry.(*globaldb.GlobalDB).GetReplyWatch(t.Context(), state.Watch)
 		if err != nil || watch.State != "delivered" {
