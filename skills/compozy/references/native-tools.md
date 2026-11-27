@@ -608,6 +608,9 @@ If a hosted `compozy__clarify` card is still pending after its turn ends, answer
 question and answer in the same session so the agent can continue. If `compozy__session_clarify_answer`
 reports a retryable `queue_full` error, the card is still pending. Retry when the queue has capacity.
 
+ACP elicitation and Antigravity interaction questions follow `[tools.clarify] timeout`. Canceling
+the active turn clears its pending provider question.
+
 `compozy__session_list` accepts `board_column: ["needs_you", "working", "waiting", "in_review", "done"]`
 and `children: "exclude"` (default `include`). Columns filter before pagination/counting;
 unknown values return `tool_invalid_input`. Excluding children removes every session with a parent,

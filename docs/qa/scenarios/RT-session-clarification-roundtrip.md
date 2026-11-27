@@ -111,6 +111,13 @@ than four choices, or URL mode is declined. Automated evidence: `internal/acp/el
 Outstanding walk: answer a real opencode `question` from the dock, and confirm a system session
 declines without a pending interaction.
 
+QA impact 2026-11-26 (#2023). ACP elicitation and Antigravity interaction questions follow the
+clarification timeout and the active turn's lifetime. The ACP suite covers unbounded waits and
+cooperative turn cancellation with the provider request still open. Walk the OpenCode and
+Antigravity question paths past five minutes with an unbounded policy. Answer one question, cancel
+another question's turn, and confirm both clear the pending card with the matching outcome while
+the runtime stays available after a cooperative cancel.
+
 QA impact 2026-11-18 (#1821): while a clarification is pending, a steer or queue send from the
 main session composer answers that question as free text through the existing answer endpoint, so
 the turn resumes at once instead of waiting for the timeout. The composer placeholder says so. A

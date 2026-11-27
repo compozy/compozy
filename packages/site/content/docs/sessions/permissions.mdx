@@ -430,6 +430,9 @@ has no management surface at all.
 requests, approval decisions, or remembered native-tool grants. One session can have at most one
 pending clarification.
 
+Questions from an ACP provider, including Antigravity interaction questions, follow the same
+clarification timeout. Canceling the active turn clears its pending provider question.
+
 The question may offer up to four unique choices or accept free text. The HTTP/UDS wire uses a
 zero-based `choice_index`; the CLI presents one-based choice numbers:
 

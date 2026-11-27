@@ -224,7 +224,7 @@ func TestAgentProcessForkSession(t *testing.T) {
 
 func beginObservedPrompt(t *testing.T, proc *AgentProcess) *activePromptState {
 	t.Helper()
-	active, err := proc.beginPrompt("turn-observed", 16)
+	active, err := proc.beginPrompt(t.Context(), "turn-observed", 16)
 	if err != nil {
 		t.Fatalf("beginPrompt() error = %v", err)
 	}

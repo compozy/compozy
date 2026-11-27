@@ -114,6 +114,9 @@ func startHelperProcess(
 	opts.InputOnly = overrides.InputOnly
 	opts.LeanEnvironment = overrides.LeanEnvironment
 	opts.SetExecutionPolicy(overrides.ExecutionPolicyValue())
+	if overrides.PermissionPolicy != nil {
+		opts.PermissionPolicy.ElicitationAsker = overrides.PermissionPolicy.ElicitationAsker
+	}
 
 	proc, err := driver.Start(testutil.Context(t), opts)
 	if err != nil {
@@ -990,6 +993,8 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 				"reason_codes": []string{"mcp_auth_required"},
 			},
 		}
+	case "cooperative_cancel_question":
+		return a.promptWithCancelableQuestion(ctx, params.SessionId)
 	case "block_prompt_until_cancel", "cooperative_cancel_ignored", "concurrent_steering",
 		"steering_injected", "steering_pending", "steering_failed", "steering_idle":
 		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
@@ -1231,6 +1236,30 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 	}
 
 	return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}, nil
+}
+
+func (a *helperACPAgent) promptWithCancelableQuestion(
+	ctx context.Context,
+	sessionID acpsdk.SessionId,
+) (acpsdk.PromptResponse, error) {
+	response, err := a.conn.RequestPermission(context.WithoutCancel(ctx), acpsdk.RequestPermissionRequest{
+		SessionId: sessionID,
+		ToolCall:  acpsdk.ToolCallUpdate{ToolCallId: "interaction_1", Title: new("Proceed?")},
+		Options: []acpsdk.PermissionOption{
+			{OptionId: "yes", Name: "Yes", Kind: acpsdk.PermissionOptionKindAllowOnce},
+		},
+	})
+	if err != nil {
+		return acpsdk.PromptResponse{}, err
+	}
+	if response.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
+		return acpsdk.PromptResponse{}, fmt.Errorf(
+			"expected the client to cancel the question, got %+v",
+			response.Outcome,
+		)
+	}
+	<-ctx.Done()
+	return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonCancelled}, nil
 }
 
 func (a *helperACPAgent) SetSessionMode(

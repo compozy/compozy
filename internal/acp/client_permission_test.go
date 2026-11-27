@@ -395,7 +395,7 @@ func TestTriagePolicy(t *testing.T) {
 			} else if !errors.Is(err, ErrTriageUnsupported) {
 				t.Fatalf("mode update error=%v, want triage_unsupported", err)
 			}
-			active, err := p.beginPrompt("later", 16)
+			active, err := p.beginPrompt(t.Context(), "later", 16)
 			if tc.allowed {
 				if err != nil || active == nil {
 					t.Fatalf("later prompt=%v error=%v", active, err)
@@ -422,7 +422,8 @@ func TestTriagePolicy(t *testing.T) {
 		if !errors.Is(err, ErrTriageUnsupported) {
 			t.Fatal(err)
 		}
-		if active, err := p.beginPrompt("later", 16); !errors.Is(err, ErrTriageUnsupported) || active != nil {
+		active, err := p.beginPrompt(t.Context(), "later", 16)
+		if !errors.Is(err, ErrTriageUnsupported) || active != nil {
 			t.Fatalf("later prompt=%v error=%v", active, err)
 		}
 	})
@@ -469,7 +470,7 @@ func TestTriagePolicy(t *testing.T) {
 		for _, mode := range []string{"default", "plan", "full-access", ""} {
 			p := &AgentProcess{SessionID: "provider", executionPolicy: ExecutionPolicyTriage}
 			canceled := false
-			active, err := p.beginPrompt("triage", 16, func() { canceled = true })
+			active, err := p.beginPrompt(t.Context(), "triage", 16, func() { canceled = true })
 			if err != nil {
 				t.Fatal(err)
 			}
