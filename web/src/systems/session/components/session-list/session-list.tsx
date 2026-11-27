@@ -1,8 +1,11 @@
-import type { ReactNode } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
+import { useContext, useState, type ReactNode } from "react";
 
-import { SearchInput } from "@compozy/ui";
+import { SearchInput, toast } from "@compozy/ui";
 
 import { isRemoteComputerId, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+import { computerRegistryKeys, patchComputer } from "@/systems/computers";
+import type { ComputerFixture } from "@/systems/computers/mocks/remote-computers-types";
 import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -31,6 +34,10 @@ import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListMultiComputerBody, SessionListSingleBody } from "./session-list-body";
 import { SessionListControls } from "./session-list-controls";
 import { SessionListPinned } from "./session-list-pinned";
+import {
+  SessionListOfflineNotice,
+  SessionListScopeRemovedNotice,
+} from "./session-list-scope-notice";
 import { SessionListSelectionFolders } from "./session-list-selection-folders";
 import { SessionListStatus } from "./session-list-status";
 import { SessionListSubagentActionsHost } from "./session-list-subagent-actions";
@@ -114,6 +121,8 @@ export function SessionList({
   scopeNotice,
   onOpenComputerDetails,
 }: SessionListProps) {
+  const queryClient = useContext(QueryClientContext);
+  const [reconnectingScoped, setReconnectingScoped] = useState(false);
   const { dataScope } = useActiveWorkspace();
   const profile = useProfileReadScope();
   const { contentRef, sessionActions, announcement } = useSessionListContent(
@@ -228,6 +237,35 @@ export function SessionList({
   const showAlwaysOnTop =
     !scopedRemoteSource && (!multiComputerVisible || computersLayout === "together");
 
+  const scopedOfflineComputer =
+    scopedRemoteSource &&
+    (scopedRemoteSource.read === "offline" || scopedRemoteSource.read === "offline_empty")
+      ? (scopedRemoteSource.computer as ComputerFixture)
+      : null;
+
+  const builtInNotice = computerScopeState.removedName ? (
+    <SessionListScopeRemovedNotice
+      name={computerScopeState.removedName}
+      onDismiss={computerScopeState.dismissRemoved}
+      testIdPrefix={testIdPrefix}
+    />
+  ) : scopedOfflineComputer ? (
+    <SessionListOfflineNotice
+      computer={scopedOfflineComputer}
+      onReconnect={() => {
+        setReconnectingScoped(true);
+        void patchComputer(scopedOfflineComputer.id, { enabled: true })
+          .then(() => queryClient?.invalidateQueries({ queryKey: computerRegistryKeys.all }))
+          .catch(err => {
+            toast.error(err instanceof Error ? err.message : "Failed to reconnect computer.");
+          })
+          .finally(() => setReconnectingScoped(false));
+      }}
+      reconnecting={reconnectingScoped}
+      testIdPrefix={testIdPrefix}
+    />
+  ) : null;
+
   return (
     <SessionMenuOpenContext value={onSelectSession}>
       <SessionListSubagentActionsHost>
@@ -259,7 +297,7 @@ export function SessionList({
               containerClassName="min-w-0"
             />
           </div>
-          {scopeNotice}
+          {scopeNotice ?? builtInNotice}
           {showAlwaysOnTop ? (
             <AlwaysOnListTop
               currentSessionId={currentSessionId}

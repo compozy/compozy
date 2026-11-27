@@ -9,12 +9,13 @@ import {
   SessionsBoardSelection,
   SessionFoldAllButton,
   SessionViewOptionsMenu,
-  SessionViewToggle,
+  SessionWindowViewControls,
   sessionBoardSort,
 } from "@/systems/session";
 import { useDataScope } from "@/systems/workspace";
 
 import { OsSessionsDeriveHost } from "../../components/os-sessions-derive-host";
+import { useOsAppLauncher } from "../../hooks/use-os-app-launcher";
 import { useSessionBoardWindow } from "./hooks/use-session-board-window";
 import { useSessionWindowRuntime } from "./hooks/use-session-window-runtime";
 import { SessionBoardDrawer } from "./session-board-drawer";
@@ -59,6 +60,7 @@ export function SessionBoardWindow({
   session: ReactNode;
 }) {
   const scope = useDataScope();
+  const launcher = useOsAppLauncher();
   const runtime = useSessionWindowRuntime(windowId);
   const { sessionId } = runtime;
   const drawerOpen = runtime.drawerOpen && sessionId !== null;
@@ -79,7 +81,13 @@ export function SessionBoardWindow({
   const topbar: TopbarSlotValue = {
     glyph: <SquareKanban />,
     crumb: "Sessions",
-    overflow: <SessionViewToggle onValueChange={setView} value={view.view} />,
+    overflow: (
+      <SessionWindowViewControls
+        onManageComputers={() => launcher.openSettingsSection("computers")}
+        onValueChange={setView}
+        value={view.view}
+      />
+    ),
     actions: (
       <>
         {board.lanes === null ? null : (

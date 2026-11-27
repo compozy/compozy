@@ -78,6 +78,12 @@ export {
   type ComputerTagProps,
 } from "./components/computer-mark";
 export {
+  ComputerScopePicker,
+  type ComputerScope,
+  type ComputerScopeCount,
+  type ComputerScopePickerProps,
+} from "./components/computer-scope-picker";
+export {
   ComputerPlatformIcon,
   type ComputerPlatformIconProps,
 } from "./components/computer-platform-icon";

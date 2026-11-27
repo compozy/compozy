@@ -60,7 +60,7 @@ import { SessionWorktreeBindingChip } from "../components/session-worktree-bindi
 import { SessionTransportContext } from "../lib/session-transcript-thread-context-value";
 import { useSessionTransportState } from "./use-session-transcript-thread-messages";
 import { SessionUnrestrictedBadge } from "../components/session-unrestricted-badge";
-import { SessionViewToggle } from "../components/session-board/session-view-toggle";
+import { SessionWindowViewControls } from "../components/session-board/session-window-view-controls";
 import { useSessionWindowViewState } from "./use-session-window-view-state";
 import { useSessionWindowPresentation } from "./use-session-window-presentation";
 import { sessionIsUnrestricted } from "../lib/session-unrestricted";
@@ -457,7 +457,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     actionsDivider: !instance,
     // Per-session verbs live in the session list row menus; the head keeps only the view toggle.
     overflow: inWindow ? (
-      <SessionViewToggle onValueChange={view.setView} value={view.view} />
+      <SessionWindowViewControls onValueChange={view.setView} value={view.view} />
     ) : undefined,
   });
 }

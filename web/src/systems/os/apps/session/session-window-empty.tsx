@@ -3,12 +3,13 @@ import { MessagesSquare, Plus } from "@compozy/ui/icons";
 
 import { Button, Empty, useTopbarSlot } from "@compozy/ui";
 
+import { useOsAppLauncher } from "../../hooks/use-os-app-launcher";
 import { useSessionWindowSidebar } from "./use-session-window-sidebar";
 import {
   SessionPanelToggle,
   SessionSidebar,
   SessionSidebarLayout,
-  SessionViewToggle,
+  SessionWindowViewControls,
   useSessionWindowViewState,
 } from "@/systems/session";
 
@@ -30,12 +31,19 @@ const SessionRenameDialog = lazy(() =>
 
 /** Keep catalog actions and their confirmation dialogs available without an active session. */
 export function SessionWindowEmpty({ windowId }: { windowId: string }) {
+  const launcher = useOsAppLauncher();
   const sidebar = useSessionWindowSidebar({ windowId });
   const view = useSessionWindowViewState();
 
   useTopbarSlot({
     crumb: <span className="text-muted-foreground">Sessions</span>,
-    overflow: <SessionViewToggle onValueChange={view.setView} value={view.view} />,
+    overflow: (
+      <SessionWindowViewControls
+        onManageComputers={() => launcher.openSettingsSection("computers")}
+        onValueChange={view.setView}
+        value={view.view}
+      />
+    ),
     start: <SessionPanelToggle panel="sidebar" open={sidebar.open} onToggle={sidebar.toggle} />,
   });
 
