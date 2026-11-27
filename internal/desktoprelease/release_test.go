@@ -957,7 +957,9 @@ func writeReleaseFixture(t *testing.T, version, minAppVersion string) (string, s
 	return writeReleaseFixtureForPlatforms(t, version, minAppVersion, false)
 }
 
-func writeReleaseFixtureForPlatforms(t *testing.T, version, minAppVersion string, withoutWindows bool) (string, string) {
+func writeReleaseFixtureForPlatforms(
+	t *testing.T, version, minAppVersion string, withoutWindows bool,
+) (string, string) {
 	t.Helper()
 	assetDir := t.TempDir()
 	writeDesktopArtifacts(t, assetDir, version, withoutWindows)
@@ -987,7 +989,11 @@ func writeReleaseFixtureForPlatforms(t *testing.T, version, minAppVersion string
 	writeTestFile(t, filepath.Join(channelDir, ManifestMac), macManifestFixtureForAssets(t, assetDir, version))
 	writeTestFile(t, filepath.Join(channelDir, ManifestLinux), linuxManifestFixtureForAssets(t, assetDir, version))
 	if !withoutWindows {
-		writeTestFile(t, filepath.Join(channelDir, ManifestWindows), windowsManifestFixtureForAssets(t, assetDir, version))
+		writeTestFile(
+			t,
+			filepath.Join(channelDir, ManifestWindows),
+			windowsManifestFixtureForAssets(t, assetDir, version),
+		)
 	}
 	return assetDir, channelDir
 }
