@@ -171,9 +171,15 @@ func prepareSkillInstallOp(
 		}
 		// The saved snapshot is what revert restores: an approval it could never undo is refused.
 		if _, err := readSkillSnapshot(ctx, review); err != nil {
+			if contextErr := ctx.Err(); contextErr != nil {
+				return contextErr
+			}
 			return errors.Join(ErrSkillReviewInvalid, err)
 		}
 		base, err := readSkillBase(ctx, t.dir)
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
+		}
 		if err != nil || base.Digest() != review.BaseDigest {
 			return errors.Join(skillBaseStaleError(t.name), err)
 		}

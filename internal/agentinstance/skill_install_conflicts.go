@@ -312,9 +312,9 @@ func (s *SkillProposalService) recordResolution(
 	if keep == SkillConflictKeepCurrent {
 		edited, err := skillTreeState(t.dir)
 		if errors.Is(err, ErrSkillTreeUnsupported) {
-			return journal, payload, fmt.Errorf("%w: the current %s is a symlink or holds entries other than "+
-				"regular files; replace it with a real directory, or resolve %s with --keep previous",
-				ErrSkillInstallConflict, t.name, payload.OpID)
+			return journal, payload, fmt.Errorf("%w: cannot keep the current %s (%w); "+
+				"repair the skill or resolve %s with --keep previous",
+				ErrSkillInstallConflict, t.name, err, payload.OpID)
 		}
 		if err != nil {
 			return journal, payload, err

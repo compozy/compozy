@@ -293,6 +293,9 @@ func (s *SkillProposalService) revertOp(
 	}
 	base, err := readSkillSnapshot(ctx, review)
 	if err != nil {
+		if contextErr := ctx.Err(); contextErr != nil {
+			return skillOp{}, contextErr
+		}
 		return skillOp{}, errors.Join(
 			&SkillRevertConflictError{Name: t.name, Reason: SkillRevertTargetUnavailable},
 			err,

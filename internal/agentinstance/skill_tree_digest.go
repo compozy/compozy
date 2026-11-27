@@ -193,7 +193,7 @@ func recoveryTreeState(dir string) (string, error) {
 }
 
 // copySkillTree copies src into the new directory dst byte- and permission-exact and syncs it.
-// Symlinks and non-regular entries are refused. A partial dst is left for the caller to remove.
+// Symlinks, non-regular entries and special mode bits are refused. The caller removes partial copies.
 func copySkillTree(src, dst string) error {
 	info, err := os.Lstat(src)
 	if err != nil {

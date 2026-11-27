@@ -2,6 +2,7 @@ package agentinstance
 
 import (
 	"bytes"
+	"context"
 	"encoding/json/v2"
 	"errors"
 	"os"
@@ -377,6 +378,19 @@ func TestSkillRevert(t *testing.T) {
 					t.Fatalf("original installed digest = %q, want %q", got, review.InstalledDigest)
 				}
 			})
+		}
+	})
+
+	t.Run("Should return cancellation while checking an otherwise revertible edit", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		_, review := f.approvedEditOverBase(t, svc)
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		eligibility, err := svc.RevertEligibility(ctx, review, f.root)
+		if !errors.Is(err, context.Canceled) || eligibility != (RevertEligibility{}) {
+			t.Fatalf("RevertEligibility() = %+v, %v; want cancellation", eligibility, err)
 		}
 	})
 
