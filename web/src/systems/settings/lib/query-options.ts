@@ -150,7 +150,9 @@ export function settingsProviderUsageOptions() {
   return queryOptions({
     queryKey: settingsKeys.section("provider-usage"),
     queryFn: ({ signal }) => getSettingsProviderUsage(signal),
+    // The local daemon can answer while the browser is offline. Reread on reconnect.
     networkMode: "always",
+    refetchOnReconnect: true,
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

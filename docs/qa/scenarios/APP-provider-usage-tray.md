@@ -101,7 +101,7 @@ Antigravity on macOS (`agy` signed in; its login is the `gemini`/`antigravity` K
 - without `agy` on the daemon host, the row appears among providers without usage data, gives
   installation guidance, and never requests Keychain authorization;
 - clicking **Allow** on both the Claude and Antigravity rows while the first save is in flight
-  preserves both grants;
+  preserves both grants, including when the browser reports offline and the local daemon responds;
 - `compozy__config_set provider_usage.providers.agy.keychain_access true` is refused.
 
 Key-based providers and settings:
