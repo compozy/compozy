@@ -94,6 +94,9 @@ func classifyExtensionError(err error) extensionErrorKind {
 	if kind := classifyExtensionPrecedenceError(err); kind != extensionErrorUnknown {
 		return kind
 	}
+	if _, ok := errors.AsType[*extensionpkg.ManifestDecodeError](err); ok {
+		return extensionErrorUnprocessable
+	}
 	switch {
 	case errors.Is(err, extensionpkg.ErrExtensionBuiltinNotRemoved):
 		return extensionErrorBuiltinNotRemoved
@@ -212,7 +215,7 @@ func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err err
 		return
 	}
 	if errors.Is(err, extensionpkg.ErrManifestInvalid) {
-		c.JSON(status, ExtensionValidationErrorPayload(ErrorPayloadForStatus(status, err, mask), err))
+		c.JSON(status, ExtensionValidationErrorPayload(status, err, mask))
 		return
 	}
 	if item, ok := ExtensionGitDependencyDiagnostic(err); ok {
@@ -227,13 +230,21 @@ func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err err
 // ExtensionValidationErrorPayload builds the positioned validation payload of a manifest validation failure, the
 // same on every public transport, naming the dependency it belongs to.
 func ExtensionValidationErrorPayload(
-	payload contract.ErrorPayload, err error,
+	status int, err error, maskInternalErrors bool,
 ) contract.ExtensionValidationErrorPayload {
-	issue := contract.ValidationIssue{
-		Message:  diagnosticspkg.Redact(taskpkg.RedactClaimTokens(payload.Error)),
-		Severity: contract.IssueSeverityError,
-	}
-	if validationErr, ok := errors.AsType[*extensionpkg.ManifestValidationError](err); ok && validationErr != nil {
+	payload := ErrorPayloadForStatus(status, err, maskInternalErrors)
+	message := diagnosticspkg.Redact(taskpkg.RedactClaimTokens(payload.Error))
+	issue := contract.ValidationIssue{Message: message, Severity: contract.IssueSeverityError}
+	if decodeErr, ok := errors.AsType[*extensionpkg.ManifestDecodeError](
+		err,
+	); ok &&
+		status < http.StatusInternalServerError {
+		payload.Error = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(decodeErr.PackageMessage(err.Error())))
+		issue = decodeErr.Issue(payload.Error)
+	} else if validationErr, ok := errors.AsType[*extensionpkg.ManifestValidationError](
+		err,
+	); ok &&
+		validationErr != nil {
 		issue.Field = strings.TrimSpace(validationErr.Field)
 	}
 	validation := contract.ExtensionValidationErrorPayload{
