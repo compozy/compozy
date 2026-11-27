@@ -30,9 +30,17 @@ type updateManifest struct {
 	ReleaseDate string       `yaml:"releaseDate"`
 }
 
-func LoadChannelFiles(dir string) (map[string][]byte, error) {
+func channelManifestNames(withoutWindows bool) []string {
+	names := []string{ManifestMac, ManifestLinux}
+	if !withoutWindows {
+		names = append(names, ManifestWindows)
+	}
+	return names
+}
+
+func LoadChannelFiles(dir string, withoutWindows bool) (map[string][]byte, error) {
 	files := make(map[string][]byte, 4)
-	for _, name := range []string{ManifestMac, ManifestLinux, ManifestWindows, GenerationFile} {
+	for _, name := range append(channelManifestNames(withoutWindows), GenerationFile) {
 		contents, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			return nil, fmt.Errorf("desktop release: read channel file %s: %w", name, err)
@@ -127,7 +135,7 @@ func manifestAssetName(assetURL, version, repository string) (string, error) {
 func bindWindowsManifestIntegrity(artifacts []Artifact, commit ChannelCommit, repository string) error {
 	contents, present := commit.Files[path.Join(ChannelDirectory, ManifestWindows)]
 	if !present {
-		return nil // Historical generations predate Windows.
+		return nil // Some generations have no Windows packages.
 	}
 	manifest, err := decodeUpdateManifest(contents, ManifestWindows)
 	if err != nil {
@@ -183,7 +191,7 @@ func inspectManifestIntegrity(filePath string) (string, int64, error) {
 }
 
 func manifestArtifactNames(version string, manifestName string) ([]string, error) {
-	all := DesktopArtifactNames(version)
+	all := DesktopArtifactNames(version, false)
 	wantedSuffixes := map[string][]string{
 		ManifestMac:     {"-mac-arm64.zip", "-mac-x64.zip"},
 		ManifestLinux:   {"-linux-x64.AppImage"},

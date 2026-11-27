@@ -34,7 +34,13 @@ func (m *Manager) CheckAll(ctx context.Context, opts CheckOptions) (MultiState, 
 		strings.TrimSpace(runtimeState.LastError) == "" {
 		return MultiState{}, nil, checkErr
 	}
-	app, err := m.readAppTrack(release, runtimeState.InstallMethod)
+	appRelease := release
+	if release != nil && m.runtimeOS == runtimeOSWindows {
+		if _, err := m.resolveAppReleaseAsset(ctx, release); err != nil {
+			appRelease = nil
+		}
+	}
+	app, err := m.readAppTrack(appRelease, runtimeState.InstallMethod)
 	if err != nil {
 		return MultiState{}, release, err
 	}
@@ -47,7 +53,9 @@ func (m *Manager) CheckAll(ctx context.Context, opts CheckOptions) (MultiState, 
 	if err != nil {
 		return MultiState{}, release, err
 	}
-	applyArchivedAppFailure(app, archivedApp, opts.ForceRefresh)
+	if appRelease == release {
+		applyArchivedAppFailure(app, archivedApp, opts.ForceRefresh)
+	}
 	return ProjectMultiState(runtimeState, app, operation), release, checkErr
 }
 

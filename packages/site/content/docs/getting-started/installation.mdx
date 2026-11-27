@@ -9,8 +9,7 @@ and `~/.compozy` home.
 
 ## Before You Begin
 
-The desktop app supports macOS on Apple silicon and Intel, Linux on x64, and Windows on x64. Before
-installing either surface, make sure you have:
+Before you install the desktop app or the `compozy` command, make sure you have:
 
 - **An install method that fits your machine**. For the desktop app, use the package for your
   architecture from GitHub Releases. For the `compozy` command, use the verified installer,
@@ -45,12 +44,12 @@ Download the package whose name matches your machine from the CompozyOS GitHub r
 | macOS   | Apple silicon | `CompozyOS-<version>-mac-arm64.dmg`                                             |
 | macOS   | Intel         | `CompozyOS-<version>-mac-x64.dmg`                                               |
 | Linux   | x64           | `CompozyOS-<version>-linux-x64.deb` or `CompozyOS-<version>-linux-x64.AppImage` |
-| Windows | x64           | `CompozyOS-<version>-win-x64.exe`                                               |
 
 On macOS, open the matching notarized `.dmg`, then drag CompozyOS to Applications. On Linux,
-verify the package against the release `checksums.txt` before installing or running it. On Windows,
-run the Authenticode-signed `CompozyOS-<version>-win-x64.exe` per-user installer; it registers the
-`compozyos://` handler and preserves `%USERPROFILE%\.compozy` across upgrades and uninstalls.
+verify the package against the release `checksums.txt` before installing or running it.
+
+For Windows x64, check [Downloads](/download) for the signed desktop installer. See the
+[Windows installation steps](/docs/getting-started/desktop-app#install-on-windows) when it is available.
 
 The AppImage carries a static runtime, so no `libfuse2` package is required. Where kernel FUSE
 support is unavailable, such as inside some containers, use the built-in extraction fallback:

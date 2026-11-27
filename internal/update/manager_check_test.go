@@ -26,6 +26,56 @@ import (
 )
 
 func TestManagerCheck(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		withInstaller bool
+		wantApp       Status
+	}{
+		{name: "Should hide a Windows app update when the release omits the installer", wantApp: StatusUpToDate},
+		{name: "Should offer the Windows app update when the release includes the installer", withInstaller: true, wantApp: StatusAvailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			const version = "v1.2.0"
+			assets := []githubAssetResponse{{
+				Name: "compozy_windows_x86_64.zip", BrowserDownloadURL: "https://downloads.example/runtime.zip",
+			}}
+			if tc.withInstaller {
+				assets = append(assets, githubAssetResponse{
+					Name: "CompozyOS-1.2.0-win-x64.exe", BrowserDownloadURL: "https://downloads.example/app.exe",
+				})
+			}
+			manager, _ := newManagerWithExecutable(t, &Config{
+				RuntimeOS: runtimeOSWindows, RuntimeArch: runtimeArchAMD64,
+				HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					return jsonHTTPResponse(
+						t,
+						http.StatusOK,
+						githubReleaseResponse{TagName: version, Assets: assets},
+					), nil
+				})},
+			})
+			appState, err := json.Marshal(appStateSnapshot{
+				SchemaVersion: appstatecontract.SchemaVersion, AppVersion: "v1.0.0",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Dir(manager.homePaths.AppStateFile), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(manager.homePaths.AppStateFile, appState, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			state, _, err := manager.CheckAll(t.Context(), CheckOptions{ForceRefresh: true})
+			if err != nil || state.App == nil || state.App.Status != tc.wantApp ||
+				state.Runtime.LatestVersion != version {
+				t.Fatalf("CheckAll() = app %#v, runtime %#v, %v, want app %s and runtime %s",
+					state.App, state.Runtime, err, tc.wantApp, version)
+			}
+		})
+	}
+
 	t.Run("Should check releases anonymously when gh and environment credentials are absent", func(t *testing.T) {
 		t.Setenv("PATH", t.TempDir())
 		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

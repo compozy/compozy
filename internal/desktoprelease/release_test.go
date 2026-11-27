@@ -107,7 +107,7 @@ func TestDesktopArtifactInventory(t *testing.T) {
 		"CompozyOS-0.4.0-beta.2-win-x64.exe",
 		"CompozyOS-0.4.0-beta.2-win-x64.exe.blockmap",
 	}
-	got := DesktopArtifactNames(version)
+	got := DesktopArtifactNames(version, false)
 	slices.Sort(got)
 	if !slices.Equal(got, want) {
 		t.Fatalf("DesktopArtifactNames() = %v, want %v", got, want)
@@ -134,9 +134,9 @@ func TestDesktopArtifactInventory(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir()
-			writeDesktopArtifacts(t, dir, version)
+			writeDesktopArtifacts(t, dir, version, false)
 			test.mutate(t, dir)
-			assertErrorContains(t, AssertExactDesktopInventory(t.Context(), dir, version), test.wantMessage)
+			assertErrorContains(t, AssertExactDesktopInventory(t.Context(), dir, version, false), test.wantMessage)
 		})
 	}
 }
@@ -313,6 +313,44 @@ func TestChannelAuthority(t *testing.T) {
 		backend.assertAllVerificationPrecedesCAS(t)
 	})
 
+	t.Run("Should publish and retry a generation without Windows packages", func(t *testing.T) {
+		t.Parallel()
+
+		const version = "1.0.0-beta.2"
+		const previous = "1.0.0-beta.1"
+		backend := newFakeAuthorityBackend(t, previous)
+		authority := mustAuthority(t, backend)
+		assetDir, channelDir := writeReleaseFixtureForPlatforms(t, version, previous, true)
+		request := PublishRequest{
+			OperationID: "publish-without-windows", Channel: ChannelBeta, Version: version,
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(), WithoutWindows: true,
+		}
+
+		result, err := authority.Publish(t.Context(), request)
+		if err != nil || result.Outcome != "published" || len(result.VerifiedInventory) != 7 {
+			t.Fatalf("Publish() = %#v, %v, want six packages and compat.json", result, err)
+		}
+		files := backend.commits[result.ChannelRefAfter].Files
+		if _, exists := files[path.Join(ChannelDirectory, ManifestWindows)]; exists {
+			t.Fatal("publication retained the previous generation's Windows manifest")
+		}
+		for _, name := range []string{ManifestMac, ManifestLinux, GenerationFile} {
+			if len(files[path.Join(ChannelDirectory, name)]) == 0 {
+				t.Fatalf("publication omitted %s", name)
+			}
+		}
+		backend.assertAllVerificationPrecedesCAS(t)
+
+		retry, err := authority.Publish(t.Context(), request)
+		if err != nil || retry.Outcome != "already_completed" || retry.ChannelRefAfter != result.ChannelRefAfter {
+			t.Fatalf("Publish(retry) = %#v, %v, want already completed at %s", retry, err, result.ChannelRefAfter)
+		}
+		request.WithoutWindows = false
+		if _, err := authority.Publish(t.Context(), request); CodeOf(err) != ErrorVerificationFailed {
+			t.Fatalf("Publish(retry with Windows) = %v, want verification failure", err)
+		}
+	})
+
 	t.Run("Should refuse manifests from a different generation", func(t *testing.T) {
 		t.Parallel()
 		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
@@ -373,7 +411,7 @@ func TestChannelAuthority(t *testing.T) {
 		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
 		authority := mustAuthority(t, backend)
 		assetDir, channelDir := writeReleaseFixture(t, "1.0.0-beta.2", "1.0.0-beta.1")
-		emptyName := DesktopArtifactNames("1.0.0-beta.2")[0]
+		emptyName := DesktopArtifactNames("1.0.0-beta.2", false)[0]
 		writeTestFile(t, filepath.Join(assetDir, emptyName), nil)
 
 		_, err := authority.Publish(t.Context(), PublishRequest{
@@ -597,7 +635,7 @@ func TestChannelAuthority(t *testing.T) {
 		}
 
 		backend = newFakeAuthorityBackend(t, "1.0.0-beta.1")
-		delete(backend.releases["1.0.0-beta.1"], DesktopArtifactNames("1.0.0-beta.1")[0])
+		delete(backend.releases["1.0.0-beta.1"], DesktopArtifactNames("1.0.0-beta.1", false)[0])
 		authority = mustAuthority(t, backend)
 		_, err = authority.Repair(t.Context(), RepairRequest{
 			OperationID: "repair-missing", Channel: ChannelBeta, Version: "1.0.0-beta.1", PublishedAt: testTime(),
@@ -694,7 +732,7 @@ func (b *fakeAuthorityBackend) seedGeneration(t *testing.T, version string) {
 	b.commits[sha] = ChannelCommit{SHA: sha, Generation: generation, Files: files}
 	b.head = sha
 	assets := map[string]Artifact{}
-	for _, name := range append(DesktopArtifactNames(version), CompatibilityFile) {
+	for _, name := range append(DesktopArtifactNames(version, false), CompatibilityFile) {
 		artifact, err := inspectArtifact(filepath.Join(assetDir, name))
 		if err != nil {
 			t.Fatal(err)
@@ -916,14 +954,19 @@ func mustAuthority(t *testing.T, backend AuthorityBackend) *Authority {
 
 func writeReleaseFixture(t *testing.T, version, minAppVersion string) (string, string) {
 	t.Helper()
+	return writeReleaseFixtureForPlatforms(t, version, minAppVersion, false)
+}
+
+func writeReleaseFixtureForPlatforms(t *testing.T, version, minAppVersion string, withoutWindows bool) (string, string) {
+	t.Helper()
 	assetDir := t.TempDir()
-	writeDesktopArtifacts(t, assetDir, version)
+	writeDesktopArtifacts(t, assetDir, version, withoutWindows)
 	if err := WriteCompatibility(filepath.Join(assetDir, CompatibilityFile), Compatibility{
 		RuntimeVersion: version, MinAppVersion: minAppVersion,
 	}); err != nil {
 		t.Fatalf("WriteCompatibility() error = %v", err)
 	}
-	artifacts, err := InspectDesktopInventory(t.Context(), assetDir, version)
+	artifacts, err := InspectDesktopInventory(t.Context(), assetDir, version, withoutWindows)
 	if err != nil {
 		t.Fatalf("InspectDesktopInventory() error = %v", err)
 	}
@@ -943,13 +986,15 @@ func writeReleaseFixture(t *testing.T, version, minAppVersion string) (string, s
 	channelDir := t.TempDir()
 	writeTestFile(t, filepath.Join(channelDir, ManifestMac), macManifestFixtureForAssets(t, assetDir, version))
 	writeTestFile(t, filepath.Join(channelDir, ManifestLinux), linuxManifestFixtureForAssets(t, assetDir, version))
-	writeTestFile(t, filepath.Join(channelDir, ManifestWindows), windowsManifestFixtureForAssets(t, assetDir, version))
+	if !withoutWindows {
+		writeTestFile(t, filepath.Join(channelDir, ManifestWindows), windowsManifestFixtureForAssets(t, assetDir, version))
+	}
 	return assetDir, channelDir
 }
 
-func writeDesktopArtifacts(t *testing.T, dir, version string) {
+func writeDesktopArtifacts(t *testing.T, dir, version string, withoutWindows bool) {
 	t.Helper()
-	for _, name := range DesktopArtifactNames(version) {
+	for _, name := range DesktopArtifactNames(version, withoutWindows) {
 		writeTestFile(t, filepath.Join(dir, name), []byte("artifact:"+name))
 	}
 }

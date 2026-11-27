@@ -12,20 +12,22 @@ import (
 	"slices"
 )
 
-func DesktopArtifactNames(version string) []string {
-	return []string{
+func DesktopArtifactNames(version string, withoutWindows bool) []string {
+	names := []string{
 		"CompozyOS-" + version + "-mac-arm64.dmg",
 		"CompozyOS-" + version + "-mac-arm64.zip",
 		"CompozyOS-" + version + "-mac-x64.dmg",
 		"CompozyOS-" + version + "-mac-x64.zip",
 		"CompozyOS-" + version + "-linux-x64.AppImage",
 		"CompozyOS-" + version + "-linux-x64.deb",
-		"CompozyOS-" + version + "-win-x64.exe",
-		"CompozyOS-" + version + "-win-x64.exe.blockmap",
 	}
+	if !withoutWindows {
+		names = append(names, "CompozyOS-"+version+"-win-x64.exe", "CompozyOS-"+version+"-win-x64.exe.blockmap")
+	}
+	return names
 }
 
-func AssertExactDesktopInventory(ctx context.Context, dir, version string) error {
+func AssertExactDesktopInventory(ctx context.Context, dir, version string, withoutWindows bool) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("desktop release: inventory canceled: %w", err)
 	}
@@ -47,7 +49,7 @@ func AssertExactDesktopInventory(ctx context.Context, dir, version string) error
 		}
 		actual = append(actual, entry.Name())
 	}
-	expected := DesktopArtifactNames(version)
+	expected := DesktopArtifactNames(version, withoutWindows)
 	slices.Sort(actual)
 	slices.Sort(expected)
 	if !slices.Equal(actual, expected) {
@@ -56,14 +58,14 @@ func AssertExactDesktopInventory(ctx context.Context, dir, version string) error
 	return nil
 }
 
-func InspectDesktopInventory(ctx context.Context, dir, version string) ([]Artifact, error) {
+func InspectDesktopInventory(ctx context.Context, dir, version string, withoutWindows bool) ([]Artifact, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("desktop release: inventory canceled: %w", err)
 	}
 	if err := ValidateVersion(version); err != nil {
 		return nil, err
 	}
-	names := DesktopArtifactNames(version)
+	names := DesktopArtifactNames(version, withoutWindows)
 	slices.Sort(names)
 	artifacts := make([]Artifact, 0, len(names))
 	for _, name := range names {

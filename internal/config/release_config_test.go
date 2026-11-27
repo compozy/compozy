@@ -949,7 +949,7 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"needs: [release-plan, desktop-compatibility, desktop-build, desktop-smoke]",
 			"name: Download exact desktop release inventory",
 			"name: Produce and validate desktop compatibility assets",
-			"cp \".artifacts/desktop-build/${artifact}\" \".artifacts/desktop/${artifact}\"",
+			"run: *validate-desktop-release-inventory",
 			"name: Stage GitHub draft without publishing npm",
 			"GORELEASER_PUBLISH_NPM: \"false\"",
 		} {
@@ -987,6 +987,9 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		npmPublishJob := workflowJobSection(t, workflow, "npm-publish", "")
 		assertContainsText(t, "npm publisher", npmPublishJob, "name: Publish verified CLI package")
 		dryRunJob := workflowJobSection(t, workflow, "dry-run", "desktop-dry-run")
+		assertContainsText(t, "shared desktop staging", dryRunJob, "run: &validate-desktop-release-inventory |")
+		assertContainsText(t, "shared desktop custody", dryRunJob,
+			`cp ".artifacts/desktop-build/${artifact}" ".artifacts/desktop/${artifact}"`)
 		assertContainsText(t, "dry-run npm", dryRunJob, "npm-version: ${{ env.NPM_VERSION }}")
 		assertContainsText(t, "npm publisher", npmPublishJob, "npm-version: ${{ env.NPM_VERSION }}")
 		if got := strings.Count(workflow, "npm-version: ${{ env.NPM_VERSION }}"); got != 2 {
@@ -1108,17 +1111,11 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 			"needs: [release-plan, desktop-compatibility]",
 			"COMPOZY_MIN_APP_VERSION: ${{ needs.desktop-compatibility.outputs.min_app_version }}",
 			"matrix: &desktop-release-matrix",
-			"id: macos-arm64",
-			"runner: macos-15",
-			"arch: arm64",
-			"id: macos-x64",
-			"runner: macos-15-intel",
-			"arch: x64",
-			"id: linux",
-			"runner: ubuntu-22.04",
-			"id: windows",
-			"runner: windows-latest",
-			"platform: win",
+			`"id":"macos-arm64","runner":"macos-15","platform":"mac","arch":"arm64"`,
+			`"id":"macos-x64","runner":"macos-15-intel","platform":"mac","arch":"x64"`,
+			`"id":"linux","runner":"ubuntu-22.04","platform":"linux","arch":"x64"`,
+			`vars.WINDOWS_DESKTOP_RELEASE == 'true' &&`,
+			`"id":"windows","runner":"windows-latest","platform":"win","arch":"x64"`,
 			"bun run --cwd desktop electron-builder",
 			"--publish never",
 			"release:collect",
@@ -1153,7 +1150,7 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 			t,
 			"release dry-run identity and integration dependencies",
 			dryRunJob,
-			"needs: [dry-run-identity, integration]",
+			"needs: [dry-run-identity, integration, desktop-dry-run]",
 		)
 		assertContainsText(t, "release dry-run version", dryRunJob, "DRY_RUN_VERSION: "+sharedVersion)
 		assertContainsText(t, "release dry-run plan version", dryRunJob, `--version "${DRY_RUN_VERSION}"`)
@@ -1232,9 +1229,8 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 
 		for _, required := range []string{
 			"needs: [release-plan, desktop-build]",
-			"CompozyOS-${{ needs.release-plan.outputs.release_version }}-mac-arm64.dmg",
-			"CompozyOS-${{ needs.release-plan.outputs.release_version }}-mac-x64.dmg",
-			"CompozyOS-${{ needs.release-plan.outputs.release_version }}-linux-x64.AppImage",
+			"matrix: *desktop-release-matrix",
+			"SMOKE_ARTIFACT: .artifacts/desktop/CompozyOS-${{ needs.release-plan.outputs.release_version }}-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.extension }}",
 			"bash \"${RUNNER_TEMP}/smoke-desktop-release-artifact.sh\"",
 			"\"${RELEASE_VERSION}\"",
 			"desktop-release-smoke-${{ matrix.id }}-diagnostics",
@@ -1267,7 +1263,9 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 			"--channel \"${RELEASE_CHANNEL}\"",
 			".operation == \"publish\"",
 			".audit_commit == .channel_ref_after",
-			".verified_inventory | length == 9",
+			"expected_inventory=9",
+			"expected_inventory=7",
+			".verified_inventory | length == $expected",
 			"already_completed",
 		} {
 			assertContainsText(t, "channel authority lane", publisher, required)

@@ -24,7 +24,9 @@ func (a *Authority) channelState(ctx context.Context, branch string) (string, Ch
 	return sha, commit, nil
 }
 
-func prepareChannelFiles(dir, assetDir, repository string, generation Generation) (map[string][]byte, error) {
+func prepareChannelFiles(
+	dir, assetDir, repository string, generation Generation, withoutWindows bool,
+) (map[string][]byte, error) {
 	contents, err := canonicalJSON(generation)
 	if err != nil {
 		return nil, err
@@ -32,11 +34,11 @@ func prepareChannelFiles(dir, assetDir, repository string, generation Generation
 	if err := os.WriteFile(filepath.Join(dir, GenerationFile), contents, 0o600); err != nil {
 		return nil, fmt.Errorf("desktop release: write generation file: %w", err)
 	}
-	files, err := LoadChannelFiles(dir)
+	files, err := LoadChannelFiles(dir, withoutWindows)
 	if err != nil {
 		return nil, err
 	}
-	for _, name := range []string{ManifestMac, ManifestLinux, ManifestWindows} {
+	for _, name := range channelManifestNames(withoutWindows) {
 		manifest, decodeErr := decodeUpdateManifest(files[path.Join(ChannelDirectory, name)], name)
 		if decodeErr != nil {
 			return nil, decodeErr
@@ -60,4 +62,15 @@ func prepareChannelFiles(dir, assetDir, repository string, generation Generation
 		}
 	}
 	return files, nil
+}
+
+// Prevent an omitted Windows feed from inheriting the previous generation's manifest.
+func removePreviousWindowsManifest(files, previous map[string][]byte) {
+	name := path.Join(ChannelDirectory, ManifestWindows)
+	if _, included := files[name]; included {
+		return
+	}
+	if _, present := previous[name]; present {
+		files[name] = nil
+	}
 }

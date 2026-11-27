@@ -21,9 +21,10 @@ branch. Set `GITHUB_REPOSITORY` to `owner/name`.
 
 A publish workspace contains:
 
-- an authority directory with the eight exact desktop artifacts, `compat.json`, and
+- an authority directory with the exact desktop artifacts for the release, `compat.json`, and
   `checksums.txt`;
-- a channel directory with `latest-mac.yml`, `latest-linux.yml`, `latest.yml` (Windows), and `generation.json`.
+- a channel directory with `latest-mac.yml`, `latest-linux.yml`, and `generation.json`.
+  Add `latest.yml` when the release includes Windows.
 
 The authority directory must contain these exact versioned names:
 
@@ -33,10 +34,26 @@ The authority directory must contain these exact versioned names:
 - `CompozyOS-<version>-mac-x64.zip`
 - `CompozyOS-<version>-linux-x64.AppImage`
 - `CompozyOS-<version>-linux-x64.deb`
+
+When the release includes Windows, add these files:
+
 - `CompozyOS-<version>-win-x64.exe`
 - `CompozyOS-<version>-win-x64.exe.blockmap`
 
 ## Windows signing and validation
+
+`WINDOWS_DESKTOP_RELEASE` controls Windows desktop packages in the Release workflow. An unset
+variable or `false` skips the Windows desktop build, signing, smoke, and feed. Windows CLI
+artifacts and the Windows CI installer tests still run.
+
+Enable Windows for the next release after Microsoft approves the Azure Artifact Signing identity:
+
+1. Create the Certificate Profile in the approved Azure Artifact Signing account.
+2. Update `AZURE_CERTIFICATE_PROFILE` to the exact Certificate Profile name.
+3. Set the GitHub Actions repository variable `WINDOWS_DESKTOP_RELEASE` to `true`.
+
+Keep the variable fixed across validation, publication, and any retry for the same version.
+Unset the variable or set it to `false` before validating a later release to omit Windows again.
 
 Windows releases are built on `windows-latest` with the repository-pinned Electron and
 `electron-builder`. Production signing uses its native Azure Trusted Signing integration and the
@@ -54,7 +71,7 @@ Electron executable or bundled `compozy.exe`. Never use the ephemeral CI certifi
 After signing the runtime, the packaging hook regenerates its bundled SHA-256 manifest. The
 channel publishes `latest.yml`; the exact installer and its blockmap join the existing checksum
 catalog and immutable release assets. Reading historical channel commits tolerates an absent
-Windows manifest, while new publications require it.
+Windows manifest. Publications that include Windows require it.
 
 PR CI installs signed baseline and next-version NSIS fixtures with an ephemeral trusted certificate,
 then exercises real Electron startup, named-pipe CLI control, native update and retained data.
@@ -84,9 +101,9 @@ go run ./cmd/compozy-desktop-release publish \
   -o json
 ```
 
-Publish verifies the exact local inventory and checksum catalog, uploads or verifies every immutable
-release asset, creates one commit containing all three platform manifests and `generation.json`, then
-moves `channel-<channel>`. The JSON result contains `operation`, `channel_ref_before`,
+Pass `--without-windows` when the release omits Windows desktop packages. Publish verifies the exact
+local inventory and checksum catalog, then uploads or verifies every immutable release asset. It
+commits the applicable manifests and `generation.json`, then moves `channel-<channel>`. The JSON result contains `operation`, `channel_ref_before`,
 `channel_ref_after`, `verified_inventory`, `audit_commit`, and `outcome`.
 
 Keep the operation ID stable when retrying an interrupted publish. The same ID converges to
@@ -172,10 +189,11 @@ git rev-parse origin/channel-stable origin/channel-beta
 git show origin/channel-stable:desktop/generation.json
 git show origin/channel-stable:desktop/latest-mac.yml
 git show origin/channel-stable:desktop/latest-linux.yml
+# If the release includes Windows:
 git show origin/channel-stable:desktop/latest.yml
 ```
 
-The branch SHA must equal the command's `channel_ref_after` and `audit_commit`. The three manifests
+The branch SHA must equal the command's `channel_ref_after` and `audit_commit`. The manifests
 must name one version and point only to immutable
 `https://github.com/<owner>/<repo>/releases/download/v<version>/...` assets.
 

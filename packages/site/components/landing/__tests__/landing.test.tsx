@@ -376,7 +376,7 @@ describe("DownloadHero", () => {
     windowsCommand: null,
     commandPackages: [],
   };
-  const hero = (release: DesktopRelease, platform: "macos" | "windows") =>
+  const hero = (release: DesktopRelease, platform: "macos" | "linux" | "windows") =>
     render(
       <DownloadHero
         mode="ready"
@@ -401,9 +401,25 @@ describe("DownloadHero", () => {
   });
 
   it("opens the release on GitHub in a new tab when the file is not listed", () => {
-    hero(ready, "windows");
-    const link = screen.getByRole("link", { name: "Download for Windows" });
+    hero(ready, "linux");
+    const link = screen.getByRole("link", { name: "Download for Linux" });
     expect(link.getAttribute("href")).toBe(releaseUrl);
     expect(link.getAttribute("target")).toBe("_blank");
+  });
+
+  it("offers the Windows command ZIP while the desktop installer is unavailable", () => {
+    const zip = `${releaseUrl}/compozy_windows_x86_64.zip`;
+    hero(
+      {
+        ...ready,
+        windowsCommand: { fileName: "compozy_windows_x86_64.zip", url: zip, size: 1 },
+      },
+      "windows"
+    );
+    expect(screen.getByText("Windows desktop app coming soon.")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Download for Windows" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Get the Windows ZIP" }).getAttribute("href")).toBe(
+      zip
+    );
   });
 });

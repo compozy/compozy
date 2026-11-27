@@ -78,14 +78,25 @@ export function windowsCommandItem(release: DesktopRelease): DownloadItem {
   };
 }
 
+export function hasWindowsDesktop(release: DesktopRelease): boolean {
+  return (
+    release.status === "ready" && release.downloads.some(item => item.target.id === "windows-x64")
+  );
+}
+
 const MAC_TARGET: Record<MacArch, DesktopTargetId> = { arm64: "mac-arm64", x64: "mac-x64" };
 
 /** The primary button: the release's real file for this platform and architecture. */
 export function offerFor(release: DesktopRelease, { platform, arch }: Choice): Offer {
   if (platform === "linux")
     return { cta: "Download for Linux", item: desktopItem(release, "linux-appimage") };
-  if (platform === "windows")
-    return { cta: "Download for Windows", item: desktopItem(release, "windows-x64") };
+  if (platform === "windows") {
+    if (hasWindowsDesktop(release)) {
+      return { cta: "Download for Windows", item: desktopItem(release, "windows-x64") };
+    }
+    const item = windowsCommandItem(release);
+    return { cta: item.fileName ? "Get the Windows ZIP" : "Open the latest release", item };
+  }
   return { cta: "Download for macOS", item: desktopItem(release, MAC_TARGET[arch]) };
 }
 
@@ -107,11 +118,13 @@ const DESKTOP_GROUPS: ReadonlyArray<readonly [string, readonly DesktopTargetId[]
 
 /** Desktop apps for every supported OS. When the release is unavailable every row opens it on GitHub. */
 export function desktopGroups(release: DesktopRelease): DownloadGroup[] {
-  return DESKTOP_GROUPS.map(([label, ids]) => ({
-    label,
-    note: "Desktop app",
-    items: ids.map(id => desktopItem(release, id)),
-  }));
+  return DESKTOP_GROUPS.filter(([label]) => label !== "Windows" || hasWindowsDesktop(release)).map(
+    ([label, ids]) => ({
+      label,
+      note: "Desktop app",
+      items: ids.map(id => desktopItem(release, id)),
+    })
+  );
 }
 
 /** Command-line packages per OS; a ready release lists only the files it published. */

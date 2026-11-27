@@ -10,7 +10,7 @@ const [arm64Path, x64Path, linuxPath, windowsPath, outputDirectory, downloadBase
   process.argv.slice(2);
 if (!arm64Path || !x64Path || !linuxPath || !windowsPath || !outputDirectory || !downloadBase) {
   throw new Error(
-    "usage: prepare-channel-manifests <arm64.yml> <x64.yml> <linux.yml> <windows.yml> <output-dir> <download-base>"
+    "usage: prepare-channel-manifests <arm64.yml> <x64.yml> <linux.yml> <windows.yml|-> <output-dir> <download-base>"
   );
 }
 const mac = mergeMacUpdateManifests(
@@ -30,9 +30,11 @@ await writeFile(
   "utf8"
 );
 
-const windows = selectUpdateManifestFiles(await readFile(windowsPath, "utf8"), ["-win-x64.exe"]);
-await writeFile(
-  `${outputDirectory}/latest.yml`,
-  rewriteUpdateManifestURLs(windows, downloadBase),
-  "utf8"
-);
+if (windowsPath !== "-") {
+  const windows = selectUpdateManifestFiles(await readFile(windowsPath, "utf8"), ["-win-x64.exe"]);
+  await writeFile(
+    `${outputDirectory}/latest.yml`,
+    rewriteUpdateManifestURLs(windows, downloadBase),
+    "utf8"
+  );
+}

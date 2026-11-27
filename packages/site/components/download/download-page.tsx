@@ -4,7 +4,12 @@
 import { useState } from "react";
 
 import type { DesktopRelease } from "@/lib/release/desktop-downloads";
-import { choiceFor, heroModeFor, type Choice } from "@/lib/release/download-offer";
+import {
+  choiceFor,
+  hasWindowsDesktop,
+  heroModeFor,
+  type Choice,
+} from "@/lib/release/download-offer";
 import { DownloadHero } from "./download-hero";
 import { AllDownloads, FirstRun, FromTheTerminal } from "./sections";
 import { useVisitorPlatform } from "./use-visitor-platform";
@@ -31,7 +36,9 @@ export function DownloadPage({
       />
       <AllDownloads release={release} releaseDate={releaseDate} />
       <FromTheTerminal />
-      <FirstRun platform={choice.platform} />
+      {choice.platform !== "windows" || hasWindowsDesktop(release) ? (
+        <FirstRun platform={choice.platform} />
+      ) : null}
     </div>
   );
 }

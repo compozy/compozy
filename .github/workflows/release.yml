@@ -68,6 +68,7 @@ env:
   COSIGN_VERSION: "v3.1.3"
   INITIAL_VERSION: "v0.0.2"
   PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.35
+  WINDOWS_DESKTOP_RELEASE: ${{ vars.WINDOWS_DESKTOP_RELEASE == 'true' }}
 
 permissions:
   actions: read
@@ -166,7 +167,7 @@ jobs:
   # Run the GoReleaser dry-run on every release PR.
   dry-run:
     name: Dry-Run Build Validation
-    needs: [dry-run-identity, integration]
+    needs: [dry-run-identity, integration, desktop-dry-run]
     if: |
       github.event_name == 'pull_request' &&
       (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
@@ -393,15 +394,46 @@ jobs:
         name: Run release preflight
         run: bash "${RUNNER_TEMP}/release-preflight.sh"
 
+      - name: Download dry-run desktop release inventory
+        uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-dry-run-{macos-arm64,macos-x64,linux,windows}
+          path: .artifacts/desktop-build
+          merge-multiple: true
+
       - name: Stage dry-run desktop compatibility catalog
         env:
-          DRY_RUN_VERSION: ${{ needs.dry-run-identity.outputs.release_version }}
-        run: |
+          RELEASE_VERSION: ${{ needs.dry-run-identity.outputs.release_version }}
+          MIN_APP_VERSION: ${{ needs.dry-run-identity.outputs.release_version }}
+        run: &validate-desktop-release-inventory |
           set -euo pipefail
           mkdir -p .artifacts/desktop
+          artifacts=(
+            "CompozyOS-${RELEASE_VERSION}-mac-arm64.dmg"
+            "CompozyOS-${RELEASE_VERSION}-mac-arm64.zip"
+            "CompozyOS-${RELEASE_VERSION}-mac-x64.dmg"
+            "CompozyOS-${RELEASE_VERSION}-mac-x64.zip"
+            "CompozyOS-${RELEASE_VERSION}-linux-x64.AppImage"
+            "CompozyOS-${RELEASE_VERSION}-linux-x64.deb"
+          )
+          inventory_flags=()
+          if [[ "${WINDOWS_DESKTOP_RELEASE}" == "true" ]]; then
+            artifacts+=(
+              "CompozyOS-${RELEASE_VERSION}-win-x64.exe"
+              "CompozyOS-${RELEASE_VERSION}-win-x64.exe.blockmap"
+            )
+          else
+            inventory_flags+=(--without-windows)
+          fi
+          for artifact in "${artifacts[@]}"; do
+            cp ".artifacts/desktop-build/${artifact}" ".artifacts/desktop/${artifact}"
+          done
+          go run ./cmd/compozy-desktop-release assert-inventory \
+            --version "${RELEASE_VERSION}" \
+            --dir .artifacts/desktop "${inventory_flags[@]}"
           jq -cn \
-            --arg runtime_version "${DRY_RUN_VERSION}" \
-            --arg min_app_version "${DRY_RUN_VERSION}" \
+            --arg runtime_version "${RELEASE_VERSION}" \
+            --arg min_app_version "${MIN_APP_VERSION}" \
             '{runtime_version: $runtime_version, min_app_version: $min_app_version}' \
             >.artifacts/desktop/compat.json
 
@@ -431,27 +463,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix: &desktop-release-matrix
-        include:
-          - name: macOS arm64
-            id: macos-arm64
-            runner: macos-15
-            platform: mac
-            arch: arm64
-          - name: macOS x64
-            id: macos-x64
-            runner: macos-15-intel
-            platform: mac
-            arch: x64
-          - name: Linux x86_64
-            id: linux
-            runner: ubuntu-22.04
-            platform: linux
-            arch: x64
-          - name: Windows x64
-            id: windows
-            runner: windows-latest
-            platform: win
-            arch: x64
+        include: >-
+          ${{ fromJSON(format('[{0}{1}]',
+            '{"name":"macOS arm64","id":"macos-arm64","runner":"macos-15","platform":"mac","arch":"arm64","smoke":"macOS arm64 DMG","extension":"dmg"},
+             {"name":"macOS x64","id":"macos-x64","runner":"macos-15-intel","platform":"mac","arch":"x64","smoke":"macOS x64 DMG","extension":"dmg"},
+             {"name":"Linux x86_64","id":"linux","runner":"ubuntu-22.04","platform":"linux","arch":"x64","smoke":"Linux AppImage","extension":"AppImage"}',
+            vars.WINDOWS_DESKTOP_RELEASE == 'true' &&
+            ',{"name":"Windows x64","id":"windows","runner":"windows-latest","platform":"win","arch":"x64","smoke":"Windows x64 NSIS","extension":"exe"}' || '')) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     defaults:
@@ -522,33 +540,14 @@ jobs:
           retention-days: 7
 
   desktop-dry-run-smoke:
-    name: Dry-Run Smoke ${{ matrix.name }}
+    name: Dry-Run Smoke ${{ matrix.smoke }}
     needs: [dry-run-identity, desktop-dry-run]
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: macOS arm64 DMG
-            id: macos-arm64
-            runner: macos-15
-            platform: macos
-            artifact: CompozyOS-${{ needs.dry-run-identity.outputs.release_version }}-mac-arm64.dmg
-          - name: macOS x64 DMG
-            id: macos-x64
-            runner: macos-15-intel
-            platform: macos
-            artifact: CompozyOS-${{ needs.dry-run-identity.outputs.release_version }}-mac-x64.dmg
-          - name: Linux AppImage
-            id: linux
-            runner: ubuntu-22.04
-            platform: linux
-            artifact: CompozyOS-${{ needs.dry-run-identity.outputs.release_version }}-linux-x64.AppImage
-          - name: Windows x64 NSIS
-            id: windows
-            runner: windows-latest
-            platform: win
-            artifact: CompozyOS-${{ needs.dry-run-identity.outputs.release_version }}-win-x64.exe
+      matrix: *desktop-release-matrix
     runs-on: ${{ matrix.runner }}
+    env:
+      SMOKE_ARTIFACT: .artifacts/desktop/CompozyOS-${{ needs.dry-run-identity.outputs.release_version }}-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.extension }}
     timeout-minutes: 20
     defaults:
       run:
@@ -586,8 +585,8 @@ jobs:
           RELEASE_CHANNEL: ${{ needs.dry-run-identity.outputs.release_channel }}
         run: |
           bash scripts/smoke-desktop-release-artifact.sh \
-            "${{ matrix.platform }}" \
-            ".artifacts/desktop/${{ matrix.artifact }}" \
+            "${{ matrix.platform == 'mac' && 'macos' || matrix.platform }}" \
+            "${SMOKE_ARTIFACT}" \
             "${{ needs.dry-run-identity.outputs.release_version }}" \
             "${{ needs.dry-run-identity.outputs.release_version }}"
 
@@ -596,7 +595,7 @@ jobs:
         shell: pwsh
         run: >-
           ./scripts/smoke-desktop-release-windows.ps1
-          -Artifact '.artifacts/desktop/${{ matrix.artifact }}'
+          -Artifact $env:SMOKE_ARTIFACT
           -Version '${{ needs.dry-run-identity.outputs.release_version }}'
 
       - name: Verify Linux AppImage extraction fallback
@@ -605,8 +604,8 @@ jobs:
           RELEASE_CHANNEL: ${{ needs.dry-run-identity.outputs.release_channel }}
         run: |
           bash scripts/smoke-desktop-release-artifact.sh \
-            "${{ matrix.platform }}" \
-            ".artifacts/desktop/${{ matrix.artifact }}" \
+            "linux" \
+            "${SMOKE_ARTIFACT}" \
             "${{ needs.dry-run-identity.outputs.release_version }}" \
             "${{ needs.dry-run-identity.outputs.release_version }}" \
             extract
@@ -1048,28 +1047,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
           MIN_APP_VERSION: ${{ needs.desktop-compatibility.outputs.min_app_version }}
-        run: |
-          set -euo pipefail
-          mkdir -p .artifacts/desktop
-          for artifact in \
-            "CompozyOS-${RELEASE_VERSION}-mac-arm64.dmg" \
-            "CompozyOS-${RELEASE_VERSION}-mac-arm64.zip" \
-            "CompozyOS-${RELEASE_VERSION}-mac-x64.dmg" \
-            "CompozyOS-${RELEASE_VERSION}-mac-x64.zip" \
-            "CompozyOS-${RELEASE_VERSION}-linux-x64.AppImage" \
-            "CompozyOS-${RELEASE_VERSION}-linux-x64.deb" \
-            "CompozyOS-${RELEASE_VERSION}-win-x64.exe" \
-            "CompozyOS-${RELEASE_VERSION}-win-x64.exe.blockmap"; do
-            cp ".artifacts/desktop-build/${artifact}" ".artifacts/desktop/${artifact}"
-          done
-          go run ./cmd/compozy-desktop-release assert-inventory \
-            --version "${RELEASE_VERSION}" \
-            --dir .artifacts/desktop
-          jq -cn \
-            --arg runtime_version "${RELEASE_VERSION}" \
-            --arg min_app_version "${MIN_APP_VERSION}" \
-            '{runtime_version: $runtime_version, min_app_version: $min_app_version}' \
-            >.artifacts/desktop/compat.json
+        run: *validate-desktop-release-inventory
 
       - name: Setup Release Tools
         if: |
@@ -1585,22 +1563,18 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ needs.release-plan.outputs.release_version }}"
-          for artifact in \
-            "CompozyOS-${version}-mac-arm64.dmg" \
-            "CompozyOS-${version}-mac-arm64.zip" \
-            "CompozyOS-${version}-mac-x64.dmg" \
-            "CompozyOS-${version}-mac-x64.zip" \
-            "CompozyOS-${version}-linux-x64.AppImage" \
-            "CompozyOS-${version}-linux-x64.deb" \
-            "CompozyOS-${version}-win-x64.exe" \
-            "CompozyOS-${version}-win-x64.exe.blockmap"; do
-            cp ".artifacts/desktop/${artifact}" ".artifacts/authority/${artifact}"
+          for artifact in .artifacts/desktop/CompozyOS-*; do
+            cp "${artifact}" .artifacts/authority/
           done
+          windows_manifest=-
+          if [[ "${WINDOWS_DESKTOP_RELEASE}" == "true" ]]; then
+            windows_manifest=../.artifacts/desktop/latest.yml
+          fi
           bun run --cwd desktop release:prepare-channel -- \
             ../.artifacts/desktop/latest-mac-arm64.yml \
             ../.artifacts/desktop/latest-mac-x64.yml \
             ../.artifacts/desktop/latest-linux.yml \
-            ../.artifacts/desktop/latest.yml \
+            "${windows_manifest}" \
             ../.artifacts/channel \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${version}"
 
@@ -1611,6 +1585,12 @@ jobs:
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
           set -euo pipefail
+          publish_flags=()
+          expected_inventory=9
+          if [[ "${WINDOWS_DESKTOP_RELEASE}" != "true" ]]; then
+            publish_flags+=(--without-windows)
+            expected_inventory=7
+          fi
           go run ./cmd/compozy-desktop-release publish \
             --operation-id "desktop-release-${RELEASE_VERSION}-publish" \
             --channel "${RELEASE_CHANNEL}" \
@@ -1618,47 +1598,28 @@ jobs:
             --repository "${GITHUB_REPOSITORY}" \
             --asset-dir .artifacts/authority \
             --channel-dir .artifacts/channel \
-            -o json \
+            -o json "${publish_flags[@]}" \
             | tee .artifacts/channel-publish-result.json
-          jq -e '
+          jq -e --argjson expected "${expected_inventory}" '
             .operation == "publish" and
             (.channel_ref_after | length > 0) and
             (.audit_commit == .channel_ref_after) and
-            (.verified_inventory | length == 9) and
+            (.verified_inventory | length == $expected) and
             (.outcome == "published" or .outcome == "already_completed")
           ' .artifacts/channel-publish-result.json >/dev/null
 
   desktop-smoke:
-    name: Smoke Packaged Desktop ${{ matrix.name }}
+    name: Smoke Packaged Desktop ${{ matrix.smoke }}
     needs: [release-plan, desktop-build]
     if: |
       needs.release-plan.result == 'success' &&
       needs.desktop-build.result == 'success'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: macOS arm64 DMG
-            id: macos-arm64
-            runner: macos-15
-            platform: macos
-            artifact: CompozyOS-${{ needs.release-plan.outputs.release_version }}-mac-arm64.dmg
-          - name: macOS x64 DMG
-            id: macos-x64
-            runner: macos-15-intel
-            platform: macos
-            artifact: CompozyOS-${{ needs.release-plan.outputs.release_version }}-mac-x64.dmg
-          - name: Linux AppImage
-            id: linux
-            runner: ubuntu-22.04
-            platform: linux
-            artifact: CompozyOS-${{ needs.release-plan.outputs.release_version }}-linux-x64.AppImage
-          - name: Windows x64 NSIS
-            id: windows
-            runner: windows-latest
-            platform: win
-            artifact: CompozyOS-${{ needs.release-plan.outputs.release_version }}-win-x64.exe
+      matrix: *desktop-release-matrix
     runs-on: ${{ matrix.runner }}
+    env:
+      SMOKE_ARTIFACT: .artifacts/desktop/CompozyOS-${{ needs.release-plan.outputs.release_version }}-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.extension }}
     timeout-minutes: 20
     defaults:
       run:
@@ -1700,8 +1661,8 @@ jobs:
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
           bash "${RUNNER_TEMP}/smoke-desktop-release-artifact.sh" \
-            "${{ matrix.platform }}" \
-            ".artifacts/desktop/${{ matrix.artifact }}" \
+            "${{ matrix.platform == 'mac' && 'macos' || matrix.platform }}" \
+            "${SMOKE_ARTIFACT}" \
             "${RELEASE_VERSION}" \
             "${RELEASE_VERSION}"
 
@@ -1710,7 +1671,7 @@ jobs:
         shell: pwsh
         run: >-
           ./scripts/smoke-desktop-release-windows.ps1
-          -Artifact '.artifacts/desktop/${{ matrix.artifact }}'
+          -Artifact $env:SMOKE_ARTIFACT
           -Version '${{ needs.release-plan.outputs.release_version }}'
           -RequireSignature
 
@@ -1723,8 +1684,8 @@ jobs:
           COMPOZY_RELEASE_SMOKE_ACCOUNT_TOKEN: ${{ secrets.COMPOZY_RELEASE_SMOKE_ACCOUNT_TOKEN }}
         run: |
           bash "${RUNNER_TEMP}/smoke-desktop-release-artifact.sh" \
-            "${{ matrix.platform }}" \
-            ".artifacts/desktop/${{ matrix.artifact }}" \
+            "linux" \
+            "${SMOKE_ARTIFACT}" \
             "${RELEASE_VERSION}" \
             "${RELEASE_VERSION}" \
             extract

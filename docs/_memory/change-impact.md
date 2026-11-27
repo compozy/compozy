@@ -17,11 +17,12 @@ Owner: Windows desktop implementation, branch `feat/windows-desktop`.
   discovery metadata recovers without discarding a valid live endpoint.
   Bootstrap and update journals reuse the existing Windows-capable directory flush helper.
 - **Release:** Windows installer and blockmap join exact inventory, checksums, channel publication,
-  signed build and native smoke lanes. New channel generations require `latest.yml`; historical
-  channel reads still accept generations predating Windows. Repair binds the remote Windows
+  signed build and native smoke lanes when `WINDOWS_DESKTOP_RELEASE` is `true`. The gate is off
+  by default. Generations without Windows omit `latest.yml`. Repair binds the remote Windows
   installer to the restored feed's SHA-512. No released asset is rewritten.
 - **Web / Docs / official skill:** the existing daemon-served product UI is reused. Installation,
   release operations and `skills/compozy/references/desktop.md` explain the Windows workflow.
+  The site and updater use the published installer asset to determine Windows desktop availability.
 - **QA:** `APP-app-auto-update` and `APP-desktop-runtime-bundle-coherence` gain Windows variants.
   Native CI covers installer/update/uninstall and isolated runtime/control behavior. Local focused
   checks and cross-compilation do not substitute for the Windows CI run.

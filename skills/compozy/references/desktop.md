@@ -185,6 +185,8 @@ while `applying`. Installer handoff and runtime replacement remain protected fro
 
 ## Windows desktop distribution
 
+Check [Downloads](https://compozy.com/download) for the signed Windows installer.
+
 The Windows x64 desktop uses a per-user NSIS installer. It bundles `compozy.exe`; no WSL is
 required. The runtime lives at `%USERPROFILE%\.compozy\bin\compozy.exe` by default. A custom
 `COMPOZY_HOME` remains the authority for the app and CLI. Use the existing `app open`, `app status`,

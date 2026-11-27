@@ -37,12 +37,13 @@ type AuthorityBackend interface {
 }
 
 type PublishRequest struct {
-	OperationID string
-	Channel     string
-	Version     string
-	AssetDir    string
-	ChannelDir  string
-	PublishedAt time.Time
+	OperationID    string
+	Channel        string
+	Version        string
+	AssetDir       string
+	ChannelDir     string
+	PublishedAt    time.Time
+	WithoutWindows bool
 }
 
 type RepairRequest struct {

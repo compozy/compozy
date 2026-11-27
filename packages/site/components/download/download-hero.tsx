@@ -11,6 +11,7 @@ import { CONTAINER } from "@/components/site/layout";
 import { H1, Lead, Plate, PrimaryCta, Small } from "@/components/site/primitives";
 import type { DesktopRelease } from "@/lib/release/desktop-downloads";
 import {
+  hasWindowsDesktop,
   linuxDebItem,
   megabytes,
   offerFor,
@@ -156,6 +157,7 @@ function Actions({ mode, release, choice, onPlatform, onArch }: HeroProps) {
     );
   }
   const offer = offerFor(release, choice);
+  const windowsDesktopUnavailable = choice.platform === "windows" && !hasWindowsDesktop(release);
   const facts = [
     offer.item.name,
     offer.item.detail,
@@ -170,7 +172,11 @@ function Actions({ mode, release, choice, onPlatform, onArch }: HeroProps) {
         {offer.cta}
       </PrimaryCta>
       <p className="m-0 font-mono text-[13px] text-muted-foreground">{facts.join(" · ")}</p>
-      <Alternate release={release} choice={choice} onArch={onArch} />
+      {windowsDesktopUnavailable ? (
+        <Small className="text-[14px]">Windows desktop app coming soon.</Small>
+      ) : (
+        <Alternate release={release} choice={choice} onArch={onArch} />
+      )}
     </div>
   );
 }
@@ -195,7 +201,7 @@ export function DownloadHero(props: HeroProps) {
           <H1>Download CompozyOS</H1>
         </div>
         <Lead className="mt-5 max-w-[600px] md:text-[19px]">
-          The desktop app for macOS, Linux, and Windows, with the runtime included.
+          Get the desktop app with the runtime included, or install the compozy command.
         </Lead>
         <Actions {...props} />
       </div>

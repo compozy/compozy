@@ -21,14 +21,7 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 	if existing, err := a.backend.FindOperation(ctx, branch, request.OperationID); err != nil {
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 	} else if existing != nil {
-		if err := validateExistingOperation(existing, operationPublish, request.Version); err != nil {
-			return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
-		}
-		verified, verifyErr := a.verifyRemoteInventory(ctx, *existing)
-		if verifyErr != nil {
-			return OperatorResult{}, verifyErr
-		}
-		return resultFromExisting(operationPublish, existing, verified), nil
+		return a.resumePublish(ctx, existing, request)
 	}
 	before, previous, err := a.channelState(ctx, branch)
 	if err != nil {
@@ -58,7 +51,7 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 			return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 		}
 	}
-	verified, err := a.publishAndVerifyInventory(ctx, request.AssetDir, request.Version)
+	verified, err := a.publishAndVerifyInventory(ctx, request.AssetDir, request.Version, request.WithoutWindows)
 	if err != nil {
 		return OperatorResult{}, err
 	}
@@ -66,10 +59,17 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 		OperationID: request.OperationID, Operation: operationPublish, Version: request.Version,
 		MinAppVersion: compatibility.MinAppVersion, PublishedAt: request.PublishedAt.UTC(),
 	}
-	files, err := prepareChannelFiles(request.ChannelDir, request.AssetDir, a.backend.Repository(), generation)
+	files, err := prepareChannelFiles(
+		request.ChannelDir,
+		request.AssetDir,
+		a.backend.Repository(),
+		generation,
+		request.WithoutWindows,
+	)
 	if err != nil {
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 	}
+	removePreviousWindowsManifest(files, previous.Files)
 	auditCommit, err := a.backend.Commit(ctx, CommitRequest{ParentSHA: before, Generation: generation, Files: files})
 	if err != nil {
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
@@ -84,6 +84,24 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 		Operation: operationPublish, ChannelRefBefore: before, ChannelRefAfter: auditCommit,
 		VerifiedInventory: verified, AuditCommit: auditCommit, Outcome: "published",
 	}, nil
+}
+
+func (a *Authority) resumePublish(
+	ctx context.Context, existing *ChannelCommit, request PublishRequest,
+) (OperatorResult, error) {
+	if err := validateExistingOperation(existing, operationPublish, request.Version); err != nil {
+		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
+	}
+	_, hasWindows := existing.Files[path.Join(ChannelDirectory, ManifestWindows)]
+	if hasWindows == request.WithoutWindows {
+		return OperatorResult{}, errorWithCode(ErrorVerificationFailed,
+			errors.New("desktop release: existing publication uses a different Windows release setting"))
+	}
+	verified, err := a.verifyRemoteInventory(ctx, *existing)
+	if err != nil {
+		return OperatorResult{}, err
+	}
+	return resultFromExisting(operationPublish, existing, verified), nil
 }
 
 func (a *Authority) Repair(ctx context.Context, request RepairRequest) (OperatorResult, error) {
@@ -126,13 +144,7 @@ func (a *Authority) Repair(ctx context.Context, request RepairRequest) (Operator
 	generation.PublishedAt = request.PublishedAt.UTC()
 	generation.SourceCommit = knownGood.SHA
 	files := cloneFiles(knownGood.Files)
-	windowsManifest := path.Join(ChannelDirectory, ManifestWindows)
-	if _, restored := files[windowsManifest]; !restored {
-		if _, present := current.Files[windowsManifest]; present {
-			// A pre-Windows rollback must not retain a feed from the replaced generation.
-			files[windowsManifest] = nil
-		}
-	}
+	removePreviousWindowsManifest(files, current.Files)
 	generationBytes, err := canonicalJSON(generation)
 	if err != nil {
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)

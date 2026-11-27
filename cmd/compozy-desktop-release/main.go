@@ -59,10 +59,11 @@ func runPublish(ctx context.Context, args []string) error {
 	common := addAuthorityFlags(flags)
 	assetDir := flags.String("asset-dir", "", "directory containing the exact desktop release inventory")
 	channelDir := flags.String("channel-dir", "", "directory containing merged updater manifests")
+	withoutWindows := flags.Bool("without-windows", false, "exclude Windows desktop packages and the update manifest")
 	return runAuthorityCommand(args, flags, common, func(authority *desktoprelease.Authority) (any, error) {
 		return authority.Publish(ctx, desktoprelease.PublishRequest{
 			OperationID: common.operationID, Channel: common.channel, Version: common.version,
-			AssetDir: *assetDir, ChannelDir: *channelDir, PublishedAt: time.Now(),
+			AssetDir: *assetDir, ChannelDir: *channelDir, PublishedAt: time.Now(), WithoutWindows: *withoutWindows,
 		})
 	})
 }
@@ -178,10 +179,11 @@ func runAssertInventory(ctx context.Context, args []string) error {
 	flags := newFlagSet("assert-inventory")
 	version := flags.String("version", "", "release version")
 	dir := flags.String("dir", "", "normalized desktop artifact directory")
+	withoutWindows := flags.Bool("without-windows", false, "exclude Windows desktop packages")
 	if err := parseFlags(flags, args); err != nil {
 		return err
 	}
-	return desktoprelease.AssertExactDesktopInventory(ctx, *dir, *version)
+	return desktoprelease.AssertExactDesktopInventory(ctx, *dir, *version, *withoutWindows)
 }
 
 func runAssertVersion(args []string) error {

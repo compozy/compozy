@@ -72,6 +72,10 @@ still fails the operation. Unit coverage: `electron-installer-policy.test.ts`.
 
 ## Windows desktop acceptance (2026-11-04)
 
+For a release without a Windows installer, use a Windows test install from the native CI lane.
+Confirm the app offers no desktop update for that release. Check that the standalone CLI still
+reports the release through its normal update check.
+
 Use a clean Windows x64 test profile with an unused default Compozy home. Use an installation
 directory with spaces and non-ASCII characters. Install the signed NSIS baseline without administrator elevation. Confirm
 offline bundled-runtime provisioning, product readiness and the existing `app status`, `app open`,

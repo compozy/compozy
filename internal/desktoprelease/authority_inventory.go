@@ -7,14 +7,14 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
-	"strings"
 )
 
 func (a *Authority) publishAndVerifyInventory(
 	ctx context.Context,
 	dir, version string,
+	withoutWindows bool,
 ) ([]Artifact, error) {
-	local, err := InspectDesktopInventory(ctx, dir, version)
+	local, err := InspectDesktopInventory(ctx, dir, version, withoutWindows)
 	if err != nil {
 		return nil, errorWithCode(ErrorInventoryIncomplete, err)
 	}
@@ -40,13 +40,8 @@ func (a *Authority) verifyRemoteInventory(ctx context.Context, commit ChannelCom
 	if err != nil {
 		return nil, errorWithCode(ErrorVerificationFailed, err)
 	}
-	required := DesktopArtifactNames(version)
-	if _, hasWindows := commit.Files[path.Join(ChannelDirectory, ManifestWindows)]; !hasWindows {
-		// Historical releases published only macOS and Linux packages.
-		required = slices.DeleteFunc(required, func(name string) bool {
-			return strings.HasSuffix(name, "-win-x64.exe") || strings.HasSuffix(name, "-win-x64.exe.blockmap")
-		})
-	}
+	_, hasWindows := commit.Files[path.Join(ChannelDirectory, ManifestWindows)]
+	required := DesktopArtifactNames(version, !hasWindows)
 	required = append(required, CompatibilityFile)
 	byName := make(map[string]Artifact, len(remote))
 	for _, artifact := range remote {
