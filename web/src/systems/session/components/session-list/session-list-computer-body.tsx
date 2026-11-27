@@ -1,12 +1,8 @@
-import { profileSessionGroups, projectSessionGroups } from "../../lib/session-list-groups";
-import { readCachedOfflineRowsForComputer } from "../../lib/session-offline-catalog";
-import { QueryClientContext, type QueryClient } from "@tanstack/react-query";
-import { use, useContext } from "react";
+import { use } from "react";
 import { cn } from "@compozy/ui";
 
 import { isRemoteComputerId } from "@/lib/computer-scope";
 import { useOptionalUpgradeSheetActions } from "@/systems/account";
-import { useActiveWorkspace, type DataScope } from "@/systems/workspace";
 
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
 import { type ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
@@ -16,9 +12,8 @@ import {
   type SessionFolderDialogState,
 } from "../../hooks/use-session-list-folder-layout";
 import { usePublishSessionListGroupRows } from "../../hooks/use-session-list-group-rows";
-import { useSessionListLocalState } from "../../hooks/use-session-list-local-state";
-import { scopedCatalogFilters } from "../../hooks/use-session-catalog";
-import { useSessionListView, type SessionListViewModel } from "../../hooks/use-session-list-view";
+import { useSessionListComputerView } from "../../hooks/use-session-list-computer-view";
+import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import { sessionListGroupRank } from "../../lib/session-list-group-rows";
 import { buildSessionListThreads, threadVisibleOrder } from "../../lib/session-list-threads";
@@ -121,33 +116,13 @@ function SessionListComputerLiveBody({
   sectionRank = 0,
   worktreeId,
 }: SessionListComputerBodyProps) {
-  const queryClient = useContext(QueryClientContext);
-  const { dataScope } = useActiveWorkspace();
+  const { offline, readOnly, computerView, bodyView, listedSessions, dialogState } =
+    useSessionListComputerView({ source, search, scoped, worktreeId });
   const parentGroupSelection = use(SessionListGroupSelectionContext);
-  const offline = source.read === "offline";
-  const readOnly = !source.canOperate || offline;
   const filtering = search.trim() !== "";
+  const projectFolderDialog = externalProjectDialog ?? dialogState.projectFolderDialog;
+  const setProjectFolderDialog = onProjectFolderDialogChange ?? dialogState.setProjectFolderDialog;
 
-  const computerView = useSessionListView({
-    scope: dataScope,
-    worktreeId,
-    computerId: source.key,
-    workspaces: source.workspaces,
-    matchedWorkspaceIds: source.matchedWorkspaceIds,
-    readOnly,
-    search,
-    multiComputer: !scoped,
-    includePinned: false,
-    enabled: !offline,
-  });
-
-  const { projectFolderDialog: localProjectDialog, setProjectFolderDialog: setLocalProjectDialog } =
-    useSessionListLocalState(computerView.selectionKey);
-  const projectFolderDialog = externalProjectDialog ?? localProjectDialog;
-  const setProjectFolderDialog = onProjectFolderDialogChange ?? setLocalProjectDialog;
-
-  // Offline computers filter rows already cached before disconnect (`Opus 6`, `Astra 15`).
-  const listedSessions = computerListRows(queryClient, source, dataScope, computerView);
   const threads = buildSessionListThreads(listedSessions, "");
   const folders = useSessionListFolderLayout(computerView, threads, filtering);
   const grouped = computerView.groupBy !== "none";
@@ -183,10 +158,6 @@ function SessionListComputerLiveBody({
     threadCount: threads.length,
     folderCount: folders.sections?.folders.length ?? 0,
   });
-
-  const bodyView = offline
-    ? offlineComputerListView(computerView, source, dataScope)
-    : computerView;
 
   return (
     <div
@@ -266,49 +237,4 @@ function SessionListComputerDialogs({
       ) : null}
     </>
   );
-}
-
-function computerListRows(
-  queryClient: QueryClient | undefined,
-  source: ComputerSessionsSource,
-  scope: DataScope | null,
-  view: SessionListViewModel
-) {
-  if (source.read !== "offline") return view.catalog?.sessions ?? [];
-  if (scope === null) return [];
-  const filters = scopedCatalogFilters(
-    scope,
-    view.groupFilters,
-    { all_profiles: true },
-    source.key,
-    source.matchedWorkspaceIds
-  );
-  return filters.emptyRemoteMatch
-    ? []
-    : readCachedOfflineRowsForComputer(queryClient, source.key, filters.scoped);
-}
-
-function offlineComputerListView(
-  view: SessionListViewModel,
-  source: ComputerSessionsSource,
-  scope: DataScope | null
-): SessionListViewModel {
-  if (scope === null || !source.facets) return { ...view, groupBy: "none" };
-  const groupInput = { computerId: source.key, offline: true };
-  const groups =
-    view.groupBy === "project"
-      ? projectSessionGroups(source.facets, {
-          ...groupInput,
-          workspaces: source.workspaces,
-          lens: { all_profiles: true },
-        })
-      : view.groupBy === "profile"
-        ? profileSessionGroups(source.facets, {
-            ...groupInput,
-            scope,
-            profiles: source.profiles ?? [],
-            matchedWorkspaceIds: source.matchedWorkspaceIds,
-          })
-        : [];
-  return groups.length > 0 ? { ...view, groups } : { ...view, groupBy: "none" };
 }
