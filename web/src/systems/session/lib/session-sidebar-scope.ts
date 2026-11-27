@@ -1,6 +1,9 @@
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import {
+  SESSION_LIST_COMPUTER_LAYOUTS,
   SESSION_LIST_GROUP_BYS,
   SESSION_LIST_SORTS,
+  type SessionListComputerLayout,
   type SessionListGroupBy,
   type SessionListSort,
 } from "./session-list-preferences";
@@ -9,6 +12,9 @@ import { normalizeSessionSidebarWidth } from "./session-sidebar-width";
 
 /** The session window body: the list + transcript, or the sessions board. */
 export type SessionWindowViewMode = "list" | "kanban";
+
+/** Per-window computer filter: every enabled computer (`all`), this computer (`local`), or a remote id. */
+export type SessionWindowComputerScope = "all" | "local" | (string & {});
 
 /**
  * The window's last Collapse all, Expand groups or Expand all; `null` until the operator uses one.
@@ -84,6 +90,16 @@ export interface SessionSidebarScopeState {
   sort: SessionListSort | null;
   groupBy: SessionListGroupBy | null;
   /**
+   * How remote computers share this window: `separate` or `together`. `null` follows the daemon's
+   * `shell.sessions.computers` seed, which defaults to `separate`. Window-only.
+   */
+  computers: SessionListComputerLayout | null;
+  /**
+   * Which computer this window shows: `"all"`, `"local"`, or a remote computer id. Window-only:
+   * remembered per window, never seeds a new window (Q6).
+   */
+  computerScope: SessionWindowComputerScope;
+  /**
    * Project grouping lists every registered project, even one with no sessions
    * in the current view (#1085). Off by default: only projects with sessions show.
    */
@@ -110,6 +126,8 @@ export const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
   collapsedBoardColumns: {},
   sort: null,
   groupBy: null,
+  computers: null,
+  computerScope: "all",
   showEmptyProjects: false,
   showAutomation: false,
   foldAll: null,
@@ -152,6 +170,8 @@ export function normalizedScopeState(value: unknown): SessionSidebarScopeState {
     collapsedBoardColumns: normalizedCollapsedFlags(value.collapsedBoardColumns),
     sort: oneOf(SESSION_LIST_SORTS, value.sort),
     groupBy: oneOf(SESSION_LIST_GROUP_BYS, value.groupBy),
+    computers: oneOf(SESSION_LIST_COMPUTER_LAYOUTS, value.computers),
+    computerScope: normalizedComputerScope(value.computerScope),
     // Absent in blobs written before #1085: the default (off) holds.
     showEmptyProjects: value.showEmptyProjects === true,
     // Absent in blobs written before #1355: the default (off) holds.
@@ -159,6 +179,66 @@ export function normalizedScopeState(value: unknown): SessionSidebarScopeState {
     // Absent in blobs written before #1132: every fold keeps its own flag.
     foldAll: oneOf(SESSION_FOLD_ALLS, value.foldAll),
   };
+}
+
+export function normalizedComputerScope(value: unknown): SessionWindowComputerScope {
+  if (typeof value !== "string") return DEFAULT_SCOPE_STATE.computerScope;
+  const trimmed = value.trim();
+  return trimmed === "" ? DEFAULT_SCOPE_STATE.computerScope : trimmed;
+}
+
+/** Fold key for a computer section (List) or band (Kanban). */
+export function computerFoldKey(computerId: ComputerId): string {
+  return `computer:${normalizeComputerId(computerId)}`;
+}
+
+/** Fold key for one project on one computer (List + Kanban, N9). */
+export function projectComputerFoldKey(computerId: ComputerId, workspaceId: string): string {
+  const normalized = normalizeComputerId(computerId);
+  return isRemoteComputerId(normalized)
+    ? `project:${normalized}:${workspaceId}`
+    : `project:${workspaceId}`;
+}
+
+/** Fold key for a folder on a specific computer (local keeps bare id; remote prefixes computer). */
+export function folderComputerFoldKey(computerId: ComputerId, folderId: string): string {
+  const normalized = normalizeComputerId(computerId);
+  return isRemoteComputerId(normalized) ? `folder:${normalized}:${folderId}` : folderId;
+}
+
+/** True when a stored fold key belongs to a remote computer (evicted on sign-out/switch, C3). */
+export function isRemoteFoldKey(key: string): boolean {
+  const segment = key.includes("\u0000") ? key.slice(key.lastIndexOf("\u0000") + 1) : key;
+  if (segment.startsWith("computer:")) {
+    return isRemoteComputerId(segment.slice("computer:".length));
+  }
+  if (segment.startsWith("project:") || segment.startsWith("folder:")) {
+    const rest = segment.slice(segment.indexOf(":") + 1);
+    const colon = rest.indexOf(":");
+    if (colon > 0) return isRemoteComputerId(rest.slice(0, colon));
+  }
+  return false;
+}
+
+/** Drops fold flags that reference remote computers (or one specific removed computer). */
+export function withoutRemoteFoldFlags(
+  flags: Record<string, boolean>,
+  targetComputerId?: ComputerId
+): Record<string, boolean> {
+  const entries = Object.entries(flags);
+  const kept = entries.filter(([key]) => {
+    if (targetComputerId !== undefined) {
+      const target = normalizeComputerId(targetComputerId);
+      const segment = key.includes("\u0000") ? key.slice(key.lastIndexOf("\u0000") + 1) : key;
+      return !(
+        segment === `computer:${target}` ||
+        segment.startsWith(`project:${target}:`) ||
+        segment.startsWith(`folder:${target}:`)
+      );
+    }
+    return !isRemoteFoldKey(key);
+  });
+  return kept.length === entries.length ? flags : Object.fromEntries(kept);
 }
 
 export function toggledFlag(

@@ -15,6 +15,7 @@ import * as accountApi from "@/systems/account/adapters/account-api";
 import { useAccountSettingsPage } from "@/systems/account/hooks/use-account-settings-page";
 import { accountKeys } from "@/systems/account/lib/query-keys";
 import { createSessionCreateStore, SessionCreateProvider } from "@/systems/session";
+import { sessionSidebarStore } from "@/systems/session/hooks/use-session-sidebar-state";
 import {
   isSessionStreamLive,
   retainSessionStreamLiveness,
@@ -208,6 +209,14 @@ describe("useAccountRemoteEviction (IT-026 web adapter)", () => {
     const releaseLocalStream = retainSessionStreamLiveness("sess-local", LOCAL_COMPUTER_ID);
     const sessionCreateStore = createSessionCreateStore();
     sessionCreateStore.trigger.computerSelected({ computerId: "C1" });
+    sessionSidebarStore.trigger.computerScopeChanged({
+      scopeId: "win-evict-test",
+      computerScope: "C1",
+    });
+    sessionSidebarStore.trigger.groupToggled({
+      scopeId: "win-evict-test",
+      groupId: "lens\u0000computer:C1",
+    });
 
     // Start an in-flight account devices fetch for Account A so eviction must abort it.
     let inFlightSignal: AbortSignal | undefined;
@@ -273,6 +282,12 @@ describe("useAccountRemoteEviction (IT-026 web adapter)", () => {
       expect(isSessionStreamLive("sess-remote", "C1")).toBe(false);
       expect(isSessionStreamLive("sess-local", LOCAL_COMPUTER_ID)).toBe(true);
       expect(sessionCreateStore.getSnapshot().context.draft.computerId).toBe(LOCAL_COMPUTER_ID);
+      expect(
+        sessionSidebarStore.getSnapshot().context.byScope["win-evict-test"]?.computerScope
+      ).toBe("all");
+      expect(
+        sessionSidebarStore.getSnapshot().context.byScope["win-evict-test"]?.collapsedGroups
+      ).toEqual({});
       expect(queryClient.getQueryData(computerQueryKey(LOCAL_COMPUTER_ID, "sessions"))).toEqual([
         "local-sess",
       ]);

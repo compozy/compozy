@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import { useProfileReadScope } from "@/systems/profiles";
 import type { DataScope } from "@/systems/workspace";
 
@@ -29,28 +30,41 @@ export interface SessionGroupFolds {
 /**
  * Which Group-by groups this window folds under one lens (scope, profile, grouping). A list
  * group and a board swimlane with the same key are one fold, so either view moves both.
+ * Pass `computerId` when reading a remote computer's groups so the same project id on two
+ * computers folds independently (`N9`).
  */
 export function useSessionGroupFolds(
   scope: DataScope | null,
-  groupBy: SessionListGroupBy
+  groupBy: SessionListGroupBy,
+  computerId?: ComputerId
 ): SessionGroupFolds {
   const profile = useProfileReadScope();
   const sidebar = useSessionSidebarState();
+  const normalizedComputer = normalizeComputerId(computerId);
+  const remote = isRemoteComputerId(normalizedComputer);
   const foldLens = JSON.stringify([scope, profileFoldIdentity(profile), groupBy]);
   const fallbackLens = JSON.stringify([scope, `name:${profile.key}`, groupBy]);
   const resolvedProfile = !profile.aggregate && profile.destinationOwner !== null;
   useEffect(() => {
-    if (resolvedProfile) {
+    if (resolvedProfile && !remote) {
       sessionSidebarStore.trigger.groupLensResolved({ from: fallbackLens, to: foldLens });
     }
-  }, [resolvedProfile, fallbackLens, foldLens]);
-  const groupId = (key: string) => `${foldLens}\u0000${key}`;
+  }, [resolvedProfile, remote, fallbackLens, foldLens]);
+  const qualify = (key: string) => {
+    if (!remote) return key;
+    if (key.startsWith(`project:${normalizedComputer}:`) || key.startsWith("computer:")) return key;
+    if (key.startsWith("project:")) return `project:${normalizedComputer}:${key.slice("project:".length)}`;
+    return `project:${normalizedComputer}:${key}`;
+  };
+  const groupId = (key: string) => `${foldLens}\u0000${qualify(key)}`;
   return {
     // The commit that resolves the profile still reads the fold stored under its name, so a
     // folded lane does not open and read its columns until `groupLensResolved` moves it.
     isCollapsed: key =>
       sidebar.groupFlag(groupId(key)) ??
-      (resolvedProfile ? sidebar.groupFlag(`${fallbackLens}\u0000${key}`) : undefined) ??
+      (resolvedProfile && !remote
+        ? sidebar.groupFlag(`${fallbackLens}\u0000${key}`)
+        : undefined) ??
       sidebar.groupFolds.has(groupId(key)),
     toggle: key => sidebar.toggleGroup(groupId(key)),
   };

@@ -830,4 +830,77 @@ describe("useSessionSidebarState", () => {
     });
     expect(afterReload.current.collapsedFolderIds).toEqual([]);
   });
+
+  it("Should keep computers layer and scope per window, never seed new windows with scope, normalize unknown values, and reset on eviction or removal (T-F3)", async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        context: {
+          byScope: {
+            [WINDOW_ONE]: {
+              computers: "bogus",
+              computerScope: "   ",
+              collapsedGroups: {
+                "lens\u0000computer:cmp_devbox": true,
+                "lens\u0000project:cmp_devbox:ws_1": true,
+                "lens\u0000project:ws_local": true,
+              },
+            },
+          },
+          partitionByScope: {},
+        },
+        version: 3,
+      })
+    );
+    const loaded = await loadFreshSidebarState();
+    expect(loaded.resolveSessionWindowOrder(loaded.sessionSidebarStore.getSnapshot().context.byScope, WINDOW_ONE)).toEqual({
+      sort: null,
+      groupBy: null,
+      computers: null,
+      computerScope: "all",
+    });
+
+    act(() => {
+      loaded.sessionSidebarStore.trigger.computersChanged({
+        scopeId: WINDOW_ONE,
+        computers: "together",
+      });
+      loaded.sessionSidebarStore.trigger.computerScopeChanged({
+        scopeId: WINDOW_ONE,
+        computerScope: "cmp_devbox",
+      });
+    });
+
+    // Window two never inherits window one's computer scope or computers layer (Q6).
+    expect(
+      loaded.resolveSessionWindowOrder(loaded.sessionSidebarStore.getSnapshot().context.byScope, WINDOW_ONE)
+    ).toMatchObject({ computers: "together", computerScope: "cmp_devbox" });
+    expect(
+      loaded.resolveSessionWindowOrder(loaded.sessionSidebarStore.getSnapshot().context.byScope, WINDOW_TWO)
+    ).toMatchObject({ computers: null, computerScope: "all" });
+
+    // Removing the scoped computer falls back to "all" and removes its folds, keeping local folds.
+    act(() => {
+      loaded.sessionSidebarStore.trigger.remoteComputerRemoved({ computerId: "cmp_devbox" });
+    });
+    const afterRemove = loaded.sessionSidebarStore.getSnapshot().context.byScope[WINDOW_ONE]!;
+    expect(afterRemove.computerScope).toBe("all");
+    expect(afterRemove.collapsedGroups).toEqual({ "lens\u0000project:ws_local": true });
+
+    // Account eviction resets remote scope and drops remote folds across every window (C3).
+    act(() => {
+      loaded.sessionSidebarStore.trigger.computerScopeChanged({
+        scopeId: WINDOW_ONE,
+        computerScope: "cmp_studio",
+      });
+      loaded.sessionSidebarStore.trigger.groupToggled({
+        scopeId: WINDOW_ONE,
+        groupId: "lens\u0000computer:cmp_studio",
+      });
+      loaded.sessionSidebarStore.trigger.remoteAccountEvicted();
+    });
+    const afterEvict = loaded.sessionSidebarStore.getSnapshot().context.byScope[WINDOW_ONE]!;
+    expect(afterEvict.computerScope).toBe("all");
+    expect(afterEvict.collapsedGroups).toEqual({ "lens\u0000project:ws_local": true });
+  });
 });
