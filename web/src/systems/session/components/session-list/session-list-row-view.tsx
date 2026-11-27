@@ -132,7 +132,10 @@ export function SessionListRowView(props: SessionListRowViewProps) {
         (selected || props.current) && "bg-selected",
         computer?.offline && "opacity-70"
       )}
-      data-computer-id={computer?.id ?? (computerId !== "local" ? computerId : undefined)}
+      data-computer-id={
+        computer?.id ??
+        (effectiveComputerId && effectiveComputerId !== "local" ? effectiveComputerId : undefined)
+      }
       data-computer-offline={computer?.offline ? "true" : undefined}
       data-slot="session-list-row"
       drag={computer?.offline ? undefined : props.drag}

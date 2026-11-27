@@ -305,12 +305,35 @@ test.describe("Account-linked computer", () => {
     await settings.getByRole("button", { name: "Close window" }).click();
 
     await page.goto("/sessions", { waitUntil: "domcontentloaded" });
-    const sidebar = await sessionSidebar(appWindow(page, "session"));
-    const remoteRow = sidebar
+    const session = appWindow(page, "session");
+    const sidebar = await sessionSidebar(session);
+    // Default layer is Separate: the remote computer has its own section header and rows (`F7`).
+    const remoteSection = sidebar.locator(`[data-computer-section="${host.id}"]`);
+    await expect(remoteSection).toBeVisible({ timeout: 15_000 });
+    await expect(remoteSection.getByText(host.name, { exact: true })).toBeVisible();
+    const remoteRow = remoteSection
       .locator(`[data-slot="session-list-row"][data-computer-id="${host.id}"]`)
       .filter({ hasText: title });
     await expect(remoteRow.getByText(title, { exact: true })).toBeVisible();
-    await expect(remoteRow.getByText(host.name, { exact: true })).toBeVisible();
+
+    // Scope picker switches to the remote computer (no section header) and back to All computers (`F8`).
+    await session.getByTestId("computer-scope-trigger").click();
+    await page.getByTestId(`computer-scope-item-${host.id}`).click();
+    await expect(sidebar.locator(`[data-computer-section="${host.id}"]`)).toHaveCount(0);
+    await expect(
+      sidebar
+        .locator(`[data-slot="session-list-row"][data-computer-id="${host.id}"]`)
+        .filter({ hasText: title })
+    ).toBeVisible();
+    await session.getByTestId("computer-scope-trigger").click();
+    await page.getByTestId("computer-scope-item-all").click();
+    await expect(sidebar.locator(`[data-computer-section="${host.id}"]`)).toBeVisible();
+
+    // Switching to Kanban renders computer bands under Separate (`F13`).
+    await session.getByRole("group", { name: "View" }).getByRole("button", { name: "Kanban" }).click();
+    await expect(session.getByTestId("sessions-board-bands")).toBeVisible({ timeout: 15_000 });
+    await expect(session.getByTestId(`sessions-board-band-${host.id}`)).toBeVisible();
+    await session.getByRole("group", { name: "View" }).getByRole("button", { name: "List" }).click();
 
     const palette = await openCommandPalette(page);
     await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(title);
