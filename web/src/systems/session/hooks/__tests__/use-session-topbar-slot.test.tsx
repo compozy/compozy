@@ -14,6 +14,7 @@
 // Boundary OUT: daemon mutations and window manager behavior.
 
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -587,7 +588,8 @@ describe("useSessionTopbarSlot", () => {
 
   // Invariant (#1202): the head offers Mark as seen only for a Needs you the daemon can
   // clear; a session waiting on an answer keeps its badge without the control.
-  it("Should offer Mark as seen in the head only for a dismissible Needs you", () => {
+  it("Should explain an early stop and offer Mark as seen only for dismissible attention", async () => {
+    const user = userEvent.setup();
     const { rerender } = renderWithTopbar(
       <SessionPublisher
         onStop={vi.fn()}
@@ -599,7 +601,19 @@ describe("useSessionTopbarSlot", () => {
         }}
       />
     );
-    expect(screen.getByRole("button", { name: "Mark as seen" })).toBeEnabled();
+    const markSeen = screen.getByRole("button", { name: "Mark as seen" });
+    expect(markSeen).toBeEnabled();
+    await user.hover(markSeen);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Stopped before delivering");
+
+    rerender(
+      <SessionPublisher
+        onStop={vi.fn()}
+        session={{ ...primarySessionFixture, badge: "done", attention_dismissible: false }}
+      />
+    );
+    expect(screen.getByText("Session status: Done")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark as seen" })).toBeNull();
 
     rerender(
       <SessionPublisher

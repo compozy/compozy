@@ -1628,6 +1628,54 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 		}
 	})
 
+	t.Run("Should settle under a creator completion monitor and flag the next unwatched turn", func(t *testing.T) {
+		t.Parallel()
+		h, _, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+		child.mu.Lock()
+		child.Lineage.NotifyCreator = true
+		child.mu.Unlock()
+		matchesCompletion := func(creatorID string, info *Info, badge Badge) bool {
+			return creatorID == parent.ID && info.ID == child.ID && badge == BadgeDone
+		}
+		h.manager.ConfigureSpawnWakeCoverage(matchesCompletion)
+
+		promptChild(t, h, child)
+
+		live := child.Info()
+		durable, err := h.manager.durableSessionInfoForLifecycleTransition(t.Context(), child.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, info := range []*Info{live, durable} {
+			badge, dismissible := BadgeForInfo(info), AttentionDismissible(info)
+			if badge != BadgeDone || info.EndedEarlyTurnID != "" || dismissible {
+				t.Fatalf(
+					"covered child badge = %s, early-stop turn = %q, dismissible = %t; want done without attention",
+					badge,
+					info.EndedEarlyTurnID,
+					dismissible,
+				)
+			}
+		}
+		if _, events := notifier.calls(); len(events) != 0 {
+			t.Fatalf("creator wakes = %#v, want only the session monitor's wake", events)
+		}
+
+		settled := live.LastSettledRevision
+		h.manager.ConfigureSpawnWakeCoverage(func(creatorID string, info *Info, badge Badge) bool {
+			return matchesCompletion(creatorID, info, badge) && info.LastSettledRevision == settled
+		})
+		promptChild(t, h, child)
+		info := child.Info()
+		if badge := BadgeForInfo(info); badge != BadgeNeedsAttention || !AttentionDismissible(info) {
+			t.Fatalf("unwatched child badge = %s, dismissible = %t; want dismissible needs-attention",
+				badge, AttentionDismissible(info))
+		}
+		if _, events := notifier.calls(); len(events) != 1 || !events[0].EndedEarly {
+			t.Fatalf("creator wakes = %#v, want one early-stop alarm for the unwatched turn", events)
+		}
+	})
+
 	t.Run("Should leave an early-stop alarm to the creator session monitor", func(t *testing.T) {
 		t.Parallel()
 		h, db, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)

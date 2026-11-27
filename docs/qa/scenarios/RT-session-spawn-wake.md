@@ -249,6 +249,17 @@ The current revision's alarm must still run. Owning regressions extend
 `TestManagerEarlyStopSupervision`, `TestSessionWorkSourcesMonitors`, and `TestSessionWakeBridge`.
 Validation is CI-only by operator instruction; no local tests, lint, builds or live QA were run.
 
+QA impact (issue #1996): while a child is running, have its creator register a session monitor
+with default states or `states: ["idle"]`. Let the child end its turn with no pending interaction,
+open work or linked PR. Confirm `done` for the unseen result, no `ended_early` attention, and one
+monitor wake reporting the settled child. Repeat with `notify_creator: true` and confirm there is
+still only one wake. Start another turn after the watch fires and let it end without delivery.
+The earlier monitor outcome cannot cover this turn. Confirm `needs-attention`, one early-stop
+wake and the reason on the web row and in the header's **Mark as seen** tooltip. A monitor
+configured only for `needs-attention` still receives the early-stop alarm. Repeat with a question,
+permission request or failure and confirm genuine attention remains visible. The session-layer
+regression lives in `TestManagerEarlyStopSupervision`.
+
 Review-round coverage for #1566: deliver the alarm synchronously while the child's settling
 turn is still registered and its creator is idle; that current-turn alarm must reach the
 provider. Advance the child from an input hook, prompt augmenter and turn-start hook in turn;

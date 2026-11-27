@@ -63,13 +63,16 @@ stop of a hung turn), the reply resumes you; an operator stop waits for the oper
 Ask with `notify_on_complete` whenever you need the answer: without it nothing wakes you when the
 other session finishes.
 
-A child session (any session with a parent) that ends a turn without answering its creator, with no linked pull request,
-no open work signal (monitor, subagent, reply watch, task lease, Loop run, scheduled wait), no pending
-interaction, and no reply watch from you on that turn is marked `needs-attention` with
-`attention: "ended_early"` instead of `done`. An answer after the latest creator message consumed by that turn counts as delivery, even for a follow-up without `notify_on_complete`; an earlier turn's answer does not cover it. The parent receives one wake with the child's final
-answer even when the child was created with `notify_creator: false`, unless the parent has a
-session monitor covering that child and the needs-attention state. In that case the monitor is the
-only wake path. The alarm asks the parent to review the answer without assuming code or PR delivery.
+A creator can collect a child's settled turn with a session monitor that includes `idle` (the
+default includes it) or a reply watch for that turn. The unseen result reads `done`. A session
+monitor that covers completion carries the wake, including when `notify_creator` is enabled.
+A child that ends a turn without answering its creator or delivering a linked pull request raises
+`needs-attention` with `attention: "ended_early"` if it has no open work or pending interaction and
+the creator has neither form of coverage. An answer after the latest creator message consumed by
+that turn counts as delivery, even for a follow-up without `notify_on_complete`. The parent receives
+one wake with the child's final answer even when the child was created with `notify_creator: false`.
+A session monitor configured only for `needs-attention` still receives this alarm and is the sole
+wake path. The alarm asks the parent to review the answer without assuming code or PR delivery.
 A queued alarm is discarded if the child starts another turn or its early-stop occurrence is
 cleared or replaced. Viewing the child alone does not cancel the parent's alarm.
 Prompt the child again or stop it; its next prompt clears the mark. Subagents report through `compozy__subagent_status`

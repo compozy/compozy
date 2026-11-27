@@ -2,6 +2,8 @@ import { Button, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@compo
 import { CheckCheck } from "@compozy/ui/icons";
 
 import { useMarkSessionSeenAction } from "../hooks/use-mark-session-seen";
+import { ENDED_EARLY_ATTENTION, sessionAttentionReason } from "../lib/session-attention-reason";
+import { sessionBadgeOf } from "../lib/session-badge";
 import type { SessionPayload } from "../types";
 
 /**
@@ -11,6 +13,10 @@ import type { SessionPayload } from "../types";
 export function SessionMarkSeenAction({ session }: { session: SessionPayload }) {
   const { pending, onMarkSeen } = useMarkSessionSeenAction();
   if (!session.attention_dismissible) return null;
+  const reason =
+    session.attention === ENDED_EARLY_ATTENTION
+      ? sessionAttentionReason(session, sessionBadgeOf(session))
+      : null;
   const Glyph = pending ? Spinner : CheckCheck;
   return (
     <Tooltip>
@@ -30,7 +36,12 @@ export function SessionMarkSeenAction({ session }: { session: SessionPayload }) 
       >
         <Glyph aria-hidden="true" className="size-3.5" />
       </TooltipTrigger>
-      <TooltipContent>Mark as seen</TooltipContent>
+      <TooltipContent>
+        <span>
+          Mark as seen
+          {reason ? <span className="block">{reason.detail}</span> : null}
+        </span>
+      </TooltipContent>
     </Tooltip>
   );
 }
