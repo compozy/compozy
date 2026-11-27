@@ -3,11 +3,11 @@ const revision = process.env.CLOUD_REVISION;
 const rollout = `${revision}.${process.env.GITHUB_RUN_ID}.${process.env.GITHUB_RUN_ATTEMPT}`;
 if (!origin || !revision) throw new Error("CLOUD_ORIGIN and CLOUD_REVISION are required");
 
-async function request(path: string, init: RequestInit = {}) {
+async function request(path: string, init: RequestInit = {}, timeoutMs = 10_000) {
   const response = await fetch(new URL(path, origin), {
     ...init,
     redirect: "error",
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) throw new Error(`Cloud smoke check returned HTTP ${response.status}`);
   return response;
@@ -16,15 +16,19 @@ async function request(path: string, init: RequestInit = {}) {
 // Cloudflare Containers start the new revision and drain the old one over several minutes, so
 // readiness polls for up to 10 minutes before failing the rollout.
 async function waitForRevision() {
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const health = await request("/healthz").catch(() => undefined);
+  const deadline = Date.now() + 10 * 60_000;
+  while (Date.now() < deadline) {
+    const remaining = deadline - Date.now();
+    const health = await request("/healthz", {}, Math.min(10_000, remaining)).catch(
+      () => undefined,
+    );
     if (health) {
       const body: { status?: string } = await health.json();
       if (body.status === "ok" && health.headers.get("X-Compozy-Cloud-Revision") === rollout) {
         return;
       }
     }
-    await Bun.sleep(3_000);
+    await Bun.sleep(Math.max(0, Math.min(3_000, deadline - Date.now())));
   }
   throw new Error("Cloud readiness did not report the deployed revision");
 }
