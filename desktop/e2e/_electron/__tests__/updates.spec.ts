@@ -666,15 +666,26 @@ test("Windows desktop: signed NSIS install, authenticated control, update and un
       .toBe("updated");
     expect(await readFile(join(desktop.home, "config.toml"), "utf8")).toBe(originalConfig);
     await terminateRestartedDesktop(desktop.home);
-    const uninstalled = await runCommand(join(installation, "Uninstall CompozyOS.exe"), ["/S"]);
+    const uninstallerPath = join(installation, "Uninstall CompozyOS.exe");
+    const uninstalled = await runCommand(uninstallerPath, ["/S"]);
     expect(uninstalled.exitCode, uninstalled.stderr).toBe(0);
+    // NSIS silent uninstall copies itself to %TEMP% and removes the uninstaller last; wait for both
+    // the app binary and the uninstaller to disappear before removing the temporary install parent.
     await expect
       .poll(
-        () =>
-          access(packaged.executablePath).then(
-            () => true,
-            () => false
-          ),
+        async () => {
+          const [appExists, uninstallerExists] = await Promise.all([
+            access(packaged.executablePath).then(
+              () => true,
+              () => false
+            ),
+            access(uninstallerPath).then(
+              () => true,
+              () => false
+            ),
+          ]);
+          return appExists || uninstallerExists;
+        },
         {
           timeout: 60_000,
         }
@@ -693,7 +704,7 @@ test("Windows desktop: signed NSIS install, authenticated control, update and un
     } finally {
       await feed.close();
       await clearCache?.();
-      await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      await rm(root, { recursive: true, force: true, maxRetries: 40, retryDelay: 500 });
     }
   }
 });
