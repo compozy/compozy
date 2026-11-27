@@ -6,11 +6,9 @@ import { useOsShell } from "./use-os-shell";
 export type SessionListRemoval = "archive" | "later" | "delete";
 
 /**
- * Retire the windows of archived list targets. A delete leaves windows to the daemon, which
- * removes the deleted session's windows before the delete answers; a client retire after that
- * would only race it with a stale revision. `onRemoved` hears each session this host archived,
- * moved to Later, or deleted, before any window retires. Later keeps its windows: the
- * composer of a parked session is one of the ways back.
+ * Clear archived selections here and let the daemon clear deleted selections before the delete
+ * answers. `onRemoved` reports each session this host archived, moved to Later, or deleted.
+ * Later keeps its selection so the parked session's composer is still a way back.
  */
 export function useSessionListLifecycleActions(
   options: {

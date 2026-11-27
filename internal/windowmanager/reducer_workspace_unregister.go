@@ -41,7 +41,7 @@ func windowReferencesWorkspace(window Window, binding string) bool {
 
 func catalogRoute(window Window) RouteIntent {
 	path := "/" + strings.Split(strings.TrimPrefix(window.Route.Pathname, "/"), "/")[0]
-	if window.App == "session" {
+	if window.App == sessionWindowApp {
 		path = sessionEmptyRoutePath
 	}
 	return RouteIntent{Pathname: path, Search: RouteSearch{}}

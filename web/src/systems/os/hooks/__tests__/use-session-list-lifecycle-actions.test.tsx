@@ -1,7 +1,6 @@
 // Suite: OS session-list lifecycle host
 // Invariant: an archive a list confirms retires every window showing that session, and only
-// those; a delete leaves windows to the daemon, which removes them with the session (a client
-// retire would race it and fail on a stale revision); Move to Later leaves windows alone.
+// those; the daemon clears deleted selections; Move to Later leaves windows alone.
 // Boundary IN: the mapping from confirmed lifecycle outcomes to window retirement.
 // Boundary OUT: the mutations (use-session-actions) and retirement itself (routing coordinator).
 import { renderHook } from "@testing-library/react";
