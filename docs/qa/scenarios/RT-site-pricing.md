@@ -22,7 +22,9 @@ overlaps: RT-computers-billing; RT-sign-in-first-run
 - Staging Compozy Cloud configured with Stripe test mode, Google/GitHub test OAuth apps, and an
   active Stripe promotion code (for example a 3-month launch/migration coupon).
 - A clean release-gated CompozyOS app installation (`pre_account_install = false`) ready for first
-  sign-in.
+  sign-in. For the staging purchase and entitlement check, use a separate source build with
+  `COMPOZY_CLOUD_URL=https://staging.cloud.compozy.com` in the daemon environment. The
+  release-gated build always uses production.
 
 ## Walkthrough steps
 
@@ -68,9 +70,9 @@ overlaps: RT-computers-billing; RT-sign-in-first-run
    - Verify no draft review banner appears in the page body.
 
 4. **Browser Pro purchase with promotion code:**
-   - Click **Get Pro** on `/pricing` (annual selected) to open
-     `https://cloud.compozy.com/billing/upgrade?interval=year`.
-   - Sign in with Google or GitHub on the staging cloud page; confirm annual is preselected.
+   - With Annual selected, verify **Get Pro** points to the production upgrade URL. For the
+     payment walk, open `/billing/upgrade?interval=year` on the staging Cloud origin.
+   - Sign in with the staging test account and confirm annual is preselected.
    - Click **Continue to checkout**, apply the test promotion code in Stripe Checkout, and complete
      test payment.
    - Confirm return to the cloud success page (`You're on Pro. Open Compozy to use your computers.`).
@@ -81,5 +83,6 @@ overlaps: RT-computers-billing; RT-sign-in-first-run
      never stored, offline behavior after first sign-in, CI account tokens, and account deletion.
    - Click the Terms and Privacy Policy links on U0 and confirm they resolve to `/legal/terms` and
      `/legal/privacy`.
-   - Sign in with the same account that completed checkout in step 4; open **Settings → Account**
+   - In the staging-connected source build, sign in with the account that completed step 4.
+     Open **Settings → Account**
      and confirm the plan shows **Pro**.
