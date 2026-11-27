@@ -27,7 +27,7 @@ func TestTokenUsageParsing(t *testing.T) {
 	t.Run("Should invalidate occupancy without clearing accumulated token counters or costs", func(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
-		active, err := proc.beginPrompt("turn-usage", 16)
+		active, err := proc.beginPrompt(t.Context(), "turn-usage", 16)
 		if err != nil {
 			t.Fatal(err)
 		}

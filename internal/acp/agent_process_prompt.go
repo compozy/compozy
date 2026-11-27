@@ -120,7 +120,7 @@ func (p *AgentProcess) beginPromptState(
 		pendingToolResultIDs: make(map[string]struct{}),
 	}
 	p.activePrompt = active
-	go p.forwardIngestEvents(active)
+	go p.forwardIngestEvents(context.WithoutCancel(ctx), active)
 	return active, nil
 }
 

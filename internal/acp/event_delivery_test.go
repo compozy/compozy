@@ -207,7 +207,7 @@ func TestPromptIngestSaturation(t *testing.T) {
 		}
 		<-canceled
 		proc := &AgentProcess{SessionID: "session"}
-		go proc.forwardIngestEvents(active)
+		go proc.forwardIngestEvents(context.WithoutCancel(t.Context()), active)
 		for _, id := range []string{"first", "second"} {
 			if event := <-active.events; event.ToolCallID != id {
 				t.Fatalf("accepted event = %#v", event)
@@ -228,7 +228,7 @@ func TestPromptIngestSaturation(t *testing.T) {
 		proc := &AgentProcess{}
 		proc.claudeTasks.enabled.Store(true)
 		proc.bindSessionRoute("sess-claude")
-		active, err := proc.beginPrompt("turn-native", 4)
+		active, err := proc.beginPrompt(t.Context(), "turn-native", 4)
 		if err != nil {
 			t.Fatal(err)
 		}
