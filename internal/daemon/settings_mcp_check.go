@@ -51,18 +51,29 @@ func (s *settingsRuntimeSurface) checkPublishedMCPRuntime(
 	var discovery mcppkg.ToolDiscovery
 	var probeErr error
 	probed := false
-	err := provider.CheckMCPSource(ctx, source, func(ctx context.Context) ([]toolspkg.MCPToolDescriptor, error) {
-		probeCtx, cancel := context.WithTimeout(ctx, s.mcpStatusTimeoutOrDefault())
-		defer cancel()
-		probed = true
-		discovery, probeErr = executor.DiscoverTools(probeCtx, source)
-		return discovery.Descriptors, probeErr
-	})
+	complete, err := provider.CheckMCPSource(
+		ctx,
+		source,
+		func(ctx context.Context) ([]toolspkg.MCPToolDescriptor, error) {
+			probeCtx, cancel := context.WithTimeout(ctx, s.mcpStatusTimeoutOrDefault())
+			defer cancel()
+			probed = true
+			discovery, probeErr = executor.DiscoverTools(probeCtx, source)
+			return discovery.Descriptors, probeErr
+		},
+	)
 	if err != nil {
 		return settingspkg.MCPServerRuntimeStatus{}, true, err
 	}
 	if !probed {
 		return waitingMCPRuntimeStatus(), true, nil
+	}
+	if !complete && probeErr == nil {
+		probeErr = toolspkg.NewValidationError(
+			"tools",
+			toolspkg.ReasonSchemaInvalid,
+			"The catalog rejected the tool list",
+		)
 	}
 	if probeErr != nil {
 		status := s.mcpRuntimeProbeFailure(target, server, probeErr)
@@ -102,7 +113,12 @@ func (s *settingsRuntimeSurface) publishedMCPCheckSource(
 		if source.RawServerName != server.EffectiveRuntimeName() {
 			continue
 		}
-		published, err := resolveDaemonMCPServer(ctx, s.state, source, target.Owner)
+		definitionSource := source
+		if strings.HasPrefix(target.Owner, "extension:") {
+			// Settings selects the extension's authored definition through its install owner.
+			definitionSource.ProfileID = ""
+		}
+		published, err := resolveDaemonMCPServer(ctx, s.state, definitionSource, target.Owner)
 		if err != nil || published.Target.Normalize() != target || published.Server.IsDisabled() ||
 			strings.TrimSpace(published.Server.DefinitionSource) != strings.TrimSpace(server.DefinitionSource) {
 			continue
@@ -114,6 +130,14 @@ func (s *settingsRuntimeSurface) publishedMCPCheckSource(
 		); err == nil &&
 			current == digest {
 			return source, true
+		}
+		if s.state.logger != nil {
+			s.state.logger.DebugContext(
+				ctx,
+				"mcp: checked definition differs from the published catalog",
+				"scope",
+				source.Scope,
+			)
 		}
 	}
 	return toolspkg.SourceRef{}, false
