@@ -16,6 +16,7 @@ import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/
 import { SessionThread } from "./session-thread-lazy";
 import { SessionWindowRightRegion } from "./session-window-right-panel";
 import { SessionPullRequestExitSurface } from "./session-pull-request-exit-surface";
+import { sessionRowKeyFor } from "@/systems/session/lib/session-row-ref";
 import { SessionWindowRailLayout, SessionWindowSidebarRail } from "./session-window-rail";
 import { SessionWindowClearDialog, SessionWindowRowDialogs } from "./session-window-row-dialogs";
 import { useForkDeadSession } from "./use-fork-dead-session";
@@ -308,7 +309,7 @@ export function SessionWindowContent({
                       <SessionWindowSidebarRail
                         windowId={windowId}
                         sidebar={sidebar}
-                        currentSessionId={sessionId}
+                        currentSessionId={sessionRowKeyFor({ id: sessionId, computerId })}
                         revealedSession={session}
                       />
                     }

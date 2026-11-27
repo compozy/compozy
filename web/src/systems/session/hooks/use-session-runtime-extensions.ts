@@ -12,6 +12,7 @@ import {
 import { sessionDetailOptions } from "../lib/query-options";
 import { permissionOccurrenceKey } from "../lib/session-pending-interactions";
 import { isSessionRunning } from "../lib/session-running";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { sessionStore } from "../stores/session-store";
 import { useMergedSessionRuntimeTranscript } from "./use-merged-session-runtime-transcript";
 import { useSessionClarifications } from "./use-session-clarifications";
@@ -49,9 +50,10 @@ export function useSessionRuntimeExtensions({
     snapshot => snapshot.context.hasLocalRuntimeTail
   );
   const promptPending = useSelector(promptDispatch, snapshot => snapshot.context.pending);
+  const key = sessionRowKeyFor({ id: sessionId, computerId });
   const liveTailSuppressed = useSelector(
     sessionStore,
-    snapshot => (snapshot.context.liveTailSuppressions[sessionId] ?? 0) > 0
+    snapshot => (snapshot.context.liveTailSuppressions[key] ?? 0) > 0
   );
   const streamResetGeneration = useSelector(
     promptDispatch,

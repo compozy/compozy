@@ -1,3 +1,4 @@
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { startTransition, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
@@ -170,13 +171,14 @@ function buildSessionRuntimeConfig(
 ) {
   const { computerId, workspaceId, sessionId } = recoveryScope;
   const keys = sessionKeys.forComputer(computerId);
+  const sessionKey = sessionRowKeyFor({ id: sessionId, computerId });
   const goalAwareFetch = createGoalAwareFetch({
     onRequest: () => {
-      sessionStore.trigger.goalErrorAcknowledged({ sessionId });
+      sessionStore.trigger.goalErrorAcknowledged({ sessionId: sessionKey });
     },
     onResult: (result, requestText) => {
       sessionStore.trigger.goalCommandReported({
-        sessionId,
+        sessionId: sessionKey,
         result,
         ...(requestText === null || requestText === undefined ? {} : { command: requestText }),
       });
@@ -352,8 +354,9 @@ export function useSessionChatRuntime({
   const promptRuntime = useOptionalSessionPromptRuntimeContext();
   const [idempotencyKeys] = useState(() => new Map<string, string>());
   const [preparedUserMessages] = useState(() => new Map<string, UIMessage>());
-  const attachmentAdapter = useSessionAttachmentAdapter(workspaceId, sessionId);
+  const attachmentAdapter = useSessionAttachmentAdapter(workspaceId, sessionId, computerId);
   const recoveryScope = { computerId, workspaceId, sessionId };
+  const sessionKey = sessionRowKeyFor({ id: sessionId, computerId });
   const consumeDraft = (messageId: string | null) => {
     if (messageId !== null) promptRecovery.acknowledge(recoveryScope, messageId);
     attachmentAdapter.acknowledgeSentFiles();
@@ -364,14 +367,14 @@ export function useSessionChatRuntime({
   };
   const promptOutcome: SessionPromptOutcome = {
     accepted: messageId => {
-      dismissSessionPromptNotSent(sessionId);
+      dismissSessionPromptNotSent(sessionKey);
       consumeDraft(messageId);
     },
     canceled: consumeDraft,
     returned: restoreDraft,
     notSent: (messageId, reason) => {
       restoreDraft(messageId, reason ?? undefined);
-      notifySessionPromptNotSent(reason, sessionId);
+      notifySessionPromptNotSent(reason, sessionKey);
     },
   };
   const runtimeConfig = buildSessionRuntimeConfig(
@@ -448,7 +451,10 @@ export function useSessionChatRuntime({
           .at(-1)
           ?.text.trim();
         if (proposal) {
-          sessionStore.trigger.goalDraftCompleted({ sessionId, text: `/goal ${proposal}` });
+          sessionStore.trigger.goalDraftCompleted({
+            sessionId: sessionKey,
+            text: `/goal ${proposal}`,
+          });
         }
       }
       runtimeConfig.onFinish();

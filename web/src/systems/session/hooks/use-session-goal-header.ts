@@ -7,6 +7,7 @@ import { sessionKeys } from "../lib/query-keys";
 import type { SessionGoalCommandResult, SessionGoalResponse, SessionState } from "../types";
 import { describeGoalCommandFailure } from "../lib/session-goal-chat-transport";
 import { mutateSessionGoal } from "../adapters/session-goal-api";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { sessionStore } from "../stores/session-store";
 import { useSessionGoalFeedback } from "./use-session-store";
 import { useSessionGoal } from "./use-sessions";
@@ -47,7 +48,7 @@ export function useSessionGoalHeader(
   const keys = sessionKeys.forComputer(computerId);
   const goalKey = keys.goal(workspaceId, sessionId);
   const query = useSessionGoal(workspaceId, sessionId, enabled);
-  const feedback = useSessionGoalFeedback(sessionId);
+  const feedback = useSessionGoalFeedback(sessionId, computerId);
   const submitting = useRef(false);
   const snapshot = query.data?.goal ?? null;
   const continuationDisabledReason =
@@ -84,7 +85,10 @@ export function useSessionGoalHeader(
   const applyResult = (next: SessionGoalCommandResult) => {
     // Control errors stay beside these controls; prompt-command errors belong to the composer.
     if (next.outcome !== "error")
-      sessionStore.trigger.goalCommandReported({ sessionId, result: next });
+      sessionStore.trigger.goalCommandReported({
+        sessionId: sessionRowKeyFor({ id: sessionId, computerId }),
+        result: next,
+      });
     if (next.snapshot !== null || next.outcome === "cleared") {
       queryClient.setQueryData<SessionGoalResponse>(goalKey, {
         goal: next.snapshot,

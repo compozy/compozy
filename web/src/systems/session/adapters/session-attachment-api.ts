@@ -1,10 +1,12 @@
 import {
   apiClient,
+  apiClientFor,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
 } from "@/lib/api-client";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import type { SessionAttachment } from "../types";
 import { sessionWorkspacePath } from "./session-workspace-path";
 
@@ -34,9 +36,10 @@ export async function uploadSessionAttachment(
   workspaceId: string,
   sessionId: string,
   file: File,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionAttachment> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments",
     {
       params: {

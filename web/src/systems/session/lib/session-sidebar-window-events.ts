@@ -1,6 +1,7 @@
 import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { SHELL_WORKTREE_SCOPE } from "@/systems/workspace";
 
+import { parseSessionRowKey } from "./session-row-ref";
 import type { SessionSidebarContext } from "./session-sidebar-persistence";
 import {
   DEFAULT_SCOPE_STATE,
@@ -96,6 +97,15 @@ export function withScopeState(
  * Account sign-out or switch (C3, Rule 23): resets every window's computer scope
  * to `"all"` and removes every remote computer's fold flags. Local folds stay.
  */
+function withoutComputerThreadFlags(flags: Record<string, boolean>, target?: ComputerId) {
+  const entries = Object.entries(flags);
+  const kept = entries.filter(([key]) => {
+    const { computerId } = parseSessionRowKey(key);
+    return target ? computerId !== target : !isRemoteComputerId(computerId);
+  });
+  return kept.length === entries.length ? flags : Object.fromEntries(kept);
+}
+
 export function evictRemoteSessionSidebarState(
   context: SessionSidebarContext
 ): SessionSidebarContext | undefined {
@@ -107,10 +117,14 @@ export function evictRemoteSessionSidebarState(
       : state.computerScope;
     const nextGroups = withoutRemoteFoldFlags(state.collapsedGroups);
     const nextFolders = withoutRemoteFoldFlags(state.collapsedFolders);
+    const nextThreads = withoutComputerThreadFlags(state.collapsedThreads);
+    const nextSubagents = withoutComputerThreadFlags(state.subagentThreads);
     if (
       nextComputerScope !== state.computerScope ||
       nextGroups !== state.collapsedGroups ||
-      nextFolders !== state.collapsedFolders
+      nextFolders !== state.collapsedFolders ||
+      nextThreads !== state.collapsedThreads ||
+      nextSubagents !== state.subagentThreads
     ) {
       changed = true;
       byScope[scopeId] = {
@@ -118,6 +132,8 @@ export function evictRemoteSessionSidebarState(
         computerScope: nextComputerScope,
         collapsedGroups: nextGroups,
         collapsedFolders: nextFolders,
+        collapsedThreads: nextThreads,
+        subagentThreads: nextSubagents,
       };
     } else {
       byScope[scopeId] = state;
@@ -143,10 +159,14 @@ export function clearRemovedComputerFromSidebarState(
       state.computerScope === target ? DEFAULT_SCOPE_STATE.computerScope : state.computerScope;
     const nextGroups = withoutRemoteFoldFlags(state.collapsedGroups, target);
     const nextFolders = withoutRemoteFoldFlags(state.collapsedFolders, target);
+    const nextThreads = withoutComputerThreadFlags(state.collapsedThreads, target);
+    const nextSubagents = withoutComputerThreadFlags(state.subagentThreads, target);
     if (
       nextScope !== state.computerScope ||
       nextGroups !== state.collapsedGroups ||
-      nextFolders !== state.collapsedFolders
+      nextFolders !== state.collapsedFolders ||
+      nextThreads !== state.collapsedThreads ||
+      nextSubagents !== state.subagentThreads
     ) {
       changed = true;
       byScope[scopeId] = {
@@ -154,6 +174,8 @@ export function clearRemovedComputerFromSidebarState(
         computerScope: nextScope,
         collapsedGroups: nextGroups,
         collapsedFolders: nextFolders,
+        collapsedThreads: nextThreads,
+        subagentThreads: nextSubagents,
       };
     } else {
       byScope[scopeId] = state;

@@ -30,7 +30,7 @@ export function useSessionComputerScope(scopeIdOverride?: string): SessionComput
     sessionSidebarStore,
     snapshot => resolveSessionWindowOrder(snapshot.context.byScope, scopeId).computerScope
   );
-  const { computers, enabledComputers, isLoading, isError, canRead } = useComputers({
+  const { computers, enabledComputers, isLoading, isError, isSuccess, canRead } = useComputers({
     passive: true,
   });
   const [removedName, setRemovedName] = useState<string | null>(null);
@@ -41,6 +41,8 @@ export function useSessionComputerScope(scopeIdOverride?: string): SessionComput
       lastKnownNameRef.current.set(computer.id, computer.name);
     }
   }, [computers]);
+
+  const previousEnabled = useRef<ReadonlySet<string>>(new Set());
 
   const scopedIsRemote = scope !== "all" && isRemoteComputerId(scope);
   const enabledSet = new Set(enabledComputers.map(computer => computer.id));
@@ -54,6 +56,15 @@ export function useSessionComputerScope(scopeIdOverride?: string): SessionComput
     setRemovedName(name);
     sessionSidebarStore.trigger.remoteComputerRemoved({ computerId: scope });
   }, [missingFromEnabled, computers, scope]);
+
+  useEffect(() => {
+    if (!canRead || !isSuccess) return;
+    const next = new Set(enabledComputers.map(computer => computer.id));
+    for (const computerId of previousEnabled.current) {
+      if (!next.has(computerId)) sessionSidebarStore.trigger.remoteComputerRemoved({ computerId });
+    }
+    previousEnabled.current = next;
+  }, [canRead, isSuccess, enabledComputers]);
 
   const setScope = (next: SessionWindowComputerScope) => {
     setRemovedName(null);

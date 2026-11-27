@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useSelector } from "@xstate/store-react";
 
 import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
@@ -32,7 +33,7 @@ export function useSessionGoalFeedback(
   sessionId: string,
   computerId?: ComputerId
 ): SessionGoalFeedback | undefined {
-  const key = storeKey(sessionId, computerId);
+  const key = storeKey(sessionId, useCurrentComputerId(computerId));
   return useSelector(sessionStore, snapshot => snapshot.context.goalFeedback[key]);
 }
 
@@ -41,6 +42,6 @@ export function useSessionPromptRefusal(
   sessionId: string,
   computerId?: ComputerId
 ): string | undefined {
-  const key = storeKey(sessionId, computerId);
+  const key = storeKey(sessionId, useCurrentComputerId(computerId));
   return useSelector(sessionStore, snapshot => snapshot.context.promptRefusals[key]);
 }

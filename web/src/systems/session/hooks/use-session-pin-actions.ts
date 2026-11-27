@@ -7,7 +7,7 @@ import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { setSessionPinned } from "../adapters/session-pin-api";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
-import { sessionComputerOf } from "../lib/session-row-ref";
+import { sessionComputerOf, sessionRowKeyFor } from "../lib/session-row-ref";
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./session-lifecycle-types";
 import { requireWorkspace } from "./session-action-workspace";
@@ -67,7 +67,7 @@ export function useSessionPinActions(
       await invalidateSessionMutationQueries(queryClient, workspace, session.id, computerId);
       const title = getSessionDisplayTitle(session);
       setAnnouncement(pinned ? `Pinned ${title}.` : `Unpinned ${title}.`);
-      focusSession(session.id, pinned);
+      focusSession(sessionRowKeyFor(session, computerId), pinned);
     },
     onError: (_error, { session, pinned }) => {
       const title = getSessionDisplayTitle(session);
@@ -80,13 +80,22 @@ export function useSessionPinActions(
     mutation.isPending && mutation.variables
       ? {
           action: mutation.variables.pinned ? ("pin" as const) : ("unpin" as const),
-          sessionId: mutation.variables.session.id,
+          sessionId: sessionRowKeyFor(mutation.variables.session, mutation.variables.computerId),
         }
       : null;
   return {
-    onPin: session => mutation.mutate({ session, pinned: true, computerId: computerOf?.(session) }),
+    onPin: session =>
+      mutation.mutate({
+        session,
+        pinned: true,
+        computerId: computerOf?.(session) ?? sessionComputerOf(session),
+      }),
     onUnpin: session =>
-      mutation.mutate({ session, pinned: false, computerId: computerOf?.(session) }),
+      mutation.mutate({
+        session,
+        pinned: false,
+        computerId: computerOf?.(session) ?? sessionComputerOf(session),
+      }),
     pending,
     announcement,
   };
@@ -109,9 +118,13 @@ export function useSessionListPin(
       requestAnimationFrame(() => {
         const list = contentRef.current;
         if (!list) return;
-        const row = list.querySelector<HTMLElement>(
-          `[data-testid="${testIdPrefix}-session-${sessionId}"]`
-        );
+        const row = Array.from(
+          list.querySelectorAll<HTMLElement>('[data-slot="session-row-target"]')
+        ).find(target => {
+          const id = target.dataset.sessionId;
+          const computerId = target.closest<HTMLElement>("[data-computer-id]")?.dataset.computerId;
+          return id !== undefined && sessionRowKeyFor({ id, computerId }) === sessionId;
+        });
         const header = pinned
           ? list.querySelector<HTMLElement>(`[data-testid="${testIdPrefix}-pinned-toggle"]`)
           : null;

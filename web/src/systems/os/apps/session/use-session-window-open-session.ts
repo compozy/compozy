@@ -1,4 +1,4 @@
-import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import { normalizeComputerId, isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import {
   SESSION_BOARD_DRAWER_OPEN,
   SESSION_BOARD_DRAWER_SEARCH_KEY,
@@ -60,9 +60,19 @@ export function useSessionWindowOpenSession({
         subagentId: target.subagentId,
       });
     }
-    const drawerOpen = sessionBoardDrawerOpen(manager.getState().windows[windowId]?.route.search);
+    const search = manager.getState().windows[windowId]?.route?.search;
+    const currentComputer = normalizeComputerId(
+      typeof search?.computer === "string" ? search.computer : undefined
+    );
+    const drawerOpen = sessionBoardDrawerOpen(search);
     const drawer = options.drawer ?? drawerOpen;
-    if (sessionId !== undefined && target.sessionId === sessionId && drawer === drawerOpen) return;
+    if (
+      sessionId !== undefined &&
+      target.sessionId === sessionId &&
+      currentComputer === normalizeComputerId(target.computerId) &&
+      drawer === drawerOpen
+    )
+      return;
     if (isRemoteComputerId(target.computerId)) {
       const remoteRoute = {
         pathname: `/agents/${encodeURIComponent(target.agentName || "general")}/sessions/${encodeURIComponent(target.sessionId)}`,

@@ -26,7 +26,7 @@ export {
 import { sessionStore } from "../stores/session-store";
 import { sessionKeys } from "../lib/query-keys";
 import { discardComposerDraftAttachments } from "../lib/session-composer-attachment-drafts";
-import { sessionRowKey } from "../lib/session-row-ref";
+import { sessionRowKey, withSessionComputer } from "../lib/session-row-ref";
 import {
   invalidateSessionMutationQueries,
   invalidateWorkspaceSessionCatalog,
@@ -82,7 +82,7 @@ export function useRenameSession() {
       const successWorkspaceId = sessionOwnerWorkspace(session.workspace_id);
       queryClient.setQueryData(
         sessionKeys.forComputer(computerId).detail(successWorkspaceId, session.id),
-        session
+        withSessionComputer(session, computerId)
       );
     },
     onSettled: (_data, _error, variables) => {
@@ -112,7 +112,12 @@ export function useCreateSession() {
   return useMutation({
     mutationFn: ({ profile, computerId, ...params }: CreateSessionVariables) =>
       computerId && !isAutoComputerId(computerId)
-        ? createSession(params, profile ?? destination, undefined, computerId)
+        ? createSession(
+            params,
+            isRemoteComputerId(computerId) ? profile : (profile ?? destination),
+            undefined,
+            computerId
+          )
         : createSession(params, profile ?? destination),
     onSuccess: (session, variables) => {
       const scopedComputerId = normalizeComputerId(
@@ -135,7 +140,10 @@ export function useCreateSession() {
       }
       // A User session reads and lists through `@user`.
       const workspaceId = requireWorkspace(session.workspace_id ?? "");
-      queryClient.setQueryData(keys.detail(workspaceId, session.id), session);
+      queryClient.setQueryData(
+        keys.detail(workspaceId, session.id),
+        withSessionComputer(session, scopedComputerId)
+      );
       void queryClient.invalidateQueries({ queryKey: keys.detail(workspaceId, session.id) });
       if (scopedComputerId === "local") {
         void invalidateWorkspaceSessionCatalog(queryClient, workspaceId);

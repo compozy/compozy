@@ -9,6 +9,7 @@ import {
   promoteSessionInputToSteer,
   replaceSessionInput,
 } from "../adapters/session-api";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { sessionKeys } from "../lib/query-keys";
 import { sessionInputsOptions } from "../lib/query-options";
 import { withCachedInputs } from "../lib/queued-prompt";
@@ -27,14 +28,16 @@ export function useSessionInputs(
   sessionId: string,
   options: { enabled?: boolean; sessionState?: SessionState; refetchInterval?: number } = {}
 ) {
+  const computerId = useCurrentComputerId();
+  const key = sessionRowKeyFor({ id: sessionId, computerId });
   const suspended = useSelector(
     sessionStore,
-    snapshot => (snapshot.context.liveTailSuppressions[sessionId] ?? 0) > 0
+    snapshot => (snapshot.context.liveTailSuppressions[key] ?? 0) > 0
   );
   return useQuery(
     sessionInputsOptions(workspaceId, sessionId, {
       ...options,
-      computerId: useCurrentComputerId(),
+      computerId,
       enabled: (options.enabled ?? true) && !suspended,
     })
   );

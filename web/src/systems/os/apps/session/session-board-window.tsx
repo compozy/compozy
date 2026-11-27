@@ -12,6 +12,7 @@ import {
   SessionWindowViewControls,
   sessionBoardSort,
 } from "@/systems/session";
+import { sessionRowKeyFor } from "@/systems/session/lib/session-row-ref";
 import { useDataScope } from "@/systems/workspace";
 
 import { OsSessionsDeriveHost } from "../../components/os-sessions-derive-host";
@@ -170,7 +171,11 @@ export function SessionBoardWindow({
                 <SessionsBoard
                   actions={actions}
                   board={board}
-                  currentSessionId={sessionId}
+                  currentSessionId={
+                    sessionId === null
+                      ? null
+                      : sessionRowKeyFor({ id: sessionId, computerId: runtime.computerId })
+                  }
                   onOpen={onOpen}
                 />
               </div>

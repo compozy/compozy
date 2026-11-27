@@ -3,6 +3,8 @@ import { useAui, useAuiEvent, useAuiState } from "@assistant-ui/react";
 import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "@compozy/ui";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { sessionRowKeyFor } from "@/systems/session/lib/session-row-ref";
 import type { SessionComposerInputHandle } from "../session-composer-lexical-plugins";
 import { sessionComposerSyncLogic } from "./session-composer-sync-store";
 import {
@@ -39,9 +41,11 @@ export interface SessionComposerState {
 }
 
 /** Keeps composer input scoped to its session and protects edits during Goal draft handoff. */
-export function useSessionComposerState(sessionId: string): SessionComposerState {
+export function useSessionComposerState(daemonSessionId: string): SessionComposerState {
   const aui = useAui();
-  const draftText = useSessionComposerDraft(sessionId);
+  const computerId = useCurrentComputerId();
+  const sessionId = sessionRowKeyFor({ id: daemonSessionId, computerId });
+  const draftText = useSessionComposerDraft(daemonSessionId, computerId);
   const composerText = useAuiState(state => state.composer.text);
   const composerAttachments = useAuiState(state => state.composer.attachments);
   const isRunning = useAuiState(state => state.thread.isRunning);

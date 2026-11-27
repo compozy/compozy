@@ -24,6 +24,7 @@ import {
   restorePendingTerminalQuoteAfterFailedCreate,
   stageChosenSessionTerminalQuote,
 } from "../lib/session-terminal-quote";
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { sessionStore } from "../stores/session-store";
 import type { SessionCreateStore } from "../stores/session-create-store";
 import type { CreateSessionParams } from "../types";
@@ -88,7 +89,7 @@ export function useSessionCreateSubmit({
 }: UseSessionCreateSubmitOptions): () => void {
   const navigate = useNavigate();
   const shell = use(OsShellContext);
-  const focusedWindowId = shell?.manager.getState().focusedWindowId ?? undefined;
+  const focusedWindowId = shell?.manager.getState().focusedId ?? undefined;
   const computerScope = useSessionComputerScope(focusedWindowId);
   const createSession = useCreateSession();
   const scopedComputerId = normalizeComputerId(computerId);
@@ -124,7 +125,8 @@ export function useSessionCreateSubmit({
             ...(profile ? { profile } : {}),
           }),
           pendingPrompt,
-          terminalQuote
+          terminalQuote,
+          scopedComputerId
         ),
       navigate: session =>
         openCreatedSession(
@@ -208,7 +210,8 @@ export function useSessionCreateSubmit({
             ...(profile ? { profile } : {}),
           }),
           validated.pendingPrompt,
-          terminalQuote
+          terminalQuote,
+          scopedComputerId
         ),
       navigate: session =>
         openCreatedSession(
@@ -317,13 +320,20 @@ async function openCreatedSession(
 async function executeCreatedSession(
   create: Promise<CreatedSessionPayload>,
   pendingPrompt: string | null,
-  quote: TerminalQuote | null
+  quote: TerminalQuote | null,
+  computerId: ComputerId
 ): Promise<CreatedSessionPayload> {
   try {
     const session = await create;
     if (quote) stageChosenSessionTerminalQuote(session.id, quote);
     if (pendingPrompt?.trim()) {
-      sessionStore.trigger.firstPromptQueued({ sessionId: session.id, text: pendingPrompt });
+      sessionStore.trigger.firstPromptQueued({
+        sessionId: sessionRowKeyFor({
+          id: session.id,
+          computerId: session.computer_id ?? computerId,
+        }),
+        text: pendingPrompt,
+      });
     }
     return session;
   } catch (error) {

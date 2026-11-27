@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 
+import { normalizeComputerId } from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
 import {
   sessionDetailOptions,
@@ -53,7 +54,16 @@ export function useSessionBoardWindow(
 
   const openInDrawer = (target: SessionWindowSidebarTarget) => {
     const state = manager.getState();
-    const owner = mruWindowInstance(state.windows, state.client?.focusOrder ?? [], {
+    const matchingWindows = Object.fromEntries(
+      Object.entries(state.windows).filter(([, win]) => {
+        const computer = win.route?.search?.computer;
+        return (
+          normalizeComputerId(typeof computer === "string" ? computer : undefined) ===
+          normalizeComputerId(target.computerId)
+        );
+      })
+    );
+    const owner = mruWindowInstance(matchingWindows, state.client?.focusOrder ?? [], {
       app: "session",
       instanceKey: target.sessionId,
     });
