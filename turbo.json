@@ -219,6 +219,11 @@
             "dependsOn": ["//#codegen-check", "transit"],
             "outputs": []
         },
+        "@compozy/desktop#test": {
+            "dependsOn": ["//#codegen-check", "transit"],
+            "outputs": [],
+            "passThroughEnv": ["PSModulePath", "USERDOMAIN", "USERNAME"]
+        },
         "@compozy/videos#typecheck": {
             "dependsOn": [],
             "outputs": []

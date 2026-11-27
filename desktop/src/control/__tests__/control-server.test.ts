@@ -54,10 +54,13 @@ async function windowsPermissions(path: string, pipe = false) {
         "$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
         ...(pipe
           ? [
-              "$pipe = [System.IO.Pipes.NamedPipeClientStream]::new('.', $env:COMPOZY_PRIVATE_DIRECTORY, [System.IO.Pipes.PipeAccessRights]::ReadPermissions, [System.IO.Pipes.PipeOptions]::None, [System.Security.Principal.TokenImpersonationLevel]::Anonymous, [System.IO.HandleInheritability]::None)",
+              "$rights = [System.IO.Pipes.PipeAccessRights]::ReadData -bor [System.IO.Pipes.PipeAccessRights]::ReadPermissions",
+              "$pipe = [System.IO.Pipes.NamedPipeClientStream]::new('.', $env:COMPOZY_PRIVATE_DIRECTORY, $rights, [System.IO.Pipes.PipeOptions]::None, [System.Security.Principal.TokenImpersonationLevel]::Anonymous, [System.IO.HandleInheritability]::None)",
               "try { $pipe.Connect(5000); $acl = $pipe.GetAccessControl() } finally { $pipe.Dispose() }",
             ]
-          : ["$acl = Get-Acl -LiteralPath $env:COMPOZY_PRIVATE_DIRECTORY"]),
+          : [
+              "$acl = if ([System.IO.Directory]::Exists($env:COMPOZY_PRIVATE_DIRECTORY)) { [System.IO.Directory]::GetAccessControl($env:COMPOZY_PRIVATE_DIRECTORY) } else { [System.IO.File]::GetAccessControl($env:COMPOZY_PRIVATE_DIRECTORY) }",
+            ]),
         "$rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])",
         "@{ user = $user; owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; protected = $acl.AreAccessRulesProtected; allowed = @($rules | ForEach-Object { $_.IdentityReference.Value }) } | ConvertTo-Json -Compress",
       ].join("; "),
@@ -267,8 +270,7 @@ describe("control server", () => {
         await server?.close();
         await rm(home, { recursive: true, force: true });
       }
-    },
-    30_000
+    }
   );
 
   it("Should compare token bytes without accepting length or content differences", () => {

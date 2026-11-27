@@ -34,7 +34,7 @@ async function setPrivateACL(path: string): Promise<void> {
       "$rule = [System.Security.AccessControl.FileSystemAccessRule]::new(" +
       "$identity, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow');" +
       "$acl.AddAccessRule($rule) }",
-    "Set-Acl -LiteralPath $env:COMPOZY_PRIVATE_DIRECTORY -AclObject $acl",
+    "[System.IO.Directory]::SetAccessControl($env:COMPOZY_PRIVATE_DIRECTORY, $acl)",
   ].join("; ");
   await executeSecurityScript(script, { COMPOZY_PRIVATE_DIRECTORY: path });
 }
@@ -44,7 +44,9 @@ export async function protectWindowsPipe(endpoint: string): Promise<void> {
   const script = [
     "$ErrorActionPreference = 'Stop'",
     "$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User",
-    "$pipe = [System.IO.Pipes.NamedPipeClientStream]::new('.', $env:COMPOZY_CONTROL_PIPE_NAME, [System.IO.Pipes.PipeAccessRights]::ChangePermissions, [System.IO.Pipes.PipeOptions]::None, [System.Security.Principal.TokenImpersonationLevel]::Anonymous, [System.IO.HandleInheritability]::None)",
+    // .NET Framework requires at least one PipeDirection bit alongside ChangePermissions.
+    "$rights = [System.IO.Pipes.PipeAccessRights]::ReadData -bor [System.IO.Pipes.PipeAccessRights]::ChangePermissions",
+    "$pipe = [System.IO.Pipes.NamedPipeClientStream]::new('.', $env:COMPOZY_CONTROL_PIPE_NAME, $rights, [System.IO.Pipes.PipeOptions]::None, [System.Security.Principal.TokenImpersonationLevel]::Anonymous, [System.IO.HandleInheritability]::None)",
     "try { $pipe.Connect(5000); " +
       "$acl = [System.IO.Pipes.PipeSecurity]::new(); " +
       "$acl.SetAccessRuleProtection($true, $false); " +
