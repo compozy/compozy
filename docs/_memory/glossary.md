@@ -592,3 +592,17 @@ A native tool result contract selected by `result_view`: `compact` is the defaul
 and `full` is the complete record. Single-result tools do not accept the selector.
 This differs from registry `ToolView`, which combines a descriptor with availability and
 policy diagnostics; it is not a returned-record selection.
+
+### Value completion
+
+TAB completion that offers live identifiers a command argument or flag accepts, such as a
+session ID, workspace reference, agent name, provider, model, profile, task, loop,
+automation, worktree, folder, extension, computer, vault ref or toolset. Distinct from
+static command and flag completion, which comes from the command tree. Value completion is
+read-only and never starts the daemon.
+
+### Completion candidate
+
+One value offered by value completion, optionally paired with a human description shown by
+shells that support completions with descriptions. The value is the exact token the command
+accepts; the description never carries secret material.
