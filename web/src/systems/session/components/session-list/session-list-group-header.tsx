@@ -144,6 +144,45 @@ function GroupDropEdge({ edge }: { edge: SessionDropPosition }) {
   );
 }
 
+function GroupHeaderToggle({
+  group,
+  collapsed,
+  onToggle,
+  testId,
+}: Pick<SessionListGroupHeaderProps, "group" | "collapsed" | "onToggle"> & {
+  testId: string;
+}) {
+  const mark =
+    group.computerName && group.computerPlatform && group.computerIconKind ? (
+      <ComputerMark iconKind={group.computerIconKind} platform={group.computerPlatform} />
+    ) : undefined;
+  return (
+    <SessionListGroupToggle
+      collapsed={collapsed}
+      count={group.total}
+      identity={<SessionListGroupIdentity group={group} />}
+      mark={mark}
+      onToggle={onToggle}
+      signal={<SessionListGroupSignal group={group} states={false} />}
+      leading={{ needsYou: group.needsYou, working: group.working, slot: "session-group" }}
+      testId={testId}
+    />
+  );
+}
+
+function groupHeaderDragProps(arrange: SessionListGroupArrange | undefined, offline?: boolean) {
+  return {
+    ...arrange?.drag,
+    className: cn(
+      "relative flex min-h-7 min-w-0 items-center gap-1 rounded-sm",
+      arrange?.dragging && "opacity-50",
+      offline && "opacity-70"
+    ),
+    "data-drop": arrange?.dropEdge ?? undefined,
+    "data-dragging": arrange?.dragging || undefined,
+  };
+}
+
 /**
  * One group's header row: the collapse toggle (identity, collapsed signal,
  * count) and, after it, the group's own `+` — New session or New folder in
@@ -177,10 +216,6 @@ export function SessionListGroupHeader({
     onNewFolder: folder.openDialog,
     testId,
   } as const;
-  const mark =
-    group.computerName && group.computerPlatform && group.computerIconKind ? (
-      <ComputerMark iconKind={group.computerIconKind} platform={group.computerPlatform} />
-    ) : undefined;
   return (
     <>
       <SessionListGroupProjectMenu
@@ -199,26 +234,15 @@ export function SessionListGroupHeader({
         testId={`${testId}-menu`}
       >
         <div
-          {...arrange?.drag}
-          className={cn(
-            "relative flex min-h-7 min-w-0 items-center gap-1 rounded-sm",
-            arrange?.dragging && "opacity-50",
-            group.offline && "opacity-70"
-          )}
+          {...groupHeaderDragProps(arrange, group.offline)}
           data-testid={`${testId}-header`}
-          data-drop={arrange?.dropEdge ?? undefined}
-          data-dragging={arrange?.dragging || undefined}
           onKeyDown={openContextMenuFromKeyboard}
         >
           {arrange?.dropEdge ? <GroupDropEdge edge={arrange.dropEdge} /> : null}
-          <SessionListGroupToggle
+          <GroupHeaderToggle
+            group={group}
             collapsed={collapsed}
-            count={group.total}
-            identity={<SessionListGroupIdentity group={group} />}
-            mark={mark}
             onToggle={onToggle}
-            signal={<SessionListGroupSignal group={group} states={false} />}
-            leading={{ needsYou: group.needsYou, working: group.working, slot: "session-group" }}
             testId={testId}
           />
           {muted ? null : alwaysOn ? (

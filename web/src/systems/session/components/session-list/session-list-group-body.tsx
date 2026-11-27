@@ -186,6 +186,13 @@ function SessionListGroupSplit({
   );
 }
 
+function pairGroupReadTarget(group: SessionListGroupSpec, view: SessionListViewModel) {
+  return {
+    computerId: group.pair?.computerId ?? group.computerId ?? view.computerId,
+    readOnly: view.readOnly === true || group.offline === true,
+  };
+}
+
 function SessionListPairGroupBody({
   group,
   path,
@@ -194,8 +201,7 @@ function SessionListPairGroupBody({
 }: GroupRowProps & { group: SessionListGroupSpec; path: readonly number[]; nested?: boolean }) {
   const { view } = props;
   const groupSelection = use(SessionListGroupSelectionContext);
-  const computerId = group.pair?.computerId ?? group.computerId ?? view.computerId;
-  const readOnly = view.readOnly === true || group.offline === true;
+  const { computerId, readOnly } = pairGroupReadTarget(group, view);
   const folders = useSessionFolders({
     workspaceId: group.pair?.workspaceId ?? null,
     profile: group.pair?.profile ?? "",
@@ -276,8 +282,7 @@ function SessionListPairGroupContent({
 }) {
   const { view } = props;
   const groupSelection = use(SessionListGroupSelectionContext);
-  const computerId = group.pair?.computerId ?? group.computerId ?? view.computerId;
-  const readOnly = view.readOnly === true || group.offline === true;
+  const { computerId, readOnly } = pairGroupReadTarget(group, view);
   const select = (session: SessionListTarget) => {
     if (partitions || !catalog.paging) {
       props.onSelectSession(isRemoteComputerId(computerId) ? { ...session, computerId } : session);
@@ -350,12 +355,30 @@ function SessionListPairGroupContent({
           readOnly={readOnly}
         />
       )}
-      {!hasSections && partitions && !catalog.loading && !catalog.failed ? (
-        <GroupNote>{empty}</GroupNote>
-      ) : null}
-      {!partitions ? <GroupPager catalog={catalog} /> : null}
+      <PairGroupFooter
+        catalog={catalog}
+        emptyMessage={empty}
+        hasSections={hasSections}
+        partitions={partitions}
+      />
     </div>
   );
+}
+
+function PairGroupFooter({
+  catalog,
+  emptyMessage,
+  hasSections,
+  partitions,
+}: {
+  catalog: GroupCatalog;
+  emptyMessage: string;
+  hasSections: boolean;
+  partitions?: SessionListPartitions;
+}) {
+  if (!partitions) return <GroupPager catalog={catalog} />;
+  if (hasSections || catalog.loading || catalog.failed) return null;
+  return <GroupNote>{emptyMessage}</GroupNote>;
 }
 
 function groupHasSessionSections(

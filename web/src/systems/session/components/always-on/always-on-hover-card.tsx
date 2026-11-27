@@ -119,6 +119,38 @@ function doingLine(instance: AgentInstancePayload) {
   return agentPauseCopy(instance) || instance.now.trim() || null;
 }
 
+function AlwaysOnAttention({
+  instance,
+  computerId,
+  canManage,
+}: {
+  instance: AgentInstancePayload;
+  computerId?: ComputerId;
+  canManage: boolean;
+}) {
+  const markSeen = useMarkAgentInstanceSeen(computerId);
+  return (
+    <>
+      {canManage && instance.attention_dismissible ? (
+        <Button
+          disabled={markSeen.isPending}
+          onClick={() => markSeen.mutate(instance)}
+          size="sm"
+          type="button"
+          variant="quiet"
+        >
+          {markSeen.isPending ? "Marking seen…" : "Mark as seen"}
+        </Button>
+      ) : null}
+      {markSeen.error ? (
+        <p role="alert" className="text-small-body text-destructive">
+          {markSeen.error.message}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 /** What the agent is doing, one pointer away: the card behind every avatar in a row. */
 export function AlwaysOnHoverCardContent({
   instance,
@@ -135,7 +167,6 @@ export function AlwaysOnHoverCardContent({
   onOpen: () => void;
   onTogglePause: () => void;
 }) {
-  const markSeen = useMarkAgentInstanceSeen(computerId);
   const state = agentInstanceAvatarState(instance);
   const paused = instance.state === "paused";
   const doing = doingLine(instance);
@@ -173,22 +204,7 @@ export function AlwaysOnHoverCardContent({
       {agentAuthorityCopy(instance) ? (
         <p className="text-small-body text-warning">{agentAuthorityCopy(instance)}</p>
       ) : null}
-      {canManage && instance.attention_dismissible ? (
-        <Button
-          disabled={markSeen.isPending}
-          onClick={() => markSeen.mutate(instance)}
-          size="sm"
-          type="button"
-          variant="quiet"
-        >
-          {markSeen.isPending ? "Marking seen…" : "Mark as seen"}
-        </Button>
-      ) : null}
-      {markSeen.error ? (
-        <p role="alert" className="text-small-body text-destructive">
-          {markSeen.error.message}
-        </p>
-      ) : null}
+      <AlwaysOnAttention instance={instance} computerId={computerId} canManage={canManage} />
       <div className="flex gap-2">
         <Button
           className="flex-1"
