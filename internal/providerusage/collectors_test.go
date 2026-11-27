@@ -151,6 +151,7 @@ func TestCollectors(t *testing.T) {
 			"kimi-cli",
 			"cursor",
 			"gemini",
+			"agy",
 		}
 		requireEqual(t, len(ids), len(registry))
 		for _, id := range ids {

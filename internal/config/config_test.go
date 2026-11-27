@@ -3293,7 +3293,7 @@ func TestProviderUsageConfig(t *testing.T) {
 		cfg := DefaultWithHome(HomePaths{})
 		usage := cfg.ProviderUsage
 		if !usage.Enabled || usage.RefreshInterval != 5*time.Minute || len(usage.Providers) != 0 ||
-			!usage.ProviderEnabled("claude") || usage.ClaudeKeychainAccess() {
+			!usage.ProviderEnabled("claude") || usage.KeychainAccess("claude") {
 			t.Fatalf("defaults = %#v", usage)
 		}
 		overlay, err := loadConfigOverlayBytes([]byte(`[provider_usage]
@@ -3313,7 +3313,7 @@ enabled = false
 			t.Fatal(err)
 		}
 		if !cfg.ProviderUsage.ProviderEnabled("claude") || cfg.ProviderUsage.ProviderEnabled("cursor") ||
-			!cfg.ProviderUsage.ClaudeKeychainAccess() || cfg.ProviderUsage.RefreshInterval != 10*time.Minute {
+			!cfg.ProviderUsage.KeychainAccess("claude") || cfg.ProviderUsage.RefreshInterval != 10*time.Minute {
 			t.Fatalf("merged = %#v", cfg.ProviderUsage)
 		}
 		cfg.ProviderUsage.Enabled = false

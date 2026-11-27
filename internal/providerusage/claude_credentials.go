@@ -52,7 +52,7 @@ type claudeOAuthFile struct {
 func (c *ClaudeCollector) resolve(ctx context.Context, target Target, intent Intent) (*claudeCredential, error) {
 	file, err := loadClaudeFile(target, c.now())
 	fileAbsent := isClaudeFileAbsent(err)
-	keychain := claudeCredentialPath(target) != "" && c.platform == "darwin"
+	keychain := claudeCredentialPath(target) != "" && c.platform == keychainPlatform
 	if !fileAbsent && (err == nil || !keychain) {
 		return c.keepFileLocked(target, file, err)
 	}

@@ -987,6 +987,7 @@ func cloneResolvedWorkspaceForTests(src *workspacepkg.ResolvedWorkspace) workspa
 }
 
 type recordingHostedMCPLauncher struct {
+	releaseRunHook    func()
 	initialToolDigest string
 	toolDigest        string
 	toolDigestErr     error
@@ -1017,7 +1018,11 @@ func (l *recordingHostedMCPLauncher) WaitForBind(_ context.Context, sessionID st
 
 func (*recordingHostedMCPLauncher) BindRun(context.Context, string, string, int64) error { return nil }
 
-func (*recordingHostedMCPLauncher) ReleaseRun(string, string, int64) {}
+func (l *recordingHostedMCPLauncher) ReleaseRun(string, string, int64) {
+	if l.releaseRunHook != nil {
+		l.releaseRunHook()
+	}
+}
 
 var _ HostedMCPLauncher = (*recordingHostedMCPLauncher)(nil)
 

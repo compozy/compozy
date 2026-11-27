@@ -108431,7 +108431,7 @@
                 }
               }
             },
-            "description": "Clarification broker is not configured"
+            "description": "Clarification broker is unavailable or the input queue is full"
           }
         },
         "summary": "Answer a live session clarification",

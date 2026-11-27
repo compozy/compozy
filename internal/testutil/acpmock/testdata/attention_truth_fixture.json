@@ -71,6 +71,19 @@
                     ]
                 },
                 {
+                    "name": "clarification-continuation",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Which release channel?\nResponse: Preview"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["clarification continuation observed"]
+                        }
+                    ]
+                },
+                {
                     "name": "complete",
                     "match": {
                         "turn_source": "user",
