@@ -110,7 +110,7 @@ export function useSessionWindowResolution({
   const isRemote = isRemoteComputerId(scopedComputerId);
   const { params } = useProfileReadScope();
   const query = useQuery(
-    sessionScopedDetailOptions(sessionId ?? "", params, {
+    sessionScopedDetailOptions(sessionId ?? "", isRemote ? { all_profiles: true } : params, {
       computerId: scopedComputerId,
       enabled: sessionId !== null && enabled,
       liveTail: liveTailEnabled,

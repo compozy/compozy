@@ -143,6 +143,7 @@ export function OsSessionsModal({
         workspaceId: session.workspace_id ?? "",
         sessionId: session.id,
         subagentId: session.subagentId,
+        ...(session.computerId ? { computerId: session.computerId } : {}),
       });
     }
     onOpenChange(false);
@@ -150,6 +151,7 @@ export function OsSessionsModal({
       sessionId: session.id,
       agentName: session.agent_name,
       workspaceId: session.workspace_id ?? "",
+      ...(session.computerId ? { computerId: session.computerId } : {}),
     });
   };
   return (

@@ -146,6 +146,7 @@ export function SessionBoardWindow({
         <>
           <SessionBoardDrawer
             actions={actions}
+            computerId={runtime.computerId}
             onClose={drawer.close}
             onExpand={() => setView("list")}
             onOpenSession={openInDrawer}

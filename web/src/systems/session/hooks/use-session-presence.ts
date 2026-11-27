@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { sessionKeys } from "../lib/query-keys";
 import { useSessionDeletionPending, useSessionDeletedByOperator } from "./use-session-actions";
 import { isSessionUnavailable } from "../adapters/session-api-errors";
@@ -13,8 +14,13 @@ import {
 /** Lease TTL is 15s daemon-side; renewing at 5s survives two missed ticks. */
 const PRESENCE_RENEW_INTERVAL_MS = 5_000;
 
-function releasePresence(workspaceId: string, sessionId: string, leaseId: string): void {
-  void releaseSessionPresence(workspaceId, sessionId, leaseId).catch(() => {
+function releasePresence(
+  workspaceId: string,
+  sessionId: string,
+  leaseId: string,
+  owner: [] | [ComputerId]
+): void {
+  void releaseSessionPresence(workspaceId, sessionId, leaseId, ...owner).catch(() => {
     // Release is best-effort. The daemon expires a missed release at the
     // 15-second lease TTL, so there is no truthful operator action to offer.
   });
@@ -23,8 +29,10 @@ function releasePresence(workspaceId: string, sessionId: string, leaseId: string
 function startPresenceLoop(
   workspaceId: string,
   sessionId: string,
-  shouldRelease: () => boolean
+  shouldRelease: () => boolean,
+  computerId?: ComputerId
 ): () => void {
+  const owner: [] | [ComputerId] = computerId && isRemoteComputerId(computerId) ? [computerId] : [];
   let leaseId: string | null = null;
   let cancelled = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -42,9 +50,14 @@ function startPresenceLoop(
     if (cancelled) return;
     if (leaseId === null) {
       try {
-        const acquired = await acquireSessionPresence(workspaceId, sessionId, controller.signal);
+        const acquired = await acquireSessionPresence(
+          workspaceId,
+          sessionId,
+          controller.signal,
+          ...owner
+        );
         if (cancelled) {
-          if (shouldRelease()) releasePresence(workspaceId, sessionId, acquired);
+          if (shouldRelease()) releasePresence(workspaceId, sessionId, acquired, owner);
           return;
         }
         leaseId = acquired;
@@ -58,7 +71,8 @@ function startPresenceLoop(
         workspaceId,
         sessionId,
         leaseId,
-        controller.signal
+        controller.signal,
+        ...owner
       );
       if (cancelled) return;
       // A daemon restart or TTL expiry invalidates the lease. The next cycle
@@ -75,7 +89,8 @@ function startPresenceLoop(
     cancelled = true;
     controller.abort();
     if (timer !== null) clearTimeout(timer);
-    if (leaseId !== null && shouldRelease()) releasePresence(workspaceId, sessionId, leaseId);
+    if (leaseId !== null && shouldRelease())
+      releasePresence(workspaceId, sessionId, leaseId, owner);
     leaseId = null;
   };
 }
@@ -91,10 +106,11 @@ function startPresenceLoop(
 export function useSessionPresence(
   workspaceId: string | null,
   sessionId: string | null,
-  watching: boolean
+  watching: boolean,
+  computerId?: ComputerId
 ): void {
-  const deletionPending = useSessionDeletionPending(sessionId);
-  const deleted = useSessionDeletedByOperator(sessionId);
+  const deletionPending = useSessionDeletionPending(sessionId, computerId);
+  const deleted = useSessionDeletedByOperator(sessionId, computerId);
   const available = !deletionPending && !deleted;
   const queryClient = useQueryClient();
   useEffect(() => {
@@ -102,7 +118,7 @@ export function useSessionPresence(
     // Read the captured session's live mutation state, including late acquire cleanup.
     const shouldRelease = () =>
       !queryClient.getMutationCache().find({
-        mutationKey: sessionKeys.deletions(),
+        mutationKey: sessionKeys.forComputer(computerId).deletions(),
         predicate: mutation => {
           const variables = mutation.state.variables;
           return (
@@ -115,6 +131,6 @@ export function useSessionPresence(
         },
       });
     if (!shouldRelease()) return undefined;
-    return startPresenceLoop(workspaceId, sessionId, shouldRelease);
-  }, [workspaceId, sessionId, watching, available, queryClient]);
+    return startPresenceLoop(workspaceId, sessionId, shouldRelease, computerId);
+  }, [workspaceId, sessionId, watching, computerId, available, queryClient]);
 }

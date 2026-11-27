@@ -1,5 +1,7 @@
 import { toast } from "@compozy/ui";
 import { useEffect, useState } from "react";
+import { isRemoteComputerId } from "@/lib/computer-scope";
+import { computerCanOperateSessions, useComputers } from "@/systems/computers";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import {
@@ -11,6 +13,7 @@ import {
 import { useWindowDataWorkspace } from "@/systems/workspace";
 
 import { useOsShell } from "../../../hooks/use-os-shell";
+import { sessionWindowInstanceKey } from "../../../lib/session-window-identity";
 import { useSessionWindowResolution } from "./use-session-window-resolution";
 import { useSessionWindowRuntime } from "./use-session-window-runtime";
 
@@ -32,22 +35,38 @@ export function useSessionWindowController(windowId: string) {
     enabled: sessionId !== null && !deletedByOperator && !deletionPending,
     liveTailEnabled: liveTailEnabled && !deletedByOperator && !deletionPending,
   });
-  const remotelyGone = sessionRemotelyGone(sessionId, resolution, aggregate);
-  const archivedWhileOpen = useSessionArchivedWhileOpen(sessionId, resolution, archivePending);
+  const remote = isRemoteComputerId(computerId);
+  const instanceKey = sessionId === null ? null : sessionWindowInstanceKey(sessionId, computerId);
+  const remotelyGone = sessionRemotelyGone(sessionId, resolution, aggregate || remote);
+  const archivedWhileOpen = useSessionArchivedWhileOpen(
+    sessionId,
+    instanceKey,
+    resolution,
+    archivePending
+  );
   const deletedLocally = deletedByOperator || remotelyGone;
   const effectiveLiveTailEnabled =
     liveTailEnabled && !deletionPending && !deletedLocally && !resolution.crossesWorkspace;
+  const { computers } = useComputers({ enabled: remote, passive: true });
+  const computer = computers.find(row => row.id === computerId);
+  const canReportPresence =
+    !remote ||
+    (computer?.status === "connected" && computerCanOperateSessions(computer.scopes, false));
   useSessionPresence(
     resolution.workspaceId,
     sessionId,
-    presenceEnabled && !deletionPending && sessionPresenceAllowed(resolution, deletedLocally)
+    canReportPresence &&
+      presenceEnabled &&
+      !deletionPending &&
+      sessionPresenceAllowed(resolution, deletedLocally),
+    ...(remote ? ([computerId] as const) : [])
   );
   // A document's project lens cannot remove a valid shared window. Only a confirmed
   // missing session, one this client deleted, or one archived while open retires it;
   // scope mismatches render a local notice.
   useRetireSessionWindow(
     windowId,
-    sessionId,
+    instanceKey,
     sessionId !== null && !deletionPending && (deletedLocally || archivedWhileOpen),
     // The list's delete already retired this window; if that retarget was refused, retire it
     // again here without announcing an operator-deleted session as missing. An archived
@@ -95,13 +114,14 @@ function sessionPresenceAllowed(resolution: SessionWindowResolution, deletedLoca
  */
 function useSessionArchivedWhileOpen(
   sessionId: string | null,
+  instanceKey: string | null,
   { shownSession, isFetching }: Pick<SessionWindowResolution, "shownSession" | "isFetching">,
   archivePending: boolean
 ): boolean {
   const [seenUnarchivedId, setSeenUnarchivedId] = useState<string | null>(null);
   const shown = shownSession?.id === sessionId ? shownSession : undefined;
   const seenUnarchived = shown?.archived_at === null && !isFetching;
-  const next = seenUnarchived || seenUnarchivedId === sessionId ? sessionId : null;
+  const next = seenUnarchived || seenUnarchivedId === instanceKey ? instanceKey : null;
   if (next !== seenUnarchivedId) setSeenUnarchivedId(next);
   return !archivePending && next !== null && shown !== undefined && shown.archived_at !== null;
 }

@@ -25,6 +25,8 @@ import {
 } from "@compozy/ui";
 
 import { useProfileReadScope } from "@/systems/profiles";
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
+import { computerCanOperateSessions, useComputers } from "@/systems/computers";
 import {
   isEditableTarget,
   SESSION_BOARD_DRAWER_INLINE_BREAKPOINT,
@@ -56,6 +58,7 @@ export interface SessionBoardDrawerProps {
   /** The window's session view (`SessionWindowSession`), mounted only while the drawer is open. */
   session: ReactNode;
   sessionId: string | null;
+  computerId?: ComputerId;
   open: boolean;
   width: number;
   onWidthChange: (width: number) => void;
@@ -80,6 +83,7 @@ export interface SessionBoardDrawerProps {
 export function SessionBoardDrawer({
   session,
   sessionId,
+  computerId = LOCAL_COMPUTER_ID,
   open,
   width,
   onWidthChange,
@@ -131,12 +135,17 @@ export function SessionBoardDrawer({
               title="Session"
               leading={
                 sessionId ? (
-                  <SessionBoardDrawerParentCrumb onOpen={onOpenSession} sessionId={sessionId} />
+                  <SessionBoardDrawerParentCrumb
+                    computerId={computerId}
+                    onOpen={onOpenSession}
+                    sessionId={sessionId}
+                  />
                 ) : null
               }
               controls={
                 <SessionBoardDrawerControls
                   actions={actions}
+                  computerId={computerId}
                   onClose={onClose}
                   onExpand={onExpand}
                   onStep={onStep}
@@ -198,12 +207,14 @@ function SessionBoardDrawerTitleText() {
 
 function SessionBoardDrawerControls({
   sessionId,
+  computerId,
   actions,
   onStep,
   onExpand,
   onClose,
 }: {
   sessionId: string | null;
+  computerId: ComputerId;
   actions: SessionLifecycleActionHandlers;
   onStep: (direction: "previous" | "next") => void;
   onExpand: () => void;
@@ -239,7 +250,9 @@ function SessionBoardDrawerControls({
         testId="session-board-drawer-expand"
         onClick={onExpand}
       />
-      {sessionId ? <SessionBoardDrawerMenu actions={actions} sessionId={sessionId} /> : null}
+      {sessionId ? (
+        <SessionBoardDrawerMenu actions={actions} computerId={computerId} sessionId={sessionId} />
+      ) : null}
       <SessionBoardDrawerButton
         icon={XIcon}
         label="Close session drawer"
@@ -257,18 +270,16 @@ function SessionBoardDrawerControls({
  */
 function SessionBoardDrawerParentCrumb({
   sessionId,
+  computerId,
   onOpen,
 }: {
   sessionId: string;
+  computerId: ComputerId;
   onOpen: (target: SessionWindowSidebarTarget) => void;
 }) {
-  const { params } = useProfileReadScope();
-  const session = useQuery(sessionScopedDetailOptions(sessionId, params)).data;
+  const session = useBoardDrawerSession(sessionId, computerId);
   const parentId = session ? sessionListParentId(session) : "";
-  const parent = useQuery({
-    ...sessionScopedDetailOptions(parentId, params),
-    enabled: parentId !== "",
-  }).data;
+  const parent = useBoardDrawerSession(parentId, computerId);
   if (!parent) return null;
   const title = getSessionDisplayTitle(parent);
   return (
@@ -281,6 +292,7 @@ function SessionBoardDrawerParentCrumb({
             sessionId: parent.id,
             agentName: parent.agent_name,
             workspaceId: parent.workspace_id ?? "",
+            ...(isRemoteComputerId(computerId) ? { computerId } : {}),
           })
         }
         type="button"
@@ -296,13 +308,26 @@ function SessionBoardDrawerParentCrumb({
 function SessionBoardDrawerMenu({
   sessionId,
   actions,
+  computerId,
 }: {
   sessionId: string;
   actions: SessionLifecycleActionHandlers;
+  computerId: ComputerId;
 }) {
+  const remote = isRemoteComputerId(computerId);
+  const { computers } = useComputers({ enabled: remote, passive: true });
+  const computer = computers.find(row => row.id === computerId);
+  const writable =
+    !remote ||
+    (computer?.status === "connected" && computerCanOperateSessions(computer.scopes, false));
+  const session = useBoardDrawerSession(sessionId, computerId);
+  return session && writable ? <SessionRowActions actions={actions} session={session} /> : null;
+}
+
+function useBoardDrawerSession(sessionId: string, computerId: ComputerId) {
   const { params } = useProfileReadScope();
-  const session = useQuery(sessionScopedDetailOptions(sessionId, params)).data;
-  return session ? <SessionRowActions actions={actions} session={session} /> : null;
+  const lens = isRemoteComputerId(computerId) ? { all_profiles: true as const } : params;
+  return useQuery(sessionScopedDetailOptions(sessionId, lens, { computerId })).data;
 }
 
 function SessionBoardDrawerButton({

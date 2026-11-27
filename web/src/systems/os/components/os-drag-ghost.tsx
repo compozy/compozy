@@ -8,6 +8,7 @@ import { tabSessionIds, useTabSessions } from "../hooks/use-os-tab-bar";
 import { useOsTabDrag } from "../hooks/use-os-tab-drag";
 import { getOsAppDescriptor } from "../lib/app-catalog";
 import type { OsWindow } from "../lib/os-types";
+import { sessionWindowLookupKey } from "../lib/session-window-identity";
 import { leadWindowId, tabWindowIds } from "../lib/tab-model";
 import { useOsWindowTitle } from "../hooks/use-os-window-title";
 import { OsTabTiles } from "./os-tab";
@@ -35,7 +36,7 @@ function OsDragGhostPlate({
 }) {
   const sessionById = useTabSessions(tabSessionIds(members));
   const sessionOf: SessionOf = win =>
-    win.app === "session" ? sessionById.get(win.instanceKey ?? "") : undefined;
+    win.app === "session" ? sessionById.get(sessionWindowLookupKey(win)) : undefined;
   const lead = members[0];
   return createPortal(
     <div
