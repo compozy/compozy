@@ -37,7 +37,7 @@ func settingsProviderUsageSectionResponse(envelope settingspkg.SectionEnvelope) 
 	providers := make(map[string]contract.SettingsProviderUsageProviderPayload, len(cfg.Providers))
 	for id, provider := range cfg.Providers {
 		value := contract.SettingsProviderUsageProviderPayload{Enabled: new(provider.Enabled)}
-		if id == "claude" {
+		if compozyconfig.ProviderUsageKeychainProvider(id) {
 			value.KeychainAccess = new(provider.KeychainAccess)
 		}
 		providers[id] = value
@@ -80,9 +80,9 @@ func parseUpdateSettingsProviderUsageRequest(c *gin.Context) (settingspkg.Sectio
 		Providers: make(map[string]compozyconfig.ProviderUsageProviderConfig, len(body.Config.Providers)),
 	}
 	for id, value := range body.Config.Providers {
-		if id != "claude" && value.KeychainAccess != nil {
+		if !compozyconfig.ProviderUsageKeychainProvider(id) && value.KeychainAccess != nil {
 			return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
-				fmt.Errorf("provider_usage.providers.%s.keychain_access is only valid for claude", id),
+				fmt.Errorf("provider_usage.providers.%s.keychain_access is only valid for agy or claude", id),
 			)
 		}
 		provider := compozyconfig.ProviderUsageProviderConfig{Enabled: true}

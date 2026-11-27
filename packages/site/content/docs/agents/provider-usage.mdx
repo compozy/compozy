@@ -231,6 +231,7 @@ Open **Settings → Provider usage**, or click **Settings** in the popover foote
 - **Providers** has one switch per configured provider that CompozyOS can read. Off stops collecting
   that provider, and it disappears from the usage views.
 - **Claude Keychain access** (macOS only) is the consent from [Step 5](#step-5-allow-claude-on-macos).
+- **Antigravity Keychain access** (macOS only) is the [Antigravity consent](#antigravity-keychain-consent).
 
 The same settings are `config.toml` keys. To turn usage off and back on from the terminal:
 
@@ -259,6 +260,7 @@ CompozyOS reads usage for these providers. Every other provider appears with
 | `kimi-cli`          | Kimi Coding limits                                    | The Kimi CLI login (`~/.kimi-code/credentials/kimi-code.json`, or under `KIMI_CODE_HOME`).                                                        |
 | `cursor`            | Monthly included usage, extra usage                   | The `cursor-agent` login (`~/.config/cursor/auth.json`, or under `XDG_CONFIG_HOME`).                                                              |
 | `gemini`            | Per-model quotas                                      | The Gemini CLI login (`~/.gemini/oauth_creds.json`).                                                                                              |
+| `agy`               | Session and Weekly limits per model group, plan       | The Antigravity CLI login in the macOS Keychain, with [consent](#antigravity-keychain-consent). macOS only.                                       |
 
 A custom provider without a collector of its own reads usage through the collector of its
 `runtime_provider`, for example a second Claude account configured with `runtime_provider = "claude"`
@@ -272,6 +274,30 @@ uses only the login or key that the profile's provider route resolves: it never 
 profile's login, never reads browser cookies, and never writes to another tool's credential files.
 The one exception is Codex, which may renew its own login while it answers, exactly as it does when
 CompozyOS runs a Codex session.
+
+### Antigravity Keychain consent
+
+The Antigravity CLI (`agy`) keeps its Google login in the macOS Keychain. Its row reads
+`Needs access` until you click **Allow** or turn on **Antigravity Keychain access** in Settings →
+Provider usage. From the terminal:
+
+```bash
+compozy config set provider_usage.providers.agy.keychain_access true
+compozy provider usage refresh agy
+```
+
+CompozyOS then reads that login through `security` on each refresh, after the same metadata checks
+described in [Step 5](#step-5-allow-claude-on-macos). The CLI writes its login with `security`, so
+those background reads do not normally prompt. The row shows one Session (5-hour) and one Weekly
+window for each model group Google reports, for example `Claude and GPT models · Weekly`, plus your
+plan.
+
+- CompozyOS never renews the Antigravity login. When its access token expires and the CLI is not
+  running, the row reads `Signed out · Run agy to refresh your login`; any `agy` run renews it.
+- Without a login the row reads `Sign in with agy to read usage`; run `compozy provider auth login agy`.
+- Linux, Windows, and custom providers that use `runtime_provider = "agy"` show
+  `Usage not available`.
+- To withdraw consent, turn off **Antigravity Keychain access**.
 
 ### Codex: file credential store
 
@@ -324,14 +350,18 @@ enabled = false           # stop collecting one provider
 
 [provider_usage.providers.claude]
 keychain_access = false   # macOS only: allow reading Claude Code's Keychain login
+
+[provider_usage.providers.agy]
+keychain_access = false   # macOS only: allow reading the Antigravity CLI's Keychain login
 ```
 
-| Key                                               | Default | Description                                                                                            |
-| ------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
-| `provider_usage.enabled`                          | `true`  | Master switch. `false` hides the meter, stops collection, and empties every usage read.                |
-| `provider_usage.refresh_interval`                 | `"5m"`  | Background refresh cadence, from `1m` to `1h`.                                                         |
-| `provider_usage.providers.<id>.enabled`           | `true`  | Per-provider opt-out. `<id>` is a canonical provider ID.                                               |
-| `provider_usage.providers.claude.keychain_access` | `false` | Consent to read Claude Code's macOS Keychain login. Ignored on other systems; only valid for `claude`. |
+| Key                                               | Default | Description                                                                             |
+| ------------------------------------------------- | ------- | --------------------------------------------------------------------------------------- |
+| `provider_usage.enabled`                          | `true`  | Master switch. `false` hides the meter, stops collection, and empties every usage read. |
+| `provider_usage.refresh_interval`                 | `"5m"`  | Background refresh cadence, from `1m` to `1h`.                                          |
+| `provider_usage.providers.<id>.enabled`           | `true`  | Per-provider opt-out. `<id>` is a canonical provider ID.                                |
+| `provider_usage.providers.claude.keychain_access` | `false` | Consent to read Claude Code's macOS Keychain login. Ignored on other systems.           |
+| `provider_usage.providers.agy.keychain_access`    | `false` | Consent to read the Antigravity CLI's macOS Keychain login. Ignored on other systems.   |
 
 See [`[provider_usage]`](/docs/configuration/config-toml#providerusage) for validation details.
 
@@ -347,7 +377,8 @@ Agents read the same numbers with two native tools, in toolset `compozy__provide
 An agent always works on its own session's profile. Its refreshes run in the background: they
 reuse the cached login or perform the consented background checks described above, and respect provider rate limits. An agent also cannot
 grant Keychain consent: the native config tools refuse
-`provider_usage.providers.claude.keychain_access`, so only you can turn it on, in Settings or with
+`provider_usage.providers.claude.keychain_access` and `provider_usage.providers.agy.keychain_access`,
+so only you can turn them on, in Settings or with
 `compozy config set`.
 
 Scripts can use the same HTTP and UDS routes as the CLI:
