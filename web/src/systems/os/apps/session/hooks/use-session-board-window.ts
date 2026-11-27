@@ -3,8 +3,6 @@ import { useRef } from "react";
 
 import { notifyUser } from "@/lib/user-feedback";
 import {
-  lookupSessionComputer,
-  sessionComputerOf,
   sessionDetailOptions,
   setSessionWindowView,
   useSessionCreateActions,
@@ -82,10 +80,7 @@ export function useSessionBoardWindow(
   const onOpen = (session: SessionBoardPayload) => {
     const request = ++openRequest.current;
     const workspaceId = session.workspace_id ?? "";
-    const rowComputer = sessionComputerOf(session);
-    const computerId =
-      (rowComputer && rowComputer !== "local" ? rowComputer : undefined) ??
-      lookupSessionComputer(board.computerBySessionId, session.id, rowComputer)?.id;
+    const computerId = session.computerId;
     const open = (agentName: string) =>
       openInDrawer({ sessionId: session.id, agentName, workspaceId, computerId });
     if (session.agent_name.trim()) {
@@ -96,7 +91,7 @@ export function useSessionBoardWindow(
     // still opens in this drawer rather than in another window.
     const selector = workspaceSelectorForScope(ownerDataScope(workspaceId));
     void queryClient
-      .ensureQueryData(sessionDetailOptions(selector, session.id))
+      .ensureQueryData(sessionDetailOptions(selector, session.id, computerId))
       .then(child => {
         if (request === openRequest.current) open(child.agent_name);
       })

@@ -282,6 +282,7 @@ function SessionListBranchRow({
           workspace={session.workspace_id}
           profile={session.profile_name}
           sessionId={session.id}
+          computerId={session.computerId}
           total={subagentCounts?.total ?? 0}
           currentSessionId={currentSessionId}
           onSelectSession={onSelectSession}

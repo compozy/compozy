@@ -15,7 +15,10 @@ export type SessionListRemoval = "archive" | "later" | "delete";
 export function useSessionListLifecycleActions(
   options: {
     windowId?: string;
-    onRemoved?: (session: { id: string; computerId?: ComputerId }, action: SessionListRemoval) => void;
+    onRemoved?: (
+      session: { id: string; computerId?: ComputerId },
+      action: SessionListRemoval
+    ) => void;
   } = {}
 ) {
   const { coordinator, manager } = useOsShell();
@@ -24,12 +27,14 @@ export function useSessionListLifecycleActions(
     onRemoved?.(session, "archive");
     const targetComputer = sessionComputerOf(session);
     const windows = Object.values(manager.getState().windows);
+    const owningComputer = (value: unknown) =>
+      normalizeComputerId(typeof value === "string" ? value : undefined);
     // The runtime serializes commands against fresh layout revisions; await every outcome.
     await Promise.all(
       windows.flatMap(window =>
         window.app === "session" &&
         window.instanceKey === session.id &&
-        normalizeComputerId(window.route.search?.computer) === targetComputer
+        owningComputer(window.route?.search?.computer) === targetComputer
           ? [coordinator.userRetireSession(window.id)]
           : []
       )

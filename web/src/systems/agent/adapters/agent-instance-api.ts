@@ -163,12 +163,14 @@ async function instanceAction(
   path: string,
   profile: string,
   fallback: string,
-  body?: unknown
+  body?: unknown,
+  computerId?: ComputerId
 ): Promise<AgentInstancePayload> {
   const { instance } = await request<{ instance: AgentInstanceWirePayload }>(path, {
     method: "POST",
     body,
     fallback,
+    computerId,
   });
   return owned(instance, profile);
 }
@@ -183,34 +185,44 @@ export function createAgentInstance(params: CreateAgentInstanceParams, profile: 
   );
 }
 
-export function pauseAgentInstance(ref: AgentInstanceRef) {
+export function pauseAgentInstance(ref: AgentInstanceRef, computerId?: ComputerId) {
   return instanceAction(
     instancePath(ref, "/pause"),
     ref.profile_name,
-    "Failed to pause this agent"
+    "Failed to pause this agent",
+    undefined,
+    computerId
   );
 }
 
-export function resumeAgentInstance(ref: AgentInstanceRef) {
+export function resumeAgentInstance(ref: AgentInstanceRef, computerId?: ComputerId) {
   return instanceAction(
     instancePath(ref, "/resume"),
     ref.profile_name,
-    "Failed to resume this agent"
+    "Failed to resume this agent",
+    undefined,
+    computerId
   );
 }
 
-export function ensureAgentInstanceMain(ref: AgentInstanceRef) {
+export function ensureAgentInstanceMain(ref: AgentInstanceRef, computerId?: ComputerId) {
   return instanceAction(
     instancePath(ref, "/ensure-main"),
     ref.profile_name,
-    "Failed to open this agent"
+    "Failed to open this agent",
+    undefined,
+    computerId
   );
 }
 
-export async function archiveAgentInstance(ref: AgentInstanceRef): Promise<void> {
+export async function archiveAgentInstance(
+  ref: AgentInstanceRef,
+  computerId?: ComputerId
+): Promise<void> {
   await request<void>(instancePath(ref), {
     method: "DELETE",
     fallback: "Failed to archive this agent",
+    computerId,
   });
 }
 
@@ -317,7 +329,8 @@ export async function fetchAgentInstanceOccurrenceCheckIn(
 export async function fetchAgentInstanceCheckIns(
   ref: AgentInstanceRef,
   limit: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<AgentInstanceCheckInsResponse> {
   const check_ins: AgentInstanceCheckInsResponse["check_ins"] = [];
   let cursor = "";
@@ -328,7 +341,7 @@ export async function fetchAgentInstanceCheckIns(
     if (cursor) query.cursor = cursor;
     const page = await request<AgentInstanceCheckInsResponse>(
       instancePath(ref, "/check-ins", query),
-      { signal, fallback: "Failed to fetch heartbeats" }
+      { signal, fallback: "Failed to fetch heartbeats", computerId }
     );
     check_ins.push(...page.check_ins);
     cursor = page.next_cursor;
@@ -372,10 +385,14 @@ export async function fetchAgentInstanceAway(
   }
 }
 
-export async function markAgentInstanceSeen(ref: AgentInstanceRef): Promise<void> {
+export async function markAgentInstanceSeen(
+  ref: AgentInstanceRef,
+  computerId?: ComputerId
+): Promise<void> {
   await request<void>(instancePath(ref, "/away"), {
     method: "POST",
     fallback: "Couldn't mark the agent as seen.",
+    computerId,
   });
 }
 

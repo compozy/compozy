@@ -12,6 +12,7 @@ import {
   type AgentAvatarState,
 } from "@compozy/ui";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
   agentAvatarAppearance,
@@ -81,6 +82,8 @@ function CrewRow({
 export function AlwaysOnCrewPopover({
   instances,
   hidden,
+  computerId,
+  canManage = true,
   currentId,
   currentInside,
   scopeName,
@@ -90,6 +93,8 @@ export function AlwaysOnCrewPopover({
   instances: readonly AgentInstancePayload[];
   /** How many the row couldn't fit, for the trigger's `+N`. */
   hidden: number;
+  computerId?: ComputerId;
+  canManage?: boolean;
   /** The agent whose session is open, marked in the crew. */
   currentId?: string;
   /** The open agent sits past the row's seats, so `+N` stands in for its seat. */
@@ -98,7 +103,7 @@ export function AlwaysOnCrewPopover({
   onOpen: (instance: AgentInstancePayload) => void;
 }) {
   const [query, setQuery] = useState("");
-  const resumeAll = useResumeAll(instances);
+  const resumeAll = useResumeAll(instances, computerId);
   const needle = query.trim().toLowerCase();
   const shown = agentInstancesByUrgency(instances).filter(instance =>
     instance.label.toLowerCase().includes(needle)
@@ -124,7 +129,7 @@ export function AlwaysOnCrewPopover({
             </span>
             <span className="text-small-body text-muted-foreground">{summary(instances)}</span>
           </div>
-          {resumeAll.offered ? (
+          {canManage && resumeAll.offered ? (
             <Button
               disabled={resumeAll.pending}
               onClick={resumeAll.run}

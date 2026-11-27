@@ -1,3 +1,5 @@
+import type { ComputerId } from "@/lib/computer-scope";
+
 import {
   AgentResumeError,
   agentInstancePausedUnattended,
@@ -13,8 +15,8 @@ const RESUME_ALL_FROM = 2;
  * S4: resume every agent the brake paused, one by one; who didn't resume reads in place. The
  * error names only agents the brake still holds, so it clears once they resume from anywhere.
  */
-export function useResumeAll(instances: readonly AgentInstancePayload[]) {
-  const resume = useResumeAgentInstances({ inline: true });
+export function useResumeAll(instances: readonly AgentInstancePayload[], computerId?: ComputerId) {
+  const resume = useResumeAgentInstances({ inline: true, computerId });
   const paused = instances.filter(agentInstancePausedUnattended);
   const stillPaused = new Set(paused.map(instance => instance.id));
   const failures =

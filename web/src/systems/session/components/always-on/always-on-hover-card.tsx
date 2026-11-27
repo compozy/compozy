@@ -12,6 +12,7 @@ import {
   type PillTone,
 } from "@compozy/ui";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
   useMarkAgentInstanceSeen,
@@ -71,8 +72,14 @@ export function CheckTicks({ checkIns }: { checkIns: readonly AgentInstanceCheck
 }
 
 /** Reads only when a card opens; an instance with no heartbeats yet shows nothing here. */
-function CheckIns({ instance }: { instance: AgentInstancePayload }) {
-  const { data } = useQuery(agentInstanceCheckInsOptions(instance));
+function CheckIns({
+  instance,
+  computerId,
+}: {
+  instance: AgentInstancePayload;
+  computerId?: ComputerId;
+}) {
+  const { data } = useQuery(agentInstanceCheckInsOptions(instance, computerId));
   const checkIns = data?.check_ins ?? [];
   const last = formatRelativeClock(instance.last_wake_at);
   const next = instance.state === "paused" ? null : formatRelativeClock(instance.next_wake_at);
@@ -115,14 +122,20 @@ function doingLine(instance: AgentInstancePayload) {
 /** What the agent is doing, one pointer away: the card behind every avatar in a row. */
 export function AlwaysOnHoverCardContent({
   instance,
+  computerId,
+  canManage = true,
+  canOpen = true,
   onOpen,
   onTogglePause,
 }: {
   instance: AgentInstancePayload;
+  computerId?: ComputerId;
+  canManage?: boolean;
+  canOpen?: boolean;
   onOpen: () => void;
   onTogglePause: () => void;
 }) {
-  const markSeen = useMarkAgentInstanceSeen();
+  const markSeen = useMarkAgentInstanceSeen(computerId);
   const state = agentInstanceAvatarState(instance);
   const paused = instance.state === "paused";
   const doing = doingLine(instance);
@@ -152,7 +165,7 @@ export function AlwaysOnHoverCardContent({
         )}
       </div>
       {doing ? <p className="text-body text-fg">{doing}</p> : null}
-      <CheckIns instance={instance} />
+      {canManage ? <CheckIns instance={instance} computerId={computerId} /> : null}
       <NextWake instance={instance} />
       {paused && held ? (
         <p className="text-small-body text-muted-foreground">{held} for you to resume</p>
@@ -160,7 +173,7 @@ export function AlwaysOnHoverCardContent({
       {agentAuthorityCopy(instance) ? (
         <p className="text-small-body text-warning">{agentAuthorityCopy(instance)}</p>
       ) : null}
-      {instance.attention_dismissible ? (
+      {canManage && instance.attention_dismissible ? (
         <Button
           disabled={markSeen.isPending}
           onClick={() => markSeen.mutate(instance)}
@@ -177,12 +190,19 @@ export function AlwaysOnHoverCardContent({
         </p>
       ) : null}
       <div className="flex gap-2">
-        <Button className="flex-1" onClick={onOpen} size="sm" type="button" variant="secondary">
+        <Button
+          className="flex-1"
+          disabled={!canOpen}
+          onClick={onOpen}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
           Open conversation
         </Button>
         <Button
           aria-label={paused ? "Resume" : "Pause"}
-          disabled={paused && agentInstanceResumeBlocked(instance)}
+          disabled={!canManage || (paused && agentInstanceResumeBlocked(instance))}
           onClick={onTogglePause}
           size="icon-sm"
           type="button"

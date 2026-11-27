@@ -38,6 +38,7 @@ export function AlwaysOnProjectRow({
   return (
     <AlwaysOnRow
       {...props}
+      computerId={computerId}
       instances={projectGroupInstances(useAgentInstances(computerId), workspaceId)}
       scopeName={name}
     />

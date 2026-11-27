@@ -1,6 +1,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import type { SubagentView } from "../components/subagents/types";
 import { subagentViewFromPayload } from "../lib/subagent-payload";
 import { isActiveSubagent, sortSubagentsByUrgency } from "../lib/subagent-roster";
@@ -43,13 +44,14 @@ export function useSessionSubagentBranch(
   workspaceId: string,
   sessionId: string,
   /** The row's `subagent_summary.total`, the count before any page loads. */
-  total: number
+  total: number,
+  computerId?: ComputerId
 ): SessionSubagentBranchModel {
   const [limit, setLimit] = useState(SUBAGENT_BRANCH_PAGE_SIZE);
   const scoped = workspaceId !== "" && sessionId !== "";
-  const live = useLiveSubagentRoster(workspaceId, sessionId, scoped);
+  const live = useLiveSubagentRoster(workspaceId, sessionId, scoped, computerId);
   const query = useInfiniteQuery({
-    ...sessionSubagentBranchOptions(workspaceId, sessionId),
+    ...sessionSubagentBranchOptions(workspaceId, sessionId, computerId),
     enabled: scoped && live === null,
   });
   const { hasNextPage, isFetching, isFetchingNextPage, fetchNextPage, isError } = query;

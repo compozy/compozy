@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import { cancelSubagent } from "../adapters/subagent-api";
 import type { SubagentView } from "../components/subagents/types";
 import { sessionDetailOptions } from "../lib/query-options";
@@ -65,10 +66,13 @@ export interface SessionSubagentsOptions {
 export function useLiveSubagentRoster(
   workspaceId: string,
   sessionId: string,
-  enabled: boolean
+  enabled: boolean,
+  computerId?: ComputerId
 ): SubagentRoster | null {
   const cache = useQueryClient().getQueryCache();
-  const queryHash = hashKey(sessionKeys.subagentRoster(workspaceId, sessionId));
+  const queryHash = hashKey(
+    sessionKeys.forComputer(computerId).subagentRoster(workspaceId, sessionId)
+  );
   // Other sessions and background queries must not wake every roster reader.
   const subscribe = useCallback(
     (notify: () => void) => {

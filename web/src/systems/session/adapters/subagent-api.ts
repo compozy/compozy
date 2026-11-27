@@ -1,4 +1,5 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
+import { apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 import type { OperationQuery, OperationResponse } from "@/lib/api-contract";
 
 import { throwSessionRequestError } from "./session-api-errors";
@@ -19,9 +20,10 @@ export async function fetchSessionSubagents(
   workspaceId: string,
   sessionId: string,
   query: SubagentListQuery = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SubagentListResponse> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents",
     {
       params: {
@@ -45,9 +47,10 @@ export async function deleteSubagent(
   workspaceId: string,
   subagentId: string,
   profile: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<void> {
-  const { error, response } = await apiClient.DELETE(
+  const { error, response } = await apiClientFor(computerId).DELETE(
     "/api/workspaces/{workspace_id}/subagents/{subagent_id}",
     {
       params: {
@@ -67,9 +70,10 @@ export async function cancelSubagent(
   workspaceId: string,
   subagentId: string,
   profile: string,
-  reason = ""
+  reason = "",
+  computerId?: ComputerId
 ): Promise<SubagentCancelResponse> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel",
     {
       params: {

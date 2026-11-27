@@ -32,7 +32,6 @@ import {
   type AgentSkillReviewRef,
 } from "../adapters/agent-skill-review-api";
 import { fetchAgentMemory, fetchAgentMemoryHistory } from "../adapters/agent-memory-api";
-import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { fetchAgentSoul, fetchAgentSoulHistory } from "../adapters/agent-soul-api";
 import { agentKeys, agentKeysFor } from "./query-keys";
 import {
@@ -62,7 +61,9 @@ export function agentInstancesOptions(
       ? agentKeysFor(computerId).instanceList(view, profiles)
       : agentKeys.instanceList(view, profiles),
     queryFn: ({ signal }) =>
-      remote ? fetchAgentInstances(profiles, signal, computerId) : fetchAgentInstances(profiles, signal),
+      remote
+        ? fetchAgentInstances(profiles, signal, computerId)
+        : fetchAgentInstances(profiles, signal),
     staleTime: 30_000,
     retry: false,
     enabled: profiles.length > 0,
@@ -80,10 +81,10 @@ export function agentInstanceAwayOptions(ref: AgentInstanceRef) {
   });
 }
 
-export function agentInstanceCheckInsOptions(ref: AgentInstanceRef) {
+export function agentInstanceCheckInsOptions(ref: AgentInstanceRef, computerId?: ComputerId) {
   return queryOptions({
-    queryKey: agentKeys.instanceCheckIns(ref.id),
-    queryFn: ({ signal }) => fetchAgentInstanceCheckIns(ref, CHECK_INS_SHOWN, signal),
+    queryKey: agentKeysFor(computerId).instanceCheckIns(ref.id),
+    queryFn: ({ signal }) => fetchAgentInstanceCheckIns(ref, CHECK_INS_SHOWN, signal, computerId),
     staleTime: 30_000,
     retry: false,
   });

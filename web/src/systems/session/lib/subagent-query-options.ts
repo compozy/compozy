@@ -1,3 +1,4 @@
+import type { ComputerId } from "@/lib/computer-scope";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import { fetchSessionSubagents, type SubagentPayload } from "../adapters/subagent-api";
@@ -41,9 +42,13 @@ export const SUBAGENT_BRANCH_PAGE_SIZE = 8;
  * and pages on demand, so a long roster never loads (or mounts) more than the
  * operator asked to see.
  */
-export function sessionSubagentBranchOptions(workspaceId: string, sessionId: string) {
+export function sessionSubagentBranchOptions(
+  workspaceId: string,
+  sessionId: string,
+  computerId?: ComputerId
+) {
   return infiniteQueryOptions({
-    queryKey: sessionKeys.subagentBranch(workspaceId, sessionId),
+    queryKey: sessionKeys.forComputer(computerId).subagentBranch(workspaceId, sessionId),
     queryFn: ({ pageParam, signal }) =>
       fetchSessionSubagents(
         workspaceId,
@@ -53,7 +58,8 @@ export function sessionSubagentBranchOptions(workspaceId: string, sessionId: str
           order: "urgency",
           ...(pageParam ? { cursor: pageParam } : {}),
         },
-        signal
+        signal,
+        computerId
       ),
     initialPageParam: "",
     getNextPageParam: page => page.next_cursor ?? undefined,

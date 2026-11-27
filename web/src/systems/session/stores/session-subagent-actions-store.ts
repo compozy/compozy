@@ -1,5 +1,6 @@
 import { createStoreLogic } from "@xstate/store";
 
+import type { ComputerId } from "@/lib/computer-scope";
 import type { SubagentView } from "../components/subagents/types";
 
 /** The parent row a subagent verb acts on: its own workspace, session, and profile. */
@@ -7,6 +8,7 @@ export interface SubagentActionScope {
   workspaceId: string;
   sessionId: string;
   profile: string;
+  computerId?: ComputerId;
 }
 
 /** What one confirmation holds while its DELETE flies. */
