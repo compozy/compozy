@@ -28,13 +28,12 @@ func (p *MCPProvider) CheckMCPServer(ctx context.Context, scope Scope, name stri
 // CheckMCPSource reports a catalog rejection separately from an error running the check.
 func (p *MCPProvider) CheckMCPSource(
 	ctx context.Context, source SourceRef, discover func(context.Context) ([]MCPToolDescriptor, error),
-) (rejection error, err error) {
+) (MCPSourceDiscovery, error) {
 	if key, tracked := mcpDeadEntityKey(source, source.ProfileID); tracked && p.reliability != nil {
 		ctx = deadentity.WithProbeRetry(ctx, key)
 	}
 	ctx = WithFreshMCPDiscovery(context.WithValue(ctx, cachedMCPProjectionKey{}, false))
-	_, _, rejection, err = p.listSourceDiscovery(ctx, source, source.ProfileID, discover)
-	return rejection, err
+	return p.listSourceDiscovery(ctx, source, source.ProfileID, discover)
 }
 
 type freshMCPDiscoveryKey struct{}

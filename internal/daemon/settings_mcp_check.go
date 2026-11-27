@@ -51,7 +51,7 @@ func (s *settingsRuntimeSurface) checkPublishedMCPRuntime(
 	var discovery mcppkg.ToolDiscovery
 	var probeErr error
 	probed := false
-	rejection, err := provider.CheckMCPSource(
+	result, err := provider.CheckMCPSource(
 		ctx,
 		source,
 		func(ctx context.Context) ([]toolspkg.MCPToolDescriptor, error) {
@@ -68,8 +68,8 @@ func (s *settingsRuntimeSurface) checkPublishedMCPRuntime(
 	if !probed {
 		return waitingMCPRuntimeStatus(), true, nil
 	}
-	if rejection != nil {
-		status := runtimeStatusFromMCPProbeError(rejection)
+	if result.Rejection != nil {
+		status := runtimeStatusFromMCPProbeError(result.Rejection)
 		status.State = settingspkg.MCPServerRuntimeStateRuntimeUnavailable
 		status.Probe = settingspkg.MCPServerProbeFailed
 		status.Initialized = true
