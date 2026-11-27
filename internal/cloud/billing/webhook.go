@@ -21,9 +21,11 @@ import (
 )
 
 const (
-	stripeSignatureAge = 5 * time.Minute
-	checkoutCompleted  = "checkout.session.completed"
-	checkoutExpired    = "checkout.session.expired"
+	stripeSignatureAge  = 5 * time.Minute
+	checkoutCompleted   = "checkout.session.completed"
+	checkoutExpired     = "checkout.session.expired"
+	subscriptionUpdated = "customer.subscription.updated"
+	subscriptionDeleted = "customer.subscription.deleted"
 )
 
 var (
@@ -67,7 +69,7 @@ func (s *Service) applyStripeEvent(ctx context.Context, event stripeEvent) error
 	object := event.Data.Object
 	var subscription string
 	switch event.Type {
-	case "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted":
+	case "customer.subscription.created", subscriptionUpdated, subscriptionDeleted:
 		subscription = object.ID
 	case "invoice.paid", "invoice.payment_failed":
 		subscription = object.Parent.SubscriptionDetails.Subscription
@@ -212,8 +214,9 @@ func (s *Service) fetchAndSaveSubscription(
 	}
 	fetch, cancel := context.WithTimeout(ctx, stripeTimeout)
 	defer cancel()
-	reconciling := event.ID == "" && expectedAccount == ""
-	current, hasInvoices, err := s.fetchOwnedSubscription(fetch, id, old, event, reconciling)
+	allowRetirement := expectedAccount == "" &&
+		(event.ID == "" || event.Type == subscriptionUpdated || event.Type == subscriptionDeleted)
+	current, hasInvoices, err := s.fetchOwnedSubscription(fetch, id, old, event, allowRetirement)
 	if err != nil {
 		return err
 	}
@@ -238,7 +241,7 @@ func (s *Service) fetchAndSaveSubscription(
 }
 
 func (s *Service) fetchOwnedSubscription(
-	ctx context.Context, id string, old plan.Subscription, event stripeEvent, reconciling bool,
+	ctx context.Context, id string, old plan.Subscription, event stripeEvent, allowRetirement bool,
 ) (plan.Subscription, bool, error) {
 	current, hasInvoices, err := s.cfg.Stripe.subscription(ctx, id, s.cfg.MonthlyPrice, s.cfg.AnnualPrice)
 	if err != nil {
@@ -248,8 +251,8 @@ func (s *Service) fetchOwnedSubscription(
 		}
 		return plan.Subscription{}, false, err
 	}
-	// Reconciliation may retire a known subscription that moved off the configured prices.
-	if current.PriceID == "" && (!reconciling || old.PriceID == "") {
+	// A lifecycle update can remove an entitlement already bound to this subscription and customer.
+	if current.PriceID == "" && (!allowRetirement || old.PriceID == "" || old.CustomerID == "") {
 		return plan.Subscription{}, false, errUnrelatedStripeEvent
 	}
 	if current.CustomerID == "" || (old.CustomerID != "" && current.CustomerID != old.CustomerID) ||

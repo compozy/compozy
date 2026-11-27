@@ -171,9 +171,14 @@ func TestCloudSubscriptionRefresh(t *testing.T) {
 		assertAuthRow(t, f, "SELECT count(*) FROM stripe_events", 1)
 	})
 
-	t.Run(
-		"Should retire a known Stripe subscription that no longer has a Pro price during reconciliation",
-		func(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		reconcile bool
+	}{
+		{"Should retire a known Stripe subscription that leaves Pro pricing on a lifecycle update", false},
+		{"Should retire a known Stripe subscription that leaves Pro pricing during reconciliation", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			f, stripe := newBillingFixture(t, nil)
 			owner := newBillingDevice(t, f, "reconcile-price@example.test")
@@ -193,16 +198,20 @@ func TestCloudSubscriptionRefresh(t *testing.T) {
 			}
 			assertAuthRow(t, f, "SELECT count(*) FROM stripe_events", 1)
 
-			f.db.Exec(t, "UPDATE %s.subscriptions SET stripe_synced_at = $1 WHERE id = $2",
-				now.Add(-2*billing.ReconcileInterval), sub.ID)
-			if err := f.replica.App.Billing.Reconcile(t.Context()); err != nil {
-				t.Fatal(err)
+			if test.reconcile {
+				f.db.Exec(t, "UPDATE %s.subscriptions SET stripe_synced_at = $1 WHERE id = $2",
+					now.Add(-2*billing.ReconcileInterval), sub.ID)
+				if err := f.replica.App.Billing.Reconcile(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				deliverStripeEvent(t, f, "evt_price_changed", stripeSubUpdated, sub.ID)
 			}
 			if account := billingAccount(t, f, owner); account.Plan != "free" || account.Subscription != nil {
-				t.Fatalf("reconciliation kept the former Pro entitlement: %+v", account.AccountPlan)
+				t.Fatalf("the subscription still grants Pro: %+v", account.AccountPlan)
 			}
-		},
-	)
+		})
+	}
 
 	t.Run("Should reconcile only stale subscriptions that can still affect billing", func(t *testing.T) {
 		// RC-14: Fresh webhook state and long-ended Stripe rows do not trigger redundant provider reads.
