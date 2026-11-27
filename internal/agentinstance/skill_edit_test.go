@@ -175,6 +175,27 @@ func TestSkillEditProposals(t *testing.T) {
 		requireNoReviews(t, svc)
 	})
 
+	t.Run("Should approve a case-only rename when the original path is removed", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		f.install(t, skillEditName, skillEditBase[0],
+			skillTestFile{path: "references/Notes.md", content: "Old notes.\n", mode: 0o644})
+		svc := f.service(t, "home-a", nil)
+		result, err := f.proposeEdit(t, svc, "Changed.\n", func(input *SkillProposalInput) {
+			input.RemovePaths = []string{"references/Notes.md"}
+			input.Files = []SkillDraftFile{{Path: "references/notes.md", Content: "Updated notes.\n"}}
+		})
+		if err != nil {
+			t.Fatalf("Propose() = %v", err)
+		}
+		f.mustApprove(t, svc, result.Review)
+		dir := filepath.Join(f.root, skillEditName, "references")
+		entries, err := os.ReadDir(dir)
+		if err != nil || len(entries) != 1 || entries[0].Name() != "notes.md" {
+			t.Fatalf("installed references = %v, %v; want only notes.md", entries, err)
+		}
+	})
+
 	t.Run("Should refuse an edit equal to the installed skill [UT-014]", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)

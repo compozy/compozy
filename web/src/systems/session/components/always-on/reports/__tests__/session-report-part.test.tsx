@@ -864,7 +864,7 @@ describe("SessionReportPart skill review", () => {
         { path: "notes.md", content: "New notes\n" },
       ],
       base_files: [
-        { path: "SKILL.md", content: base },
+        { path: "SKILL.md", content: base, redacted: true },
         { path: "assets/flow.png", binary: true, size: 18234 },
         { path: "scripts/old.sh", content: "echo old\n" },
         { path: "scripts/sync.sh", content: "echo sync\n" },
@@ -894,6 +894,9 @@ describe("SessionReportPart skill review", () => {
     const diff = await screen.findByTestId("skill-review-diff");
     expect(diff).toHaveTextContent("+1");
     expect(diff).toHaveTextContent("2. Check the board.");
+    expect(
+      screen.getByText("The diff may hide changes to redacted text in the installed file.")
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Source" })).toBeInTheDocument();
 
     await userEvent.click(within(tree).getByRole("button", { name: /flow\.png/ }));

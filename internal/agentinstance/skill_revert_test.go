@@ -349,6 +349,37 @@ func TestSkillRevert(t *testing.T) {
 		}
 	})
 
+	t.Run("Should report a changed install root as unavailable for revert", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name        string
+			workspaceID string
+		}{
+			{name: "Should refuse an agent-local root change"},
+			{name: "Should refuse a workspace root without an install log", workspaceID: "ws_a"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newSkillTxFixture(t)
+				f.instance.WorkspaceID = tc.workspaceID
+				svc := f.service(t, "home-a", nil)
+				review := f.mustApprove(t, svc, f.propose(t, svc, skillEditName, "Check the changelog."))
+				original := f.root
+				f.root = t.TempDir()
+				if got := f.eligibility(t, svc, review.ID); got.Allowed || got.Reason != SkillRevertTargetUnavailable {
+					t.Fatalf("eligibility = %+v, want target_unavailable", got)
+				}
+				_, err := f.revert(t, svc, review)
+				requireRevertConflict(t, err, SkillRevertTargetUnavailable)
+				requireReviewState(t, svc, review.ID, skillReviewApproved)
+				f.root = original
+				if got := f.digest(t, skillEditName); got != review.InstalledDigest {
+					t.Fatalf("original installed digest = %q, want %q", got, review.InstalledDigest)
+				}
+			})
+		}
+	})
+
 	t.Run("Should leave an external edit in place before and after the pre-rename check [UT-072]", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)

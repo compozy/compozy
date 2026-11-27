@@ -47,6 +47,8 @@ The daemon captures the installed contents as the review's base: an unredacted, 
 
 Approval of an edit succeeds only while the installed skill still equals its base. If it changed (or was deleted) after the proposal, approval fails with `skill_review_base_stale` and the review stays pending; reject it and propose again against the current contents. Two pending edits of one base cannot both be approved: after the first, the second is stale.
 
+To rename a file by case, remove the old spelling and add the new one. The resulting tree cannot contain paths that differ only by case. Review detail marks masked base text with `redacted: true`. The CLI and Web viewer warn that changes to this text can be hidden from the diff.
+
 ## Operator decision
 
 Only an operator may approve or reject, through the review UI, CLI, HTTP, or UDS. There is no agent approval tool. Agent-credentialed decisions fail with `skill_review_operator_only`.

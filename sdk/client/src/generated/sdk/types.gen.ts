@@ -903,6 +903,7 @@ export type AgentSkillBaseFile = {
   binary?: boolean;
   content?: string;
   path: string;
+  redacted?: boolean;
   size?: number;
 };
 

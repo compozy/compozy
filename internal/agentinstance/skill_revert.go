@@ -84,6 +84,9 @@ func (s *SkillProposalService) RevertEligibility(
 	if err != nil {
 		return RevertEligibility{}, err
 	}
+	if review.SkillKey != skillKeyFor(review.WorkspaceID, root, review.SkillName) {
+		return RevertEligibility{Reason: SkillRevertTargetUnavailable}, nil
+	}
 	if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
 		return RevertEligibility{Reason: SkillRevertTargetUnavailable}, nil
 	}
@@ -114,6 +117,9 @@ func (s *SkillProposalService) readRevertEligibility(
 	entries, err := readSkillInstallLog(root, name)
 	if err != nil {
 		return RevertEligibility{}, err
+	}
+	if len(entries) == 0 {
+		return RevertEligibility{Reason: SkillRevertTargetUnavailable}, nil
 	}
 	current := currentSkillWriter(entries)
 	if current == nil || current.ReviewID != review.ID {
@@ -185,6 +191,9 @@ func (s *SkillProposalService) Revert(
 		return SkillInstallResult{}, err
 	}
 	defer func() { err = errors.Join(err, t.close()) }()
+	if t.parent == nil || review.SkillKey != skillKeyFor(instance.WorkspaceID, t.root, t.name) {
+		return SkillInstallResult{}, &SkillRevertConflictError{Name: t.name, Reason: SkillRevertTargetUnavailable}
+	}
 	return s.revertLocked(ctx, t, instance, id, operator)
 }
 
@@ -194,9 +203,6 @@ func (s *SkillProposalService) revertLocked(
 	instance Instance,
 	id, operator string,
 ) (SkillInstallResult, error) {
-	if t.parent == nil {
-		return SkillInstallResult{}, &SkillRevertConflictError{Name: t.name, Reason: SkillRevertTargetUnavailable}
-	}
 	blocked, warning, err := s.reconcileSkill(ctx, t)
 	if err != nil {
 		return SkillInstallResult{}, err

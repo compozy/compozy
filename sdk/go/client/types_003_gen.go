@@ -126,10 +126,11 @@ type AgentSkillAutomaticContents struct {
 
 // AgentSkillBaseFile is a daemon API value.
 type AgentSkillBaseFile struct {
-	Path    string `json:"path"`
-	Content string `json:"content,omitempty"`
-	Binary  bool   `json:"binary,omitempty"`
-	Size    int64  `json:"size,omitempty"`
+	Path     string `json:"path"`
+	Content  string `json:"content,omitempty"`
+	Redacted bool   `json:"redacted,omitzero"`
+	Binary   bool   `json:"binary,omitempty"`
+	Size     int64  `json:"size,omitempty"`
 }
 
 // AgentSkillDraftFile is a daemon API value.

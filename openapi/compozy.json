@@ -3238,6 +3238,9 @@
           "path": {
             "type": "string"
           },
+          "redacted": {
+            "type": "boolean"
+          },
           "size": {
             "format": "int64",
             "type": "integer"

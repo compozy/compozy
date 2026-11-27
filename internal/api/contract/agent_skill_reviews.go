@@ -36,13 +36,14 @@ type AgentSkillAutomaticContents struct {
 	Scripts    int `json:"scripts"`
 }
 
-// AgentSkillBaseFile is one file of an edit's base snapshot: text files carry their (redacted)
-// content; non-UTF-8 files carry only binary and size.
+// AgentSkillBaseFile is one file of an edit's base snapshot. Redacted reports whether text
+// was masked for display. Non-UTF-8 files carry only binary and size.
 type AgentSkillBaseFile struct {
-	Path    string `json:"path"`
-	Content string `json:"content,omitempty"`
-	Binary  bool   `json:"binary,omitempty"`
-	Size    int64  `json:"size,omitempty"`
+	Path     string `json:"path"`
+	Content  string `json:"content,omitempty"`
+	Redacted bool   `json:"redacted,omitzero"`
+	Binary   bool   `json:"binary,omitempty"`
+	Size     int64  `json:"size,omitempty"`
 }
 
 // AgentSkillFileChange marks one path of an edit's base or resulting tree as added, removed,

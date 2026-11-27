@@ -117,7 +117,7 @@ func (s *SkillProposalService) Propose(
 		DraftPath:          path,
 		SourceSessionID:    actor.SessionID,
 		Kind:               draft.kind(),
-		SkillKey:           skillKeyFor(instance, t.root, draft.Name),
+		SkillKey:           skillKeyFor(instance.WorkspaceID, t.root, draft.Name),
 		BaseDigest:         edit.baseDigest,
 		SnapshotPath:       snapshot,
 		ProposedDigest:     edit.proposedDigest,
@@ -277,9 +277,9 @@ func skillReviewReport(id, name string, evidence []string) (ReportInput, error) 
 
 // skillKeyFor names the physical skill root/name: workspace targets by workspace ID, agent-local
 // targets by the canonical agent directory that owns the skills root.
-func skillKeyFor(instance Instance, root, name string) SkillKey {
-	if instance.WorkspaceID != "" {
-		return SkillKey("workspace:" + instance.WorkspaceID + "/" + name)
+func skillKeyFor(workspaceID, root, name string) SkillKey {
+	if workspaceID != "" {
+		return SkillKey("workspace:" + workspaceID + "/" + name)
 	}
 	return SkillKey("agent-dir:" + filepath.ToSlash(filepath.Dir(root)) + "/" + name)
 }

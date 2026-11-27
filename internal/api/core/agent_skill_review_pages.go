@@ -167,7 +167,9 @@ func addSkillReviewFiles(result *contract.AgentSkillReviewPayload, contents agen
 	for _, file := range contents.Base {
 		item := contract.AgentSkillBaseFile{Path: file.Path}
 		if utf8.Valid(file.Data) {
-			item.Content = redact.String(string(file.Data))
+			before := string(file.Data)
+			item.Content = redact.String(before)
+			item.Redacted = item.Content != before
 		} else {
 			item.Binary, item.Size = true, int64(len(file.Data))
 		}

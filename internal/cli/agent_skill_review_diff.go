@@ -57,6 +57,9 @@ func agentSkillEditText(text *strings.Builder, review contract.AgentSkillReviewP
 		before := bases[change.Path]
 		after, hasProposedText := files[change.Path]
 		from, to := "a/"+change.Path, "b/"+change.Path
+		if before.Redacted && change.Change == skillChangeModified {
+			fmt.Fprintf(text, "%s: The diff may hide changes to redacted text in the installed file.\n", change.Path)
+		}
 		if before.Binary {
 			fmt.Fprintf(text, "Binary file %s (%d bytes) %s\n", change.Path, before.Size, change.Change)
 			if !hasProposedText {

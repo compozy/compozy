@@ -172,10 +172,8 @@ func prepareSkillRemovePaths(mode SkillProposalMode, paths []string, files []Ski
 // byte- and mode-exact.
 func applySkillOverlay(base SkillTree, draft SkillDraft) (SkillTree, error) {
 	byPath := make(map[string]SkillTreeFile, len(base)+len(draft.Files))
-	folded := make(map[string]string, len(base))
 	for _, file := range base {
 		byPath[file.Path] = file
-		folded[strings.ToLower(file.Path)] = file.Path
 	}
 	for _, path := range draft.RemovePaths {
 		if _, ok := byPath[path]; !ok {
@@ -184,10 +182,6 @@ func applySkillOverlay(base SkillTree, draft SkillDraft) (SkillTree, error) {
 		delete(byPath, path)
 	}
 	for _, file := range draft.Files {
-		if existing, ok := folded[strings.ToLower(file.Path)]; ok && existing != file.Path {
-			return nil, fmt.Errorf("%w: skill proposal file %s differs only in case from installed %s",
-				ErrSkillReviewInvalid, file.Path, existing)
-		}
 		perm := skillNewFilePerm
 		if previous, ok := byPath[file.Path]; ok {
 			perm = previous.Perm
@@ -199,7 +193,7 @@ func applySkillOverlay(base SkillTree, draft SkillDraft) (SkillTree, error) {
 		result = append(result, file)
 	}
 	slices.SortFunc(result, func(a, b SkillTreeFile) int { return strings.Compare(a.Path, b.Path) })
-	clear(folded)
+	folded := make(map[string]string, len(result))
 	for _, file := range result {
 		key := strings.ToLower(file.Path)
 		if existing, ok := folded[key]; ok {

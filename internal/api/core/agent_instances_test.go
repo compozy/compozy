@@ -2046,6 +2046,11 @@ func TestAgentSkillReviews(t *testing.T) {
 
 		// An edit review details its changes and base; IT-004: approving it after the installed
 		// skill changed on disk is refused with base_stale, nothing installed, and Reject still works.
+		const hiddenValue = "fixture-only-secret-value"
+		installed = append(installed, "\nAuthorization: Bearer "+hiddenValue+"\n"...)
+		if err := os.WriteFile(filepath.Join(scanRoot, "first", "SKILL.md"), installed, 0o600); err != nil {
+			t.Fatal(err)
+		}
 		edit, err := service.Propose(t.Context(), workspaceaccess.ActorRef{Operator: true}, instance, scanRoot,
 			agentinstance.SkillProposalInput{
 				Name: "first", Description: "Review changes", Body: "Read the diff twice.",
@@ -2065,6 +2070,11 @@ func TestAgentSkillReviews(t *testing.T) {
 			editShown.Review.BaseRunsAutomatically == nil || editShown.Review.BaseRunsAutomatically.Scripts != 1 ||
 			editShown.Review.RunsAutomatically.Scripts != 1 {
 			t.Fatalf("edit detail: %d %s", editDetail.Code, editDetail.Body.String())
+		}
+		baseFile := editShown.Review.BaseFiles[0]
+		if baseFile.Path != "SKILL.md" || !baseFile.Redacted || !strings.Contains(baseFile.Content, "[REDACTED]") ||
+			strings.Contains(editDetail.Body.String(), hiddenValue) || editShown.Review.BaseFiles[1].Redacted {
+			t.Fatal("edit detail did not flag and mask only the redacted base file")
 		}
 		if err := os.WriteFile(filepath.Join(scanRoot, "first", "notes.md"), []byte("operator"), 0o600); err != nil {
 			t.Fatal(err)

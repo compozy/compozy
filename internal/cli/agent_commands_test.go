@@ -1731,7 +1731,7 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 			`{"path":"scripts/old.sh","change":"removed"},{"path":"scripts/tool","change":"modified"}],`+
 			`"files":[{"path":"SKILL.md","content":"1. Run make gate.\n2. Confirm the freeze calendar.\n"},`+
 			`{"path":"scripts/tool","content":"echo replacement\n"}],`+
-			`"base_files":[{"path":"SKILL.md","content":"1. Run make gate.\n"},`+
+			`"base_files":[{"path":"SKILL.md","content":"1. Run make gate.\n","redacted":true},`+
 			`{"path":"assets/flow.png","binary":true,"size":18234},{"path":"scripts/old.sh","content":"echo old\n"},`+
 			`{"path":"scripts/tool","binary":true,"size":3615}]}`)
 		for _, want := range []string{
@@ -1739,6 +1739,7 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 			"Runs automatically: 0 hooks, 0 MCP servers (base: 0 hooks, 0 MCP servers)\n",
 			"Supporting scripts: 1 (base: 2)\n",
 			"Files: 2 modified, 0 added, 1 removed\n",
+			"SKILL.md: The diff may hide changes to redacted text in the installed file.\n",
 			"--- a/SKILL.md\n+++ b/SKILL.md\n",
 			"+2. Confirm the freeze calendar.\n",
 			"--- a/scripts/old.sh\n+++ /dev/null\n",

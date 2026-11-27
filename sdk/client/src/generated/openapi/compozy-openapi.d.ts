@@ -9854,6 +9854,7 @@ export interface components {
       binary?: boolean;
       content?: string;
       path: string;
+      redacted?: boolean;
       /** Format: int64 */
       size?: number;
     };
