@@ -39,6 +39,7 @@ func (s *daemonExtensionService) checkProfileEnablementInputs(
 				return err
 			}
 		}
+		// Named profiles start their own subprocess on demand with these bindings.
 		state, err := s.inputReader().load(ctx, extensioninput.Instance{
 			Extension: ext.Info.Name, ProfileID: profileID, WorkspaceID: workspaceID,
 		}, ext.Manifest)

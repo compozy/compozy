@@ -25,6 +25,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/extensionmcp"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -167,6 +168,7 @@ type extensionSecretIntegrationHarnessOptions struct {
 	actorWorkspaceID string
 	allowUnverified  bool
 	failingVault     bool
+	withProfiles     bool
 	workspaceID      string
 }
 
@@ -208,6 +210,15 @@ func newExtensionSecretIntegrationHarness(
 		extensionpkg.WithLogger(discardLogger()),
 		extensionpkg.WithSecretResolver(vaultService),
 		extensionpkg.WithEnvBindingStore(db.ExtensionEnvRepo),
+	}
+	var profiles *profilepkg.Manager
+	if opts.withProfiles {
+		profiles, err = profilepkg.NewManager(profilepkg.WithStore(db),
+			profilepkg.WithHomePaths(homePaths), profilepkg.WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		managerOptions = append(managerOptions, extensionpkg.WithProfileNameResolver(profiles))
 	}
 	var workspaceResolver *daemonExtensionWorkspaceResolverStub
 	var workspaceRoot string
@@ -251,6 +262,7 @@ func newExtensionSecretIntegrationHarness(
 	service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:  registry,
 		Runtime:   manager,
+		Profiles:  profiles,
 		HomePaths: homePaths,
 		Logger:    discardLogger(),
 		Now:       time.Now,
@@ -1102,16 +1114,10 @@ func testWorkspaceExtensionInputEnablement(t *testing.T) {
 	)
 	ctx := t.Context()
 	harness := newExtensionSecretIntegrationHarness(t, extensionSecretIntegrationHarnessOptions{
-		actorReason: "workspace input enablement", workspaceID: workspace, allowUnverified: true,
+		actorReason: "workspace input enablement", workspaceID: workspace, allowUnverified: true, withProfiles: true,
 	})
 	service := harness.service
-	profiles, err := profilepkg.NewManager(profilepkg.WithStore(harness.db),
-		profilepkg.WithHomePaths(service.homePaths), profilepkg.WithLogger(discardLogger()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	service.profiles = profiles
-	marketing, err := profiles.Create(ctx, profilepkg.CreateInput{Name: "marketing"})
+	marketing, err := service.profiles.Create(ctx, profilepkg.CreateInput{Name: "marketing"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1132,6 +1138,12 @@ func testWorkspaceExtensionInputEnablement(t *testing.T) {
 		manifest,
 		[]byte(`min_compozy_version = "0.5.0"`),
 		[]byte(`min_compozy_version = "0.7.9"`),
+		1,
+	)
+	manifest = bytes.Replace(
+		manifest,
+		[]byte(`provides = ["tool.provider"]`),
+		[]byte(`provides = ["heartbeat.source"]`),
 		1,
 	)
 	manifest = append(manifest, []byte(`
@@ -1292,6 +1304,37 @@ binding = { type = "env", name = "BOUND_SECRET" }
 	otherEnabled, err := service.registry.IsEnabledForProfileContext(ctx, name, marketing.ID)
 	if err != nil || !otherEnabled {
 		t.Fatalf("disable changed other profile: enabled=%t error=%v", otherEnabled, err)
+	}
+
+	if err := setEnabled("marketing", false); err != nil {
+		t.Fatal(err)
+	}
+	target := extensionInputsTarget{Name: name, WorkspaceID: workspace, Profile: "marketing"}
+	if _, err := service.SetInputs(
+		ctx,
+		target,
+		setupValues("token", "marketing-workspace-fixture-secret"),
+		actor,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := setEnabled("marketing", true); err != nil {
+		t.Fatalf("enable configured profile with unconfigured default profile: %v", err)
+	}
+	manager := service.runtime.(*extensionpkg.Manager)
+	if _, err := manager.SourceKinds(
+		ctx,
+		source.CatalogScope{ProfileID: marketing.ID, WorkspaceID: workspace},
+	); err != nil {
+		t.Fatal(err)
+	}
+	runtime, err := manager.GetForInstance(extensionpkg.ProfileInstanceKey(name, marketing.ID, workspace))
+	if err != nil || !runtime.Status.Active || runtime.Status.PID == 0 {
+		t.Fatalf("configured profile runtime did not start on discovery: %v", err)
+	}
+	base, err := manager.GetForInstance(extensionpkg.ProfileInstanceKey(name, store.DefaultProfileID, workspace))
+	if err != nil || base.Status.Active || base.Status.PID != 0 {
+		t.Fatalf("unconfigured default profile unexpectedly started: %v", err)
 	}
 
 	origin := filepath.Join(harness.workspaceRoot, "input-overlay")
