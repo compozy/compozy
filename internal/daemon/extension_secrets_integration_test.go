@@ -1226,6 +1226,14 @@ binding = { type = "env", name = "BOUND_SECRET" }
 	if err != nil {
 		t.Fatal(err)
 	}
+	agent.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
+	_, err = service.SetEnablement(ctx, name, contract.SetExtensionEnablementRequest{
+		Profile: "default", Enabled: true,
+	}, agent)
+	assertMissing(err)
+	if strings.Contains(err.Error(), other) {
+		t.Fatal("agent input refusal named another workspace")
+	}
 	agentTransport := newExtensionTransportEngine(service, agent, "uds")
 	denied := performExtensionTransportRequest(t, agentTransport, http.MethodPost, "/extensions/"+name+"/enable", nil)
 	if denied.Code != http.StatusForbidden || strings.Contains(denied.Body.String(), other) ||
