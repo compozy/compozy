@@ -167,7 +167,7 @@ describe("instance routes and the selected profile", () => {
     await act(async () => {
       await result.current.seen.mutateAsync(result.current.instances[0]!);
     });
-    expect(result.current.instances[0]?.needs_attention).toBe(false);
+    await waitFor(() => expect(result.current.instances[0]?.needs_attention).toBe(false));
     expect(profiles).toEqual(["work"]);
   });
 

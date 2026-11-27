@@ -13,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // Invariant: `agent instance skill-auto-approve on|off` sends exactly one PATCH field,
@@ -53,6 +54,13 @@ func TestAgentInstanceSkillAutoApproveCLI(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				switch {
+				case tc.agent && r.Method == http.MethodGet && r.URL.Path == "/api/sessions/"+credentials.SessionID:
+					if err := json.NewEncoder(w).Encode(contract.SessionResponse{Session: contract.SessionPayload{
+						ID: credentials.SessionID, AgentName: credentials.AgentName,
+						ProfileID: "profile-test", State: session.StateActive,
+					}}); err != nil {
+						t.Error(err)
+					}
 				case r.URL.Path == "/api/agent-instances":
 					_, _ = io.WriteString(w, `{"instances":[{"id":"ainst-test","agent_name":"triage"}]}`)
 				case r.URL.Path == "/api/agent-instances/ainst-test" && r.Method == http.MethodPatch:
