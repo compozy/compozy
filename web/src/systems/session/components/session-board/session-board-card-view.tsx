@@ -1,3 +1,4 @@
+import { SessionBoardCardTitle } from "./session-board-card-title";
 import { useContext, type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import {
   ArrowRightLeft,
@@ -58,8 +59,6 @@ import {
   SESSION_BOARD_CARD_FOOTER_ROW,
   SESSION_BOARD_CARD_FRAME,
   SESSION_BOARD_CARD_META_ROW,
-  SESSION_BOARD_CARD_TITLE_ROW,
-  SESSION_BOARD_CARD_TITLE_TYPE,
 } from "./sessions-board-frame";
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
@@ -216,9 +215,7 @@ export function SessionBoardCardView({
       data-archived={archived ? "true" : undefined}
       data-agent-name={session.agent_name}
       data-board-column={session.board_column}
-      data-computer-id={
-        computer?.id ?? (isRemoteComputerId(effectiveComputerId) ? effectiveComputerId : undefined)
-      }
+      data-computer-id={remoteDataComputerId(effectiveComputerId)}
       data-computer-offline={computer?.offline ? "true" : undefined}
       data-selected={selected ? "true" : undefined}
       data-session-id={session.id}
@@ -236,25 +233,13 @@ export function SessionBoardCardView({
         sessionId={session.id}
         status={status}
       />
-      <span className={SESSION_BOARD_CARD_TITLE_ROW}>
-        {sessionBoardCardUnread(session) ? (
-          <span
-            aria-hidden="true"
-            className="mt-1.5 size-1.5 shrink-0 rounded-full bg-fg-strong"
-            data-testid={`session-board-card-unread-${session.id}`}
-          />
-        ) : null}
-        <span
-          className={cn(
-            "line-clamp-2 min-w-0",
-            SESSION_BOARD_CARD_TITLE_TYPE,
-            untitled && "font-normal text-subtle",
-            archived && "text-muted-foreground"
-          )}
-        >
-          {title}
-        </span>
-      </span>
+      <SessionBoardCardTitle
+        archived={archived}
+        sessionId={session.id}
+        title={title}
+        unread={sessionBoardCardUnread(session)}
+        untitled={untitled}
+      />
       <SessionLaterDetails session={session} />
       <SessionBoardCardFooter
         creatorBadge={creatorBadge}
@@ -268,6 +253,10 @@ export function SessionBoardCardView({
       />
     </button>
   );
+}
+
+function remoteDataComputerId(computerId: ComputerId) {
+  return isRemoteComputerId(computerId) ? computerId : undefined;
 }
 
 function SessionBoardCardMetaRow({

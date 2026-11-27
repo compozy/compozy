@@ -59,7 +59,7 @@ export function sessionSubagentBranchOptions(
           ...(pageParam ? { cursor: pageParam } : {}),
         },
         signal,
-        computerId
+        ...(computerId === undefined ? [] : ([computerId] as const))
       ),
     initialPageParam: "",
     getNextPageParam: page => page.next_cursor ?? undefined,

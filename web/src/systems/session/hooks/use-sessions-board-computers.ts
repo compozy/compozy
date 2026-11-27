@@ -25,10 +25,7 @@ import {
   type ComputerSessionsSource,
 } from "./use-computer-sessions-sources";
 import { useSessionComputerScope } from "./use-session-computer-scope";
-import {
-  qualifySessionGroupFoldKey,
-  sessionGroupFoldLens,
-} from "./use-session-group-folds";
+import { qualifySessionGroupFoldKey, sessionGroupFoldLens } from "./use-session-group-folds";
 import { useSessionSidebarState } from "./use-session-sidebar-state";
 import { useSessionWindowOrder } from "./use-session-window-order";
 import type {
@@ -60,6 +57,7 @@ export interface SessionsBoardComputerBand {
 
 export interface MultiComputerBoardModel {
   hasRemoteComputers: boolean;
+  writableComputers: ReadonlySet<ComputerId>;
   /** Active effective computer scope (`"all"`, `"local"`, or a remote computer id). */
   effectiveScope: string;
   /** Non-null when scoped to a single remote computer (`F8`). */
@@ -217,6 +215,62 @@ function addShelfProvenance(
   }
 }
 
+function buildComputerBands(input: {
+  enabled: boolean;
+  sources: readonly ComputerSessionsSource[];
+  scope: DataScope | null;
+  shared: SessionListFilters;
+  localLens: ProfileScopeParams;
+  groupBy: SessionListGroupBy;
+  foldLens: string;
+  sidebar: ReturnType<typeof useSessionSidebarState>;
+  allProjects: boolean;
+}): SessionsBoardComputerBand[] | null {
+  const { enabled, sources, scope, shared, localLens, groupBy, foldLens, sidebar, allProjects } =
+    input;
+  if (!enabled) return null;
+  return sources.map(source => {
+    const foldKey = computerFoldKey(source.key);
+    const defaultFolded = defaultBandFolded(source);
+    const collapsed = resolveComputerSectionFold({
+      flag: sidebar.groupFlag(foldKey),
+      foldAll: sidebar.foldAll,
+      defaultFolded,
+    });
+    const filterSpec = boardFiltersForSource(source, scope, shared, localLens);
+    return {
+      source,
+      collapsed,
+      onToggle: () => sidebar.toggleGroup(foldKey, defaultFolded),
+      baseFilters: filterSpec.filters,
+      emptyRemoteMatch: filterSpec.emptyRemoteMatch,
+      lanes: buildBandLanes({ source, groupBy, scope, localLens, shared, foldLens, sidebar }),
+      boardCounts: source.facets?.facets.board,
+      workspaceNameOf: workspaceNameResolverFor(source.workspaces, allProjects, !source.isLocal),
+    };
+  });
+}
+
+function boardWorkspaceNameResolver(
+  sources: readonly ComputerSessionsSource[],
+  allProjects: boolean
+) {
+  const namesByComputer = new Map<ComputerId, ReadonlyMap<string, string>>(
+    sources.map(source => [
+      source.key,
+      new Map(source.workspaces.map(workspace => [workspace.id, workspace.name])),
+    ])
+  );
+  return (session: SessionBoardPayload): string | null => {
+    if (!allProjects) return null;
+    const computerId = sessionComputerOf(session) ?? LOCAL_COMPUTER_ID;
+    const names = namesByComputer.get(computerId) ?? new Map<string, string>();
+    return isRemoteComputerId(computerId)
+      ? computerWorkspaceBadgeIdentity(session.workspace_id, names, { isRemote: true }).name
+      : workspaceBadgeIdentity(session.workspace_id, names).name;
+  };
+}
+
 /**
  * Multi-computer projection for Kanban (`F13`, `K1`–`K7`):
  * - Separate: computer bands holding project/profile lanes or columns, with folded 5-column counts.
@@ -230,7 +284,7 @@ export function useSessionsBoardComputers(options: {
   groupBy: SessionListGroupBy;
   sort: SessionListSort;
   showAutomation: boolean;
-  population?: Pick<SessionListFilters, "children">;
+  population?: Pick<SessionListFilters, "children" | "subagents">;
   enabled: boolean;
 }): MultiComputerBoardModel {
   const { scope, shared, localLens, groupBy, sort, showAutomation, population, enabled } = options;
@@ -273,7 +327,7 @@ export function useSessionsBoardComputers(options: {
     shared,
     localLens,
     "archive",
-    enabled && multiVisible
+    enabled && (multiVisible || scopedRemoteSource !== null)
   );
   const multiLater = useMultiComputerBoardShelf(
     activeSources,
@@ -281,7 +335,7 @@ export function useSessionsBoardComputers(options: {
     shared,
     localLens,
     "later",
-    enabled && multiVisible
+    enabled && (multiVisible || scopedRemoteSource !== null)
   );
   const togetherBoard = useTogetherBoardColumns({
     sources: activeSources,
@@ -299,32 +353,17 @@ export function useSessionsBoardComputers(options: {
   addShelfProvenance(computerBySessionId, multiLater, sourcesById);
 
   const foldLens = sessionGroupFoldLens(scope, profile, groupBy);
-  const computerBands: SessionsBoardComputerBand[] | null = separate
-    ? sourcesResult.sources.map(source => {
-        const foldKey = computerFoldKey(source.key);
-        const defaultFolded = defaultBandFolded(source);
-        const collapsed = resolveComputerSectionFold({
-          flag: sidebar.groupFlag(foldKey),
-          foldAll: sidebar.foldAll,
-          defaultFolded,
-        });
-        const filterSpec = boardFiltersForSource(source, scope, shared, localLens);
-        return {
-          source,
-          collapsed,
-          onToggle: () => sidebar.toggleGroup(foldKey, defaultFolded),
-          baseFilters: filterSpec.filters,
-          emptyRemoteMatch: filterSpec.emptyRemoteMatch,
-          lanes: buildBandLanes({ source, groupBy, scope, localLens, shared, foldLens, sidebar }),
-          boardCounts: source.facets?.facets.board,
-          workspaceNameOf: workspaceNameResolverFor(
-            source.workspaces,
-            allProjects,
-            !source.isLocal
-          ),
-        };
-      })
-    : null;
+  const computerBands = buildComputerBands({
+    enabled: separate,
+    sources: sourcesResult.sources,
+    scope,
+    shared,
+    localLens,
+    groupBy,
+    foldLens,
+    sidebar,
+    allProjects,
+  });
 
   const togetherLanes = buildTogetherLanes({
     enabled: together,
@@ -340,29 +379,17 @@ export function useSessionsBoardComputers(options: {
 
   const failedComputers: ScopedComputerFailureItem[] = together
     ? sourcesResult.sources.flatMap(source =>
-        source.read === "failed"
-          ? [{ id: source.key, name: source.name, retry: source.retry }]
-          : []
+        source.read === "failed" ? [{ id: source.key, name: source.name, retry: source.retry }] : []
       )
     : [];
 
-  const namesByComputer = new Map<ComputerId, ReadonlyMap<string, string>>(
-    sourcesResult.sources.map(source => [
-      source.key,
-      new Map(source.workspaces.map(workspace => [workspace.id, workspace.name])),
-    ])
-  );
-  const workspaceNameOf = (session: SessionBoardPayload): string | null => {
-    if (!allProjects) return null;
-    const computerId = sessionComputerOf(session) ?? LOCAL_COMPUTER_ID;
-    const names = namesByComputer.get(computerId) ?? new Map<string, string>();
-    return isRemoteComputerId(computerId)
-      ? computerWorkspaceBadgeIdentity(session.workspace_id, names, { isRemote: true }).name
-      : workspaceBadgeIdentity(session.workspace_id, names).name;
-  };
+  const workspaceNameOf = boardWorkspaceNameResolver(sourcesResult.sources, allProjects);
 
   return {
     hasRemoteComputers: hasRemote,
+    writableComputers: new Set(
+      sourcesResult.sources.flatMap(source => (source.canOperate ? [source.key] : []))
+    ),
     effectiveScope,
     scopedRemoteSource,
     computerBands,

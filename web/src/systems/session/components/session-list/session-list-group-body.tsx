@@ -177,6 +177,7 @@ function SessionListPairGroupBody({
   const layout = useSessionListFolderLayout(
     {
       layout: group.pair && !readOnly ? folders.layout : undefined,
+      computerId,
       sort: view.sort,
       shelf: view.shelf,
       worktreeId: view.worktreeId,
@@ -187,13 +188,17 @@ function SessionListPairGroupBody({
     threads,
     props.filtering
   );
-  usePublishSessionListGroupRows(groupSelection?.rows, group.key, {
-    rank: sessionListGroupRank(path),
-    computerId,
-    sessions: catalog.sessions,
-    visibleOrder: threadVisibleOrder(layout.visibleThreads, props.collapsedThreads),
-    pair: group.pair,
-  });
+  usePublishSessionListGroupRows(
+    readOnly ? undefined : groupSelection?.rows,
+    `computer:${computerId ?? "local"}:${group.key}`,
+    {
+      rank: sessionListGroupRank(path),
+      computerId,
+      sessions: catalog.sessions,
+      visibleOrder: threadVisibleOrder(layout.visibleThreads, props.collapsedThreads),
+      pair: group.pair,
+    }
+  );
   if (!partitions && catalog.failed && catalog.sessions.length === 0) {
     // One unreachable group never blanks the list: it states what happened in
     // its own place and offers the one useful action.

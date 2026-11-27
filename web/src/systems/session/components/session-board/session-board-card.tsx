@@ -1,7 +1,7 @@
 import { useContext } from "react";
 import { Checkbox } from "@compozy/ui";
 
-import type { ComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { cn } from "@/lib/utils";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
@@ -13,7 +13,11 @@ import { useSessionBoardCardSelection } from "../../hooks/use-sessions-board-vie
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { linkedSessionFacts, summaryMoreLabel } from "../../lib/session-linked-work";
-import { lookupSessionComputer, SessionListComputerContext } from "../../lib/session-list-computer";
+import {
+  lookupSessionComputer,
+  SessionListComputerContext,
+  SessionWritableComputersContext,
+} from "../../lib/session-list-computer";
 import { sessionComputerOf, sessionRowKey } from "../../lib/session-row-ref";
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu } from "../session-row-context-menu";
@@ -68,12 +72,19 @@ export function SessionBoardCard({ actions, ...props }: SessionBoardCardProps) {
     session.id,
     effectiveComputerId
   );
-  const selection = useSessionBoardCardSelection(rowKey);
+  const writable = useContext(SessionWritableComputersContext);
+  const readOnly =
+    computer?.offline === true ||
+    (isRemoteComputerId(effectiveComputerId) &&
+      writable !== undefined &&
+      !writable.has(effectiveComputerId));
+  const cardSelection = useSessionBoardCardSelection(rowKey);
+  const selection = readOnly ? null : cardSelection;
   const button = <SessionBoardCardButton {...props} selection={selection} />;
   const checkbox = selection ? (
     <SessionBoardCardCheckbox selection={selection} session={session} />
   ) : null;
-  if (!actions || computer?.offline) {
+  if (!actions || readOnly) {
     // Without verbs there is no menu, but a selectable card still shows its checkbox.
     return checkbox ? (
       <div className={SESSION_BOARD_CARD_FRAME_GROUP}>

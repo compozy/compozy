@@ -6,11 +6,7 @@ import { sessionDescendantsOptions } from "./query-options";
 import { readCurrentSessions } from "./session-batch";
 import { isSubagentSession } from "./session-hierarchy";
 import { sessionsRunningProcesses } from "./session-processes";
-import {
-  sessionComputerOf,
-  sessionRowKeyFor,
-  withSessionsComputer,
-} from "./session-row-ref";
+import { sessionComputerOf, sessionRowKeyFor, withSessionsComputer } from "./session-row-ref";
 
 export type SessionTreeAction = "archive" | "delete";
 

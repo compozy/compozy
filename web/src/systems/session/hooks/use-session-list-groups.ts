@@ -118,7 +118,8 @@ export function useSessionListGroups({
     lens,
     workspaces,
     computerId,
-    facets: facets.data,
+    facets: grouped ? facets.data : undefined,
+    matchedWorkspaceIds,
     // A project whose only resident is an agent still gets its group.
     residents: shelf === "active" && !search ? instances.map(i => i.workspace_id) : [],
     profiles: profiles.data,
@@ -134,7 +135,7 @@ function resolveGroups(
   grouped: boolean,
   input: Pick<
     SessionListGroupsInput,
-    "groupBy" | "scope" | "lens" | "workspaces" | "computerId"
+    "groupBy" | "scope" | "lens" | "workspaces" | "computerId" | "matchedWorkspaceIds"
   > & {
     facets: Parameters<typeof projectSessionGroups>[0] & Parameters<typeof profileSessionGroups>[0];
     residents: readonly string[];
@@ -153,6 +154,7 @@ function resolveGroups(
   return profileSessionGroups(profiles ? facets : undefined, {
     profiles: profileOwners(profiles),
     scope,
+    matchedWorkspaceIds: input.matchedWorkspaceIds,
     computerId,
   });
 }
@@ -270,7 +272,7 @@ export function useSessionListTotals({
     scope?.kind === "project" &&
     matchedWorkspaceIds != null &&
     matchedWorkspaceIds.length === 0;
-  const enabled = listEnabled && shelf === "active" && !emptyRemoteMatch;
+  const enabled = listEnabled && scope !== null && shelf === "active" && !emptyRemoteMatch;
   const facets = useQuery({
     ...sessionFacetsOptions(
       sessionListFacetFilters({
@@ -336,7 +338,7 @@ export function useSessionListLaterCount({
   }).data;
   if (emptyRemoteMatch && enabled) return 0;
   // The daemon omits the total when nothing is parked.
-  return data ? (data.later ?? 0) : undefined;
+  return enabled && scope !== null && data ? (data.later ?? 0) : undefined;
 }
 
 /**
@@ -374,5 +376,6 @@ export function useSessionListArchivedCount({
     ),
     enabled: enabled && scope !== null && !emptyRemoteMatch,
   }).data?.facets.all;
-  return emptyRemoteMatch && enabled ? 0 : count;
+  if (!enabled || scope === null) return undefined;
+  return emptyRemoteMatch ? 0 : count;
 }

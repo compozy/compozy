@@ -3,11 +3,7 @@ import { settleBounded } from "@/lib/settle-bounded";
 import type { QueryClient } from "@tanstack/react-query";
 import type { SessionPayload } from "../types";
 import { sessionScopedDetailOptions } from "./query-options";
-import {
-  sessionComputerOf,
-  sessionRowKeyFor,
-  withSessionComputer,
-} from "./session-row-ref";
+import { sessionComputerOf, sessionRowKeyFor, withSessionComputer } from "./session-row-ref";
 
 export interface SessionBatchResult {
   id: string;

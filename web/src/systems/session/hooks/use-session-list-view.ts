@@ -87,7 +87,7 @@ function buildSessionListViewModel(input: {
   pinned: SessionListPinnedRead | undefined;
   arranged: ReturnType<typeof useProjectFolderGroups>;
   folders: ReturnType<typeof useSessionFolders>;
-  awaiting: ReturnType<typeof awaitingReads>;
+  awaiting: ReturnType<typeof awaitingReads<NonNullable<SessionListViewModel["catalog"]>>>;
   partitions: ReturnType<typeof useSessionListContainerCatalog>["partitions"];
   totals: SessionListTotals | undefined;
   laterCount: number | undefined;
@@ -210,6 +210,57 @@ function buildSessionListViewModel(input: {
   };
 }
 
+function listSearch(
+  controlled: string | undefined,
+  draft: string,
+  committed: string,
+  setDraft: (value: string) => void
+) {
+  return {
+    search: controlled ?? draft,
+    remoteSearch: controlled ?? committed,
+    setSearch: controlled === undefined ? setDraft : undefined,
+  };
+}
+
+function listReadAxes(
+  options: UseSessionListViewOptions,
+  localWorkspaces: ReturnType<typeof useActiveWorkspace>["registeredWorkspaces"],
+  dataScope: DataScope | null,
+  profile: ReturnType<typeof useProfileReadScope>,
+  preferences: ReturnType<typeof useSessionWindowOrder>
+) {
+  const computerId = options.computerId ?? LOCAL_COMPUTER_ID;
+  const remote = isRemoteComputerId(computerId);
+  const workspaces = options.workspaces ?? localWorkspaces;
+  const readOnly = options.readOnly === true;
+  const enabled = options.enabled ?? true;
+  const scope = options.scope === undefined ? dataScope : options.scope;
+
+  // Remote computers always read all of their own profiles (Q4).
+  const lens: ProfileScopeParams = remote ? { all_profiles: true } : profile.params;
+  const aggregate = remote ? true : profile.aggregate;
+  const breadth = { allProjects: scope?.kind === "all", allProfiles: aggregate };
+  const groupBy = effectiveSessionListGroupBy(preferences.groupBy, breadth);
+  const flat = groupBy === "none";
+  const pair = sessionListPair(scope, lens, remote ? computerId : undefined);
+
+  return {
+    computerId,
+    remote,
+    workspaces,
+    readOnly,
+    enabled,
+    scope,
+    lens,
+    aggregate,
+    breadth,
+    groupBy,
+    flat,
+    pair,
+  };
+}
+
 /**
  * View model behind every session list: the topbar breadth and profile lens,
  * the window's order and grouping (shared with its Kanban), and either one flat catalog or
@@ -225,25 +276,26 @@ export function useSessionListView(options: UseSessionListViewOptions = {}): Ses
     committedValue: localRemoteSearch,
     setDraftValue: setLocalSearch,
   } = useDebouncedInput({ externalValue: "", onCommit: () => undefined });
-  const controlledSearch = options.search !== undefined;
-  const search = controlledSearch ? options.search! : localSearch;
-  const remoteSearch = controlledSearch ? options.search! : localRemoteSearch;
-  const setSearch = controlledSearch ? undefined : setLocalSearch;
-
-  const computerId = options.computerId ?? LOCAL_COMPUTER_ID;
-  const remote = isRemoteComputerId(computerId);
-  const workspaces = options.workspaces ?? localWorkspaces;
-  const readOnly = options.readOnly === true;
-  const enabled = options.enabled ?? true;
-  const scope = options.scope === undefined ? dataScope : options.scope;
-
-  // Remote computers always read all of their own profiles (Q4).
-  const lens: ProfileScopeParams = remote ? { all_profiles: true } : profile.params;
-  const aggregate = remote ? true : profile.aggregate;
-  const breadth = { allProjects: scope?.kind === "all", allProfiles: aggregate };
-  const groupBy = effectiveSessionListGroupBy(preferences.groupBy, breadth);
-  const flat = groupBy === "none";
-  const pair = sessionListPair(scope, lens, remote ? computerId : undefined);
+  const { search, remoteSearch, setSearch } = listSearch(
+    options.search,
+    localSearch,
+    localRemoteSearch,
+    setLocalSearch
+  );
+  const {
+    computerId,
+    remote,
+    workspaces,
+    readOnly,
+    enabled,
+    scope,
+    lens,
+    aggregate,
+    breadth,
+    groupBy,
+    flat,
+    pair,
+  } = listReadAxes(options, localWorkspaces, dataScope, profile, preferences);
 
   const showAutomation = sidebar.showAutomation;
   const shelf = sidebar.shelf;
@@ -335,7 +387,7 @@ export function useSessionListView(options: UseSessionListViewOptions = {}): Ses
     computerId,
     matchedWorkspaceIds: options.matchedWorkspaceIds,
   });
-  const awaiting = awaitingReads(
+  const awaiting = awaitingReads<NonNullable<SessionListViewModel["catalog"]>>(
     flat ? settledSearchCatalog(catalog, search === remoteSearch) : undefined,
     grouping.loading,
     pending

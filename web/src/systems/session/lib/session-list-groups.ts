@@ -63,6 +63,8 @@ export interface SessionListGroupSpec {
   /** Set only when the group's own query is exactly one (workspace, profile) pair. */
   pair: SessionListPair | null;
   /** Owning daemon when the group represents a remote computer or a Together-layer group (`F5`, `F6`). */
+  matchedWorkspaceIds?: readonly string[] | null;
+  hasResident?: boolean;
   computerId?: ComputerId;
   /** Computer display name shown in Together-layer headers (`F6`). */
   computerName?: string;
@@ -182,7 +184,7 @@ export function withInstanceProjectGroups(
   const merged = [...groups];
   for (const id of new Set(workspaceIds)) {
     if (id === "") continue;
-    const group = projectSessionGroup(id, EMPTY_GROUP_FACETS, input);
+    const group = { ...projectSessionGroup(id, EMPTY_GROUP_FACETS, input), hasResident: true };
     if (!listed.has(group.key)) merged.push(group);
   }
   return merged.length === groups.length ? groups : merged;
@@ -197,6 +199,7 @@ export function profileSessionGroups(
   input: {
     profiles: readonly ProfileOwner[];
     scope: DataScope;
+    matchedWorkspaceIds?: readonly string[] | null;
     computerId?: ComputerId;
     computerName?: string;
     computerPlatform?: ComputerPlatform;
@@ -207,6 +210,12 @@ export function profileSessionGroups(
 ): SessionListGroupSpec[] {
   if (!facets) return [];
   const remote = isRemoteComputerId(input.computerId);
+  const matched = input.matchedWorkspaceIds;
+  if (remote && input.scope.kind === "project" && matched?.length === 0) return [];
+  const scope: DataScope =
+    remote && input.scope.kind === "project" && matched?.length === 1
+      ? { kind: "project", workspaceId: matched[0]! }
+      : input.scope;
   const byId = new Map(facets.by_profile.map(row => [row.profile_id, row.facets]));
   return input.profiles.flatMap(owner => {
     const row = byId.get(owner.id);
@@ -222,9 +231,13 @@ export function profileSessionGroups(
         kind: "profile" as const,
         owner,
         ...counts(row),
-        scope: input.scope,
+        scope,
         lens,
-        pair: sessionListPair(input.scope, lens, input.computerId),
+        matchedWorkspaceIds: matched,
+        pair:
+          remote && matched && matched.length !== 1
+            ? null
+            : sessionListPair(scope, lens, input.computerId),
         ...(remote ? { computerId: input.computerId } : {}),
         ...(input.computerName !== undefined ? { computerName: input.computerName } : {}),
         ...(input.computerPlatform !== undefined

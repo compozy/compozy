@@ -84,7 +84,10 @@ export function agentInstanceAwayOptions(ref: AgentInstanceRef) {
 export function agentInstanceCheckInsOptions(ref: AgentInstanceRef, computerId?: ComputerId) {
   return queryOptions({
     queryKey: agentKeysFor(computerId).instanceCheckIns(ref.id),
-    queryFn: ({ signal }) => fetchAgentInstanceCheckIns(ref, CHECK_INS_SHOWN, signal, computerId),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchAgentInstanceCheckIns(ref, CHECK_INS_SHOWN, signal, computerId)
+        : fetchAgentInstanceCheckIns(ref, CHECK_INS_SHOWN, signal),
     staleTime: 30_000,
     retry: false,
   });

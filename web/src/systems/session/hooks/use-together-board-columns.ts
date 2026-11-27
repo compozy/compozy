@@ -1,4 +1,4 @@
-import { QueryClientContext, useQueries } from "@tanstack/react-query";
+import { QueryClientContext, useQueries, type QueryClient } from "@tanstack/react-query";
 import { useContext, useState } from "react";
 
 import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
@@ -15,7 +15,6 @@ import {
   SESSION_BOARD_REFETCH_MS,
   sessionCatalogPageQueryOptions,
 } from "../lib/session-catalog-options";
-import { sessionIsInLater } from "../lib/session-later";
 import type { SessionRowComputerInfo } from "../lib/session-list-computer";
 import type { SessionListSort } from "../lib/session-list-preferences";
 import {
@@ -70,7 +69,7 @@ function buildTogetherColumnView(input: {
   answered: readonly ComputerSessionsSource[];
   slots: readonly ColumnSlot[];
   queries: readonly MultiQuerySlotResult[];
-  queryClient: ReturnType<typeof useContext<typeof QueryClientContext>>;
+  queryClient: QueryClient | undefined;
   sort: SessionListSort;
   onLoadMore: (columnId: SessionBoardColumnId, computerId: ComputerId, cursor: string) => void;
   computerBySessionId: Map<string, SessionRowComputerInfo>;
@@ -81,6 +80,7 @@ function buildTogetherColumnView(input: {
   const colQueries: MultiQuerySlotResult[] = [];
   for (let index = 0; index < slots.length; index++) {
     if (slots[index]!.columnId !== column.id) continue;
+    if (slots[index]!.emptyRemoteMatch) continue;
     colSlots.push(slots[index]!);
     if (queries[index]) colQueries.push(queries[index]!);
   }
@@ -90,18 +90,18 @@ function buildTogetherColumnView(input: {
   let hasCount = false;
   const entries: TogetherFlatPageEntry[] = [];
   for (const source of answered) {
+    if (!colSlots.some(slot => slot.source.key === source.key)) continue;
     const facetCount = source.facets?.facets.board?.[column.id];
     if (facetCount !== undefined) {
       hasCount = true;
       count += facetCount;
     }
     if (source.read === "offline") {
-      const cached = readCachedOfflineRowsForComputer(queryClient, source.key).filter(
-        session =>
-          session.archived_at === null &&
-          !sessionIsInLater(session) &&
-          session.board_column === column.id
-      );
+      const slot = colSlots.find(slot => slot.source.key === source.key);
+      const cached =
+        slot && !slot.emptyRemoteMatch
+          ? readCachedOfflineRowsForComputer(queryClient, source.key, slot.filters)
+          : [];
       entries.push({ source, sessions: cached, hasMore: false, nextCursor: null });
       continue;
     }
@@ -119,7 +119,7 @@ function buildTogetherColumnView(input: {
   const sessions = mergeTogetherFlatRows(entries, sort).map(
     row => row.session as SessionBoardPayload
   );
-  const next = selectNextTogetherComputer(entries);
+  const next = selectNextTogetherComputer(entries, sort);
   const failure = resolveMultiBoardFailure(summary, sessions.length);
 
   return {
@@ -137,8 +137,9 @@ function buildTogetherColumnView(input: {
       onLoadMore(column.id, next.computerId, next.nextCursor);
     },
     retry: () => {
-      const failed = colQueries.filter(query => query.isError);
-      const targets = failed.length > 0 ? failed : colQueries;
+      const online = colQueries.filter((_, index) => colSlots[index]?.source.read === "ok");
+      const failed = online.filter(query => query.isError);
+      const targets = failed.length > 0 ? failed : online;
       for (const query of targets) void query.refetch();
     },
     total: hasCount ? count : undefined,
@@ -163,10 +164,11 @@ export function useTogetherBoardColumns(options: {
 } {
   const { sources, scope, shared, localLens, sort, enabled } = options;
   const queryClient = useContext(QueryClientContext);
-  const answered = enabled
-    ? sources.filter(source => source.read === "ok" || source.read === "offline")
-    : [];
-  const resetKey = JSON.stringify([scope, shared, localLens, answered.map(s => s.key)]);
+  const answered =
+    enabled && scope !== null
+      ? sources.filter(source => source.read === "ok" || source.read === "offline")
+      : [];
+  const resetKey = JSON.stringify([scope, shared, localLens]);
   const [cursorState, setCursorState] = useState<{
     resetKey: string;
     cursors: Record<string, string[]>;

@@ -1,10 +1,10 @@
-import { QueryClientContext } from "@tanstack/react-query";
+import { QueryClientContext, type QueryClient } from "@tanstack/react-query";
 import { use, useContext } from "react";
 import { cn } from "@compozy/ui";
 
 import { isRemoteComputerId } from "@/lib/computer-scope";
 import { useOptionalUpgradeSheetActions } from "@/systems/account";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, type DataScope } from "@/systems/workspace";
 
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
 import {
@@ -18,6 +18,7 @@ import {
 } from "../../hooks/use-session-list-folder-layout";
 import { usePublishSessionListGroupRows } from "../../hooks/use-session-list-group-rows";
 import { useSessionListLocalState } from "../../hooks/use-session-list-local-state";
+import { scopedCatalogFilters } from "../../hooks/use-session-catalog";
 import { useSessionListView, type SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import { sessionListGroupRank } from "../../lib/session-list-group-rows";
@@ -147,9 +148,7 @@ function SessionListComputerLiveBody({
   const setProjectFolderDialog = onProjectFolderDialogChange ?? setLocalProjectDialog;
 
   // Offline computers filter rows already cached before disconnect (`Opus 6`, `Astra 15`).
-  const listedSessions = offline
-    ? readCachedOfflineRowsForComputer(queryClient, source.key, search)
-    : (computerView.catalog?.sessions ?? []);
+  const listedSessions = computerListRows(queryClient, source, dataScope, computerView);
   const threads = buildSessionListThreads(listedSessions, "");
   const folders = useSessionListFolderLayout(computerView, threads, filtering);
   const grouped = computerView.groupBy !== "none";
@@ -178,52 +177,50 @@ function SessionListComputerLiveBody({
     });
   };
 
-  if (
-    isEmptyOnlineComputer({
-      filtering,
-      source,
-      view: computerView,
-      threadCount: threads.length,
-      folderCount: folders.sections?.folders.length ?? 0,
-    })
-  ) {
-    return (
-      <SessionListComputerNote testId={`${testIdPrefix}-computer-${source.key}-empty`}>
-        No sessions on {source.name} yet.
-      </SessionListComputerNote>
-    );
-  }
+  const empty = isEmptyOnlineComputer({
+    filtering,
+    source,
+    view: computerView,
+    threadCount: threads.length,
+    folderCount: folders.sections?.folders.length ?? 0,
+  });
 
-  const layout = readOnly ? undefined : folders.layout;
-  const projectLayout = readOnly ? undefined : computerView.projectFolders?.layout;
+  const layout = folders.layout;
+  const projectLayout = computerView.projectFolders?.layout;
 
   return (
     <div
       className={cn("flex flex-col gap-0.5", offline && "opacity-70")}
       data-testid={`${testIdPrefix}-computer-${source.key}-body`}
     >
-      <SessionListSingleBody
-        collapsedThreads={collapsedThreads}
-        currentSessionId={currentSessionId}
-        embedded
-        filtering={filtering}
-        folders={folders}
-        normalizedFilter={search.trim().toLocaleLowerCase()}
-        onNewSession={handleNewSession}
-        onProjectFolderDialog={setProjectFolderDialog}
-        onSelectSession={handleSelectSession}
-        onThreadBranchChange={onThreadBranchChange}
-        pinnedSection={null}
-        rankPrefix={[sectionRank]}
-        readOnly={readOnly}
-        selection={readOnly ? undefined : parentGroupSelection?.selection}
-        selectionDrag={readOnly ? undefined : parentGroupSelection?.drag}
-        sessionActions={sessionActions}
-        subagentThreads={subagentThreads}
-        testIdPrefix={`${testIdPrefix}-${source.key}`}
-        threads={threads}
-        view={computerView}
-      />
+      {empty ? (
+        <SessionListComputerNote testId={`${testIdPrefix}-computer-${source.key}-empty`}>
+          No sessions on {source.name} yet.
+        </SessionListComputerNote>
+      ) : (
+        <SessionListSingleBody
+          collapsedThreads={collapsedThreads}
+          currentSessionId={currentSessionId}
+          embedded
+          filtering={filtering}
+          folders={folders}
+          normalizedFilter={search.trim().toLocaleLowerCase()}
+          onNewSession={handleNewSession}
+          onProjectFolderDialog={setProjectFolderDialog}
+          onSelectSession={handleSelectSession}
+          onThreadBranchChange={onThreadBranchChange}
+          pinnedSection={null}
+          rankPrefix={[sectionRank]}
+          readOnly={readOnly}
+          selection={readOnly ? undefined : parentGroupSelection?.selection}
+          selectionDrag={readOnly ? undefined : parentGroupSelection?.drag}
+          sessionActions={sessionActions}
+          subagentThreads={subagentThreads}
+          testIdPrefix={`${testIdPrefix}-${source.key}`}
+          threads={threads}
+          view={offline ? { ...computerView, groupBy: "none" } : computerView}
+        />
+      )}
       {layout ? (
         <SessionFolderDialogs
           onClose={() => folders.setDialog(null)}
@@ -245,4 +242,24 @@ function SessionListComputerLiveBody({
       ) : null}
     </div>
   );
+}
+
+function computerListRows(
+  queryClient: QueryClient | undefined,
+  source: ComputerSessionsSource,
+  scope: DataScope | null,
+  view: SessionListViewModel
+) {
+  if (source.read !== "offline") return view.catalog?.sessions ?? [];
+  if (scope === null) return [];
+  const filters = scopedCatalogFilters(
+    scope,
+    view.groupFilters,
+    { all_profiles: true },
+    source.key,
+    source.matchedWorkspaceIds
+  );
+  return filters.emptyRemoteMatch
+    ? []
+    : readCachedOfflineRowsForComputer(queryClient, source.key, filters.scoped);
 }

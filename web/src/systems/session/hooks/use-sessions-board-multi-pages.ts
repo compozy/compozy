@@ -1,4 +1,4 @@
-import { QueryClientContext, useQueries } from "@tanstack/react-query";
+import { QueryClientContext, useQueries, type QueryClient } from "@tanstack/react-query";
 import { useContext, useState } from "react";
 
 import type { ComputerId } from "@/lib/computer-scope";
@@ -12,9 +12,12 @@ import {
   sessionCatalogPageQueryOptions,
 } from "../lib/session-catalog-options";
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
-import { sessionIsInLater } from "../lib/session-later";
 import { sessionListShelfFilters } from "../lib/session-list-shelf";
-import { selectNextTogetherComputer, type TogetherFlatPageEntry } from "../lib/session-list-together";
+import {
+  mergeTogetherFlatRows,
+  selectNextTogetherComputer,
+  type TogetherFlatPageEntry,
+} from "../lib/session-list-together";
 import { sessionRowKey } from "../lib/session-row-ref";
 import type { SessionCatalogPageResponse, SessionListFilters } from "../types";
 import {
@@ -139,7 +142,8 @@ export function summarizeMultiQuerySlots(
     const query = queries[index];
     const isMore = slot.cursor !== undefined;
     const online = slot.source.read === "ok" && !slot.emptyRemoteMatch;
-    if (!isMore && online) onlineActive += 1;
+    if (!online) continue;
+    if (!isMore) onlineActive += 1;
     if (query?.isFetching) {
       fetching = true;
       if (isMore) loadingMore = true;
@@ -183,30 +187,14 @@ export function summarizeMultiQuerySlots(
   };
 }
 
-/**
- * Multi-computer Archive or Later shelf with cursor pagination across answered computers
- * and 15s polling on remote daemons (`Opus 7`, `Opus 12`, `Astra 13`, `Astra 14`).
- */
-export function useMultiComputerBoardShelf(
-  sources: readonly ComputerSessionsSource[],
+function buildShelfSlots(
+  answered: readonly ComputerSessionsSource[],
   scope: DataScope | null,
   shared: SessionListFilters,
+  shelfFilters: SessionListFilters,
   localLens: ProfileScopeParams,
-  shelf: "archive" | "later",
-  enabled: boolean
-): SessionsBoardShelf | undefined {
-  const queryClient = useContext(QueryClientContext);
-  const shelfFilters = sessionListShelfFilters(shelf);
-  const answered = enabled
-    ? sources.filter(source => source.read === "ok" || source.read === "offline")
-    : [];
-  const resetKey = JSON.stringify([scope, shared, localLens, shelf, answered.map(s => s.key)]);
-  const [cursorState, setCursorState] = useState<{
-    resetKey: string;
-    cursors: Record<string, string[]>;
-  }>({ resetKey: "", cursors: {} });
-  const activeCursors = cursorState.resetKey === resetKey ? cursorState.cursors : {};
-
+  activeCursors: Readonly<Record<string, string[]>>
+) {
   const slots: MultiPageSlot[] = [];
   for (let index = 0; index < answered.length; index++) {
     const source = answered[index]!;
@@ -234,38 +222,37 @@ export function useMultiComputerBoardShelf(
     }
   }
 
-  const queries = useQueries({
-    queries: slots.map(slot => ({
-      ...sessionCatalogPageQueryOptions(slot.filters, slot.cursor, slot.source.key),
-      ...(slot.source.isLocal ? { refetchInterval: SESSION_BOARD_REFETCH_MS } : {}),
-      enabled: enabled && slot.source.read === "ok" && !slot.emptyRemoteMatch && scope !== null,
-    })),
-  });
-  if (!enabled) return undefined;
+  return slots;
+}
 
-  const summary = summarizeMultiQuerySlots(slots, queries);
+function collectShelfEntries(
+  answered: readonly ComputerSessionsSource[],
+  slots: readonly MultiPageSlot[],
+  summary: MultiSlotSummary,
+  queryClient: QueryClient | undefined,
+  shelf: "archive" | "later"
+) {
   const entries: TogetherFlatPageEntry[] = [];
-  const allSessions: SessionBoardPayload[] = [];
   let total = summary.firstPageTotal;
   let hasTotal = summary.hasFirstPageTotal;
 
   for (const source of answered) {
+    const slot = slots.find(slot => slot.source.key === source.key);
+    if (!slot || slot.emptyRemoteMatch) continue;
     if (source.read === "offline") {
-      const cached = readCachedOfflineRowsForComputer(queryClient, source.key).filter(session =>
-        shelf === "archive"
-          ? session.archived_at !== null
-          : session.archived_at === null && sessionIsInLater(session)
+      const cached = readCachedOfflineRowsForComputer(queryClient, source.key, slot.filters);
+      const first = queryClient?.getQueryData(
+        sessionCatalogPageQueryOptions(slot.filters, undefined, source.key).queryKey
       );
-      if (shelf === "later") {
+      const cachedTotal = first?.page.total ?? (shelf === "later" ? source.laterCount : undefined);
+      if (cachedTotal !== undefined) {
         hasTotal = true;
-        total += source.laterCount;
+        total += cachedTotal;
       }
-      for (const session of cached) allSessions.push(session as SessionBoardPayload);
       entries.push({ source, sessions: cached, hasMore: false, nextCursor: null });
       continue;
     }
     const bucket = summary.sessionsBySource.get(source.key) ?? [];
-    for (const session of bucket) allSessions.push(session);
     const last = summary.lastPageBySource.get(source.key);
     if (shelf === "later" && !last) {
       hasTotal = true;
@@ -279,9 +266,59 @@ export function useMultiComputerBoardShelf(
     });
   }
 
-  allSessions.sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at));
+  return { entries, total, hasTotal };
+}
+
+/**
+ * Multi-computer Archive or Later shelf with cursor pagination across answered computers
+ * and 15s polling on remote daemons (`Opus 7`, `Opus 12`, `Astra 13`, `Astra 14`).
+ */
+export function useMultiComputerBoardShelf(
+  sources: readonly ComputerSessionsSource[],
+  scope: DataScope | null,
+  shared: SessionListFilters,
+  localLens: ProfileScopeParams,
+  shelf: "archive" | "later",
+  enabled: boolean
+): SessionsBoardShelf | undefined {
+  const queryClient = useContext(QueryClientContext);
+  const shelfFilters = sessionListShelfFilters(shelf);
+  const answered =
+    enabled && scope !== null
+      ? sources.filter(source => source.read === "ok" || source.read === "offline")
+      : [];
+  const resetKey = JSON.stringify([scope, shared, localLens, shelf]);
+  const [cursorState, setCursorState] = useState<{
+    resetKey: string;
+    cursors: Record<string, string[]>;
+  }>({ resetKey: "", cursors: {} });
+  const activeCursors = cursorState.resetKey === resetKey ? cursorState.cursors : {};
+
+  const slots = buildShelfSlots(answered, scope, shared, shelfFilters, localLens, activeCursors);
+  const queries = useQueries({
+    queries: slots.map(slot => ({
+      ...sessionCatalogPageQueryOptions(slot.filters, slot.cursor, slot.source.key),
+      ...(slot.source.isLocal ? { refetchInterval: SESSION_BOARD_REFETCH_MS } : {}),
+      enabled: enabled && slot.source.read === "ok" && !slot.emptyRemoteMatch && scope !== null,
+    })),
+  });
+  if (!enabled) return undefined;
+
+  const summary = summarizeMultiQuerySlots(slots, queries);
+  const { entries, total, hasTotal } = collectShelfEntries(
+    answered,
+    slots,
+    summary,
+    queryClient,
+    shelf
+  );
+  const sort =
+    shared.sort === "created" || shared.sort === "attention" ? shared.sort : "last_activity";
+  const allSessions = mergeTogetherFlatRows(entries, sort).map(
+    row => row.session as SessionBoardPayload
+  );
   const failure = resolveMultiBoardFailure(summary, allSessions.length);
-  const next = selectNextTogetherComputer(entries);
+  const next = selectNextTogetherComputer(entries, sort);
   return {
     sessions: allSessions,
     loading: summary.initialLoading && allSessions.length === 0,
@@ -295,8 +332,12 @@ export function useMultiComputerBoardShelf(
       setCursorState(prev => appendMultiCursor(prev, resetKey, next.computerId, next.nextCursor!));
     },
     retry: () => {
-      const failed = queries.filter(query => query.isError);
-      const targets = failed.length > 0 ? failed : queries;
+      const online = queries.filter((_, index) => {
+        const slot = slots[index];
+        return slot?.source.read === "ok" && !slot.emptyRemoteMatch;
+      });
+      const failed = online.filter(query => query.isError);
+      const targets = failed.length > 0 ? failed : online;
       for (const query of targets) void query.refetch();
     },
     total: hasTotal ? total : undefined,

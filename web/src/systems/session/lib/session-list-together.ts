@@ -86,11 +86,10 @@ export function buildTogetherProfileGroups(
   for (let index = 0; index < sources.length; index++) {
     const source = sources[index]!;
     if (source.read !== "ok" && source.read !== "offline") continue;
-    const groupScope: DataScope =
-      !source.isLocal && scope.kind === "project" ? { kind: "all" } : scope;
     const perComputer = profileSessionGroups(source.facets, {
       profiles: source.profiles ?? [],
-      scope: groupScope,
+      scope,
+      matchedWorkspaceIds: source.matchedWorkspaceIds,
       computerId: source.key,
       computerName: source.name,
       computerPlatform: source.computer.platform,
@@ -147,23 +146,29 @@ export function mergeTogetherFlatRows(
       });
     }
   }
-  rows.sort((left, right) => {
-    if (sort === "attention") {
-      const rankDelta = attentionRank(left.session) - attentionRank(right.session);
-      if (rankDelta !== 0) return rankDelta;
-    }
-    if (sort === "created") {
-      const createdDelta = parseIso(right.session.created_at) - parseIso(left.session.created_at);
-      if (createdDelta !== 0) return createdDelta;
-    }
-    const updatedDelta = parseIso(right.session.updated_at) - parseIso(left.session.updated_at);
-    if (updatedDelta !== 0) return updatedDelta;
-    if (left.computerId !== right.computerId) {
-      return left.computerId.localeCompare(right.computerId);
-    }
-    return left.session.id.localeCompare(right.session.id);
-  });
-  return rows;
+  rows.sort((left, right) => compareTogetherRows(left, right, sort));
+  const frontier = nextTogetherPage(entries, sort);
+  if (!frontier?.tail) return rows;
+  const tail = frontier.tail;
+  return rows.filter(row => compareTogetherRows(row, tail, sort) <= 0);
+}
+
+function compareTogetherRows(
+  left: Pick<TogetherMergedRow, "session" | "computerId">,
+  right: Pick<TogetherMergedRow, "session" | "computerId">,
+  sort: SessionListSort
+): number {
+  const rank =
+    sort === "attention" ? attentionRank(left.session) - attentionRank(right.session) : 0;
+  const created =
+    sort === "created" ? parseIso(right.session.created_at) - parseIso(left.session.created_at) : 0;
+  return (
+    rank ||
+    created ||
+    parseIso(right.session.updated_at) - parseIso(left.session.updated_at) ||
+    left.computerId.localeCompare(right.computerId) ||
+    left.session.id.localeCompare(right.session.id)
+  );
 }
 
 /** Builds a computer-qualified provenance map for Together + None flat rows (`P6`, `U5`). */
@@ -179,6 +184,7 @@ export function buildTogetherComputerMap(
       platform: entry.source.computer.platform,
       iconKind: entry.source.computer.iconKind,
       offline: entry.source.read === "offline",
+      canOperate: entry.source.canOperate,
     };
     for (const session of entry.sessions) {
       map.set(sessionRowKey({ computerId: entry.source.key, sessionId: session.id }), info);
@@ -187,34 +193,25 @@ export function buildTogetherComputerMap(
   return map;
 }
 
-/**
- * Selects which connected computer with remaining pages "Load more" advances next (`S10`):
- * picks the computer whose oldest loaded row is furthest in the past, naming it on the button.
- */
+/** Advance the source whose next page may precede the other sources' loaded tails. */
 export function selectNextTogetherComputer(
-  entries: readonly TogetherFlatPageEntry[]
+  entries: readonly TogetherFlatPageEntry[],
+  sort: SessionListSort = "last_activity"
 ): NextTogetherComputer | null {
-  let chosen: (NextTogetherComputer & { oldestTs: number }) | null = null;
+  return nextTogetherPage(entries, sort)?.target ?? null;
+}
+
+function nextTogetherPage(entries: readonly TogetherFlatPageEntry[], sort: SessionListSort) {
+  type Tail = Pick<TogetherMergedRow, "session" | "computerId">;
+  let next: { target: NextTogetherComputer; tail: Tail | null } | null = null;
   for (const entry of entries) {
-    if (!entry.hasMore || entry.source.read !== "ok") continue;
-    let oldest = Number.POSITIVE_INFINITY;
-    for (const session of entry.sessions) {
-      const ts = parseIso(session.updated_at);
-      if (ts < oldest) oldest = ts;
-    }
-    if (chosen === null || oldest < chosen.oldestTs) {
-      chosen = {
-        computerId: entry.source.key,
-        computerName: entry.source.name,
-        nextCursor: entry.nextCursor,
-        oldestTs: oldest,
-      };
-    }
+    if (!entry.hasMore || !entry.nextCursor || entry.source.read !== "ok") continue;
+    const computerId = entry.source.key;
+    const target = { computerId, computerName: entry.source.name, nextCursor: entry.nextCursor };
+    const session = entry.sessions.at(-1);
+    if (!session) return { target, tail: null };
+    const tail = { session, computerId };
+    if (!next?.tail || compareTogetherRows(tail, next.tail, sort) < 0) next = { target, tail };
   }
-  if (!chosen) return null;
-  return {
-    computerId: chosen.computerId,
-    computerName: chosen.computerName,
-    nextCursor: chosen.nextCursor,
-  };
+  return next;
 }

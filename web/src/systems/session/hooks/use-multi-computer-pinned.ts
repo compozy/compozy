@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { useContext, useState } from "react";
 
-import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import type { ProfileScopeParams } from "@/systems/profiles";
 import type { DataScope, WorkspaceBadgeIdentity } from "@/systems/workspace";
 
@@ -116,10 +116,9 @@ function aggregatePinnedEntries(input: {
   slots: readonly PinnedPageSlot[];
   queries: readonly UseQueryResult<SessionCatalogPageResponse>[];
   queryClient: QueryClient;
-  search: string;
   sort: SessionListSort;
 }) {
-  const { specs, slots, queries, queryClient, search, sort } = input;
+  const { specs, slots, queries, queryClient, sort } = input;
   const computerBySessionId = new Map<string, SessionRowComputerInfo>();
   const namesByComputer = new Map<ComputerId, ReadonlyMap<string, string>>();
   const bySource = specs.map(spec => ({
@@ -165,17 +164,16 @@ function aggregatePinnedEntries(input: {
     bucket.nextCursor = page.page.next_cursor ?? null;
   }
 
-  for (const bucket of bySource) {
+  for (const [index, bucket] of bySource.entries()) {
     namesByComputer.set(
       bucket.source.key,
       new Map(bucket.source.workspaces.map(workspace => [workspace.id, workspace.name]))
     );
-    if (bucket.source.read === "offline") {
+    if (bucket.source.read === "offline" && !bucket.skip) {
       const offlinePins = readCachedOfflineRowsForComputer(
         queryClient,
         bucket.source.key,
-        search,
-        session => Boolean(session.pinned_at)
+        specs[index]!.filters
       );
       bucket.sessions.push(...offlinePins);
     }
@@ -186,6 +184,7 @@ function aggregatePinnedEntries(input: {
         platform: bucket.source.computer.platform,
         iconKind: bucket.source.computer.iconKind,
         offline: bucket.source.read === "offline",
+        canOperate: bucket.source.canOperate,
       };
       for (const session of bucket.sessions) {
         computerBySessionId.set(
@@ -206,7 +205,7 @@ function aggregatePinnedEntries(input: {
     bySource.length > 1
       ? mergeTogetherFlatRows(entries, sort).map(row => row.session)
       : (bySource[0]?.sessions ?? []);
-  const nextToLoad = selectNextTogetherComputer(entries);
+  const nextToLoad = selectNextTogetherComputer(entries, sort);
 
   return {
     sessions,
@@ -219,6 +218,32 @@ function aggregatePinnedEntries(input: {
     computerBySessionId,
     namesByComputer,
   };
+}
+
+function pinnedBadgeResolver(
+  namesByComputer: ReadonlyMap<ComputerId, ReadonlyMap<string, string>>
+) {
+  return (session: SessionPayload) => {
+    const computerId = sessionComputerOf(session);
+    const names = namesByComputer.get(computerId) ?? new Map<string, string>();
+    return computerWorkspaceBadgeIdentity(session.workspace_id, names, {
+      isRemote: isRemoteComputerId(computerId),
+    });
+  };
+}
+
+function answeredPinnedSources(sources: readonly ComputerSessionsSource[], active: boolean) {
+  return active ? sources.filter(source => source.read === "ok" || source.read === "offline") : [];
+}
+
+function pinnedReorderPair(
+  sources: readonly ComputerSessionsSource[],
+  scope: DataScope | null,
+  lens: ProfileScopeParams
+) {
+  const source = sources.length === 1 ? sources[0] : undefined;
+  if (!source?.isLocal || !source.canOperate || source.read !== "ok") return null;
+  return sessionListPair(scope, lens, source.key);
 }
 
 /**
@@ -249,11 +274,9 @@ export function useMultiComputerPinned(options: {
   } = options;
   const active = enabled && contextClient !== undefined && scope !== null;
   const pinnedBase = sessionListPinnedFilters(groupFilters);
-  const answered = active
-    ? sources.filter(source => source.read === "ok" || source.read === "offline")
-    : [];
+  const answered = answeredPinnedSources(sources, active);
 
-  const filterKey = JSON.stringify([scope, localLens, pinnedBase, answered.map(s => s.key)]);
+  const filterKey = JSON.stringify([scope, localLens, pinnedBase]);
   const [cursorState, setCursorState] = useState<{
     key: string;
     byComputer: Record<string, string[]>;
@@ -273,22 +296,7 @@ export function useMultiComputerPinned(options: {
   );
 
   // O6: single-computer scope may reorder pins when one (computer, workspace, profile) pair applies.
-  const singleSource = active && sources.length === 1 ? sources[0] : undefined;
-  const singlePair =
-    singleSource && singleSource.canOperate && singleSource.read === "ok"
-      ? sessionListPair(
-          singleSource.isLocal
-            ? scope
-            : scope?.kind === "project" && singleSource.matchedWorkspaceIds?.length === 1
-              ? { kind: "project", workspaceId: singleSource.matchedWorkspaceIds[0]! }
-              : scope,
-          singleSource.isLocal
-            ? localLens
-            : { profile: singleSource.profiles?.[0]?.name ?? "default" },
-          singleSource.key
-        )
-      : null;
-  const reorder = useSessionPinnedOrder(singlePair);
+  const reorder = useSessionPinnedOrder(pinnedReorderPair(answered, scope, localLens));
 
   if (!active) return undefined;
 
@@ -297,12 +305,13 @@ export function useMultiComputerPinned(options: {
     slots,
     queries,
     queryClient,
-    search: groupFilters.q?.trim() ?? "",
     sort,
   });
 
   const retryAll = () => {
-    for (const query of queries) void query.refetch();
+    slots.forEach((slot, index) => {
+      if (!slot.skip && slot.source.read === "ok") void queries[index]?.refetch();
+    });
   };
   const loadMore = () => {
     const target = aggregated.nextToLoad;
@@ -318,15 +327,7 @@ export function useMultiComputerPinned(options: {
     });
   };
 
-  const badgeOf = allProjects
-    ? (session: SessionPayload) => {
-        const computerId = sessionComputerOf(session) ?? LOCAL_COMPUTER_ID;
-        const names = aggregated.namesByComputer.get(computerId) ?? new Map<string, string>();
-        return computerWorkspaceBadgeIdentity(session.workspace_id, names, {
-          isRemote: isRemoteComputerId(computerId),
-        });
-      }
-    : undefined;
+  const badgeOf = allProjects ? pinnedBadgeResolver(aggregated.namesByComputer) : undefined;
 
   return {
     sessions: aggregated.sessions,
@@ -334,7 +335,7 @@ export function useMultiComputerPinned(options: {
     failed: aggregated.failed,
     more: aggregated.more,
     retry: retryAll,
-    reorder: singleSource ? reorder : undefined,
+    reorder,
     catalog: {
       sessions: aggregated.sessions,
       paging: aggregated.paging,

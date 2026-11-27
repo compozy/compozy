@@ -39,9 +39,7 @@ export function SessionListGroupSignal({
   const scope = group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
   return (
     <>
-      {scope ? (
-        <AlwaysOnCollapsedSignal computerId={group.computerId} workspaceId={scope} />
-      ) : null}
+      {scope ? <AlwaysOnCollapsedSignal computerId={group.computerId} workspaceId={scope} /> : null}
       {states ? <SessionGroupSignal group={group} /> : null}
     </>
   );

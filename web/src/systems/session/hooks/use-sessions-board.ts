@@ -1,4 +1,5 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useContext } from "react";
+import { QueryClientContext, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import type { ScopedComputerFailureItem } from "@/systems/computers";
@@ -20,7 +21,6 @@ import {
   sessionBoardPageOptions,
   sessionFacetsOptions,
 } from "../lib/session-catalog-options";
-import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import type { SessionRowComputerInfo } from "../lib/session-list-computer";
 import type { SessionListGroupSpec } from "../lib/session-list-groups";
 import {
@@ -32,6 +32,7 @@ import {
 } from "../lib/session-list-preferences";
 import { sessionListShelfFilters } from "../lib/session-list-shelf";
 import type { SessionListFilters } from "../types";
+import { readCachedOfflineRowsForComputer } from "./use-computer-sessions-sources";
 import { scopedCatalogFilters } from "./use-session-catalog";
 import { useSessionGroupFolds } from "./use-session-group-folds";
 import { useSessionListGroups } from "./use-session-list-groups";
@@ -122,6 +123,7 @@ export interface SessionsBoardView {
   failedComputers?: readonly ScopedComputerFailureItem[];
   /** True when at least one remote computer is enabled for this window (`F9`, `F13`). */
   hasRemoteComputers?: boolean;
+  writableComputers?: ReadonlySet<ComputerId>;
 }
 
 function useSessionsBoardPage(
@@ -130,6 +132,7 @@ function useSessionsBoardPage(
   computerId: ComputerId = LOCAL_COMPUTER_ID
 ): SessionsBoardPage {
   const page = useInfiniteQuery({ ...sessionBoardPageOptions(filters, computerId), enabled });
+  if (!enabled) return emptyBoardShelf();
   const failure: SessionsBoardFailure | null = !page.isError
     ? null
     : page.data === undefined
@@ -164,8 +167,10 @@ function useSessionsBoardPage(
 export function useSessionsBoardColumns(
   base: SessionListFilters,
   active: boolean,
-  computerId: ComputerId = LOCAL_COMPUTER_ID
+  computerId: ComputerId = LOCAL_COMPUTER_ID,
+  offline = false
 ): SessionsBoardColumnView[] {
+  const queryClient = useContext(QueryClientContext);
   const column = (id: SessionBoardColumnId): SessionListFilters => ({
     ...base,
     board_column: [id],
@@ -178,13 +183,16 @@ export function useSessionsBoardColumns(
   const done = useSessionsBoardPage(column("done"), active, computerId);
   const facets = useQuery({
     ...sessionFacetsOptions(base, computerId),
-    refetchInterval: SESSION_BOARD_REFETCH_MS,
+    ...(isRemoteComputerId(computerId) ? {} : { refetchInterval: SESSION_BOARD_REFETCH_MS }),
     enabled: active,
   });
-  const counts = facets.data?.facets.board;
+  const counts = active ? facets.data?.facets.board : undefined;
   const pages = { needs_you: needsYou, working, waiting, in_review: inReview, done };
   return SESSION_BOARD_COLUMNS.map(({ id, label }) => ({
     ...pages[id],
+    ...(offline
+      ? { sessions: readCachedOfflineRowsForComputer(queryClient, computerId, column(id)) }
+      : {}),
     id,
     label,
     count: counts?.[id],
@@ -231,10 +239,73 @@ function resolveBoardLanes(input: {
   if (!input.grouped) return null;
   return input.arrangedGroups.map(group => ({
     group,
-    filters: sessionCatalogScopedFilters(group.scope, input.shared, group.lens),
+    filters: scopedCatalogFilters(
+      group.scope,
+      input.shared,
+      group.lens,
+      group.computerId,
+      group.matchedWorkspaceIds
+    ).scoped,
     collapsed: input.folds.isCollapsed(group.key),
     onToggle: () => input.folds.toggle(group.key),
   }));
+}
+
+function resolveBoardRead(input: {
+  multi: MultiComputerBoardModel;
+  params: ProfileScopeParams;
+  registeredWorkspaces: ReturnType<typeof useActiveWorkspace>["registeredWorkspaces"];
+  scope: DataScope | null;
+  shared: SessionListFilters;
+  active: boolean;
+  grouped: boolean;
+}) {
+  const { multi, params, registeredWorkspaces, scope, shared, active, grouped } = input;
+  const targetComputerId: ComputerId = multi.scopedRemoteSource?.key ?? LOCAL_COMPUTER_ID;
+  const isRemoteScoped = isRemoteComputerId(targetComputerId);
+  const targetLens: ProfileScopeParams = isRemoteScoped ? { all_profiles: true } : params;
+  const targetWorkspaces = multi.scopedRemoteSource?.workspaces ?? registeredWorkspaces;
+  const matchedWorkspaceIds = multi.scopedRemoteSource?.matchedWorkspaceIds ?? null;
+  const { scoped: base, emptyRemoteMatch } = scopedCatalogFilters(
+    scope,
+    shared,
+    targetLens,
+    targetComputerId,
+    matchedWorkspaceIds
+  );
+
+  const banded = multi.computerBands !== null;
+  const togetherGrouped = multi.togetherLanes !== null;
+  const togetherFlat = multi.togetherColumns !== null;
+  const source = multi.scopedRemoteSource;
+  const canRead = active && !emptyRemoteMatch && (source === null || source.read === "ok");
+  const singleColumnsActive = canRead && !grouped && !banded && !togetherFlat;
+  const singleGroupingActive = canRead && grouped && !banded && !togetherGrouped;
+  const offlineColumns = active && !emptyRemoteMatch && !grouped && source?.read === "offline";
+  return {
+    targetComputerId,
+    isRemoteScoped,
+    targetLens,
+    targetWorkspaces,
+    matchedWorkspaceIds,
+    base,
+    emptyRemoteMatch,
+    banded,
+    togetherGrouped,
+    singleColumnsActive,
+    singleGroupingActive,
+    offlineColumns,
+  };
+}
+
+function resolveBoardShelf(
+  multi: SessionsBoardShelf | undefined,
+  single: SessionsBoardPage,
+  emptyRemoteMatch: boolean
+): SessionsBoardShelf {
+  if (multi) return multi;
+  if (emptyRemoteMatch) return emptyBoardShelf();
+  return { ...single, count: single.total };
 }
 
 /**
@@ -266,7 +337,10 @@ export function useSessionsBoard({
   const breadth = { allProjects: scope?.kind === "all", allProfiles: aggregate };
   const effectiveGroupBy = effectiveSessionListGroupBy(groupBy, breadth);
   const grouped = effectiveGroupBy !== "none";
-  const population = hideChildren ? { children: "exclude" as const } : {};
+  const population = {
+    children: hideChildren ? ("exclude" as const) : undefined,
+    subagents: "include" as const,
+  };
   const shared: SessionListFilters = {
     ...population,
     ...sessionListShelfFilters("active", showAutomation),
@@ -284,29 +358,27 @@ export function useSessionsBoard({
     enabled: active,
   });
 
-  const targetComputerId: ComputerId = multi.scopedRemoteSource?.key ?? LOCAL_COMPUTER_ID;
-  const isRemoteScoped = isRemoteComputerId(targetComputerId);
-  const targetLens: ProfileScopeParams = isRemoteScoped ? { all_profiles: true } : params;
-  const targetWorkspaces = multi.scopedRemoteSource
-    ? multi.scopedRemoteSource.workspaces
-    : registeredWorkspaces;
-  const matchedWorkspaceIds = multi.scopedRemoteSource?.matchedWorkspaceIds ?? null;
-  const { scoped: base, emptyRemoteMatch } = scopedCatalogFilters(
-    scope,
-    shared,
-    targetLens,
+  const {
     targetComputerId,
-    matchedWorkspaceIds
+    isRemoteScoped,
+    targetLens,
+    targetWorkspaces,
+    matchedWorkspaceIds,
+    base,
+    emptyRemoteMatch,
+    banded,
+    togetherGrouped,
+    singleColumnsActive,
+    singleGroupingActive,
+    offlineColumns,
+  } = resolveBoardRead({ multi, params, registeredWorkspaces, scope, shared, active, grouped });
+  const columns = useSessionsBoardColumns(
+    base,
+    singleColumnsActive,
+    targetComputerId,
+    offlineColumns
   );
 
-  const banded = multi.computerBands !== null;
-  const togetherGrouped = multi.togetherLanes !== null;
-  const togetherFlat = multi.togetherColumns !== null;
-  const singleColumnsActive = active && !grouped && !banded && !togetherFlat && !emptyRemoteMatch;
-  const columns = useSessionsBoardColumns(base, singleColumnsActive, targetComputerId);
-
-  const singleGroupingActive =
-    active && grouped && !banded && !togetherGrouped && !emptyRemoteMatch;
   const grouping = useSessionListGroups({
     groupBy: effectiveGroupBy,
     scope,
@@ -316,7 +388,7 @@ export function useSessionsBoard({
     showAutomation,
     enabled: singleGroupingActive,
     population,
-    refetchInterval: SESSION_BOARD_REFETCH_MS,
+    refetchInterval: isRemoteScoped ? undefined : SESSION_BOARD_REFETCH_MS,
     computerId: targetComputerId,
     matchedWorkspaceIds,
   });
@@ -370,8 +442,8 @@ export function useSessionsBoard({
     layoutError: singleGroupingActive ? arranged.loadError : undefined,
     groupBy: effectiveGroupBy,
     groupByOptions: availableSessionListGroupBys(breadth),
-    archive: multi.multiArchive ?? (emptyRemoteMatch ? emptyBoardShelf() : { ...archive, count: archive.total }),
-    later: multi.multiLater ?? (emptyRemoteMatch ? emptyBoardShelf() : { ...later, count: later.total }),
+    archive: resolveBoardShelf(multi.multiArchive, archive, emptyRemoteMatch),
+    later: resolveBoardShelf(multi.multiLater, later, emptyRemoteMatch),
     workspaceNameOf: multi.hasRemoteComputers
       ? multi.workspaceNameOf
       : session => (allProjects ? workspaceBadgeIdentity(session.workspace_id, names).name : null),
@@ -385,5 +457,6 @@ export function useSessionsBoard({
     computerBySessionId: multi.computerBySessionId,
     failedComputers: multi.failedComputers,
     hasRemoteComputers: multi.hasRemoteComputers,
+    writableComputers: multi.writableComputers,
   };
 }

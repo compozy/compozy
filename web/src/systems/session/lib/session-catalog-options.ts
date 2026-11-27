@@ -3,10 +3,14 @@ import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/co
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../adapters/session-catalog-api";
 import { fetchSessionFolders, type SessionLayoutScope } from "../adapters/session-folders-api";
 import { fetchWorkspaceLayout } from "../adapters/workspace-layout-api";
-import type { SessionListFilters } from "../types";
+import type { SessionCatalogPageResponse, SessionListFilters, SessionPayload } from "../types";
 import { sessionKeys } from "./query-keys";
 import { normalizeSessionListFilters } from "./session-list-query";
 import { withSessionsComputer } from "./session-row-ref";
+
+type OwnedCatalogPage = Omit<SessionCatalogPageResponse, "sessions"> & {
+  sessions: SessionPayload[];
+};
 
 export interface SessionCatalogCursor {
   cursor?: string;
@@ -28,7 +32,7 @@ export function sessionCatalogOptions(
   const keys = sessionKeys.forComputer(computerId);
   return infiniteQueryOptions({
     queryKey: keys.catalogPage(normalized),
-    queryFn: async ({ pageParam, signal }) => {
+    queryFn: async ({ pageParam, signal }): Promise<OwnedCatalogPage> => {
       const page = remote
         ? await fetchSessionCatalogPage(
             { ...normalized, cursor: pageParam.cursor },
@@ -82,7 +86,7 @@ export function sessionCatalogPageQueryOptions(
   const pageTag = cursor ? `cursor:${cursor}` : "first-page";
   return queryOptions({
     queryKey: [...keys.catalogPage(normalized), pageTag] as const,
-    queryFn: async ({ signal }) => {
+    queryFn: async ({ signal }): Promise<OwnedCatalogPage> => {
       const request = cursor ? { ...normalized, cursor } : normalized;
       const page = remote
         ? await fetchSessionCatalogPage(request, signal, computerId)
@@ -159,7 +163,7 @@ export function sessionBoardPageOptions(
   const keys = sessionKeys.forComputer(computerId);
   return infiniteQueryOptions({
     queryKey: [...keys.workspaceLists(normalized.workspace_id ?? ""), "board", normalized] as const,
-    queryFn: async ({ pageParam, signal }) => {
+    queryFn: async ({ pageParam, signal }): Promise<OwnedCatalogPage> => {
       const page = remote
         ? await fetchSessionCatalogPage({ ...normalized, cursor: pageParam }, signal, computerId)
         : await fetchSessionCatalogPage({ ...normalized, cursor: pageParam }, signal);

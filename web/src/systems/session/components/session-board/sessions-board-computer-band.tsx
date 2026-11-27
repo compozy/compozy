@@ -12,7 +12,11 @@ import {
 
 import { useSessionsBoardColumns } from "../../hooks/use-sessions-board";
 import type { SessionsBoardComputerBand } from "../../hooks/use-sessions-board-computers";
-import { SESSION_BOARD_COLUMNS, type SessionBoardColumnId, type SessionBoardPayload } from "../../lib/session-board-contract";
+import {
+  SESSION_BOARD_COLUMNS,
+  type SessionBoardColumnId,
+  type SessionBoardPayload,
+} from "../../lib/session-board-contract";
 import { AlwaysOnListTop } from "../always-on/always-on-list-top";
 import { SessionListComputerStateNotice } from "../session-list/session-list-computer-note";
 import { SessionsBoardColumnGlyph } from "./sessions-board-column-glyph";
@@ -68,7 +72,8 @@ function BandColumnsRow({
   const columns = useSessionsBoardColumns(
     band.baseFilters,
     band.source.read === "ok" && !band.emptyRemoteMatch,
-    band.source.key
+    band.source.key,
+    band.source.read === "offline" && !band.emptyRemoteMatch
   );
   return (
     <SessionsBoardColumnsRow
@@ -131,11 +136,24 @@ function BandBody({
       </div>
     );
   }
+  const localStrip = source.isLocal ? (
+    <AlwaysOnListTop
+      currentSessionId={row.currentSessionId}
+      groupBy="none"
+      onOpenSession={session => row.onOpen(session as SessionBoardPayload)}
+      surface="ring-canvas"
+      workspaceId={focusedWorkspaceId ?? null}
+    />
+  ) : null;
+
   if (source.read === "ok" && source.count === 0) {
     return (
-      <p className="m-0 pl-8 text-small-body text-muted-foreground">
-        No sessions on {source.name} yet.
-      </p>
+      <div className="pl-6">
+        {localStrip}
+        <p className="m-0 text-small-body text-muted-foreground">
+          No sessions on {source.name} yet.
+        </p>
+      </div>
     );
   }
 
@@ -160,15 +178,7 @@ function BandBody({
   }
   return (
     <div className={cn("flex flex-col gap-2 pl-6", dim)}>
-      {source.isLocal ? (
-        <AlwaysOnListTop
-          currentSessionId={row.currentSessionId}
-          groupBy="none"
-          onOpenSession={session => row.onOpen(session as SessionBoardPayload)}
-          surface="ring-canvas"
-          workspaceId={focusedWorkspaceId ?? null}
-        />
-      ) : null}
+      {localStrip}
       <BandColumnsRow band={band} rank={rank} row={row} />
     </div>
   );

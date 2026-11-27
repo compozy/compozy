@@ -5,11 +5,7 @@ import { LOCAL_COMPUTER_ID, normalizeComputerId, type ComputerId } from "@/lib/c
 
 import { placeId } from "../lib/session-folders";
 import { sessionAdoptRefusal } from "../lib/session-reparent";
-import {
-  sessionComputerOf,
-  sessionDragComputerStore,
-  sessionRowKey,
-} from "../lib/session-row-ref";
+import { sessionComputerOf, sessionDragComputerStore, sessionRowKey } from "../lib/session-row-ref";
 import type { SessionPayload } from "../types";
 import type { SessionListLayout } from "./use-session-folders";
 
@@ -382,6 +378,7 @@ export function sessionRowNestTarget(
 ): SessionRowNestTarget | undefined {
   if (!onAdopt) return undefined;
   const targetComputer = sessionComputerOf(target);
+  if (targetComputer !== "local") return undefined;
   return {
     accepts: sourceKey => {
       const source = roots.get(sourceKey);

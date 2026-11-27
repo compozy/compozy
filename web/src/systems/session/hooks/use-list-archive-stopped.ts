@@ -1,3 +1,4 @@
+import type { ComputerSessionsSource } from "./use-computer-sessions-sources";
 import { USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 import type { ArchiveStoppedScope } from "../adapters/session-archive-api";
@@ -10,16 +11,30 @@ import type { SessionListViewModel } from "./use-session-list-view";
  */
 export function useListArchiveStopped(
   view: SessionListViewModel,
-  options: { disabled?: boolean } = {}
+  options: { disabled?: boolean; source?: ComputerSessionsSource | null } = {}
 ) {
-  const profile = view.scopeLabel;
-  const stopped = useArchiveStopped(profile ?? "", view.computerId);
+  const source = options.source;
+  const names = source?.profiles?.filter(profile => !profile.archived);
+  const profile = source ? (names?.length === 1 ? names[0]!.name : null) : view.scopeLabel;
+  const stopped = useArchiveStopped(profile ?? "", source?.key ?? view.computerId);
+  const matched = source?.matchedWorkspaceIds;
+  const workspaceId = source
+    ? matched?.length === 1
+      ? matched[0]
+      : undefined
+    : view.focusedWorkspaceId;
   const scope: ArchiveStoppedScope | null = view.allProjects
     ? { kind: "all" }
-    : view.focusedWorkspaceId && view.focusedWorkspaceId !== USER_SCOPE_SELECTOR
-      ? { kind: "project", workspaceId: view.focusedWorkspaceId }
+    : workspaceId && workspaceId !== USER_SCOPE_SELECTOR
+      ? { kind: "project", workspaceId }
       : null;
-  if (options.disabled || profile === null || scope === null || view.shelf !== "active") {
+  if (
+    options.disabled ||
+    (source && !source.canOperate) ||
+    profile === null ||
+    scope === null ||
+    view.shelf !== "active"
+  ) {
     return undefined;
   }
   return {

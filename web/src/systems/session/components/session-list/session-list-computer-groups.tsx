@@ -1,4 +1,4 @@
-import { QueryClientContext, useQueries } from "@tanstack/react-query";
+import { QueryClientContext, useQueries, type QueryClient } from "@tanstack/react-query";
 import { use, useContext, useState } from "react";
 
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
@@ -29,7 +29,7 @@ import {
   type TogetherFlatPageEntry,
 } from "../../lib/session-list-together";
 import { sessionComputerOf } from "../../lib/session-row-ref";
-import type { SessionListFilters, SessionPayload } from "../../types";
+import type { SessionCatalogPageResponse, SessionListFilters, SessionPayload } from "../../types";
 import type { GroupRowProps } from "./session-list-group-body";
 import { SessionListGroupSection } from "./session-list-groups";
 import { SessionListRemoteFooter } from "./session-list-remote-body";
@@ -100,7 +100,30 @@ function TogetherGroupList({
   const { view } = props;
   const sourcesById = new Map(sources.map(source => [source.key, source]));
   const connecting = sources.filter(source => source.read === "connecting");
-  const failed = sources.filter(source => source.read === "failed");
+  const failed = sources.flatMap(source => {
+    const failedPages = slots.flatMap((slot, index) =>
+      slot.source.key === source.key &&
+      source.read === "ok" &&
+      scope !== null &&
+      !slot.emptyRemoteMatch &&
+      queries[index]?.isError
+        ? [queries[index]!]
+        : []
+    );
+    if (failedPages.length === 0 && source.read !== "failed") return [];
+    return [
+      {
+        id: source.key,
+        name: source.name,
+        retry:
+          failedPages.length > 0
+            ? () => {
+                for (const page of failedPages) void page.refetch();
+              }
+            : source.retry,
+      },
+    ];
+  });
 
   return (
     <div className="flex flex-col gap-1" data-testid={`${props.testIdPrefix}-together-groups`}>
@@ -132,11 +155,7 @@ function TogetherGroupList({
         </p>
       ) : null}
       <SessionListRemoteFooter
-        failedComputers={failed.map(source => ({
-          id: source.key,
-          name: source.name,
-          retry: source.retry,
-        }))}
+        failedComputers={failed}
         hasMore={false}
         loadingComputers={connecting.map(source => ({ id: source.key, name: source.name }))}
         loadingMore={false}
@@ -194,6 +213,120 @@ function buildTogetherPageSlots(
   return slots;
 }
 
+interface TogetherPageResult {
+  data?: SessionCatalogPageResponse;
+  isLoading: boolean;
+  isError: boolean;
+  refetch: () => Promise<unknown>;
+}
+
+function togetherFlatPages(
+  querySpecs: readonly TogetherSourceSpec[],
+  slots: readonly TogetherPageSlot[],
+  queries: readonly TogetherPageResult[],
+  queryClient: QueryClient | undefined,
+  scope: DataScope | null
+) {
+  const buckets = querySpecs.map(spec => ({
+    source: spec.source,
+    sessions: [] as SessionPayload[],
+    seen: new Set<string>(),
+    hasMore: false,
+    nextCursor: null as string | null,
+    filters: spec.filters,
+    skip: spec.emptyRemoteMatch,
+  }));
+  let loadingMore = false;
+  let initialLoading = false;
+
+  for (let index = 0; index < slots.length; index++) {
+    const slot = slots[index]!;
+    const bucket = buckets[slot.sourceIndex]!;
+    const query = queries[index];
+    if (slot.emptyRemoteMatch || slot.source.read !== "ok" || scope === null) continue;
+    if (query?.isLoading) {
+      if (slot.cursor) loadingMore = true;
+      else initialLoading = true;
+    }
+    const page = query?.data;
+    if (!page) continue;
+    for (const session of page.sessions) {
+      if (bucket.seen.has(session.id)) continue;
+      bucket.seen.add(session.id);
+      bucket.sessions.push(session);
+    }
+    bucket.hasMore = page.page.has_more;
+    bucket.nextCursor = page.page.next_cursor ?? null;
+  }
+
+  const entries: TogetherFlatPageEntry[] = buckets.map(bucket => {
+    if (bucket.source.read === "offline" && !bucket.skip && scope !== null) {
+      const offlineRows = readCachedOfflineRowsForComputer(
+        queryClient,
+        bucket.source.key,
+        bucket.filters
+      );
+      return { source: bucket.source, sessions: offlineRows, hasMore: false, nextCursor: null };
+    }
+    return {
+      source: bucket.source,
+      sessions: bucket.sessions,
+      hasMore: bucket.hasMore,
+      nextCursor: bucket.nextCursor,
+    };
+  });
+
+  return { entries, loadingMore, initialLoading };
+}
+
+function togetherFlatFailures(
+  sources: readonly ComputerSessionsSource[],
+  slots: readonly TogetherPageSlot[],
+  queries: readonly TogetherPageResult[],
+  scope: DataScope | null
+) {
+  return sources.flatMap(source => {
+    const failedPages = slots.flatMap((slot, index) =>
+      slot.source.key === source.key &&
+      source.read === "ok" &&
+      scope !== null &&
+      !slot.emptyRemoteMatch &&
+      queries[index]?.isError
+        ? [queries[index]!]
+        : []
+    );
+    if (failedPages.length === 0 && source.read !== "failed") return [];
+    return [
+      {
+        id: source.key,
+        name: source.name,
+        retry:
+          failedPages.length > 0
+            ? () => {
+                for (const page of failedPages) void page.refetch();
+              }
+            : source.retry,
+      },
+    ];
+  });
+}
+
+function togetherBadgeResolver(answeredSources: readonly ComputerSessionsSource[]) {
+  const namesByComputer = new Map<ComputerId, ReadonlyMap<string, string>>(
+    answeredSources.map(source => [
+      source.key,
+      new Map(source.workspaces.map(workspace => [workspace.id, workspace.name])),
+    ])
+  );
+  return (session: SessionPayload) => {
+    const computerId = sessionComputerOf(session) ?? LOCAL_COMPUTER_ID;
+    const names = namesByComputer.get(computerId) ?? new Map<string, string>();
+    return computerWorkspaceBadgeIdentity(session.workspace_id, names, {
+      isRemote: isRemoteComputerId(computerId),
+    });
+  };
+}
+
 /**
  * Together + None (`F6`, `O1`, `O2`, `S10`): one merged flat list across answered computers,
  * ordered by the window sort with remote computer labels and per-computer project badges.
@@ -242,85 +375,41 @@ export function SessionListTogetherFlatBody({
     })),
   });
 
-  const searchText = view.groupFilters.q ?? "";
-  const buckets = querySpecs.map(spec => ({
-    source: spec.source,
-    sessions: [] as SessionPayload[],
-    seen: new Set<string>(),
-    hasMore: false,
-    nextCursor: null as string | null,
-  }));
-  let loadingMore = false;
-  let initialLoading = false;
-
-  for (let index = 0; index < slots.length; index++) {
-    const slot = slots[index]!;
-    const bucket = buckets[slot.sourceIndex]!;
-    const query = queries[index];
-    if (slot.emptyRemoteMatch || slot.source.read === "offline") continue;
-    if (query?.isLoading) {
-      if (slot.cursor) loadingMore = true;
-      else initialLoading = true;
-    }
-    const page = query?.data;
-    if (!page) continue;
-    for (const session of page.sessions) {
-      if (bucket.seen.has(session.id)) continue;
-      bucket.seen.add(session.id);
-      bucket.sessions.push(session);
-    }
-    bucket.hasMore = page.page.has_more;
-    bucket.nextCursor = page.page.next_cursor ?? null;
-  }
-
-  const entries: TogetherFlatPageEntry[] = buckets.map(bucket => {
-    if (bucket.source.read === "offline") {
-      const offlineRows = readCachedOfflineRowsForComputer(
-        queryClient,
-        bucket.source.key,
-        searchText
-      );
-      return { source: bucket.source, sessions: offlineRows, hasMore: false, nextCursor: null };
-    }
-    return {
-      source: bucket.source,
-      sessions: bucket.sessions,
-      hasMore: bucket.hasMore,
-      nextCursor: bucket.nextCursor,
-    };
-  });
+  const { entries, loadingMore, initialLoading } = togetherFlatPages(
+    querySpecs,
+    slots,
+    queries,
+    queryClient,
+    scope
+  );
 
   const merged = mergeTogetherFlatRows(entries, view.sort);
   const mergedSessions = merged.map(row => row.session);
+  const writable = new Set(sources.flatMap(source => (source.canOperate ? [source.key] : [])));
+  const selectable = merged.flatMap(row => (writable.has(row.computerId) ? [row.session] : []));
+  const selectionThreads = buildSessionListThreads(selectable, "");
   const threads = buildSessionListThreads(mergedSessions, "");
   const groupSelection = use(SessionListGroupSelectionContext);
   usePublishSessionListGroupRows(groupSelection?.rows, "together-flat", {
     rank: "0000",
-    sessions: mergedSessions,
-    visibleOrder: threadVisibleOrder(threads, rows.collapsedThreads),
+    sessions: selectable,
+    visibleOrder: threadVisibleOrder(selectionThreads, rows.collapsedThreads),
     pair: null,
   });
 
   const computerMap = buildTogetherComputerMap(entries);
-  const namesByComputer = new Map<ComputerId, ReadonlyMap<string, string>>(
-    answeredSources.map(source => [
-      source.key,
-      new Map(source.workspaces.map(workspace => [workspace.id, workspace.name])),
-    ])
-  );
-  const badgeOf = view.allProjects
-    ? (session: SessionPayload) => {
-        const computerId = sessionComputerOf(session) ?? LOCAL_COMPUTER_ID;
-        const names = namesByComputer.get(computerId) ?? new Map<string, string>();
-        return computerWorkspaceBadgeIdentity(session.workspace_id, names, {
-          isRemote: isRemoteComputerId(computerId),
-        });
-      }
-    : undefined;
+  const badgeOf = view.allProjects ? togetherBadgeResolver(answeredSources) : undefined;
 
-  const nextToLoad = selectNextTogetherComputer(entries);
+  const nextToLoad = selectNextTogetherComputer(entries, view.sort);
   const handleLoadMore = () => {
     if (!nextToLoad?.nextCursor || loadingMore) return;
+    const continuation = slots.findIndex(
+      slot => slot.source.key === nextToLoad.computerId && slot.cursor === nextToLoad.nextCursor
+    );
+    if (continuation !== -1 && queries[continuation]?.isError) {
+      void queries[continuation]?.refetch();
+      return;
+    }
     setCursorState(previous => {
       const base = previous.key === filterSignature ? previous.byComputer : {};
       const existing = base[nextToLoad.computerId] ?? [];
@@ -336,7 +425,7 @@ export function SessionListTogetherFlatBody({
   };
 
   const connecting = sources.filter(source => source.read === "connecting");
-  const failed = sources.filter(source => source.read === "failed");
+  const failed = togetherFlatFailures(sources, slots, queries, scope);
 
   if (initialLoading && merged.length === 0) return <SessionListSkeleton />;
 
@@ -348,10 +437,7 @@ export function SessionListTogetherFlatBody({
             collapsedThreads={rows.collapsedThreads}
             currentSessionId={rows.currentSessionId}
             emptyMessage={connecting.length === 0 && failed.length === 0 ? emptyMessage : null}
-            onSelectSession={session => {
-              const computerId = sessionComputerOf(session);
-              rows.onSelectSession(isRemoteComputerId(computerId) ? { ...session, computerId } : session);
-            }}
+            onSelectSession={rows.onSelectSession}
             onThreadBranchChange={rows.onThreadBranchChange}
             ownerOf={view.aggregate ? view.ownerOf : undefined}
             selection={selection}
@@ -363,15 +449,11 @@ export function SessionListTogetherFlatBody({
         </SessionListBadgeContext>
       </SessionListComputerContext>
       <SessionListRemoteFooter
-        failedComputers={failed.map(source => ({
-          id: source.key,
-          name: source.name,
-          retry: source.retry,
-        }))}
+        failedComputers={failed}
         hasMore={nextToLoad !== null}
         loadingComputers={connecting.map(source => ({ id: source.key, name: source.name }))}
         loadingMore={loadingMore}
-        nextComputerName={nextToLoad?.computerName}
+        loadMoreLabel={nextToLoad ? `Load more from ${nextToLoad.computerName}` : undefined}
         onLoadMore={handleLoadMore}
         testIdPrefix={rows.testIdPrefix}
       />

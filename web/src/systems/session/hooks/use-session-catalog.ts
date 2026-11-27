@@ -91,7 +91,7 @@ export function useSessionCatalog(
     enabled: active && withFacets,
   });
   const catalog = sessionCatalogPageView(page);
-  if (emptyRemoteMatch) {
+  if (!active) {
     return {
       ...catalog,
       sessions: [],
@@ -105,12 +105,15 @@ export function useSessionCatalog(
       previous: false,
       paging: false,
       facets: undefined,
+      retry: () => undefined,
+      nextPage: () => undefined,
+      previousPage: () => undefined,
     };
   }
   return {
     ...catalog,
-    facets: facets.data?.facets,
-    total: facets.data?.facets.all ?? catalog.total,
+    facets: withFacets ? facets.data?.facets : undefined,
+    total: (withFacets ? facets.data?.facets.all : undefined) ?? catalog.total,
     failed: page.isError || (withFacets && facets.isError),
     retry: () => {
       void page.refetch();

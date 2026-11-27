@@ -99,7 +99,7 @@ function SessionListThreadView({
           // and a child row lifts for its own live subagents (the row view's default).
           descendantsRunning={hasRunningDescendant(session, childSessions)}
           owner={owner}
-          current={session.id === currentSessionId}
+          current={sessionRowKeyFor(session) === currentSessionId}
           onSelect={() => onSelectSession(session)}
           selection={selection}
           sessionActions={sessionActions}
@@ -128,7 +128,7 @@ function SessionListThreadView({
                   // A child in its root's profile repeats nothing; only a different owner is tagged.
                   owner={childOwner && childOwner.id !== owner?.id ? childOwner : undefined}
                   inheritsProject={(child.workspace_id ?? "") === (session.workspace_id ?? "")}
-                  current={child.id === currentSessionId}
+                  current={sessionRowKeyFor(child) === currentSessionId}
                   onSelect={() => onSelectSession(child)}
                   selection={selection}
                   sessionActions={sessionActions}
@@ -167,7 +167,7 @@ function SessionListThreadView({
                     {...layoutFor?.(child)}
                     session={child}
                     inheritsProject={(child.workspace_id ?? "") === (session.workspace_id ?? "")}
-                    current={child.id === currentSessionId}
+                    current={sessionRowKeyFor(child) === currentSessionId}
                     onSelect={() => onSelectSession(child)}
                     selection={selection}
                     sessionActions={sessionActions}

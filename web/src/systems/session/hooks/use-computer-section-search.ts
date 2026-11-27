@@ -31,7 +31,13 @@ function searchProbeFilters(input: {
   localLens: ProfileScopeParams;
 }): { filters: SessionListFilters; skip: boolean } {
   const { source, scope, search, shelf, showAutomation, worktreeId, localLens } = input;
-  const population = buildComputerPopulationFilters({ shelf, showAutomation, search, worktreeId });
+  const population = buildComputerPopulationFilters({
+    shelf,
+    showAutomation,
+    search,
+    worktreeId,
+    excludePinned: true,
+  });
   const base: SessionListFilters = { ...population, q: search.trim(), skip_total: false };
   if (source.isLocal) {
     return {
@@ -94,12 +100,14 @@ export function useComputerSectionSearch(input: {
     };
   }
   if (input.source.read === "offline") {
-    const matches = readCachedOfflineRowsForComputer(contextClient, input.source.key, input.search);
+    const matches = probe.skip
+      ? []
+      : readCachedOfflineRowsForComputer(contextClient, input.source.key, probe.filters);
     return { hidden: matches.length === 0, headerCount: matches.length };
   }
   if (input.source.read === "ok") {
     if (probe.skip) return { hidden: true, headerCount: 0 };
-    if (searchQuery.data !== undefined) {
+    if (onlineSearchEnabled && searchQuery.data !== undefined) {
       const matched = searchQuery.data.page.total ?? searchQuery.data.sessions.length;
       return { hidden: matched === 0, headerCount: matched };
     }

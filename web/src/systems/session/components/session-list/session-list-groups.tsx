@@ -36,8 +36,7 @@ export function SessionListGroupSection({
 }) {
   const { view, testIdPrefix } = props;
   const collapsed = view.collapsedGroupKeys.has(group.key);
-  const alwaysOnScope =
-    group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
+  const alwaysOnScope = group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
   return (
     <section data-collapsed={collapsed ? "true" : undefined} data-group-key={group.key}>
       <SessionListGroupHeader

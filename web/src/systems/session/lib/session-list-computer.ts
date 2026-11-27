@@ -14,6 +14,7 @@ export interface SessionRowComputerInfo {
   platform: ComputerPlatform;
   iconKind: ComputerIconKind;
   offline: boolean;
+  canOperate?: boolean;
 }
 
 /**
@@ -22,6 +23,10 @@ export interface SessionRowComputerInfo {
  * Keys use `sessionRowKey({ computerId, sessionId })` (with a bare `sessionId` fallback for
  * prototype fixtures). Local rows are absent so they render no computer label (`_uiux.md` U5).
  */
+export const SessionWritableComputersContext = createContext<ReadonlySet<ComputerId> | undefined>(
+  undefined
+);
+
 export const SessionListComputerContext = createContext<
   ReadonlyMap<string, SessionRowComputerInfo> | undefined
 >(undefined);
@@ -35,7 +40,7 @@ export function lookupSessionComputer(
   if (!map) return undefined;
   if (computerId !== undefined) {
     if (!isRemoteComputerId(computerId)) return undefined;
-    return map.get(sessionRowKey({ computerId, sessionId })) ?? map.get(sessionId);
+    return map.get(sessionRowKey({ computerId, sessionId }));
   }
   return map.get(sessionId);
 }

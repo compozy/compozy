@@ -2,7 +2,6 @@ import { ChevronRight } from "@compozy/ui/icons";
 
 import { Icon, StatusDot, cn } from "@compozy/ui";
 
-import { isRemoteComputerId } from "@/lib/computer-scope";
 import { ComputerMark } from "@/systems/computers";
 import { openContextMenuFromKeyboard } from "@/systems/os";
 
@@ -59,7 +58,8 @@ export function SessionsBoardSwimlane({
   const columns = useSessionsBoardColumns(
     lane.filters,
     open && lane.group.offline !== true,
-    computerId
+    computerId,
+    open && lane.group.offline === true
   );
   const name = laneName(lane);
   const testId = `sessions-board-lane-${lane.group.key}`;

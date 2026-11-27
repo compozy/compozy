@@ -87,7 +87,6 @@ function projectRemoteFanout(
       sessionRowKey({ computerId: row.computerId, sessionId: row.session.id }),
       info
     );
-    computerBySessionId.set(row.session.id, info);
   }
 
   return { remoteSessions, computerBySessionId, loadingComputers, failedComputers };

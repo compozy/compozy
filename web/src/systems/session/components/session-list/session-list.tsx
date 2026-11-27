@@ -123,7 +123,10 @@ function resolveToolbarNewFolder(input: {
     openProjectFolder,
   } = input;
   if (multiComputerVisible) {
-    return { onNewFolder: undefined, newFolderUnavailable: SESSION_LIST_NEW_FOLDER_MULTI_COMPUTER_NOTE };
+    return {
+      onNewFolder: undefined,
+      newFolderUnavailable: SESSION_LIST_NEW_FOLDER_MULTI_COMPUTER_NOTE,
+    };
   }
   if (scopedRemoteSource) {
     const operable = scopedRemoteSource.canOperate && scopedRemoteSource.read === "ok";
@@ -145,10 +148,7 @@ function resolveToolbarNewFolder(input: {
   return { onNewFolder, newFolderUnavailable: onNewFolder ? null : view.newFolderUnavailable };
 }
 
-function resolveScopeNotice(
-  multi: MultiComputerListState | null,
-  testIdPrefix: string
-): ReactNode {
+function resolveScopeNotice(multi: MultiComputerListState | null, testIdPrefix: string): ReactNode {
   if (!multi) return null;
   if (multi.computerScopeState.removedName) {
     return (
@@ -272,17 +272,9 @@ function SessionListCore({
     sessionActions,
   });
 
-  const toolbarNewSession = () => {
-    if (scopedRemoteSource) {
-      onNewSession({ computerId: scopedRemoteSource.key });
-      return;
-    }
-    if (isScopedToLocal) {
-      onNewSession({ computerId: LOCAL_COMPUTER_ID });
-      return;
-    }
-    onNewSession();
-  };
+  const toolbarComputer =
+    scopedRemoteSource?.key ?? (isScopedToLocal ? LOCAL_COMPUTER_ID : undefined);
+  const toolbarNewSession = () => openToolbarSession(onNewSession, toolbarComputer);
 
   const toolbarNewFolder = resolveToolbarNewFolder({
     multiComputerVisible,
@@ -299,16 +291,11 @@ function SessionListCore({
       ? { value: computersLayout, onValueChange: view.setComputers }
       : undefined;
 
-  const effectiveTotals = multiComputerVisible
-    ? (aggregateSourcesTotals(multi!.computerSources.sources, view.shelf) ?? view.totals)
-    : scopedRemoteSource
-      ? aggregateSourcesTotals([scopedRemoteSource], view.shelf)
-      : view.totals;
-  const effectiveLaterCount = multiComputerVisible
-    ? (aggregateLaterCount(multi!.computerSources.sources) ?? view.laterCount)
-    : scopedRemoteSource
-      ? scopedRemoteSource.laterCount
-      : view.laterCount;
+  const { effectiveTotals, effectiveLaterCount } = listComputerCounts(
+    view,
+    multi,
+    scopedRemoteSource
+  );
 
   const showAlwaysOnTop =
     !scopedRemoteSource && (!multiComputerVisible || computersLayout === "together");
@@ -328,7 +315,8 @@ function SessionListCore({
           </span>
           {header?.(visibleCount)}
           <SessionListControls
-            archiveStoppedDisabled={isRemoteOrMulti}
+            archiveStoppedDisabled={multiComputerVisible}
+            archiveStoppedSource={scopedRemoteSource}
             bulk={bulk}
             computerLayout={computerLayoutOption}
             disableAlwaysOnCreate={isRemoteOrMulti}
@@ -425,6 +413,32 @@ function SessionListCore({
       </SessionListSubagentActionsHost>
     </SessionMenuOpenContext>
   );
+}
+
+function openToolbarSession(
+  open: SessionListProps["onNewSession"],
+  computerId: ComputerSessionsSource["key"] | undefined
+) {
+  if (computerId) open({ computerId });
+  else open();
+}
+
+function listComputerCounts(
+  view: SessionListViewModel,
+  multi: MultiComputerListState | null,
+  scoped: ComputerSessionsSource | null
+) {
+  if (multi?.multiComputerVisible) {
+    const { sources } = multi.computerSources;
+    return {
+      effectiveTotals: aggregateSourcesTotals(sources, view.shelf) ?? view.totals,
+      effectiveLaterCount: aggregateLaterCount(sources) ?? view.laterCount,
+    };
+  }
+  return {
+    effectiveTotals: scoped ? aggregateSourcesTotals([scoped], view.shelf) : view.totals,
+    effectiveLaterCount: scoped?.laterCount ?? view.laterCount,
+  };
 }
 
 function SessionListLocalDialogs({

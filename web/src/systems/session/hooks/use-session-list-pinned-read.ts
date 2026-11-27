@@ -19,7 +19,10 @@ export interface SessionListPinnedRead {
   more: boolean;
   retry: () => void;
   /** The read's own paging (by pin), independent of the list's pages. */
-  catalog?: ReturnType<typeof useSessionCatalog>;
+  catalog?: Pick<
+    ReturnType<typeof useSessionCatalog>,
+    "sessions" | "paging" | "previous" | "next" | "failed" | "previousPage" | "nextPage" | "retry"
+  >;
   partitions?: SessionListPartitions;
   folderOf?: ReadonlyMap<string, string | null>;
   /**

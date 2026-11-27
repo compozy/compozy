@@ -1,5 +1,6 @@
 import { Button } from "@compozy/ui";
 
+import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
 import { useListArchiveStopped } from "../../hooks/use-list-archive-stopped";
 import type { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
@@ -18,6 +19,7 @@ export function SessionListControls({
   computerLayout,
   laterCount,
   archiveStoppedDisabled = false,
+  archiveStoppedSource,
   disableAlwaysOnCreate = false,
   testIdPrefix,
 }: {
@@ -29,10 +31,14 @@ export function SessionListControls({
   computerLayout?: SessionViewOptionsMenuProps["computerLayout"];
   laterCount?: number;
   archiveStoppedDisabled?: boolean;
+  archiveStoppedSource?: ComputerSessionsSource | null;
   disableAlwaysOnCreate?: boolean;
   testIdPrefix: string;
 }) {
-  const archiveStopped = useListArchiveStopped(view, { disabled: archiveStoppedDisabled });
+  const archiveStopped = useListArchiveStopped(view, {
+    disabled: archiveStoppedDisabled,
+    source: archiveStoppedSource,
+  });
   return bulk.active ? (
     <SessionListSelectionBar {...bulk.bar} testIdPrefix={testIdPrefix} />
   ) : (

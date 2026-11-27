@@ -18,10 +18,7 @@ import { SessionListPinnedSectionContext } from "../../lib/session-list-pinned";
 import { sessionWaitingOn } from "../../lib/session-pull-request";
 import type { RowMeta } from "../../lib/session-row-meta";
 import { hasRunningDescendant } from "../../lib/session-running";
-import {
-  sessionCheckboxGesture,
-  sessionSelectionGesture,
-} from "../../lib/session-selection-gesture";
+import { sessionCheckboxGesture } from "../../lib/session-selection-gesture";
 import { sessionIsUnrestricted } from "../../lib/session-unrestricted";
 import type { SessionPayload } from "../../types";
 import { SessionBadgeMark } from "../session-badge-mark";
@@ -226,18 +223,6 @@ function badgeMarkClass(selection: SessionRowSelection | undefined): string | un
     "transition-opacity duration-fast motion-reduce:transition-none group-hover/session-row:opacity-0 group-focus-within/session-row:opacity-0",
     selection.mode && "opacity-0"
   );
-}
-
-export function activateSessionRow(
-  event: React.MouseEvent<HTMLElement>,
-  sessionId: string,
-  selection: SessionRowSelection | undefined,
-  onSelect: () => void
-) {
-  const gesture = selection ? sessionSelectionGesture(event, selection.mode) : "open";
-  if (gesture === "range") selection?.toggleRange(sessionId);
-  else if (gesture === "toggle") selection?.toggle(sessionId);
-  else onSelect();
 }
 
 export function SessionRowCheckbox({

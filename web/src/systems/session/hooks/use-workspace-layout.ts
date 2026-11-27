@@ -215,11 +215,10 @@ export function useProjectFolderGroups(options: {
   const { groupBy, breadth, lens, showEmptyProjects: showEmpty } = options;
   const projectGrouping = groupBy === "project" && breadth.allProjects;
   // Project folders belong to one profile and arrange the project groups of All projects.
-  // Remote computers read all profiles on their own daemon, whose default profile owns layout writes.
-  const applies =
-    projectGrouping && ("profile" in lens || isRemoteComputerId(options.computerId));
+  // The remote default profile owns project folder layout under its aggregate lens.
+  const applies = projectGrouping && ("profile" in lens || isRemoteComputerId(options.computerId));
   const { layout, loadError } = useWorkspaceLayout({
-    profile: "profile" in lens ? lens.profile : "",
+    profile: "profile" in lens ? lens.profile : "default",
     enabled: options.enabled && applies,
     computerId: options.computerId,
   });
@@ -228,6 +227,7 @@ export function useProjectFolderGroups(options: {
       ? projectGroupsForView(options.groups, {
           showEmpty,
           workspaces: options.workspaces,
+          computerId: options.computerId,
           lens,
           placements,
         })

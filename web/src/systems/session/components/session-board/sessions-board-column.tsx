@@ -3,6 +3,8 @@ import { use, useId, useRef } from "react";
 
 import { Alert, AlertActions, AlertDescription, Button, Spinner } from "@compozy/ui";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
+import { SessionWritableComputersContext } from "../../lib/session-list-computer";
 import { cn } from "@/lib/utils";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
@@ -105,14 +107,19 @@ export function SessionsBoardColumn({
   const count = column.count;
   const label = regionPrefix ? `${regionPrefix}, ${column.label}` : column.label;
   // A folded column keeps its selected cards, counted as hidden: they leave only the order.
-  const shownIds = collapsed ? [] : column.sessions.map(session => sessionRowKeyFor(session));
+  const writable = use(SessionWritableComputersContext);
+  const eligible = column.sessions.filter(session => {
+    const computerId = sessionComputerOf(session);
+    return !isRemoteComputerId(computerId) || writable === undefined || writable.has(computerId);
+  });
+  const shownIds = collapsed ? [] : eligible.map(session => sessionRowKeyFor(session));
   const rows = use(SessionsBoardRowsStoreContext);
   usePublishSessionListGroupRows(
     selectionRows && rows ? rows : undefined,
     selectionRows?.key ?? column.id,
     {
       rank: selectionRows?.rank ?? "",
-      sessions: column.sessions,
+      sessions: eligible,
       visibleOrder: shownIds,
       // Folder moves resolve each selected session's own pair (`useSessionsBoardSelection`).
       pair: null,
@@ -303,7 +310,7 @@ function SessionsBoardColumnBody({
             <BoardCard
               actions={actions}
               computerId={computerId}
-              current={session.id === currentSessionId}
+              current={sessionRowKeyFor(session) === currentSessionId}
               key={sessionRowKeyFor(session, computerId)}
               onOpen={onOpen}
               session={session}

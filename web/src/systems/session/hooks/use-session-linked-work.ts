@@ -159,7 +159,9 @@ export function useSessionLinkedWork({
 }: UseSessionLinkedWorkInput): SessionLinkedWorkModel {
   const [clipped, setClipped] = useState(false);
   const currentComputerId = useCurrentComputerId();
-  const computerId = normalizeComputerId(computerIdOverride ?? session.computerId ?? currentComputerId);
+  const computerId = normalizeComputerId(
+    computerIdOverride ?? session.computerId ?? currentComputerId
+  );
   const list = useQuery({
     ...sessionLinkedWorkOptions(workspaceId, session.id, computerId),
     // A window that isn't live still shows the whole list; it just stops rereading it.

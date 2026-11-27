@@ -18,6 +18,7 @@ export function useSessionListComputers(view: SessionListViewModel) {
   const [reconnectingScoped, setReconnectingScoped] = useState(false);
   const { dataScope, registeredWorkspaces } = useActiveWorkspace();
   const profile = useProfileReadScope();
+  const computerScopeState = useSessionComputerScope();
 
   const computerSources = useComputerSessionsSources({
     scope: dataScope,
@@ -26,10 +27,9 @@ export function useSessionListComputers(view: SessionListViewModel) {
     showAutomation: view.showAutomation,
     search: view.groupFilters.q,
     worktreeId: view.worktreeId,
-    includeProfiles: view.groupBy === "profile",
+    includeProfiles: view.groupBy === "profile" || isRemoteComputerId(computerScopeState.scope),
     workspaces: registeredWorkspaces,
   });
-  const computerScopeState = useSessionComputerScope();
   const hasRemote = computerSources.hasRemoteComputers;
   const effectiveComputerScope = hasRemote ? computerScopeState.scope : "all";
   const isScopedToLocal = hasRemote && effectiveComputerScope === LOCAL_COMPUTER_ID;

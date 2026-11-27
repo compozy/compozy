@@ -147,7 +147,8 @@ export function useSessionsBoardShelfSelection(
   return {
     open,
     toggle: () => {
-      if (open) store?.trigger.deselect({ ids: sessions.map(session => sessionRowKeyFor(session)) });
+      if (open)
+        store?.trigger.deselect({ ids: sessions.map(session => sessionRowKeyFor(session)) });
       setOpen(!open);
     },
   };

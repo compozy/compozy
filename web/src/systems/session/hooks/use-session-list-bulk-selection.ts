@@ -47,7 +47,12 @@ function selectionMoveUnder(
   selected: readonly SessionPayload[],
   selectedIds: ReadonlySet<string>
 ): SessionSelectionMoveUnder | undefined {
-  if (!handler || selected.length === 0) return undefined;
+  if (
+    !handler ||
+    selected.length === 0 ||
+    selected.some(session => sessionComputerOf(session) !== "local")
+  )
+    return undefined;
   const parents = sessions.filter(parent => {
     const parentKey = sessionRowKeyFor(parent);
     const parentComputer = sessionComputerOf(parent);

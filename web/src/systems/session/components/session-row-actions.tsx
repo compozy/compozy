@@ -7,6 +7,7 @@ import {
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
+import { sessionRowKeyFor } from "../lib/session-row-ref";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { SessionRowMenuItems, type SessionRowMenuProps } from "./session-row-menu-items";
 
@@ -15,7 +16,9 @@ export type SessionRowActionsProps = SessionRowMenuProps;
 /** The `…` menu of a session row or card: the same tree as its right-click menu. */
 export function SessionRowActions(props: SessionRowActionsProps) {
   const { session, actions } = props;
-  const pending = actions.pendingSessionIds.includes(session.id) ? actions.pendingAction : null;
+  const pending = actions.pendingSessionIds.includes(sessionRowKeyFor(session))
+    ? actions.pendingAction
+    : null;
   const disabled = actions.pendingAction !== null;
   const title = getSessionDisplayTitle(session);
 

@@ -36,10 +36,7 @@ export async function preloadSessionEntry(queryClient: QueryClient, target: Sess
     const session = await queryClient.query(
       sessionScopedDetailOptions(target.id, remoteScope, { computerId })
     );
-    if (
-      session.id !== target.id ||
-      (session.workspace_id ?? "") !== (target.workspace_id ?? "")
-    ) {
+    if (session.id !== target.id || (session.workspace_id ?? "") !== (target.workspace_id ?? "")) {
       return;
     }
     await queryClient.infiniteQuery({

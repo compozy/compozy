@@ -1,3 +1,4 @@
+import { sessionSelectionGesture } from "../../lib/session-selection-gesture";
 import { useContext, type HTMLAttributes, type ReactElement, type ReactNode } from "react";
 
 import type { ComputerId } from "@/lib/computer-scope";
@@ -34,7 +35,6 @@ import {
   SESSION_ROW_MARK_TOOLTIP_DELAY,
 } from "./session-list-row-frame";
 import {
-  activateSessionRow,
   SessionRowBadgeMark,
   SessionRowCheckbox,
   SessionRowEndSlot,
@@ -88,6 +88,18 @@ export interface SessionListRowViewProps extends SessionListRowProps {
   wrapRow?: (row: ReactElement<HTMLAttributes<HTMLElement>>) => ReactNode;
 }
 
+function activateSessionRow(
+  event: React.MouseEvent<HTMLElement>,
+  sessionId: string,
+  selection: SessionRowSelection | undefined,
+  onSelect: () => void
+) {
+  const gesture = selection ? sessionSelectionGesture(event, selection.mode) : "open";
+  if (gesture === "range") selection?.toggleRange(sessionId);
+  else if (gesture === "toggle") selection?.toggle(sessionId);
+  else onSelect();
+}
+
 function rowDataComputerId(
   computer: SessionRowComputerInfo | undefined,
   effectiveComputerId: ComputerId | undefined
@@ -124,7 +136,7 @@ export function SessionListRowView(props: SessionListRowViewProps) {
     effectiveComputerId
   );
   const offline = computer?.offline === true;
-  const canAct = showActions && !offline;
+  const canAct = showActions && !offline && computer?.canOperate !== false;
   const row = (
     <SessionRowDragFrame
       className={cn(
@@ -136,12 +148,12 @@ export function SessionListRowView(props: SessionListRowViewProps) {
       data-computer-id={rowDataComputerId(computer, effectiveComputerId)}
       data-computer-offline={offline ? "true" : undefined}
       data-slot="session-list-row"
-      drag={offline ? undefined : props.drag}
+      drag={canAct ? props.drag : undefined}
       dropEdge={props.dropEdge ?? null}
       dragging={props.dragging ?? false}
       dropTestId={`${props.testIdPrefix}-drop-${props.dropEdge}-${session.id}`}
       onContextMenu={() => {
-        if (selection?.mode && !selected) selection.selectOnly(rowKey);
+        if (canAct && selection?.mode && !selected) selection.selectOnly(rowKey);
       }}
     >
       <SessionListRowBody
@@ -149,6 +161,7 @@ export function SessionListRowView(props: SessionListRowViewProps) {
         computer={computer}
         rowKey={rowKey}
         selected={selected}
+        selection={canAct ? selection : undefined}
         showActions={canAct}
       />
     </SessionRowDragFrame>
