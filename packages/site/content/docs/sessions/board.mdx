@@ -195,9 +195,19 @@ hidden`). Archived cards can be selected while the **Archive** bar is open; clos
 ## Group and sort the board
 
 Open **View options** (the sliders icon) in the board header. Use **Group by** to split the board into one swimlane per project (under
-**All projects**) or per profile (under **All profiles**). Each swimlane keeps the four columns, with
+**All projects**) or per profile (under **All profiles**). Each swimlane keeps the five columns, with
 counts for that project or profile only. **Group by** shows only where a grouping applies, and starts
-at **Project** under **All projects**; a board that shows one project stays ungrouped. The **Archive** bar stays a single bar.
+at **Project** under **All projects**. A board that shows one project stays ungrouped.
+
+When a remote computer is enabled, select **All computers** in the picker beside **List | Kanban**.
+The **Computers** choice in **View options** then controls how the board shows those computers.
+
+- **Separate** is the default. Each computer has a band with its own columns or project swimlanes.
+  A folded band shows counts for all five columns.
+- **Together** uses a shared board. Under **Group by → Project**, each swimlane shows its computer name.
+
+Select one computer to show its board directly. The window uses that computer as the default
+**Run on** for new sessions.
 
 Use **Sort by** to order the cards inside every column: **Created**, **Name**, **Last activity**, or
 **Attention first**. The list's **Manual** order belongs to its folders, so the board reads it as
@@ -207,10 +217,11 @@ Click a swimlane's header to fold it to its name and count; the columns come bac
 **Collapse all**, the button beside **View options**, folds every swimlane at once; the same button then reads **Expand all**. Grouped by
 project, **Show empty projects** adds a swimlane for each project with no sessions.
 
-Sort, grouping, project folds, and **Show empty projects** belong to the window and are shared by its **List** and **Kanban** views: group the
-board by project, switch to **List**, and the list is grouped by project too. Another window keeps
-its own choice. A window you have not changed yet starts from `shell.sessions.sort` and
-`shell.sessions.group_by` (`compozy config get shell.sessions.sort`).
+List and Kanban share the window's sort, grouping, computer layout, and computer scope.
+They also share project folds and **Show empty projects**. Each window remembers its choices.
+A window follows the defaults in `shell.sessions.sort`,
+`shell.sessions.group_by`, and `shell.sessions.computers` until you choose an option there.
+A new window starts at **All computers**.
 
 ## What the status on a card means
 
@@ -255,13 +266,14 @@ their parent's count shows them. Forked and continued sessions stay on the board
 
 2. Check it again to hide them.
 
-## Load more and the Archive bar
+## Load more and the Archive and Later bars
 
 Each column shows 50 cards at a time. When a column holds more, it ends with
 **Load more 50 of 128**; the count in the header always covers the whole column, loaded or not.
 
-The **Archive** bar at the bottom shows how many archived sessions the scope holds and stays hidden
-when there are none. Expand it to see them as cards; clicking one opens it like any other card.
+The **Archive** and **Later** bars sum the counts from computers in scope that respond.
+Each bar stays hidden when its count is zero. Expand a bar to see its cards.
+Remote cards in the bars show their computer name.
 
 ### Fold a column
 
@@ -286,10 +298,9 @@ To see them in a window, turn on **Show automation runs** in **View options**. E
 
 ## Scope and freshness
 
-The board follows the same scope as the session list: the current project, or every project when
-**All projects** is selected (cards then show the project name when they have no PR). It updates as
-sessions change and re-reads every 60 seconds while the window is visible, which also keeps PR
-facts current.
+The board follows the same project and computer scope as the session list. A focused project
+matches the same Git repository on each computer. While the window is visible, the board refreshes
+remote counts and visible remote pages every 15 seconds. The local board re-reads every 60 seconds.
 
 ## From the CLI and agents
 

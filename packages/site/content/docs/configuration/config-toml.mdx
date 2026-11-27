@@ -37,7 +37,7 @@ CompozyOS archives them on load instead of failing; see
 | `[desktop]`                          | Editor command behind the desktop app's Configured editor Open in target.              | `editor_command = ""` (the system text editor)                                                        |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                     | toasts and sound on, system notifications off, no muted workspaces                                    |
 | `[terminal]`                         | Live terminal process, retention, recording, and capacity policy.                      | user shell, 1 MiB scrollback, 24h idle TTL, recording off, caps 8/32/16                               |
-| `[shell.sessions]`                   | Default session order and grouping for windows that have not chosen their own.         | creation order, no grouping                                                                           |
+| `[shell.sessions]`                   | Default order, grouping, and computer layout for session windows.                      | creation order, project grouping where applicable, separate computers                                 |
 | `[shell.appearance]`                 | Fonts, text size, and letter spacing every connected client paints with.               | Figtree and Geist Mono, default text size and spacing                                                 |
 | `[user_scope]`                       | Working directory for work that belongs to no project (the User scope).                | `work_dir = "~"`                                                                                      |
 | `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                      | agent fallback target, personalization on, no aliases                                                 |
@@ -242,6 +242,8 @@ max_subscribers = 16
 sort = "created"
 # Session grouping: "none", "project" (under All projects), or "profile" (under All profiles).
 group_by = "project"
+# Computer layout: "together" or "separate".
+computers = "separate"
 # Deprecated in v0.4.0, removed in v0.5.0: "workspace" or "all-workspaces".
 # scope = "all-workspaces"
 
@@ -970,17 +972,17 @@ start recording an existing terminal.
 
 ## `[shell.sessions]`
 
-Shell session preferences are global and live-applied as one validated candidate. They are the
-default order and grouping of session windows: each window keeps its own **Sort by** and
-**Group by**, shared by its List and Kanban views and remembered across reloads, and a window that
-has not chosen yet follows these values. The Web never writes them, so a choice in one window
-never moves another. Operators and agents set them with
-`compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
+Shell session preferences apply live to windows that follow the global defaults.
+Each window can choose its own **Sort by**, **Group by**, and **Computers** options.
+List and Kanban share those choices across reloads. The Web keeps them in window state.
+Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell` to manage
+the global defaults.
 
 | Field      | Type   | Default     | Valid values                                              | Description                                                                              |
 | ---------- | ------ | ----------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `sort`     | string | `created`   | `created`, `name`, `last_activity`, `attention`, `manual` | Newest created first, name A–Z, recent activity, attention urgency, or manual order.     |
 | `group_by` | string | `project`   | `none`, `project`, `profile`                              | Groups the session list by project (under All projects) or profile (under All profiles). |
+| `computers` | string | `separate` | `together`, `separate`                                      | Sets the default computer layout for List and Kanban.                                    |
 | `scope`    | string | `workspace` | `workspace`, `all-workspaces`                             | **Deprecated.** Legacy breadth intent; kept through v0.4.0, removed in v0.5.0.           |
 
 Created keeps parent and nested child rows still while agents work. Name orders the visible title
@@ -999,6 +1001,11 @@ default. An unset `group_by` reads `project`; an explicitly persisted `none` sta
 migration or rewrite is performed. Unknown values fail with
 `shell_config_invalid`. Groups come from server facets, so a group appears even when none of its
 sessions are on the loaded page.
+
+**Separate** gives each computer its own List section or Kanban band. **Together** uses a shared
+view with computer labels. The daemon stores `computers` when you supply it explicitly.
+`GET /api/settings/shell` omits an unset value. The Web uses **Separate** in that case.
+The computer scope belongs to each window. It starts at **All computers** in a new window.
 
 ### `scope` deprecation
 
@@ -1019,9 +1026,8 @@ compozy config unset shell.sessions.scope
 compozy config set shell.sessions.group_by project
 ````
 
-All fields have the `live` lifecycle. The daemon stores them in global `config.toml`, so the
-preference survives browser restarts without browser-local storage. Workspace overlays and
-workspace-scoped CLI or native-tool writes are rejected.
+All fields have the `live` lifecycle. The daemon stores global preferences in `config.toml`.
+Set these fields at user scope. The daemon rejects workspace overlays and workspace-scoped writes.
 
 ## `[shell.appearance]`
 

@@ -668,11 +668,13 @@ governs one daemon. Workspace overlays remain valid.
 ## Shell Session Preferences
 
 `shell.sessions.sort` persists ordering (`created`, `name`, `last_activity`, `attention`, or `manual`).
-`shell.sessions.group_by` controls grouping: `none`, `project` (default), or `profile`. These user-wide
-values apply live as the default for session windows: each Web window keeps its own Sort by / Group by
-(shared by its List and Kanban views), follows these values until the operator chooses there, and never
-writes them back. Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
-PATCH preserves omitted preferences and returns the apply receipt plus the effective config.
+`shell.sessions.group_by` accepts `none`, `project` (default), or `profile`.
+`shell.sessions.computers` accepts `together` or `separate` (default).
+These user-scope keys apply live to windows without a choice for that option.
+List and Kanban share the window's choices. The Web stores its choices in window state.
+Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
+PATCH preserves omitted preferences and returns the apply receipt and the effective config.
+Shell settings responses omit `computers` when the operator or agent has not set it.
 
 `shell.appearance.ui_font` and `shell.appearance.mono_font` hold the Interface and Code font family
 names shown in Settings › Appearance › Text (empty = the built-in Figtree / Geist Mono). They are
