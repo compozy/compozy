@@ -27,13 +27,13 @@ export function useSessionCatalog(
   const scoped = sessionCatalogScopedFilters(scope, filters, options.lens ?? params);
   const active = enabled && scope !== null;
   const pageOptions = sessionCatalogOptions(scoped);
-  const { q: _search, ...population } = pageOptions.queryKey[4];
+  const { q: _search, ...population } = pageOptions.queryKey[6];
   const populationKey = JSON.stringify(population);
   const page = useInfiniteQuery({
     ...pageOptions,
     enabled: active,
     placeholderData: (previousData, previousQuery) => {
-      const previousFilters = previousQuery?.queryKey[4];
+      const previousFilters = previousQuery?.queryKey[6];
       if (!previousFilters || typeof previousFilters !== "object") return undefined;
       const { q: _previousSearch, ...previousPopulation } = previousFilters;
       return JSON.stringify(previousPopulation) === populationKey
@@ -65,6 +65,10 @@ export function sessionCatalogPageView(
   return {
     sessions: page.data?.pages[0]?.sessions ?? [],
     total: page.data?.pages[0]?.page.total ?? undefined,
+    /** Running sessions under the same scope and filters as `total` (#1926). */
+    working: page.data?.pages[0]?.page.working ?? undefined,
+    /** Sessions needing you under the same scope and filters as `total`. */
+    needsYou: page.data?.pages[0]?.page.needs_you ?? undefined,
     loading: page.isLoading,
     /** The page shown belongs to a previous search while the current one loads. */
     placeholder: page.isPlaceholderData,

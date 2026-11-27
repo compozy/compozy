@@ -11,8 +11,8 @@ bug_ids: [BUG-20260913-marketplace-installed-plugin-panic, BUG-20260913-marketpl
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-09-13-marketplace-catalog/inventory-after-workspace-removal.json
-last_report: docs/qa/reports/2026-09-13-marketplace-catalog.md
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a/screenshots
+last_report: docs/qa/reports/2026-11-22-gh-1845-pr-a-extension-inputs.md
 overlaps: ET-web-extensions-manage; ET-web-extension-detail; ET-web-mcp-status-matrix
 ---
 
@@ -108,3 +108,23 @@ QA impact 2026-11-04 (issue #1305 gap 3): Browse gained a Plugins | MCPs toggle 
 **Add MCP server…**. Installed is unchanged: its strip is search only and its Add ▾ keeps the two
 install doors and Add plugin marketplace…, and its count never includes MCP servers. Confirm that
 the installed shelf link from either Browse kind still opens this inventory.
+
+QA impact 2026-11-22 (GH-1845 extension setup): an installed extension that declares inputs gains
+Actions → **Setup…** (above Provenance; hidden without declared inputs and on a dev overlay) and,
+when `missing_inputs` is non-empty, a rail notice "Needs setup: {n} required inputs" whose **Set up**
+opens the same dialog. The dialog reads `GET /api/extensions/{name}/inputs` for the rail's instance
+and labels each input from `state`: Set (empty control; empty keeps the value), Missing, Invalid, or a
+`daemon_env` input marked Missing with "Uses the daemon environment; the extension process does not
+receive it." Save sends `PUT .../inputs` with only typed fields. Walk: fill one missing subprocess
+input on an enabled extension (toast "Setup saved" plus "Restarted {name}"); save while another
+required input stays empty (dialog stays open listing it); enter a bad value (field error from
+`input_id`); save a `daemon_env` input empty (toast says it is still using the daemon environment and
+the status keeps `daemon_env`); an OAuth server lists under the sign-in hint with its Authorize
+action. Confirm no secret value is ever prefilled or returned. Reset to untested.
+
+QA 2026-11-22 (GH-1845 extension setup): the Setup walk passed against an isolated daemon and the
+checkout's Web: notice and Set up, Actions → Setup… (absent without inputs), Missing/Set/daemon_env
+labels, still-needs-setup on an empty save, inline and 422 `input_id` field errors, "Setup saved"
+plus "Restarted acme-tool", the daemon-environment toast, the OAuth server under the sign-in hint
+(action label "Sign in") and no secret prefill. The dev-overlay hide was not walked. Earlier
+contracts above were not re-walked.

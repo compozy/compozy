@@ -1,4 +1,9 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import {
+  apiClientFor,
+  apiRequestFailed,
+  requireResponseData,
+  type ComputerId,
+} from "@/lib/api-client";
 
 import { normalizeSessionListFilters } from "../lib/session-list-query";
 import type { SessionCatalogPageResponse, SessionsQuery, SessionsResponse } from "../types";
@@ -17,9 +22,10 @@ function normalizeSessionsQuery(query: SessionsQuery): SessionsQuery | undefined
 
 export async function fetchSessionCatalogPage(
   query: SessionsQuery = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionCatalogPageResponse> {
-  const { data, error, response } = await apiClient.GET("/api/sessions", {
+  const { data, error, response } = await apiClientFor(computerId).GET("/api/sessions", {
     params: { query: normalizeSessionsQuery(query) },
     signal,
   });
@@ -32,15 +38,20 @@ export async function fetchSessionCatalogPage(
 /** Exact counted catalog for consumers that present population totals. */
 export async function fetchSessions(
   query: SessionsQuery = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionsResponse> {
-  const response = await fetchSessionCatalogPage(query, signal);
+  const response = await fetchSessionCatalogPage(query, signal, computerId);
   if (response.page.total == null) throw new Error("Session catalog count was not returned");
   return { ...response, page: { ...response.page, total: response.page.total } };
 }
 
-export async function fetchSessionFacets(query: SessionsQuery = {}, signal?: AbortSignal) {
-  const { data, error, response } = await apiClient.GET("/api/sessions/facets", {
+export async function fetchSessionFacets(
+  query: SessionsQuery = {},
+  signal?: AbortSignal,
+  computerId?: ComputerId
+) {
+  const { data, error, response } = await apiClientFor(computerId).GET("/api/sessions/facets", {
     params: { query: normalizeSessionsQuery(query) },
     signal,
   });

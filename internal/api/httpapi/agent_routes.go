@@ -2,31 +2,15 @@ package httpapi
 
 import "github.com/gin-gonic/gin"
 
-func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
-	agent := api.Group("/agent")
-	agent.GET("/me", handlers.AgentMe)
-	agent.GET("/context", handlers.AgentContext)
-	agent.GET("/soul", handlers.AgentSoul)
-	agent.POST("/soul/validate", handlers.ValidateAgentSoul)
-	agent.GET("/coordinator/config", handlers.AgentCoordinatorRole)
-	agent.POST("/spawn", handlers.AgentSpawn)
-	agent.POST("/notify", handlers.AgentNotify)
-
-	agentTasks := agent.Group("/tasks")
-	agentTasks.POST("/claim-next", handlers.AgentTaskClaimNext)
-	agentTasks.POST("/:run_id/start", handlers.AgentTaskStart)
-	agentTasks.POST("/:run_id/heartbeat", handlers.AgentTaskHeartbeat)
-	agentTasks.POST("/:run_id/complete", handlers.AgentTaskComplete)
-	agentTasks.POST("/:run_id/fail", handlers.AgentTaskFail)
-	agentTasks.POST("/:run_id/release", handlers.AgentTaskRelease)
-}
-
 func registerAgentManagementRoutes(api gin.IRouter, handlers *Handlers) {
 	reviews := api.Group("/agent-skill-reviews")
 	reviews.GET("", handlers.ListAgentSkillReviews)
 	reviews.GET("/:id", handlers.GetAgentSkillReview)
 	reviews.POST("/:id/approve", handlers.ApproveAgentSkillReview)
 	reviews.POST("/:id/reject", handlers.RejectAgentSkillReview)
+	conflicts := api.Group("/agent-skill-install-conflicts")
+	conflicts.GET("", handlers.ListAgentSkillInstallConflicts)
+	conflicts.POST("/:op_id/resolve", handlers.ResolveAgentSkillInstallConflict)
 	instances := api.Group("/agent-instances")
 	instances.POST("", handlers.CreateAgentInstance)
 	instances.GET("", handlers.ListAgentInstances)

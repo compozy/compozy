@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import {
+  getExtensionInputs,
   getExtensionInventory,
   getExtensionProvenance,
   listExtensionLogs,
@@ -67,4 +68,17 @@ export const extensionInventoryOptions = (
     queryFn: ({ signal }) => getExtensionInventory(name, scope, signal),
     enabled: enabled && name.length > 0,
     staleTime: INVENTORY_STALE_TIME,
+  });
+
+/** Setup state is read fresh each time the dialog opens: another surface may have set an input. */
+export const extensionInputsOptions = (
+  name: string,
+  scope: ExtensionInstanceScope = {},
+  enabled = true
+) =>
+  queryOptions({
+    queryKey: extensionKeys.inputs(name, scope.workspaceId, scope.profileName),
+    queryFn: ({ signal }) => getExtensionInputs(name, scope, signal),
+    enabled: enabled && name.length > 0,
+    staleTime: 0,
   });

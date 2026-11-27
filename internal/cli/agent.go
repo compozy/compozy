@@ -311,19 +311,24 @@ func agentBundle(record *AgentRecord) outputBundle {
 				agentEffectivePermissionsSource(item),
 				item.Prompt,
 			})
+			chainFields := []string{
+				cliProviderKey,
+				agentModelKey,
+				agentReasoningEffortField,
+				agentSpeedField,
+				agentACPOptionsField,
+				agentCommandKey,
+				"command_fingerprint",
+			}
+			overrideChain := ""
+			if chain, ok := agentOverrideFallbackChain(item); ok {
+				overrideChain = renderToonArray(
+					"fallback_chain_override", chainFields, agentFallbackChainToonRows(chain),
+				)
+			}
 			return renderHumanBlocks(header, renderToonArray(
-				"fallback_chain",
-				[]string{
-					cliProviderKey,
-					agentModelKey,
-					agentReasoningEffortField,
-					agentSpeedField,
-					agentACPOptionsField,
-					agentCommandKey,
-					"command_fingerprint",
-				},
-				agentFallbackChainToonRows(item.FallbackChain),
-			), renderAgentEnvironment(item, true)), nil
+				"fallback_chain", chainFields, agentFallbackChainToonRows(item.FallbackChain),
+			), overrideChain, renderAgentEnvironment(item, true)), nil
 		},
 	}
 }
@@ -363,18 +368,22 @@ func renderAgentHuman(item *AgentRecord) string {
 		})
 	}
 	mcp := renderHumanTable("MCP Servers", []string{automationNameValue, cliCommandValue, "Args"}, servers)
+	chainColumns := []string{
+		agentKernelProviderValue,
+		agentKernelModelValue,
+		agentReasoningEffortValue,
+		cliCommandValue,
+	}
 	fallbackChain := ""
 	if len(item.FallbackChain) > 0 {
-		fallbackChain = renderHumanTable(
-			"Fallback Chain",
-			[]string{
-				agentKernelProviderValue,
-				agentKernelModelValue,
-				agentReasoningEffortValue,
-				cliCommandValue,
-			},
-			agentFallbackChainRows(item.FallbackChain),
-		)
+		fallbackChain = renderHumanTable("Fallback Chain", chainColumns, agentFallbackChainRows(item.FallbackChain))
+	}
+	if chain, ok := agentOverrideFallbackChain(item); ok {
+		// The operator override replaces the authored chain for new sessions; an empty table
+		// means the override cleared it.
+		fallbackChain = renderHumanBlocks(fallbackChain, renderHumanTable(
+			"Fallback Chain (config override)", chainColumns, agentFallbackChainRows(chain),
+		))
 	}
 	prompt := renderHumanSection(
 		"Prompt",
@@ -457,4 +466,14 @@ func agentEffectivePermissionsSource(item *AgentRecord) string {
 		return ""
 	}
 	return string(item.EffectiveRuntime.Sources.Permissions)
+}
+
+// agentOverrideFallbackChain returns the effective chain when [agents.overrides.<name>]
+// replaced or cleared the authored one.
+func agentOverrideFallbackChain(item *AgentRecord) ([]contract.RoleFallbackStatus, bool) {
+	if item.EffectiveRuntime == nil ||
+		item.EffectiveRuntime.Sources.FallbackChain != contract.AgentRuntimeValueSourceConfigOverride {
+		return nil, false
+	}
+	return item.EffectiveRuntime.FallbackChain, true
 }

@@ -8,14 +8,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -30,7 +33,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
@@ -46,6 +48,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	"github.com/compozy/compozy/internal/testutil/remotetest"
 
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -101,141 +104,6 @@ func (f *fakeSessionManager) promptCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.promptCalls)
-}
-
-func TestBootGatewayRefusalContinuesLocalOnly(t *testing.T) {
-	t.Parallel()
-
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	cfg.Gateway.Enabled = true
-	registry := &recordingRegistry{
-		path: homePaths.DatabaseFile,
-		gatewaySnapshot: gateway.Snapshot{
-			Providers: []gateway.ProviderActivation{{
-				ProviderName: "connectivity-test", Tier: gateway.TierPrivate,
-				Desired: gateway.DesiredEnabled, Observed: gateway.ProviderEstablishing, Generation: 1,
-			}},
-			Surfaces: []gateway.SurfaceExposure{{
-				Surface: gateway.SurfaceOperatorUI, Tier: gateway.TierPrivate,
-				Desired: gateway.DesiredEnabled, Observed: gateway.SurfaceOff, Generation: 1,
-			}},
-		},
-	}
-	d := newTestDaemon(t, homePaths, &cfg)
-	d.openRegistry = func(context.Context, string) (Registry, error) { return registry, nil }
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return &fakeSessionManager{}, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds"}, nil
-	}
-	tierFactoryCalls := 0
-	d.gatewayTierFactory = func(
-		context.Context,
-		*RuntimeDeps,
-		gateway.Tier,
-		[]gateway.Surface,
-	) (Server, error) {
-		tierFactoryCalls++
-		return &fakeServer{name: "gateway-tier"}, nil
-	}
-
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v, want local-only continuation [IT-002]", err)
-	}
-	t.Cleanup(func() {
-		if err := d.Shutdown(testutil.Context(t)); err != nil {
-			t.Errorf("Shutdown() error = %v", err)
-		}
-	})
-	status, err := d.gateway.Status(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("gateway.Status() error = %v", err)
-	}
-	if status.Refusal == nil || !strings.Contains(status.Refusal.Cause, "authentication model is inactive") ||
-		!strings.Contains(status.Refusal.Fix, "pairing and device authentication") {
-		t.Fatalf("gateway refusal = %#v, want authentication cause and fix", status.Refusal)
-	}
-	if len(status.Addresses) != 0 || status.Tiers[0].Advertised ||
-		status.Providers[0].Observed != gateway.ProviderDown {
-		t.Fatalf("gateway status = %#v, want local-only and provider down", status)
-	}
-	if d.httpServer == nil || d.udsServer == nil {
-		t.Fatal("local daemon servers did not start after gateway refusal")
-	}
-	if tierFactoryCalls != 0 {
-		t.Fatalf("gateway tier factory calls = %d, want 0 while authentication is inactive [IT-001]", tierFactoryCalls)
-	}
-}
-
-func TestBootGatewayReconcilesDisabledSurfaceBeforeServers(t *testing.T) {
-	t.Parallel()
-
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	cfg.Gateway.Enabled = true
-	registry := &recordingRegistry{
-		path: homePaths.DatabaseFile,
-		gatewaySnapshot: gateway.Snapshot{
-			Providers: []gateway.ProviderActivation{{
-				ProviderName: "connectivity-test", Tier: gateway.TierPrivate,
-				Desired: gateway.DesiredEnabled, Observed: gateway.ProviderEstablishing, Generation: 7,
-			}},
-			Surfaces: []gateway.SurfaceExposure{{
-				Surface: gateway.SurfaceOperatorUI, Tier: gateway.TierPrivate,
-				Desired: gateway.DesiredDisabled, Observed: gateway.SurfaceOff, Generation: 8,
-			}},
-		},
-	}
-	d := newTestDaemon(t, homePaths, &cfg)
-	d.openRegistry = func(context.Context, string) (Registry, error) { return registry, nil }
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return &fakeSessionManager{}, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
-	serverObservedReconciled := false
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		snapshot, err := registry.Snapshot(testutil.Context(t))
-		if err != nil {
-			t.Fatalf("Snapshot(before HTTP server) error = %v", err)
-		}
-		serverObservedReconciled = len(snapshot.Providers) == 1 &&
-			snapshot.Providers[0].Observed == gateway.ProviderDown &&
-			len(snapshot.Surfaces) == 1 && snapshot.Surfaces[0].Desired == gateway.DesiredDisabled &&
-			snapshot.Surfaces[0].Observed == gateway.SurfaceOff
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds"}, nil
-	}
-
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v [IT-005]", err)
-	}
-	t.Cleanup(func() {
-		if err := d.Shutdown(testutil.Context(t)); err != nil {
-			t.Errorf("Shutdown() error = %v", err)
-		}
-	})
-	if !serverObservedReconciled {
-		t.Fatal("HTTP server construction preceded gateway reconciliation")
-	}
-	if _, err := d.gateway.Reconcile(testutil.Context(t)); err != nil {
-		t.Fatalf("gateway.Reconcile(restart replay) error = %v", err)
-	}
-	status, err := d.gateway.Status(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("gateway.Status() error = %v", err)
-	}
-	if status.Surfaces[0].Desired != gateway.DesiredDisabled ||
-		status.Surfaces[0].Observed != gateway.SurfaceOff || status.Tiers[0].Advertised || len(status.Addresses) != 0 {
-		t.Fatalf("gateway status after replay = %#v, want disabled surface to remain unreachable", status)
-	}
 }
 
 func TestBootWiresTaskRuntimeWithDedicatedSessionBridge(t *testing.T) {
@@ -2086,7 +1954,7 @@ func TestBootBuiltinTombstoneIntegration(t *testing.T) {
 		})
 		registry := builtinTombstoneRegistry(t, second)
 		requireBuiltinTombstone(t, registry, "spec-cycle", true)
-		for _, name := range []string{"open-design", "tailscale", "forge-github"} {
+		for _, name := range []string{"open-design", "forge-github"} {
 			requireBuiltinEnrolled(t, homePaths, registry, name)
 		}
 	})
@@ -2529,6 +2397,100 @@ func TestBootArchivesRetiredMemorySettingsIntegration(t *testing.T) {
 		if strings.Count(logs.String(), "config.retired_keys_archive_failed") == 0 ||
 			!strings.Contains(logs.String(), homePaths.ConfigFile) || !strings.Contains(logs.String(), "reason=") {
 			t.Fatalf("archive failure warning = %s", logs.String())
+		}
+	})
+}
+
+// IT-003. Boot migrates retired config and records profile-only installations before deleting credentials.
+func TestBootRemovesGatewayIntegration(t *testing.T) {
+	t.Run("Should remove retired Gateway config and credentials once and expose the profile count", func(t *testing.T) {
+		home := integrationHomePaths(t)
+		cfg := testConfig(t, home)
+		writeDaemonFile(t, home.ConfigFile, fmt.Sprintf(`
+[http]
+host = "127.0.0.1"
+port = %d
+[daemon]
+socket = %q
+[automation]
+enabled = false
+[gateway]
+enabled = true
+active_connection = "old"
+[[gateway.connections]]
+name = "old"
+[[gateway.connections]]
+name = "other"
+`, cfg.HTTP.Port, cfg.Daemon.Socket))
+		legacy, err := remotetest.OpenLegacyGlobalDB(t.Context(), home.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := legacy.Close(); err != nil {
+			t.Fatal(err)
+		}
+		gatewayDir := filepath.Join(home.HomeDir, "gateway")
+		writeDaemonFile(t, filepath.Join(gatewayDir, "credentials", "old.cred"), "retired credential")
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		for boot := range 2 {
+			d, err := New(WithHomePaths(home), WithLogger(logger))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := d.boot(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			stop := sync.OnceFunc(func() {
+				if err := d.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+					t.Error(err)
+				}
+			})
+			t.Cleanup(stop)
+
+			uds := daemonIntegrationUDSClient(home.DaemonSocket)
+			response := daemonIntegrationRequest(
+				t,
+				uds,
+				http.MethodGet,
+				"http://localhost/api/migration-notices",
+				"",
+				nil,
+			)
+			body := daemonIntegrationReadBody(t, response)
+			uds.CloseIdleConnections()
+			var notices contract.MigrationNoticesResponse
+			if err := json.Unmarshal(body, &notices); err != nil {
+				t.Fatalf("migration notices HTTP %d: %s (%v)", response.StatusCode, body, err)
+			}
+			if response.StatusCode != http.StatusOK || len(notices.Notices) != 1 {
+				t.Fatalf("migration notices HTTP %d: %s", response.StatusCode, body)
+			}
+			notice := notices.Notices[0]
+			if notice.Key != "gateway_removed" ||
+				notice.Payload != (contract.GatewayRemovalNoticePayload{ConnectionProfiles: 2}) {
+				t.Fatalf("migration notice = %+v, want two removed profiles only", notice)
+			}
+			stop()
+			if boot == 0 {
+				if _, err := os.Lstat(gatewayDir); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("retired credential directory lookup = %v, want no directory", err)
+				}
+				// AST-007: A later boot preserves files created after the one-time Gateway migration.
+				writeDaemonFile(t, filepath.Join(gatewayDir, "credentials", "backup.cred"), "operator backup")
+			}
+		}
+
+		clean, err := os.ReadFile(home.ConfigFile)
+		if err != nil || bytes.Contains(clean, []byte("gateway")) || !bytes.Contains(clean, []byte("[automation]")) {
+			t.Fatalf("config after upgrade = %q, %v", clean, err)
+		}
+		backup, err := os.ReadFile(filepath.Join(gatewayDir, "credentials", "backup.cred"))
+		if err != nil || string(backup) != "operator backup" {
+			t.Fatalf("Gateway backup after a later boot = %q, %v", backup, err)
+		}
+		if strings.Count(logs.String(), "config_keys_removed") != 1 {
+			t.Fatalf("upgrade warning count != 1: %s", logs.String())
 		}
 	})
 }
@@ -4861,4 +4823,53 @@ func TestInstancePayloadIntegration(t *testing.T) {
 			t.Fatalf("missing-root payload = %#v", payload)
 		}
 	})
+}
+
+func daemonIntegrationUDSClient(socketPath string) *http.Client {
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var dialer net.Dialer
+			return dialer.DialContext(ctx, "unix", socketPath)
+		},
+	}
+	return &http.Client{Transport: transport, Timeout: 10 * time.Second}
+}
+
+func daemonIntegrationRequest(
+	t *testing.T,
+	client *http.Client,
+	method string,
+	requestURL string,
+	credential string,
+	body io.Reader,
+) *http.Response {
+	t.Helper()
+	if body == nil {
+		body = http.NoBody
+	}
+	request, err := http.NewRequestWithContext(testutil.Context(t), method, requestURL, body)
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext(%s %s) error = %v", method, requestURL, err)
+	}
+	if credential != "" {
+		request.Header.Set("Authorization", "Bearer "+credential)
+	}
+	if body != http.NoBody {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatalf("%s %s error = %v", method, requestURL, err)
+	}
+	return response
+}
+
+func daemonIntegrationReadBody(t *testing.T, response *http.Response) []byte {
+	t.Helper()
+	body, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		t.Fatalf("read/close HTTP body error = %v", err)
+	}
+	return body
 }

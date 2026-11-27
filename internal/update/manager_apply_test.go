@@ -274,9 +274,9 @@ func TestManagerApplyRelease(t *testing.T) {
 			RuntimeArch: runtimeArchAMD64,
 		})
 
-		archiveName, err := archiveAssetName(manager.runtimeOS, manager.runtimeArch)
+		archiveName, err := ArchiveAssetName(manager.runtimeOS, manager.runtimeArch)
 		if err != nil {
-			t.Fatalf("archiveAssetName() error = %v", err)
+			t.Fatalf("ArchiveAssetName() error = %v", err)
 		}
 		release := &Release{
 			Version: "v1.1.0",
@@ -340,9 +340,9 @@ func TestManagerApplyRelease(t *testing.T) {
 		})
 
 		archiveBody := createTarGzBinary(t, "compozy", []byte("#!/bin/sh\necho updated\n"), 0o755)
-		archiveName, err := archiveAssetName(manager.runtimeOS, manager.runtimeArch)
+		archiveName, err := ArchiveAssetName(manager.runtimeOS, manager.runtimeArch)
 		if err != nil {
-			t.Fatalf("archiveAssetName() error = %v", err)
+			t.Fatalf("ArchiveAssetName() error = %v", err)
 		}
 		release, _, server := newReleaseFixtureServer(t, manager, assetFixture{
 			archiveBody:   archiveBody,
@@ -750,9 +750,9 @@ func newReleaseFixtureServer(
 ) (*Release, string, *httptest.Server) {
 	t.Helper()
 
-	archiveName, err := archiveAssetName(manager.runtimeOS, manager.runtimeArch)
+	archiveName, err := ArchiveAssetName(manager.runtimeOS, manager.runtimeArch)
 	if err != nil {
-		t.Fatalf("archiveAssetName() error = %v", err)
+		t.Fatalf("ArchiveAssetName() error = %v", err)
 	}
 
 	checksumsBody := fixture.checksumsBody

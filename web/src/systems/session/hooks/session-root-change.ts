@@ -1,5 +1,6 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import { filesKeys, requestFreshListings } from "@/systems/files";
 
 import { sessionKeys } from "../lib/query-keys";
@@ -16,16 +17,24 @@ export async function resetSessionRootReads(
   queryClient: QueryClient,
   workspaceId: string,
   sessionId: string,
-  isOpen: () => boolean = () => true
+  isOpen: () => boolean = () => true,
+  computerId?: ComputerId
 ): Promise<void> {
+  const scopedComputerId = normalizeComputerId(computerId);
+  const root = {
+    kind: "session" as const,
+    workspaceId,
+    sessionId,
+    ...(isRemoteComputerId(scopedComputerId) ? { computerId: scopedComputerId } : {}),
+  };
   resetSessionReviewRoot(sessionId);
   // The new checkout's listings must not come from the old root's status snapshot.
-  requestFreshListings(queryClient, { kind: "session", workspaceId, sessionId });
+  requestFreshListings(queryClient, root);
   const dropped: QueryKey[] = [
-    filesKeys.root({ kind: "session", workspaceId, sessionId }),
-    sessionChangesKeys.session(workspaceId, sessionId),
+    filesKeys.root(root),
+    sessionChangesKeys.forComputer(scopedComputerId).session(workspaceId, sessionId),
   ];
-  const mentions = sessionKeys.fileSearchRoot(workspaceId, sessionId);
+  const mentions = sessionKeys.forComputer(scopedComputerId).fileSearchRoot(workspaceId, sessionId);
   await Promise.all(
     [...dropped, mentions].map(queryKey => queryClient.cancelQueries({ queryKey }))
   );

@@ -31,7 +31,11 @@ func validateOperationRegistryEntry(
 	if !supportedOperationMethod(operation.Method) {
 		return fmt.Errorf("unsupported method %q", operation.Method)
 	}
-	if !strings.HasPrefix(operation.Path, "/api/") {
+	hosted := len(operation.Transports) == 1 && operation.Transports[0] == TransportHostedHTTP
+	if hosted && !strings.HasPrefix(operation.Path, "/remote/v1/") {
+		return fmt.Errorf("path %q must be an absolute /remote/v1 path", operation.Path)
+	}
+	if !hosted && !strings.HasPrefix(operation.Path, "/api/") {
 		return fmt.Errorf("path %q must be an absolute /api path", operation.Path)
 	}
 	operationID := strings.TrimSpace(operation.OperationID)
@@ -80,7 +84,7 @@ func validateOperationTransports(operation OperationSpec) error {
 	seen := make(map[Transport]struct{}, len(operation.Transports))
 	for _, transport := range operation.Transports {
 		switch transport {
-		case TransportHTTP, TransportUDS:
+		case TransportHTTP, TransportUDS, TransportHostedHTTP:
 		default:
 			return fmt.Errorf("%s %s has unknown transport %q", operation.Method, operation.Path, transport)
 		}

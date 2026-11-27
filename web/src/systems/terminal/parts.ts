@@ -73,6 +73,12 @@ export {
 } from "./lib/terminal-badge";
 // Session transcript blocks need replay and catalog types without opening the
 // Terminal app.
+export {
+  clearPendingTerminalCommand,
+  holdPendingTerminalCommand,
+  takePendingTerminalCommand,
+} from "./lib/terminal-pending-command";
+export { createTerminal, TerminalApiError } from "./adapters/terminal-api";
 export { useTerminalReplay } from "./hooks/use-terminal-replay";
 export { useTerminalCatalogStream } from "./hooks/use-terminal-catalog-stream";
 export { terminalCatalogQuery, terminalScope } from "./lib/catalog-query";

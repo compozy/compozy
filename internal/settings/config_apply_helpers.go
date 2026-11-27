@@ -50,11 +50,6 @@ func (s *service) classifyRuntimeSectionApplyRequest(
 	req SectionUpdateRequest,
 ) lifecycle.Lifecycle {
 	switch req.Section {
-	case SectionGateway:
-		if req.Gateway == nil {
-			return lifecycle.RestartRequired
-		}
-		return s.classifyGatewayRequest(ctx, req)
 	case SectionWindowManager:
 		if !hasWindowManagerMutation(req) {
 			return lifecycle.Live

@@ -11,7 +11,6 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -139,11 +138,11 @@ func directImportBoundaries() []directImportBoundary {
 		{"internal/extension", "internal/api/httpapi"},
 		{"internal/extension", "internal/api/udsapi"},
 	}
-	return append(forbidden, gatewayForbiddenDirectImports...)
+	return forbidden
 }
 
 // Boundaries verifies direct package rules, strict leaf imports, and dependency closures.
-func Boundaries() error {
+func Boundaries(ctx context.Context) error {
 	forbidden := directImportBoundaries()
 
 	violations := 0
@@ -181,6 +180,24 @@ func Boundaries() error {
 		{"internal/worktree", "internal/api"},
 		{"internal/worktree", "internal/cli"},
 		{"internal/profile", "internal/api"},
+		{"internal/apptoken", "internal/daemon"},
+		{"internal/apptoken", "internal/api"},
+		{"internal/apptoken", "internal/cli"},
+		{"internal/ingress", "internal/daemon"},
+		{"internal/ingress", "internal/api"},
+		{"internal/ingress", "internal/cli"},
+		{"internal/remotehost", "internal/daemon"},
+		{"internal/remotehost", "internal/api"},
+		{"internal/remotehost", "internal/cli"},
+		{"internal/remotehost", "internal/store/globaldb"},
+		{"internal/cloudclient", "internal/remotehost"},
+		{"internal/computers", "internal/remotehost"},
+		{"internal/computers", "internal/daemon"},
+		{"internal/computers", "internal/api"},
+		{"internal/computers", "internal/cli"},
+		{"internal/computers", "internal/store/globaldb"},
+		{"internal/remotehost", "internal/computers"},
+		{"internal/store/globaldb", "internal/computers"},
 	}
 	for _, rule := range prefixForbidden {
 		importerDir := rule.importer
@@ -238,6 +255,12 @@ func Boundaries() error {
 		{importer: "internal/workspaceaccess", allowed: map[string]struct{}{}},
 		{importer: "internal/mention", allowed: map[string]struct{}{}},
 		{
+			importer: "internal/dirpublish",
+			allowed: map[string]struct{}{
+				"github.com/compozy/compozy/internal/fileutil": {},
+			},
+		},
+		{
 			importer: "internal/workspacefiles",
 			allowed: map[string]struct{}{
 				"github.com/compozy/compozy/internal/fileutil": {},
@@ -293,6 +316,7 @@ func Boundaries() error {
 	}
 
 	closureViolations, err := inspectDependencyClosures(
+		ctx,
 		subprocessDependencyClosureRules,
 		listPackageDependencies,
 	)
@@ -305,6 +329,15 @@ func Boundaries() error {
 			violation.root,
 			violation.dependency,
 		)
+		violations++
+	}
+
+	cloudViolations, err := cloudBoundaryViolations()
+	if err != nil {
+		return fmt.Errorf("inspect cloud import boundaries: %w", err)
+	}
+	for _, violation := range cloudViolations {
+		fmt.Printf("VIOLATION: %s\n", violation)
 		violations++
 	}
 
@@ -368,12 +401,13 @@ func isStandardLibraryImport(importPath string) bool {
 }
 
 func inspectDependencyClosures(
+	ctx context.Context,
 	rules []dependencyClosureRule,
-	listDependencies func(string) ([]string, error),
+	listDependencies func(context.Context, string) ([]string, error),
 ) ([]dependencyClosureViolation, error) {
 	violations := make([]dependencyClosureViolation, 0)
 	for _, rule := range rules {
-		dependencies, err := listDependencies(rule.root)
+		dependencies, err := listDependencies(ctx, rule.root)
 		if err != nil {
 			return nil, fmt.Errorf("list dependencies for %q: %w", rule.root, err)
 		}
@@ -411,17 +445,6 @@ func dependencyForbiddenByClosureRule(dependency string, rule dependencyClosureR
 		}
 	}
 	return false
-}
-
-func listPackageDependencies(root string) ([]string, error) {
-	command := exec.CommandContext(context.Background(), "go", "list", "-deps", root)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("go list -deps %s: %w: %s", root, err, strings.TrimSpace(string(output)))
-	}
-	dependencies := strings.Fields(string(output))
-	slices.Sort(dependencies)
-	return dependencies, nil
 }
 
 func filesImporting(root string, target string) ([]string, error) {

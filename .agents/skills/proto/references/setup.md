@@ -1,5 +1,16 @@
 # Setup, configuration and guards
 
+Interactive `proto dev`, `proto start`, `proto init` and `proto mcp` startup need a free
+account. Sign in with `proto login` using Google, GitHub or an email link. A stored login lets
+these commands start when the sign-in check cannot reach Proto Cloud. A truthy `CI` skips only
+the Free startup sign-in rule. Use `PROTOHQ_TOKEN` from a seat holder for Pro operations in CI.
+Headless Free commands such as `proto check` and `proto build` and the Vite, Storybook and Vitest
+integrations need no login or network access.
+
+Local `comments *`, `screenshot`, `evidence` and each local MCP tool call need an online
+check with Proto Cloud. Without a Pro Editor seat, they use the account's one-time allowance of
+100 free operations. See [CLI](cli.md) for the access and output contract.
+
 Contents: install · `proto init` · `proto.config.ts` · guards · Vite, Storybook and Vitest ·
 the render origin · agent skills.
 
@@ -8,7 +19,8 @@ the render origin · agent skills.
 Proto needs a React 19 + Vite 8 app and uses the app's own Vite and React installation.
 
 ```sh
-bun add -d @compozy/proto     # or npm i -D / pnpm add -D
+bun add -d @protohq/cli     # or npm i -D / pnpm add -D
+bunx proto login             # Google, GitHub or email; free account
 bunx proto init --skills      # from the app directory, or pass --app <dir>
 bunx proto dev --open
 ```
@@ -35,7 +47,8 @@ message.
 - `proto/review/.gitignore`, which ignores locks, temporary files and pending uploads;
 - `proto()` added to the Vite config's `plugins` array, plus its import.
 
-When `proto.config.ts` already exists, `init` writes none of these. `--force` rewrites all of them,
+When `proto.config.ts` already exists, `init` preserves configuration and rewrites an older
+preview record to `preview: "proto url {slug} --bare"`, reporting the changed file. `--force` rewrites all of them,
 including your config and canvas, so do not use it on a configured app. When only some of the
 files exist, `init` stops with `invalid_config` (`<file> exists; use --force`).
 
@@ -48,7 +61,7 @@ The app root's `proto.config.ts` is the only config file. The CLI, MCP and both 
 it through Vite's config loader, so it may import Node modules.
 
 ```ts
-import { defineProtoConfig } from "@compozy/proto/config";
+import { defineProtoConfig } from "@protohq/cli/config";
 
 export default defineProtoConfig({
   title: "Acme",
@@ -73,19 +86,39 @@ export default defineProtoConfig({
 | `locale`                      | `"en"`                 | Shell language: `"en"` or `"pt-BR"`                            |
 | `guards.forbidRuntimeImports` | `[]`                   | Modules that prototypes, drafts and stories must not reach     |
 | `guards.productionBoundary`   | `true`                 | Fail the app build when prototype-only code reaches it         |
-| `review.remote.url`           | none                   | Deployed gallery used by `--remote` and `build --remote`       |
 | `evidence.dir`                | `"docs/design"`        | Screenshot and evidence output, inside the app root            |
 | `build.includeReview`         | `false`                | Ship review history in static `proto build` output             |
-| `dev.port`                    | `4400`                 | Shell port; the render origin uses `port + 1`                  |
 | `dev.poll`                    | `false`                | Polling file watcher                                           |
-| `dev.allowedHosts`            | `[]`                   | Extra hostnames, without ports, accepted by both dev servers   |
+| `dev.allowedHosts`            | `[]`                   | Extra hostnames, without ports, for this project's URLs        |
 
 - Spec and role ids match `^[a-z0-9][a-z0-9_-]*$`.
 - `specs` as a function runs in Node with the app root. Returning `null` skips spec validation:
   `proto check` warns `specs_unavailable` and accepts any `spec`. Use `null` when the catalog
   comes from files that can be absent, such as an ignored directory in CI or a fresh worktree.
   Returning `{}` makes every `spec` unknown. Throwing is `invalid_config`.
-- Environment overrides: `PROTO_PORT`, `PROTO_POLL=1`, `PROTO_REMOTE_URL`, `PROTO_REMOTE_TOKEN`.
+- Environment overrides: `PROTOHQ_PORT`, `PROTOHQ_POLL=1`, `PROTOHQ_TOKEN`, `PROTOHQ_WORKSPACE`, `PROTOHQ_API_URL` (loopback, or exactly `https://staging-api.protohq.design` for staging).
+
+## Shared Proto address
+
+`proto dev` serves this project at `http://127.0.0.1:4400/p/<label>/` and starts Proto in the
+background when needed. `/` lists projects. Every app keeps its own foreground terminal; Ctrl-C
+stops only that app. `proto stop` leaves those terminals waiting; `proto start` reconnects them.
+`proto status` never starts anything. All three support `--json`, as does `dev` (one stdout JSON
+line followed by lifecycle messages on stderr).
+
+`PROTOHQ_PORT` selects Proto's port, default 4400. Proto remembers the last port when the variable
+is absent. Stop it before using `PROTOHQ_PORT=4500 proto start` to move the address; a different
+variable does not move an already running Proto. `PROTOHQ_POLL=1` enables polling for this project.
+`dev.allowedHosts` applies only to this project's URLs; home and the project list stay on the
+loopback address. Localhost redirects to 127.0.0.1.
+
+Prototypes and story roots have separate reserved preview origins; reordering roots preserves
+addresses. Discover a prototype's address with `proto url <slug> --bare` after its first start,
+and running story addresses with `proto status --json`. Never construct preview URLs from the
+Proto port. Capture commands need no background process and can temporarily serve the project.
+Startup diagnostics live in `~/.config/protohq/daemon/daemon.log`; see `troubleshooting.md` for
+`port_in_use`, `daemon_unavailable`, `daemon_version_mismatch`, `state_unavailable`, `project_busy`
+and `project_offline`.
 
 ## Guards
 
@@ -96,7 +129,7 @@ reach the app bundle:
 - `.proto`, `.fixtures` and `.stories` modules with a `js`, `jsx`, `ts` or `tsx` extension
   (optionally `c`/`m`), so `x.fixtures.ts` counts and `x.fixtures.json` does not;
 - the drafts and flows directories, `preview/` and `.storybook/`;
-- the canvas file and `@compozy/proto` itself.
+- the canvas file and `@protohq/cli` itself.
 
 The boundary steps aside in the `proto-render` mode that proto uses for its own builds. Keep
 `guards.productionBoundary` on.
@@ -136,7 +169,7 @@ vitest.config.ts  browser/story projects extend vite.shared.ts and add protoPres
 
 ```ts
 // .storybook/main.ts
-import { protoPresentation } from "@compozy/proto/vite";
+import { protoPresentation } from "@protohq/cli/vite";
 import type { StorybookConfig } from "@storybook/react-vite";
 import { fileURLToPath } from "node:url";
 import { mergeConfig } from "vite";
@@ -185,7 +218,7 @@ its own server host, port, `strictPort`, `allowedHosts` and watcher on top of th
 - `proto`: concepts, authoring, setup, CLI and troubleshooting (this skill);
 - `proto-apply-comments`: the review-comment loop.
 
-Run it again after upgrading `@compozy/proto`. The command is idempotent: it reports each skill as
+Run it again after upgrading `@protohq/cli`. The command is idempotent: it reports each skill as
 `installed`, `updated` or `unchanged`, and it never touches `proto.config.ts` or other files in an
 app that is already set up. An `updated` skill is replaced exactly, so local edits to the
 installed copy are lost. Keep project rules in `AGENTS.md` or `CLAUDE.md`.

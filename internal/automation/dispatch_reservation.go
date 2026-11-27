@@ -7,13 +7,42 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
+	"github.com/compozy/compozy/internal/store"
 )
 
 var errScheduledAdmissionDeferred = errors.New("automation: scheduled admission deferred")
 
+func WithDispatcherLocalExecution(check func() error) DispatcherOption {
+	return func(d *Dispatcher) { d.localExecution = check }
+}
+
+func WithDispatcherSignInWait(wait func(context.Context) error) DispatcherOption {
+	return func(d *Dispatcher) { d.waitForSignIn = wait }
+}
+
+const runAttributionRecorded = "recorded"
+
+func (d *Dispatcher) checkLocalExecution() error {
+	if d.localExecution == nil {
+		return nil
+	}
+	return d.localExecution()
+}
+
 func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, attempt int) (*Run, error) {
+	if err := d.checkLocalExecution(); err != nil {
+		if errors.Is(err, account.ErrSignInRequired) && req.Trigger != nil && req.ReservedRun == nil &&
+			req.Envelope != nil && req.Envelope.Source != ActivationSourceWebhook {
+			return d.recordSignInSkip(ctx, req)
+		}
+		if req.Kind == DispatchKindSchedule {
+			return req.ReservedRun, errors.Join(errScheduledAdmissionDeferred, err)
+		}
+		return nil, err
+	}
 	if !d.tryAcquire() {
 		return nil, fmt.Errorf(
 			"%w: active=%d limit=%d",
@@ -39,6 +68,19 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	}
 
 	return d.dispatchAgentSession(ctx, req, scheduledRun, attempt)
+}
+
+func (d *Dispatcher) recordSignInSkip(ctx context.Context, req DispatchRequest) (*Run, error) {
+	now := d.now()
+	run, err := d.runs.CreateRun(ctx, Run{
+		ProfileID: req.profileID(), WorkspaceID: new(req.Trigger.WorkspaceID), TriggerID: req.Trigger.ID,
+		Attribution: runAttributionRecorded, Status: RunCancelled, Attempt: 1, StartedAt: &now, EndedAt: &now,
+		Metadata: map[string]any{SchedulerSkipReasonMetadataKey: string(SchedulerSkipReasonSignInRequired)},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &run, nil
 }
 
 func (d *Dispatcher) dispatchAgentSession(
@@ -106,6 +148,7 @@ func (d *Dispatcher) dispatchAgentSession(
 	if req.onAdmitted != nil {
 		req.onAdmitted(*cloneRun(runningRun))
 	}
+	ctx = store.WithoutMutationCommitGuard(ctx)
 	d.dispatchPostFireHook(ctx, req, *runningRun)
 
 	runErr := collectPromptError(ctx, events)
@@ -145,7 +188,8 @@ func scheduledAdmissionInterrupted(ctx context.Context, req DispatchRequest, err
 		return false
 	}
 	return req.Kind == DispatchKindSchedule && req.ReservedRun != nil &&
-		(errors.Is(err, admission.ErrDraining) || errors.Is(err, admission.ErrStarting) || errors.Is(err, context.Canceled) ||
+		(errors.Is(err, admission.ErrDraining) || errors.Is(err, admission.ErrStarting) ||
+			errors.Is(err, account.ErrSignInRequired) || errors.Is(err, context.Canceled) ||
 			errors.Is(err, context.DeadlineExceeded))
 }
 
@@ -157,7 +201,7 @@ func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attemp
 	now := d.now()
 	run := Run{
 		ProfileID:   req.profileID(),
-		Attribution: "recorded",
+		Attribution: runAttributionRecorded,
 		Status:      RunScheduled,
 		Attempt:     attempt,
 		StartedAt:   new(now),

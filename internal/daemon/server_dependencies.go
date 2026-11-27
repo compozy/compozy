@@ -11,7 +11,7 @@ func (d *Daemon) prepareServerDependencies(ctx context.Context, state *bootState
 	if state == nil {
 		return errors.New("daemon: server dependency state is required")
 	}
-	loopAPI, err := newDaemonLoopAPIService(state, d.homePaths, d.now)
+	loopAPI, err := newDaemonLoopAPIService(state, d.homePaths, d.now, d.checkLocalExecution)
 	if err != nil {
 		return err
 	}

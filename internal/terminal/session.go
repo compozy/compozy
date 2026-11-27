@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/store"
 	terminalvt "github.com/compozy/compozy/internal/terminal/vt"
 )
 
@@ -80,7 +81,7 @@ func newSession(
 	rows uint16,
 	titlePinned bool,
 ) *session {
-	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
+	ctx, cancel := context.WithCancel(context.WithoutCancel(store.WithoutMutationCommitGuard(parent)))
 	item := &session{
 		manager:       manager,
 		ctx:           ctx,

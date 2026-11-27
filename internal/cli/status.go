@@ -294,7 +294,7 @@ func statusOTelLine(otel *contract.OTelStatusPayload) string {
 func statusOTelSignal(signal contract.OTelSignalStatusPayload) string {
 	switch {
 	case !signal.Enabled:
-		return "off"
+		return cliOffValue
 	case signal.LastErrorClass != "" && signal.FailedExports > 0:
 		return fmt.Sprintf("%s (%d failed)", signal.LastErrorClass, signal.FailedExports)
 	case signal.LastErrorClass != "":

@@ -3,11 +3,12 @@ package httpapi
 import (
 	"net/http"
 
+	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/gin-gonic/gin"
 )
 
-func registerProfileRoutes(api gin.IRouter, handlers *Handlers, allowMutations bool) {
-	profiles := api.Group("/profiles")
+func registerProfileRoutes(api operatorRouteGroups, handlers *Handlers) {
+	profiles := api.group("/profiles", remoteproto.ScopeSessions)
 	profiles.GET("", handlers.ListProfiles)
 	profiles.GET("/ops", handlers.ListProfileOperations)
 	profiles.GET("/selection", handlers.GetProfileSelections)
@@ -16,7 +17,7 @@ func registerProfileRoutes(api gin.IRouter, handlers *Handlers, allowMutations b
 	profiles.GET("/:name/archive-plan", handlers.PrepareProfileArchive)
 	profiles.GET("/:name/delete-plan", handlers.PrepareProfileDelete)
 
-	write := handlers.ProfileRemoteWriteForbidden
+	writes := api.group("/profiles", remoteproto.ScopeSettings)
 	routes := []struct {
 		method  string
 		path    string
@@ -32,18 +33,6 @@ func registerProfileRoutes(api gin.IRouter, handlers *Handlers, allowMutations b
 		{method: http.MethodDelete, path: "/:name", handler: handlers.DeleteProfile},
 	}
 	for _, route := range routes {
-		if !allowMutations {
-			route.handler = write
-		}
-		switch route.method {
-		case http.MethodPost:
-			profiles.POST(route.path, route.handler)
-		case http.MethodPut:
-			profiles.PUT(route.path, route.handler)
-		case http.MethodPatch:
-			profiles.PATCH(route.path, route.handler)
-		case http.MethodDelete:
-			profiles.DELETE(route.path, route.handler)
-		}
+		writes.Handle(route.method, route.path, route.handler)
 	}
 }

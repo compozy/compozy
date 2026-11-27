@@ -1650,6 +1650,74 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 			}
 		})
 	}
+	showReview := func(t *testing.T, review string) string {
+		t.Helper()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := io.WriteString(w, `{"review":`+review+`}`); err != nil {
+				t.Error(err)
+			}
+		}))
+		t.Cleanup(server.Close)
+		target, err := url.Parse(server.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+				return server.Client().Transport.RoundTrip(r)
+			})},
+		}
+		output, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"agent",
+			"skill",
+			"review",
+			"show",
+			"skr-test",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return output
+	}
+	t.Run("Should print the lesson block before the files [UT-040]", func(t *testing.T) {
+		t.Parallel()
+		output := showReview(t, `{"id":"skr-test","name":"release-checklist","kind":"new","state":"pending",`+
+			`"digest":"sha256:7d1e","lesson":{"cue":"Tagging a release","lesson":"Check CHANGELOG.md first.",`+
+			`"evidence":"Session sess-4f1c failed.","confidence":"high"},`+
+			`"evidence_session_ids":["sess-4f1c0b2a9d3e4f51","sess-9a2e7c1d0b4f3a62"],`+
+			`"runs_automatically":{"hooks":0,"mcp_servers":0,"scripts":0},`+
+			`"files":[{"path":"SKILL.md","content":"Check the changelog."}]}`)
+		want := "release-checklist (new) · pending\n" +
+			"Digest: sha256:7d1e\n" +
+			"Lesson (high confidence)\n" +
+			"  Cue:      Tagging a release\n" +
+			"  Lesson:   Check CHANGELOG.md first.\n" +
+			"  Evidence: Session sess-4f1c failed.\n" +
+			"  Sessions: sess-4f1c0b2a9d3e4f51, sess-9a2e7c1d0b4f3a62\n" +
+			"Runs automatically: 0 hooks, 0 MCP servers\n" +
+			"Supporting scripts: 0\n" +
+			"--- SKILL.md\n" +
+			"Check the changelog.\n"
+		if output != want {
+			t.Fatalf("show output:\n%s\nwant:\n%s", output, want)
+		}
+	})
+	t.Run("Should say no lesson was recorded for a legacy review [UT-042]", func(t *testing.T) {
+		t.Parallel()
+		output := showReview(t, `{"id":"skr-test","name":"legacy","kind":"new","state":"approved","digest":"sha256:1",`+
+			`"evidence_session_ids":[],"runs_automatically":{"hooks":0,"mcp_servers":0,"scripts":0}}`)
+		if !strings.Contains(
+			output,
+			"legacy (new) · approved\nDigest: sha256:1\nNo lesson recorded\nRuns automatically",
+		) {
+			t.Fatalf("legacy show output: %s", output)
+		}
+	})
 }
 
 type agentInstanceNameClient struct {

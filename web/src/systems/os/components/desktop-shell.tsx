@@ -49,6 +49,7 @@ import { TerminalCloseDialog } from "./terminal-close-dialog";
 import { LiveOsDeskLayer } from "./os-desk-layer";
 import { OsTabBar } from "./os-tab-bar";
 import { OsUpgradeNotice } from "./os-upgrade-notice";
+import { GateGraceBanner } from "@/systems/account";
 import { AgentCreateHostProvider, AgentCreateScreen } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
 import {
@@ -338,17 +339,13 @@ function DesktopShellScopedBody({
       <div
         data-slot="os-desk"
         className={cn(
-          // The desk is a panel inset into the chrome: a hairline where it meets
-          // the tab bar and rail, flush with the window's right and bottom edges.
-          // It clips its children so split panes follow the rounded corner; the
-          // desk layer sits inside the border, so projection never sees it. The
-          // upgrade notice takes its height above the content area.
           "relative row-start-3 flex min-h-0 flex-col overflow-hidden border-t border-line",
           desktop.presentation !== "compact"
             ? "col-start-2 rounded-tl-lg border-l"
             : "col-span-full"
         )}
       >
+        <GateGraceBanner />
         <OsUpgradeNotice />
         <div data-slot="os-desk-content" className="relative min-h-0 flex-1">
           <OsWallpaper wallpaper={desktop.wallpaper} />

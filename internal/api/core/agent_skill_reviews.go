@@ -70,6 +70,8 @@ func (h *BaseHandlers) ListAgentSkillReviews(c *gin.Context) {
 		WorkspaceID: list.WorkspaceID,
 		InstanceID:  instanceID,
 		State:       list.State,
+		Kind:        c.Query("kind"),
+		DecidedVia:  c.Query("decided_via"),
 		Limit:       list.Limit,
 	}, actor, c.Query("cursor"))
 	if err != nil {
@@ -141,36 +143,36 @@ func (h *BaseHandlers) decideAgentSkillReview(c *gin.Context, approve bool) {
 	}
 	api := h.AgentInstances
 	operator := "operator:" + instance.ProfileID
+	if api.SkillTarget == nil {
+		h.respondError(c, 503, errors.New("skill installation target unavailable"))
+		return
+	}
+	ctx := c.Request.Context()
+	target, _, targetErr := api.SkillTarget(ctx, instance)
 	if approve {
-		if api.SkillTarget == nil {
-			h.respondError(c, 503, errors.New("skill installation target unavailable"))
+		if targetErr != nil {
+			h.skillReviewError(c, targetErr)
 			return
 		}
-		var target string
-		target, _, err = api.SkillTarget(c.Request.Context(), instance)
-		if err == nil {
-			err = api.SkillProposals.Approve(
-				c.Request.Context(),
-				actor,
-				instance,
-				review.ID,
-				input.Digest,
-				operator,
-				target,
-			)
-		}
+		// A post-commit projection or publication warning is logged by the service and retried by
+		// Reconcile; the skill is installed either way.
+		_, err = api.SkillProposals.Approve(ctx, actor, instance, review.ID, input.Digest, operator, target)
 	} else {
-		err = api.SkillProposals.Reject(c.Request.Context(), actor, instance, review.ID, input.Digest, operator)
+		// An instance without an installation target never installs anything, so its reviews reject
+		// without the skill lock. Any other target failure refuses the rejection: without the install
+		// log, a committed approval whose projection is still pending cannot be told apart.
+		if targetErr != nil && !errors.Is(targetErr, agentinstance.ErrSkillReviewNoTarget) {
+			h.skillReviewError(c, targetErr)
+			return
+		}
+		if targetErr != nil {
+			target = ""
+		}
+		err = api.SkillProposals.Reject(ctx, actor, instance, review.ID, input.Digest, operator, target)
 	}
 	if err != nil {
 		h.skillReviewError(c, err)
 		return
-	}
-	if approve && api.SkillPublished != nil {
-		if err := api.SkillPublished(c.Request.Context()); err != nil {
-			h.skillReviewError(c, err)
-			return
-		}
 	}
 	h.GetAgentSkillReview(c)
 }
@@ -189,9 +191,15 @@ func (api *AgentInstanceAPI) ProposeSkill(
 		return contract.AgentSkillReviewResponse{}, err
 	}
 	proposal := agentinstance.SkillProposalInput{
-		Name:               input.Name,
-		Description:        input.Description,
-		Body:               input.Body,
+		Name:        input.Name,
+		Description: input.Description,
+		Body:        input.Body,
+		Lesson: agentinstance.SkillLesson{
+			Cue:        input.Lesson.Cue,
+			Lesson:     input.Lesson.Lesson,
+			Evidence:   input.Lesson.Evidence,
+			Confidence: input.Lesson.Confidence,
+		},
 		EvidenceSessionIDs: input.EvidenceSessionIDs,
 	}
 	for _, file := range input.Files {
@@ -199,28 +207,48 @@ func (api *AgentInstanceAPI) ProposeSkill(
 	}
 	service := *api.SkillProposals
 	service.ScanRoots = roots
-	review, err := service.Propose(ctx, actor, instance, target, proposal)
+	result, err := service.Propose(ctx, actor, instance, target, proposal)
 	if err != nil {
 		return contract.AgentSkillReviewResponse{}, err
 	}
-	payload, err := skillReviewPayload(review, false)
-	return contract.AgentSkillReviewResponse{Review: payload}, err
+	payload, err := skillReviewPayload(result.Review, false)
+	return contract.AgentSkillReviewResponse{Review: payload, DuplicateOfPending: result.Duplicate}, err
+}
+
+// skillReviewErrorStatuses is the one code-to-status table for skill review domain errors, shared by
+// the HTTP/UDS handlers and the native skill tools.
+var skillReviewErrorStatuses = []struct {
+	reason error
+	status int
+}{
+	{agentinstance.ErrSkillReviewOperatorOnly, 403}, {agentinstance.ErrForbidden, 403},
+	{agentinstance.ErrSkillReviewNotFound, 404}, {agentinstance.ErrSkillReviewStale, 409},
+	{agentinstance.ErrSkillReviewNoTarget, 409}, {agentinstance.ErrSkillReviewLimit, 409},
+	{agentinstance.ErrSkillProposeUnverified, 422}, {agentinstance.ErrSkillReviewInvalid, 422},
+	{agentinstance.ErrSkillProposeLessonRequired, 422}, {agentinstance.ErrSkillProposeLessonTooLong, 422},
+	{agentinstance.ErrSkillProposeEvidenceRequired, 422}, {agentinstance.ErrSkillProposeEvidenceNotFound, 422},
+	{agentinstance.ErrSkillProposeLessonInvalid, 422},
+	{agentinstance.ErrSkillProposePreviouslyRejected, 409}, {agentinstance.ErrSkillProposeNameTaken, 409},
+	{ErrSkillReviewInvalidCursor, 422},
+	{agentinstance.ErrSkillReviewTargetExists, 409}, {agentinstance.ErrSkillInstallBusy, 409},
+	{agentinstance.ErrSkillInstallConflict, 409}, {agentinstance.ErrSkillInstallConflictNotFound, 404},
+	{agentinstance.ErrSkillInstallConflictResolving, 409},
+}
+
+// SkillReviewErrorStatus returns the stable code and HTTP status of a skill review domain error.
+func SkillReviewErrorStatus(err error) (string, int, bool) {
+	for _, item := range skillReviewErrorStatuses {
+		if errors.Is(err, item.reason) {
+			return item.reason.Error(), item.status, true
+		}
+	}
+	return "", 0, false
 }
 
 func (h *BaseHandlers) skillReviewError(c *gin.Context, err error) {
-	for _, item := range []struct {
-		reason error
-		status int
-	}{
-		{agentinstance.ErrSkillReviewOperatorOnly, 403}, {agentinstance.ErrForbidden, 403},
-		{agentinstance.ErrSkillReviewNotFound, 404}, {agentinstance.ErrSkillReviewStale, 409},
-		{agentinstance.ErrSkillReviewNoTarget, 409}, {agentinstance.ErrSkillReviewLimit, 409},
-		{agentinstance.ErrSkillProposeUnverified, 422}, {agentinstance.ErrSkillReviewInvalid, 422},
-	} {
-		if errors.Is(err, item.reason) {
-			c.JSON(item.status, contract.ErrorPayload{Code: item.reason.Error(), Error: err.Error()})
-			return
-		}
+	if code, status, ok := SkillReviewErrorStatus(err); ok {
+		c.JSON(status, contract.ErrorPayload{Code: code, Error: err.Error()})
+		return
 	}
 	if errors.Is(err, errSkillReviewQuery) {
 		h.respondError(c, 422, err)

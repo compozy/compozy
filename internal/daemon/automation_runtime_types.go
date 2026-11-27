@@ -42,6 +42,7 @@ type automationManagerDeps struct {
 	Hooks             automationpkg.HookDispatcher
 	WebhookSecrets    automationpkg.WebhookSecretStore
 	Logger            *slog.Logger
+	WaitForSignIn     func(context.Context) error
 
 	ResourceStore   resources.RawStore
 	ResourceCodecs  *resources.CodecRegistry

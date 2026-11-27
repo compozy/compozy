@@ -13,6 +13,10 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { RouterContext } from "@/integrations/tanstack-query/root-context";
+
+import { prepareAppProfile } from "../-app-preload";
+
 import {
   useAgent,
   agentTeamOptions,
@@ -356,11 +360,11 @@ function createDeferred<T>() {
 }
 
 function createRunEntryRouter(queryClient: QueryClient) {
-  const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({});
+  const root = createRootRouteWithContext<RouterContext>()({});
   const app = createRoute({
     getParentRoute: () => root,
     id: "_app",
-    beforeLoad: AppRoute.options.beforeLoad,
+    beforeLoad: ({ context }) => prepareAppProfile(context.queryClient),
     loader: args => invokeLoader(AppRoute, args),
   });
   const task = createRoute({

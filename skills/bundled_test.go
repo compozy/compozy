@@ -15,6 +15,7 @@ var expectedCompozyReferences = []string{
 	"references/agent-memory.md",
 	"references/app-sdk.md",
 	"references/cli-fallback.md",
+	"references/computers.md",
 	"references/configuration.md",
 	"references/desktop.md",
 	"references/extension-authoring.md",

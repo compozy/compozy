@@ -3,84 +3,66 @@ package registry
 import (
 	"errors"
 
+	"github.com/compozy/compozy/internal/dirpublish"
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
-type installPublicationLayout uint8
-
-const (
-	installPublicationHasTarget installPublicationLayout = 1 << iota
-	installPublicationHasIncoming
-	installPublicationHasBackup
-)
+// rollForwardPolicy is the registry's dirpublish recovery policy: an
+// interrupted package publication completes toward the incoming package
+// whenever the layout proves which directory is which, and stops for operator
+// inspection otherwise. It collects the cleanup diagnostics of the recovery.
+type rollForwardPolicy struct {
+	diagnostics []CleanupDiagnostic
+}
 
 func recoverInstalledDirPublication(
 	parent *fileutil.Directory,
 	targetName string,
 ) ([]CleanupDiagnostic, error) {
-	journalName := installPublicationJournalName(targetName)
-	journal, exists, err := readInstallPublicationJournal(parent, journalName, targetName)
-	if err != nil || !exists {
+	policy := &rollForwardPolicy{diagnostics: make([]CleanupDiagnostic, 0, 1)}
+	if err := dirpublish.Recover(parent, targetName, policy); err != nil {
 		return nil, err
 	}
-	layout, err := inspectInstallPublicationLayout(parent, journal)
-	if err != nil {
-		return nil, err
-	}
-	diagnostics := make([]CleanupDiagnostic, 0, 1)
-	switch layout {
-	case installPublicationHasTarget | installPublicationHasIncoming | installPublicationHasBackup:
-		return nil, publicationRecoveryError("resolve three competing publication directories", nil)
-	case installPublicationHasTarget | installPublicationHasBackup:
-		if journal.Phase != installPublicationPhasePublished {
-			return nil, publicationRecoveryError("verify committed target before removing backup", nil)
-		}
-		return finalizeRecoveredInstallPublication(parent, journal, journalName, diagnostics, nil)
-	case installPublicationHasTarget | installPublicationHasIncoming:
-		return recoverInstallTargetAndIncoming(parent, journal, journalName, diagnostics)
-	case installPublicationHasIncoming | installPublicationHasBackup:
-		return recoverInstallIncomingWithBackup(parent, journal, journalName, diagnostics)
-	case installPublicationHasBackup:
-		return recoverInstallBackup(parent, journal, journalName, diagnostics)
-	case installPublicationHasIncoming:
-		return recoverInstallIncoming(parent, journal, journalName, diagnostics)
-	case installPublicationHasTarget:
-		return recoverSettledInstallTarget(parent, journal, journalName, diagnostics)
-	default:
-		return nil, publicationRecoveryError("resolve incomplete publication state", nil)
-	}
+	return policy.diagnostics, nil
 }
 
-func inspectInstallPublicationLayout(
+func (p *rollForwardPolicy) RecoverLayout(
 	parent *fileutil.Directory,
-	journal installPublicationJournal,
-) (installPublicationLayout, error) {
-	checks := []struct {
-		name      string
-		operation string
-		flag      installPublicationLayout
-	}{
-		{name: journal.TargetName, operation: "inspect canonical target", flag: installPublicationHasTarget},
-		{name: journal.IncomingName, operation: "inspect incoming target", flag: installPublicationHasIncoming},
-		{name: journal.BackupName, operation: "inspect backup target", flag: installPublicationHasBackup},
-	}
-	var layout installPublicationLayout
-	for _, check := range checks {
-		exists, err := installedDirectoryExists(parent, check.name)
-		if err != nil {
-			return 0, publicationRecoveryError(check.operation, err)
+	journal dirpublish.Journal,
+	layout dirpublish.Layout,
+) (err error) {
+	var diagnostics []CleanupDiagnostic
+	switch layout {
+	case dirpublish.HasTarget | dirpublish.HasIncoming | dirpublish.HasBackup:
+		return dirpublish.RecoveryError("resolve three competing publication directories", nil)
+	case dirpublish.HasTarget | dirpublish.HasBackup:
+		if journal.Phase != dirpublish.PhasePublished {
+			return dirpublish.RecoveryError("verify committed target before removing backup", nil)
 		}
-		if exists {
-			layout |= check.flag
-		}
+		diagnostics, err = finalizeRecoveredInstallPublication(parent, journal, p.diagnostics, nil)
+	case dirpublish.HasTarget | dirpublish.HasIncoming:
+		diagnostics, err = recoverInstallTargetAndIncoming(parent, journal, p.diagnostics)
+	case dirpublish.HasIncoming | dirpublish.HasBackup:
+		diagnostics, err = recoverInstallIncomingWithBackup(parent, journal, p.diagnostics)
+	case dirpublish.HasBackup:
+		diagnostics, err = recoverInstallBackup(parent, journal, p.diagnostics)
+	case dirpublish.HasIncoming:
+		diagnostics, err = recoverInstallIncoming(parent, journal, p.diagnostics)
+	case dirpublish.HasTarget:
+		diagnostics, err = recoverSettledInstallTarget(parent, journal, p.diagnostics)
+	default:
+		return dirpublish.RecoveryError("resolve incomplete publication state", nil)
 	}
-	return layout, nil
+	if err != nil {
+		return err
+	}
+	p.diagnostics = diagnostics
+	return nil
 }
 
 func recoverInstallTargetAndIncoming(
 	parent *fileutil.Directory,
-	journal installPublicationJournal,
-	journalName string,
+	journal dirpublish.Journal,
 	diagnostics []CleanupDiagnostic,
 ) ([]CleanupDiagnostic, error) {
 	moved, cleanupErr, err := moveNamedInstalledDirectoryEvidence(
@@ -91,7 +73,7 @@ func recoverInstallTargetAndIncoming(
 	)
 	diagnostics = appendUniqueCleanupDiagnostics(diagnostics, moved)
 	if err != nil {
-		return nil, errors.Join(publicationRecoveryError("stage canonical target during recovery", err), cleanupErr)
+		return nil, errors.Join(dirpublish.RecoveryError("stage canonical target during recovery", err), cleanupErr)
 	}
 	moved, nextCleanupErr, err := moveNamedInstalledDirectoryEvidence(
 		parent,
@@ -102,15 +84,14 @@ func recoverInstallTargetAndIncoming(
 	cleanupErr = errors.Join(cleanupErr, nextCleanupErr)
 	diagnostics = appendUniqueCleanupDiagnostics(diagnostics, moved)
 	if err != nil {
-		return nil, errors.Join(publicationRecoveryError("publish incoming target during recovery", err), cleanupErr)
+		return nil, errors.Join(dirpublish.RecoveryError("publish incoming target during recovery", err), cleanupErr)
 	}
-	return finalizeRecoveredInstallPublication(parent, journal, journalName, diagnostics, cleanupErr)
+	return finalizeRecoveredInstallPublication(parent, journal, diagnostics, cleanupErr)
 }
 
 func recoverInstallIncomingWithBackup(
 	parent *fileutil.Directory,
-	journal installPublicationJournal,
-	journalName string,
+	journal dirpublish.Journal,
 	diagnostics []CleanupDiagnostic,
 ) ([]CleanupDiagnostic, error) {
 	moved, cleanupErr, err := moveNamedInstalledDirectoryEvidence(
@@ -121,15 +102,14 @@ func recoverInstallIncomingWithBackup(
 	)
 	diagnostics = appendUniqueCleanupDiagnostics(diagnostics, moved)
 	if err != nil {
-		return nil, errors.Join(publicationRecoveryError("publish staged incoming target", err), cleanupErr)
+		return nil, errors.Join(dirpublish.RecoveryError("publish staged incoming target", err), cleanupErr)
 	}
-	return finalizeRecoveredInstallPublication(parent, journal, journalName, diagnostics, cleanupErr)
+	return finalizeRecoveredInstallPublication(parent, journal, diagnostics, cleanupErr)
 }
 
 func recoverInstallBackup(
 	parent *fileutil.Directory,
-	journal installPublicationJournal,
-	journalName string,
+	journal dirpublish.Journal,
 	diagnostics []CleanupDiagnostic,
 ) ([]CleanupDiagnostic, error) {
 	moved, cleanupErr, err := moveNamedInstalledDirectoryEvidence(
@@ -140,18 +120,17 @@ func recoverInstallBackup(
 	)
 	diagnostics = appendUniqueCleanupDiagnostics(diagnostics, moved)
 	if err != nil {
-		return nil, errors.Join(publicationRecoveryError("restore staged backup", err), cleanupErr)
+		return nil, errors.Join(dirpublish.RecoveryError("restore staged backup", err), cleanupErr)
 	}
-	if err := removeInstallPublicationJournal(parent, journalName); err != nil {
-		return nil, errors.Join(publicationRecoveryError("remove restored publication journal", err), cleanupErr)
+	if err := dirpublish.RemoveJournal(parent, journal.TargetName); err != nil {
+		return nil, errors.Join(dirpublish.RecoveryError("remove restored publication journal", err), cleanupErr)
 	}
 	return diagnostics, nil
 }
 
 func recoverInstallIncoming(
 	parent *fileutil.Directory,
-	journal installPublicationJournal,
-	journalName string,
+	journal dirpublish.Journal,
 	diagnostics []CleanupDiagnostic,
 ) ([]CleanupDiagnostic, error) {
 	moved, cleanupErr, err := moveNamedInstalledDirectoryEvidence(
@@ -162,41 +141,38 @@ func recoverInstallIncoming(
 	)
 	diagnostics = appendUniqueCleanupDiagnostics(diagnostics, moved)
 	if err != nil {
-		return nil, errors.Join(publicationRecoveryError("publish orphaned incoming target", err), cleanupErr)
+		return nil, errors.Join(dirpublish.RecoveryError("publish orphaned incoming target", err), cleanupErr)
 	}
-	if err := removeInstallPublicationJournal(parent, journalName); err != nil {
-		return nil, errors.Join(publicationRecoveryError("remove recovered publication journal", err), cleanupErr)
+	if err := dirpublish.RemoveJournal(parent, journal.TargetName); err != nil {
+		return nil, errors.Join(dirpublish.RecoveryError("remove recovered publication journal", err), cleanupErr)
 	}
 	return diagnostics, nil
 }
 
 func recoverSettledInstallTarget(
 	parent *fileutil.Directory,
-	journal installPublicationJournal,
-	journalName string,
+	journal dirpublish.Journal,
 	diagnostics []CleanupDiagnostic,
 ) ([]CleanupDiagnostic, error) {
-	if journal.Phase != installPublicationPhasePrepared && journal.Phase != installPublicationPhasePublished {
-		return nil, publicationRecoveryError("resolve incomplete publication state", nil)
-	}
-	if err := removeInstallPublicationJournal(parent, journalName); err != nil {
-		return nil, publicationRecoveryError("remove settled publication journal", err)
+	// Only the target is left: nothing remains to roll forward or back in any phase (a rollback that
+	// restored the target, or a finalize that removed the backup), so only the journal goes.
+	if err := dirpublish.RemoveJournal(parent, journal.TargetName); err != nil {
+		return nil, dirpublish.RecoveryError("remove settled publication journal", err)
 	}
 	return diagnostics, nil
 }
 
 func finalizeRecoveredInstallPublication(
 	parent *fileutil.Directory,
-	journal installPublicationJournal,
-	journalName string,
+	journal dirpublish.Journal,
 	diagnostics []CleanupDiagnostic,
 	priorCleanupErr error,
 ) ([]CleanupDiagnostic, error) {
-	cleanup, cleanupErr := finalizeCommittedInstallPublication(parent, journal, journalName)
+	cleanup, cleanupErr := finalizeCommittedInstallPublication(parent, journal)
 	cleanupErr = errors.Join(priorCleanupErr, cleanupErr)
 	diagnostics = appendUniqueCleanupDiagnostics(diagnostics, cleanup)
 	if len(cleanup) > 0 {
-		return nil, errors.Join(publicationRecoveryError("clean recovered publication state", nil), cleanupErr)
+		return nil, errors.Join(dirpublish.RecoveryError("clean recovered publication state", nil), cleanupErr)
 	}
 	return diagnostics, nil
 }

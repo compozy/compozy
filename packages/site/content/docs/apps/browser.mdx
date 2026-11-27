@@ -85,10 +85,9 @@ does not grant browser access to any operation absent from this table.
 <AppAllowedOperations />
 
 Privileged surfaces such as Terminal execution, filesystem browsing, settings, Vault, extension
-management, tool invocation, agent kernel, Gateway, and app-token management remain unavailable to
+management, tool invocation, agent kernel, computer management, and app-token management remain unavailable to
 foreign browser origins. The daemon's own CompozyOS web UI retains its existing same-origin access.
-App tokens work only on the local listener; Gateway listeners reject them with
-`gateway_app_token_local_only`.
+App tokens authenticate only on the computer’s local HTTP listener.
 
 ## Security
 

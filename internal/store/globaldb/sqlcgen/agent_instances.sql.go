@@ -760,18 +760,20 @@ SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_sessi
 AND (?3 = 1 OR workspace_id = ?4)
 AND (?5 = '' OR agent_name = ?5)
 AND (?6 = '' OR state = ?6)
-AND archived_at IS NULL AND id > ?7 ORDER BY id LIMIT ?8
+AND (?7 = 1 OR archived_at IS NULL)
+AND id > ?8 ORDER BY id LIMIT ?9
 `
 
 type ListAgentInstancesParams struct {
-	AllProfiles   any    `json:"all_profiles"`
-	ProfileID     string `json:"profile_id"`
-	AllWorkspaces any    `json:"all_workspaces"`
-	WorkspaceID   string `json:"workspace_id"`
-	AgentName     any    `json:"agent_name"`
-	State         any    `json:"state"`
-	AfterID       string `json:"after_id"`
-	PageLimit     int64  `json:"page_limit"`
+	AllProfiles     any    `json:"all_profiles"`
+	ProfileID       string `json:"profile_id"`
+	AllWorkspaces   any    `json:"all_workspaces"`
+	WorkspaceID     string `json:"workspace_id"`
+	AgentName       any    `json:"agent_name"`
+	State           any    `json:"state"`
+	IncludeArchived any    `json:"include_archived"`
+	AfterID         string `json:"after_id"`
+	PageLimit       int64  `json:"page_limit"`
 }
 
 func (q *Queries) ListAgentInstances(ctx context.Context, arg ListAgentInstancesParams) ([]AgentInstance, error) {
@@ -782,6 +784,7 @@ func (q *Queries) ListAgentInstances(ctx context.Context, arg ListAgentInstances
 		arg.WorkspaceID,
 		arg.AgentName,
 		arg.State,
+		arg.IncludeArchived,
 		arg.AfterID,
 		arg.PageLimit,
 	)

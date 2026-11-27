@@ -1,11 +1,38 @@
-import createClient from "openapi-fetch";
+import createClient, { type Client } from "openapi-fetch";
 
 import type { paths as compozyPaths } from "@compozy/client";
+import { reportAccountGateResponse } from "./account-gate-signal";
 import { createClientId } from "./client-id";
-import { reportGatewayResponse } from "./gateway-access-signal";
+import {
+  isRemoteComputerId,
+  LOCAL_COMPUTER_ID,
+  normalizeComputerId,
+  onAccountScopeEvicted,
+} from "./computer-scope";
+import {
+  buildBrowserDPoP,
+  isHostedBrowserMode,
+  reportHostedBrowserResponse,
+  shouldAttachBrowserDPoP,
+} from "./hosted-browser-auth";
+
+export { LOCAL_COMPUTER_ID, type ComputerId } from "./computer-scope";
 
 export const apiBaseUrl =
   typeof window === "undefined" ? "http://localhost" : window.location.origin;
+
+export function computerApiBaseUrl(computerId?: string | null): string {
+  const normalized = normalizeComputerId(computerId);
+  if (normalized === LOCAL_COMPUTER_ID) return apiBaseUrl;
+  return `${apiBaseUrl}/c/${encodeURIComponent(normalized)}`;
+}
+
+export function computerApiPath(computerId: string | null | undefined, path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const normalized = normalizeComputerId(computerId);
+  if (normalized === LOCAL_COMPUTER_ID) return normalizedPath;
+  return `/c/${encodeURIComponent(normalized)}${normalizedPath}`;
+}
 
 export const clientID = `web-${createClientId()}`;
 
@@ -38,18 +65,49 @@ function applyTraceparent(url: string, headers: Headers): void {
   }
 }
 
+async function fetchWithHostedDPoP(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  if (input instanceof Request && init === undefined) {
+    applyTraceparent(input.url, input.headers);
+    if (!input.headers.get("DPoP")?.trim()) {
+      input.headers.set("DPoP", await buildBrowserDPoP(input.method || "GET", input.url));
+    }
+    const response = await globalThis.fetch(input);
+    await reportHostedBrowserResponse(response);
+    return response;
+  }
+  const url = input instanceof Request ? input.url : String(input);
+  const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+  const headers = new Headers(
+    init?.headers ?? (input instanceof Request ? input.headers : undefined)
+  );
+  applyTraceparent(url, headers);
+  if (!headers.get("DPoP")?.trim()) {
+    headers.set("DPoP", await buildBrowserDPoP(method, url));
+  }
+  const response = await globalThis.fetch(input, { ...init, headers });
+  await reportHostedBrowserResponse(response);
+  return response;
+}
+
 /**
  * The web client's only `fetch` for daemon requests: `apiClient`, adapters that call the daemon
- * directly, prompt streaming, and raw `Request`s. It applies the traceparent rule, keeps the
- * caller's `(input, init)` shape, and delegates through `globalThis.fetch` at call time so tests
- * can stub it after module import (openapi-fetch captures its fetch at client creation).
+ * directly, prompt streaming, and raw `Request`s. It applies the traceparent rule, attaches a
+ * per-request browser DPoP proof on hosted origins, keeps the caller's `(input, init)` shape,
+ * and delegates through `globalThis.fetch` at call time so tests can stub it after module import
+ * (openapi-fetch captures its fetch at client creation).
  */
 export const daemonFetch: typeof globalThis.fetch = (input, init) => {
+  const url = input instanceof Request ? input.url : String(input);
+  if (shouldAttachBrowserDPoP(url)) {
+    return fetchWithHostedDPoP(input, init);
+  }
   if (input instanceof Request && init === undefined) {
     applyTraceparent(input.url, input.headers);
     return globalThis.fetch(input);
   }
-  const url = input instanceof Request ? input.url : String(input);
   const headers = new Headers(
     init?.headers ?? (input instanceof Request ? input.headers : undefined)
   );
@@ -57,33 +115,61 @@ export const daemonFetch: typeof globalThis.fetch = (input, init) => {
   return globalThis.fetch(input, { ...init, headers });
 };
 
-export const apiClient = createClient<compozyPaths>({
-  baseUrl: apiBaseUrl,
-  fetch: daemonFetch,
-});
+function attachClientMiddleware(client: Client<compozyPaths>): Client<compozyPaths> {
+  client.use({
+    onRequest({ request }) {
+      request.headers.set("X-Compozy-Client-ID", clientID);
+      return request;
+    },
+    async onResponse({ response }) {
+      if (isHostedBrowserMode()) {
+        await reportHostedBrowserResponse(response);
+      } else {
+        await reportAccountGateResponse(response);
+      }
+      return undefined;
+    },
+  });
+  return client;
+}
+
+export const apiClient = attachClientMiddleware(
+  createClient<compozyPaths>({
+    baseUrl: apiBaseUrl,
+    fetch: daemonFetch,
+  })
+);
+
+const remoteApiClients = new Map<string, Client<compozyPaths>>();
 
 /**
- * Single chokepoint for "this device's access ended". Only an explicit daemon
- * code on a 401 counts (see `gateway-access-signal`), so ordinary failures and
- * unrelated 401s pass through untouched.
+ * Returns a computer-scoped OpenAPI client (ADR-004).
  *
- * The parse is awaited rather than fired and forgotten: `openapi-fetch` awaits
- * `onResponse`, so resolving here guarantees the terminal signal has already
- * landed by the time the failing caller regains control. Otherwise that caller
- * could render — or reuse — protected cached data in the window before the
- * boundary learned the session was over. The body is read from a clone so the
- * calling adapter still receives an unconsumed response.
+ * Local (`"local"` or omitted) returns the unprefixed singleton `apiClient`; any remote
+ * computer ID routes through the local controller's `/c/{computer_id}` bridge on the same origin.
  */
-apiClient.use({
-  onRequest({ request }) {
-    request.headers.set("X-Compozy-Client-ID", clientID);
-    return request;
-  },
-  async onResponse({ response }) {
-    await reportGatewayResponse(response);
-    return undefined;
-  },
-});
+export function apiClientFor(computerId?: string | null): Client<compozyPaths> {
+  if (!isRemoteComputerId(computerId)) return apiClient;
+  const normalized = normalizeComputerId(computerId);
+  let client = remoteApiClients.get(normalized);
+  if (!client) {
+    client = attachClientMiddleware(
+      createClient<compozyPaths>({
+        baseUrl: computerApiBaseUrl(normalized),
+        fetch: daemonFetch,
+      })
+    );
+    remoteApiClients.set(normalized, client);
+  }
+  return client;
+}
+
+/** Clears cached remote API clients (for account switches and tests). */
+export function clearRemoteApiClients(): void {
+  remoteApiClients.clear();
+}
+
+onAccountScopeEvicted(clearRemoteApiClients);
 
 export function apiErrorMessage(error: unknown): string | undefined {
   if (typeof error === "string") {

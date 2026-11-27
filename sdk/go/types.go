@@ -33,9 +33,6 @@ const CapabilityToolProvider = "tool.provider"
 // CapabilityProvideWatchSource is the provide surface for loop watch-source polling.
 const CapabilityProvideWatchSource = "loop.watch_source"
 
-// CapabilityProvideConnectivityProvider is the public daemon reachability surface.
-const CapabilityProvideConnectivityProvider = "connectivity.provider"
-
 // CapabilityProvideForgeProvider is the public forge integration surface.
 const CapabilityProvideForgeProvider = "forge.provider"
 
@@ -50,15 +47,6 @@ const ExtensionServiceMethodToolsCall = "tools/call"
 
 // ExtensionServiceMethodWatchPoll is the watch-source poll service method.
 const ExtensionServiceMethodWatchPoll = "watch/poll"
-
-const (
-	// ExtensionServiceMethodConnectivityEstablish starts one connectivity tier.
-	ExtensionServiceMethodConnectivityEstablish = "connectivity/establish"
-	// ExtensionServiceMethodConnectivityStatus reads one connectivity tier.
-	ExtensionServiceMethodConnectivityStatus = "connectivity/status"
-	// ExtensionServiceMethodConnectivityTeardown stops one connectivity tier.
-	ExtensionServiceMethodConnectivityTeardown = "connectivity/teardown"
-)
 
 const (
 	// ExtensionServiceMethodForgeCapabilities reports provider vocabulary and availability.
@@ -128,17 +116,23 @@ const (
 
 // ExtensionDefinition describes one extension process implementation.
 type ExtensionDefinition struct {
-	Name                string              `json:"name"`
-	Version             string              `json:"version"`
-	Description         string              `json:"description,omitempty"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description,omitempty"`
+	// MinCompozyVersion is the oldest CompozyOS daemon this extension supports.
+	//
+	// Empty keeps MinCompozyVersion, the floor of the SDK release that built the
+	// extension. `compozy extension build` writes the higher of the two floors to
+	// the generated manifest, so a declared floor never lowers the SDK's own.
+	MinCompozyVersion   string              `json:"min_compozy_version,omitempty"`
 	RequiresEnv         []string            `json:"requires_env,omitempty"`
+	Inputs              []Input             `json:"inputs,omitempty"`
 	Profiles            []DescribeProfile   `json:"profiles,omitempty"`
 	Resources           DescribeResources   `json:"resources,omitempty"` //nolint:modernize // omitempty is a no-op on this struct; omitzero would drop the zero DescribeResources object from the wire.
 	Subprocess          DescribeSubprocess  `json:"subprocess"`
 	Capabilities        CapabilitiesConfig  `json:"capabilities"`
 	Permissions         PermissionsConfig   `json:"permissions"`
 	SupportedHookEvents []DescribeHookEvent `json:"supported_hook_events,omitempty"`
-	Gateway             *GatewayRequirement `json:"gateway,omitzero"`
 	Metadata            map[string]string   `json:"metadata,omitempty"`
 }
 
@@ -159,9 +153,6 @@ type DescribeResourcePath = contracts.DescribeResourcePath
 
 // DescribeHookEvent binds a supported hook event to an optional profile.
 type DescribeHookEvent = contracts.DescribeHookEvent
-
-// GatewayRequirement declares Gateway provider permissions for digest consent.
-type GatewayRequirement = contracts.DescribeGatewayRequirement
 
 // CapabilitiesConfig lists extension-provided capability surfaces.
 type CapabilitiesConfig struct {

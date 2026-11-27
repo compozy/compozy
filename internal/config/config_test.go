@@ -1829,17 +1829,14 @@ func TestLoadForHomeSkipsDuplicateWorkspaceOverlay(t *testing.T) {
 		if err := EnsureHomeLayout(homePaths); err != nil {
 			t.Fatalf("EnsureHomeLayout() error = %v", err)
 		}
-		writeFile(t, homePaths.ConfigFile, "[gateway]\nenabled = true\nprivate_port = 4242\n")
+		writeFile(t, homePaths.ConfigFile, "[http]\nport = 4242\n")
 
 		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(operatorHome))
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
-		if !cfg.Gateway.Enabled {
-			t.Fatal("LoadForHome() Gateway.Enabled = false, want true")
-		}
-		if got, want := cfg.Gateway.PrivatePort, 4242; got != want {
-			t.Fatalf("LoadForHome() Gateway.PrivatePort = %d, want %d", got, want)
+		if got, want := cfg.HTTP.Port, 4242; got != want {
+			t.Fatalf("LoadForHome() HTTP.Port = %d, want %d", got, want)
 		}
 	})
 }

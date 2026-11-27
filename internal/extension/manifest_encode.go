@@ -43,9 +43,6 @@ func manifestTOMLDocument(manifest *Manifest) (map[string]any, error) {
 		},
 		manifestSubprocessKey: subprocessTOMLTable(manifest.Subprocess),
 	}
-	if requirement := manifest.Gateway.Normalize(); requirement != nil {
-		document[manifestFieldGateway] = map[string]any{"permissions": requirement.Permissions}
-	}
 	if len(manifest.Profiles) > 0 {
 		document["profiles"] = manifest.Profiles
 	}
@@ -56,6 +53,9 @@ func manifestTOMLDocument(manifest *Manifest) (map[string]any, error) {
 			return nil, err
 		}
 		document["inputs"] = inputs
+	}
+	if requires := manifestRequiresTOML(manifest.Requires); requires != nil {
+		document[manifestRequiresKey] = requires
 	}
 	resources, err := resourcesTOMLTable(manifest.Resources)
 	if err != nil {

@@ -300,6 +300,50 @@ func TestToolRegistrationValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("Should Describe The Declared Compatibility Floor", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name     string
+			declared string
+			want     string
+		}{
+			{
+				name:     "Should Use The Declared Floor When Set",
+				declared: " 0.7.7 ",
+				want:     "0.7.7",
+			},
+			{
+				name:     "Should Fall Back To The SDK Floor When Empty",
+				declared: "  ",
+				want:     compozysdk.MinCompozyVersion,
+			},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+					Name:              "floor-fixture",
+					Version:           "0.1.0",
+					MinCompozyVersion: tc.declared,
+					Subprocess:        compozysdk.DescribeSubprocess{Command: "./bin"},
+				})
+				payload, err := extension.Describe()
+				if err != nil {
+					t.Fatalf("Describe() error = %v", err)
+				}
+				if payload.SDK.MinCompozyVersion != tc.want {
+					t.Fatalf(
+						"Describe().SDK.MinCompozyVersion = %q, want %q",
+						payload.SDK.MinCompozyVersion,
+						tc.want,
+					)
+				}
+			})
+		}
+	})
+
 	t.Run("Should Reserve Tool Provider Methods", func(t *testing.T) {
 		t.Parallel()
 
@@ -315,6 +359,97 @@ func TestToolRegistrationValidation(t *testing.T) {
 		}
 		if err := extension.Tool("search", validToolOptions(), rawOKHandler); err == nil {
 			t.Fatal("Tool() error = nil, want reserved method error")
+		}
+	})
+}
+
+func TestDescribeInputs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should emit normalized inputs and raise the compatibility floor", func(t *testing.T) {
+		t.Parallel()
+
+		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+			Name: "acme-tool", Version: "1.2.0", RequiresEnv: []string{"ACME_TOKEN"},
+			Inputs: []compozysdk.Input{{
+				ID: " api_token ", Prompt: " API token for Acme ", Type: "secret", Required: true,
+				Binding: compozysdk.InputBinding{Type: "env", Name: " ACME_TOKEN "},
+			}},
+			Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
+		}, compozysdk.WithStderr(io.Discard))
+
+		payload, err := extension.Describe()
+		if err != nil {
+			t.Fatalf("Describe() error = %v", err)
+		}
+		want := []contracts.DescribeInput{{
+			ID: "api_token", Prompt: "API token for Acme", Type: "secret", Required: true,
+			Binding: contracts.DescribeInputBinding{Type: "env", Name: "ACME_TOKEN"},
+		}}
+		if !reflect.DeepEqual(payload.Inputs, want) {
+			t.Fatalf("Describe().Inputs = %#v, want %#v", payload.Inputs, want)
+		}
+		if payload.SDK.MinCompozyVersion != compozysdk.InputsMinCompozyVersion {
+			t.Fatalf(
+				"Describe().SDK.MinCompozyVersion = %q, want %q",
+				payload.SDK.MinCompozyVersion, compozysdk.InputsMinCompozyVersion,
+			)
+		}
+	})
+
+	t.Run("Should keep the higher of the declared floor and the inputs floor", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct{ declared, want string }{
+			{declared: "0.5.0", want: compozysdk.InputsMinCompozyVersion},
+			{declared: "0.8.0", want: "0.8.0"},
+			{declared: compozysdk.InputsMinCompozyVersion + "-rc.1", want: compozysdk.InputsMinCompozyVersion},
+			{declared: "0.7.10+build.1", want: "0.7.10+build.1"},
+		} {
+			extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+				Name: "acme-tool", Version: "1.2.0", RequiresEnv: []string{"ACME_REGION"},
+				MinCompozyVersion: tc.declared,
+				Inputs: []compozysdk.Input{{
+					ID: "region", Prompt: "Region", Type: "identifier",
+					Binding: compozysdk.InputBinding{Type: "env", Name: "ACME_REGION"},
+				}},
+				Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
+			}, compozysdk.WithStderr(io.Discard))
+			payload, err := extension.Describe()
+			if err != nil {
+				t.Fatalf("Describe() error = %v", err)
+			}
+			if payload.SDK.MinCompozyVersion != tc.want {
+				t.Fatalf("declared %q: Describe().SDK.MinCompozyVersion = %q, want %q",
+					tc.declared, payload.SDK.MinCompozyVersion, tc.want)
+			}
+		}
+	})
+
+	t.Run("Should omit inputs and keep the base floor when none are declared", func(t *testing.T) {
+		t.Parallel()
+
+		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+			Name: "acme-tool", Version: "1.2.0", Inputs: []compozysdk.Input{},
+			Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
+		}, compozysdk.WithStderr(io.Discard))
+
+		payload, err := extension.Describe()
+		if err != nil {
+			t.Fatalf("Describe() error = %v", err)
+		}
+		data, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if bytes.Contains(data, []byte(`"inputs"`)) {
+			t.Fatalf("Describe() JSON = %s, want inputs omitted", data)
+		}
+		if payload.SDK.MinCompozyVersion != compozysdk.MinCompozyVersion {
+			t.Fatalf(
+				"Describe().SDK.MinCompozyVersion = %q, want %q",
+				payload.SDK.MinCompozyVersion, compozysdk.MinCompozyVersion,
+			)
 		}
 	})
 }
@@ -662,159 +797,6 @@ func TestStdioRuntimeProvidesAndCallsWatchSource(t *testing.T) {
 	})
 }
 
-func TestStdioRuntimeProvidesConnectivityProvider(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should serve every connectivity provider method over stdio", func(t *testing.T) {
-		t.Parallel()
-		runtime := newRuntimeHarness(t)
-		extension := compozysdk.NewExtension(
-			compozysdk.ExtensionDefinition{Name: "Go Connectivity", Version: "0.1.0"},
-			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
-			compozysdk.WithStderr(io.Discard),
-		)
-		if err := compozysdk.ConnectivityProvider(extension, validConnectivityHandlers()); err != nil {
-			t.Fatalf("ConnectivityProvider() error = %v", err)
-		}
-		ctx, cancel := context.WithCancel(t.Context())
-		defer cancel()
-		done := make(chan error, 1)
-		go func() { done <- extension.Run(ctx) }()
-		t.Cleanup(func() {
-			cancel()
-			if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
-				t.Fatalf("close input error = %v", err)
-			}
-			select {
-			case <-done:
-			case <-time.After(time.Second):
-				t.Fatal("extension runtime did not stop")
-			}
-		})
-		params := initializeParams("Go Connectivity")
-		params["capabilities"].(map[string]any)["provides"] = []string{"connectivity.provider"}
-		params["methods"].(map[string]any)["extension_services"] = []string{
-			"connectivity/establish", "connectivity/status", "connectivity/teardown",
-		}
-		initialize := runtime.call(t, 1, "initialize", params)
-		if initialize.Error != nil {
-			t.Fatalf("initialize error = %#v", initialize.Error)
-		}
-		var initResult compozysdk.InitializeResponse
-		decodeResult(t, initialize.Result, &initResult)
-		for _, method := range []string{"connectivity/establish", "connectivity/status", "connectivity/teardown"} {
-			if !contains(initResult.ImplementedMethods, method) {
-				t.Fatalf("implemented methods = %#v, want %s", initResult.ImplementedMethods, method)
-			}
-		}
-		deadline := time.Now().Add(time.Second).UTC()
-		establish := runtime.call(t, 2, "connectivity/establish", map[string]any{
-			"tier": "private", "forward_target": "127.0.0.1:43210",
-			"challenge_path": "/.well-known/compozy/gateway-challenge/sdk",
-			"deadline":       deadline.Format(time.RFC3339Nano),
-		})
-		if establish.Error != nil {
-			t.Fatalf("connectivity/establish error = %#v", establish.Error)
-		}
-		var reachability compozysdk.ConnectivityReachability
-		decodeResult(t, establish.Result, &reachability)
-		if reachability.Tier != "private" || reachability.Health != "healthy" || len(reachability.Endpoints) != 1 {
-			t.Fatalf("connectivity reachability = %#v", reachability)
-		}
-		status := runtime.call(t, 3, "connectivity/status", map[string]any{"tier": "private"})
-		if status.Error != nil {
-			t.Fatalf("connectivity/status error = %#v", status.Error)
-		}
-		var statusReachability compozysdk.ConnectivityReachability
-		decodeResult(t, status.Result, &statusReachability)
-		if statusReachability.Tier != "private" || statusReachability.Health != "healthy" ||
-			len(statusReachability.Endpoints) != 1 {
-			t.Fatalf("connectivity status = %#v", statusReachability)
-		}
-		teardown := runtime.call(t, 4, "connectivity/teardown", map[string]any{
-			"tier": "private", "deadline": deadline.Format(time.RFC3339Nano),
-		})
-		if teardown.Error != nil {
-			t.Fatalf("connectivity/teardown error = %#v", teardown.Error)
-		}
-		var stopped compozysdk.ConnectivityTeardownResponse
-		decodeResult(t, teardown.Result, &stopped)
-		if !stopped.Stopped {
-			t.Fatal("connectivity teardown stopped = false")
-		}
-		malformed := runtime.call(t, 5, "connectivity/status", map[string]any{"tier": 42})
-		if malformed.Error == nil {
-			t.Fatal("connectivity/status malformed error = nil")
-		}
-		unimplemented := runtime.call(t, 6, "connectivity/not-implemented", map[string]any{})
-		if unimplemented.Error == nil {
-			t.Fatal("unimplemented connectivity method error = nil")
-		}
-	})
-}
-
-func TestConnectivityProviderRegistrationIsAtomic(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should leave every unreserved method available after a collision", func(t *testing.T) {
-		t.Parallel()
-		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "collision", Version: "0.1.0"})
-		if err := extension.Handle(
-			compozysdk.ExtensionServiceMethodConnectivityStatus,
-			noOpExtensionHandler,
-		); err != nil {
-			t.Fatalf("Handle(status) error = %v", err)
-		}
-		if err := compozysdk.ConnectivityProvider(extension, validConnectivityHandlers()); err == nil {
-			t.Fatal("ConnectivityProvider() error = nil, want reserved-method collision")
-		}
-		for _, method := range []string{
-			compozysdk.ExtensionServiceMethodConnectivityEstablish,
-			compozysdk.ExtensionServiceMethodConnectivityTeardown,
-		} {
-			if err := extension.Handle(method, noOpExtensionHandler); err != nil {
-				t.Fatalf("Handle(%s) after failed registration error = %v", method, err)
-			}
-		}
-	})
-
-	t.Run("Should reject duplicate and post-initialize registration", func(t *testing.T) {
-		t.Parallel()
-		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "duplicate", Version: "0.1.0"})
-		if err := compozysdk.ConnectivityProvider(extension, validConnectivityHandlers()); err != nil {
-			t.Fatalf("ConnectivityProvider(first) error = %v", err)
-		}
-		if err := compozysdk.ConnectivityProvider(extension, validConnectivityHandlers()); err == nil {
-			t.Fatal("ConnectivityProvider(second) error = nil")
-		}
-
-		runtime := newRuntimeHarness(t)
-		late := compozysdk.NewExtension(
-			compozysdk.ExtensionDefinition{Name: "late", Version: "0.1.0"},
-			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
-		)
-		ctx, cancel := context.WithCancel(t.Context())
-		done := make(chan error, 1)
-		go func() { done <- late.Run(ctx) }()
-		params := initializeParams("Late Connectivity")
-		if response := runtime.call(t, 1, "initialize", params); response.Error != nil {
-			t.Fatalf("initialize error = %#v", response.Error)
-		}
-		if err := compozysdk.ConnectivityProvider(late, validConnectivityHandlers()); err == nil {
-			t.Fatal("ConnectivityProvider(after initialize) error = nil")
-		}
-		cancel()
-		if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
-			t.Fatalf("close input error = %v", err)
-		}
-		select {
-		case <-done:
-		case <-time.After(time.Second):
-			t.Fatal("extension runtime did not stop")
-		}
-	})
-}
-
 func TestForgeProviderRegistrationIsAtomic(t *testing.T) {
 	t.Parallel()
 
@@ -963,44 +945,8 @@ func validForgeHandlers() compozysdk.ForgeProviderHandlers {
 	}
 }
 
-func validConnectivityHandlers() compozysdk.ConnectivityProviderHandlers {
-	return compozysdk.ConnectivityProviderHandlers{
-		Establish: func(
-			_ context.Context,
-			_ compozysdk.ExtensionContext,
-			req compozysdk.ConnectivityEstablishRequest,
-		) (compozysdk.ConnectivityReachability, error) {
-			return connectivitySDKReachability(req.Tier), nil
-		},
-		Status: func(
-			_ context.Context,
-			_ compozysdk.ExtensionContext,
-			req compozysdk.ConnectivityStatusRequest,
-		) (compozysdk.ConnectivityReachability, error) {
-			return connectivitySDKReachability(req.Tier), nil
-		},
-		Teardown: func(
-			context.Context,
-			compozysdk.ExtensionContext,
-			compozysdk.ConnectivityTeardownRequest,
-		) (compozysdk.ConnectivityTeardownResponse, error) {
-			return compozysdk.ConnectivityTeardownResponse{Stopped: true}, nil
-		},
-	}
-}
-
 func noOpExtensionHandler(context.Context, compozysdk.ExtensionContext, json.RawMessage) (any, error) {
 	return map[string]any{"ok": true}, nil
-}
-
-func connectivitySDKReachability(tier string) compozysdk.ConnectivityReachability {
-	return compozysdk.ConnectivityReachability{
-		Tier: tier,
-		Endpoints: []compozysdk.ConnectivityAdvertisedEndpoint{{
-			URL: "https://gateway.example.test", Scheme: "https", Stability: "stable",
-		}},
-		Health: "healthy",
-	}
 }
 
 func TestSDKHasNoDaemonInternalImports(t *testing.T) {
@@ -1077,7 +1023,11 @@ type input struct {
 }
 
 func main() {
-	extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "consumer", Version: "0.1.0"})
+	extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+		Name:              "consumer",
+		Version:           "0.1.0",
+		MinCompozyVersion: "0.4.0",
+	})
 	if err := compozysdk.Tool[input](extension, "search", compozysdk.ToolOptions{
 		ReadOnly: true,
 		InputSchema: map[string]any{"type": "object"},

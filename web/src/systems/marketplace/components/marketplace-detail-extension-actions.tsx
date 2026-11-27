@@ -21,6 +21,7 @@ interface MarketplaceDetailExtensionActionsProps {
   facts: ExtensionTrustFacts;
   onRequestProvenance: () => void;
   onRequestRemoval: () => void;
+  onRequestSetup: () => void;
   onToggleEnabled: (enabled: boolean) => void;
   togglePending: boolean;
 }
@@ -36,6 +37,7 @@ export function MarketplaceDetailExtensionActions({
   facts,
   onRequestProvenance,
   onRequestRemoval,
+  onRequestSetup,
   onToggleEnabled,
   togglePending,
 }: MarketplaceDetailExtensionActionsProps) {
@@ -66,6 +68,9 @@ export function MarketplaceDetailExtensionActions({
           <DropdownMenuContent align="end">
             {!facts.dev ? (
               <>
+                {extension.inputs.length > 0 ? (
+                  <DropdownMenuItem onClick={onRequestSetup}>Setup…</DropdownMenuItem>
+                ) : null}
                 <DropdownMenuItem onClick={onRequestProvenance}>Provenance</DropdownMenuItem>
                 <DropdownMenuSeparator />
               </>

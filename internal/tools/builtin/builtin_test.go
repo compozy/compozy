@@ -831,6 +831,90 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		)
 	})
 
+	t.Run("Should require a bounded lesson and evidence on skill proposals [UT-007]", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: the propose schema requires the lesson and 1-20 evidence sessions and bounds confidence.
+		propose := descriptors[toolspkg.ToolIDAgentSkillPropose]
+		input := compileNativeSchema(t, propose, propose.InputSchema, "input")
+		evidence := func(count int) string {
+			ids := make([]string, count)
+			for i := range ids {
+				ids[i] = fmt.Sprintf(`"sess-%d"`, i)
+			}
+			return "[" + strings.Join(ids, ",") + "]"
+		}
+		payload := func(lesson, ids string) string {
+			return `{"name":"release-checklist","description":"Use before tagging.","body":"Check the changelog.",` +
+				`"lesson":` + lesson + `,"evidence_session_ids":` + ids + `}`
+		}
+		lesson := `{"cue":"Tagging","lesson":"Check the changelog.","evidence":"sess-0 failed."}`
+		for _, testCase := range []struct {
+			name         string
+			payload      string
+			valid        bool
+			matchesKind  func(jsonschema.ErrorKind) bool
+			expectedKind string
+		}{
+			{name: "Should accept 20 evidence sessions", payload: payload(lesson, evidence(20)), valid: true},
+			{
+				name:    "Should accept a high confidence lesson",
+				payload: payload(`{"cue":"Tagging","lesson":"Check.","evidence":"Failed.","confidence":"high"}`, evidence(1)),
+				valid:   true,
+			},
+			{
+				name:         "Should reject 21 evidence sessions",
+				payload:      payload(lesson, evidence(21)),
+				matchesKind:  validationErrorKindIsMaxItems,
+				expectedKind: "maxItems",
+			},
+			{
+				name:         "Should reject an empty evidence list",
+				payload:      payload(lesson, evidence(0)),
+				matchesKind:  validationErrorKindIsMinItems,
+				expectedKind: "minItems",
+			},
+			{
+				name:         "Should reject a confidence outside the enum",
+				payload:      payload(`{"cue":"Tagging","lesson":"Check.","evidence":"Failed.","confidence":"certain"}`, evidence(1)),
+				matchesKind:  validationErrorKindIsEnum,
+				expectedKind: "enum",
+			},
+			{
+				name:         "Should reject a proposal without a lesson",
+				payload:      `{"name":"release-checklist","description":"d","body":"b","evidence_session_ids":["sess-0"]}`,
+				matchesKind:  validationErrorKindIsRequired,
+				expectedKind: "required",
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				instance, err := jsonschema.UnmarshalJSON(strings.NewReader(testCase.payload))
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = input.Validate(instance)
+				if testCase.valid {
+					if err != nil {
+						t.Fatalf("agent_skill_propose schema rejected %s: %v", testCase.payload, err)
+					}
+					return
+				}
+				validationErr, ok := errors.AsType[*jsonschema.ValidationError](err)
+				if !ok {
+					t.Fatalf("agent_skill_propose validation error = %T %v, want *jsonschema.ValidationError", err, err)
+				}
+				if !validationErrorContainsKind(validationErr, testCase.matchesKind) {
+					t.Fatalf(
+						"agent_skill_propose validation cause = %#v, want %s",
+						validationErr,
+						testCase.expectedKind,
+					)
+				}
+			})
+		}
+	})
+
 	t.Run("Should advertise spawn worktree, inheritance, and first prompt contracts", func(t *testing.T) {
 		t.Parallel()
 
@@ -1033,7 +1117,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should publish closed extension inspection schemas and gateway digest inputs", func(t *testing.T) {
+	t.Run("Should publish closed extension inspection schemas", func(t *testing.T) {
 		t.Parallel()
 
 		inventory := descriptors[toolspkg.ToolIDExtensionsInventory]
@@ -1059,23 +1143,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"extension":"kit","enabled":true,
 			"items":[{"kind":"skill","id":"review","name":"Review","live":true,"extra":1}]
 		}`)
-		for _, id := range []toolspkg.ToolID{
-			toolspkg.ToolIDExtensionsInstall,
-			toolspkg.ToolIDExtensionsUpdate,
-		} {
-			var schema struct {
-				Properties map[string]struct {
-					Pattern string `json:"pattern"`
-				} `json:"properties"`
-			}
-			if err := json.Unmarshal(descriptors[id].InputSchema, &schema); err != nil {
-				t.Fatalf("%s input schema unmarshal error = %v", id, err)
-			}
-			if got, want := schema.Properties["confirm_gateway_digest"].Pattern,
-				"^[a-f0-9]{64}$"; got != want {
-				t.Fatalf("%s confirm_gateway_digest pattern = %q, want %q", id, got, want)
-			}
-		}
 	})
 
 	t.Run("Should publish native schema digests and capability roster", func(t *testing.T) {
@@ -1262,30 +1329,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 		if len(second[0].InputSchema) == 0 || second[0].InputSchema[0] == '[' {
 			t.Fatal("NativeDescriptors() reused input schema bytes")
-		}
-	})
-
-	t.Run("Should expose the closed gateway action contract", func(t *testing.T) {
-		t.Parallel()
-
-		descriptor := descriptors[toolspkg.ToolIDGateway]
-		var input struct {
-			Properties map[string]struct {
-				Enum []string `json:"enum"`
-			} `json:"properties"`
-		}
-		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
-			t.Fatalf("gateway input schema unmarshal error = %v", err)
-		}
-		wantActions := []string{
-			"status", "audit", "device_list", "surface_set", "provider_enable", "provider_disable",
-			"device_rename", "device_revoke", "device_remove", "ingress_bind", "ingress_unbind",
-		}
-		if got := input.Properties["action"].Enum; !slices.Equal(got, wantActions) {
-			t.Fatalf("gateway action enum = %#v, want %#v", got, wantActions)
-		}
-		if len(descriptor.OutputSchema) == 0 || !json.Valid(descriptor.OutputSchema) {
-			t.Fatal("gateway output schema is missing or invalid")
 		}
 	})
 }
@@ -1483,6 +1526,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__extensions_enable", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__extensions_setup", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__extensions_info", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__extensions_init", risk: toolspkg.RiskMutating,
@@ -1512,8 +1557,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: "compozy__extensions_update", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__extensions_validate", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__gateway", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__goal_control", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
@@ -1658,6 +1701,15 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__profile_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: toolspkg.ToolIDRemoteStatus, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDComputerSetupCancel, risk: toolspkg.RiskDestructive, destructive: true},
+		{id: toolspkg.ToolIDComputerList, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDComputerStatus, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDComputerAdd, risk: toolspkg.RiskOpenWorld, openWorld: true},
+		{id: toolspkg.ToolIDComputerRemove, risk: toolspkg.RiskDestructive, destructive: true},
+		{id: toolspkg.ToolIDComputerSetupStatus, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDComputerSetupAnswer, risk: toolspkg.RiskOpenWorld, openWorld: true},
+		{id: toolspkg.ToolIDAccountStatus, risk: toolspkg.RiskRead, readOnly: true},
 		{id: "compozy__resources_info", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__resources_list", risk: toolspkg.RiskRead,
@@ -1747,6 +1799,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: "compozy__session_stop", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_unarchive", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_archive_stopped", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_cleanup", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: false},
@@ -2295,6 +2349,26 @@ func validationErrorKindIsType(errorKind jsonschema.ErrorKind) bool {
 
 func validationErrorKindIsNot(errorKind jsonschema.ErrorKind) bool {
 	_, ok := errorKind.(*jsonschemakind.Not)
+	return ok
+}
+
+func validationErrorKindIsMaxItems(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.MaxItems)
+	return ok
+}
+
+func validationErrorKindIsMinItems(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.MinItems)
+	return ok
+}
+
+func validationErrorKindIsEnum(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.Enum)
+	return ok
+}
+
+func validationErrorKindIsRequired(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.Required)
 	return ok
 }
 
@@ -3646,14 +3720,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPAuthStatus}; !slices.Equal(mcpAuth, want) {
 			t.Fatalf("mcp auth expansion = %#v, want %#v", mcpAuth, want)
 		}
-
-		gatewayTools, err := catalog.Expand(toolspkg.ToolsetIDGateway, universe)
-		if err != nil {
-			t.Fatalf("Expand(gateway) error = %v", err)
-		}
-		if want := []toolspkg.ToolID{toolspkg.ToolIDGateway}; !slices.Equal(gatewayTools, want) {
-			t.Fatalf("gateway expansion = %#v, want %#v", gatewayTools, want)
-		}
 	})
 }
 
@@ -4030,6 +4096,10 @@ func TestCheckInWritableInventory(t *testing.T) {
 			"compozy__automation_triggers_enable":     false,
 			"compozy__automation_triggers_update":     false,
 			"compozy__cmd_palette_invoke":             false,
+			"compozy__computer_add":                   false,
+			"compozy__computer_remove":                false,
+			"compozy__computer_setup_answer":          false,
+			"compozy__computer_setup_cancel":          false,
 			"compozy__config_set":                     false,
 			"compozy__config_unset":                   false,
 			"compozy__desktop_create":                 false,
@@ -4047,6 +4117,7 @@ func TestCheckInWritableInventory(t *testing.T) {
 			"compozy__extensions_reload":              false,
 			"compozy__extensions_remove":              false,
 			"compozy__extensions_restore":             false,
+			"compozy__extensions_setup":               false,
 			"compozy__extensions_update":              false,
 			"compozy__goal_control":                   false,
 			"compozy__goal_report":                    false,
@@ -4087,6 +4158,7 @@ func TestCheckInWritableInventory(t *testing.T) {
 			"compozy__session_approve":                false,
 			"compozy__session_archive":                false,
 			"compozy__session_clarify_answer":         false,
+			"compozy__session_archive_stopped":        false,
 			"compozy__session_cleanup":                false,
 			"compozy__session_compact":                false,
 			"compozy__session_continue":               false,

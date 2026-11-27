@@ -13,11 +13,16 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
-var errSkillReviewQuery = errors.New("invalid skill review query")
+var (
+	errSkillReviewQuery = errors.New("invalid skill review query")
+	// ErrSkillReviewInvalidCursor refuses a malformed cursor or one reused under different filters.
+	ErrSkillReviewInvalidCursor = errors.New("invalid_cursor")
+)
 
+// skillReviewCursor binds continuation to the population and every filter it was issued for.
 type skillReviewCursor struct {
-	Profile, Workspace, Instance, State, After string
-	At                                         time.Time
+	Profile, Workspace, Instance, State, Kind, DecidedVia, After string
+	At                                                           time.Time
 }
 
 // SkillReviewsPage binds continuation to the authorized population, then hydrates only the page.
@@ -31,15 +36,27 @@ func (api *AgentInstanceAPI) SkillReviewsPage(ctx context.Context, query agentin
 		return result, fmt.Errorf("%w: limit must be from 1 to 100", errSkillReviewQuery)
 	}
 	switch query.State {
-	case "", "pending", "approved", "rejected":
+	case "", "pending", "approved", "rejected", "reverted":
 	default:
 		return result, fmt.Errorf("%w: invalid review state", errSkillReviewQuery)
 	}
+	switch agentinstance.SkillProposalMode(query.Kind) {
+	case "", agentinstance.SkillProposalNew, agentinstance.SkillProposalEdit:
+	default:
+		return result, fmt.Errorf("%w: kind must be new or edit", errSkillReviewQuery)
+	}
+	switch query.DecidedVia {
+	case "", "operator", "auto_approve":
+	default:
+		return result, fmt.Errorf("%w: decided_via must be operator or auto_approve", errSkillReviewQuery)
+	}
 	identity := skillReviewCursor{
-		Profile:   query.ProfileID,
-		Workspace: query.WorkspaceID,
-		Instance:  query.InstanceID,
-		State:     query.State,
+		Profile:    query.ProfileID,
+		Workspace:  query.WorkspaceID,
+		Instance:   query.InstanceID,
+		State:      query.State,
+		Kind:       query.Kind,
+		DecidedVia: query.DecidedVia,
 	}
 	if err := identity.apply(cursor, &query); err != nil {
 		return result, err
@@ -126,10 +143,25 @@ func skillReviewMetadata(review agentinstance.SkillReview) contract.AgentSkillRe
 		Agent:       review.AgentName,
 		Name:        review.SkillName,
 		State:       review.State,
+		Kind:        string(review.Kind),
 		Digest:      review.Digest,
-		CreatedAt:   review.CreatedAt,
-		DecidedAt:   review.DecidedAt,
-		DecidedBy:   review.DecidedBy,
+		BaseDigest:  review.BaseDigest,
+		Lesson:      skillLessonPayload(review.Lesson),
+		// Never null: legacy reviews carry an empty list.
+		EvidenceSessionIDs: append([]string{}, review.EvidenceSessionIDs...),
+		CreatedAt:          review.CreatedAt,
+		DecidedAt:          review.DecidedAt,
+		DecidedBy:          review.DecidedBy,
+		DecidedVia:         review.DecidedVia,
+	}
+}
+
+func skillLessonPayload(lesson agentinstance.SkillLesson) *contract.AgentSkillLesson {
+	if !lesson.Recorded() {
+		return nil
+	}
+	return &contract.AgentSkillLesson{
+		Cue: lesson.Cue, Lesson: lesson.Lesson, Evidence: lesson.Evidence, Confidence: lesson.Confidence,
 	}
 }
 
@@ -139,17 +171,17 @@ func (identity skillReviewCursor) apply(cursor string, query *agentinstance.Skil
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(cursor)
 	if err != nil {
-		return fmt.Errorf("%w: invalid cursor", errSkillReviewQuery)
+		return fmt.Errorf("%w: cursor is malformed", ErrSkillReviewInvalidCursor)
 	}
 	var previous skillReviewCursor
 	if err := json.Unmarshal(raw, &previous); err != nil {
-		return fmt.Errorf("%w: invalid cursor", errSkillReviewQuery)
+		return fmt.Errorf("%w: cursor is malformed", ErrSkillReviewInvalidCursor)
 	}
-	if previous.Profile != identity.Profile || previous.Workspace != identity.Workspace ||
-		previous.Instance != identity.Instance || previous.State != identity.State ||
-		previous.After == "" || previous.At.IsZero() {
-		return fmt.Errorf("%w: cursor does not match this query", errSkillReviewQuery)
+	after, at := previous.After, previous.At
+	previous.After, previous.At = "", time.Time{}
+	if previous != identity || after == "" || at.IsZero() {
+		return fmt.Errorf("%w: cursor does not match this query", ErrSkillReviewInvalidCursor)
 	}
-	query.AfterID, query.AfterCreatedAt = previous.After, previous.At
+	query.AfterID, query.AfterCreatedAt = after, at
 	return nil
 }

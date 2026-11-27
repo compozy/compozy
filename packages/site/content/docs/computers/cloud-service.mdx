@@ -1,0 +1,118 @@
+---
+title: Compozy Cloud service
+description: Cloud sign-in, device trust, computer links, and control events for Remote Computers.
+---
+
+Compozy Cloud coordinates accounts and access to computers. Agent sessions run on the computers that host them. Their prompts, files, and traffic stay on those computers and the routes between them.
+
+Compozy Cloud's source code (`cmd/compozy-cloud/`, `internal/cloud/`, and `infra/cloud-edge/`) is available under the Functional Source License 1.1 with the MIT future license (`FSL-1.1-MIT`). [Cloud source license](https://github.com/compozy/compozy/blob/main/internal/cloud/LICENSE)
+
+See the status page for updates during cloud incidents. [Service status](https://status.compozy.com)
+
+## Public endpoints
+
+| Endpoint                                        | Response                                                                          |
+| ----------------------------------------------- | --------------------------------------------------------------------------------- |
+| `GET /healthz`                                  | `200` with `{"status":"ok"}` when the replica can serve requests                  |
+| `GET /v1/jwks` and `GET /.well-known/jwks.json` | The same public Ed25519 key set, including verification keys kept during rotation |
+| `GET /v1/gate-policy`                           | A compact JWS (`application/jose`) with `mode`, `until`, `message`, and `iat`     |
+
+An optional `retired` list identifies revoked signing key IDs. The cloud omits them from `keys` and pushes the retirement to connected computers. Those computers close remote sessions minted with a retired signing key.
+
+The policy decides whether the sign-in gate is enforced or has a temporary grace period. Its `until` is UTC in RFC 3339 format for grace and `null` for enforcement. `iat` is a Unix timestamp in seconds. Verify the signature against the cloud JWKS before applying grace, and check that its deadline is still in the future.
+
+A replica that is draining or unavailable can return `503 cloud_unavailable`. Account-scoped writes can return `429 rate_limited`. Both responses include `Retry-After` in seconds.
+
+## Device sign-in
+
+| Endpoint                               | Purpose                                                                                                        |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/device-flow`                 | Start sign-in with an optional `provider` of `google` or `github`, an installation ID, a name, and a platform. |
+| `GET /activate`                        | Enter or confirm the code displayed by CompozyOS and continue with Google or GitHub.                           |
+| `POST /v1/device-flow/token`           | Poll with the device code and redeem an authorized grant for a one-time enrollment token.                      |
+| `DELETE /v1/device-flow/{device_code}` | Cancel a pending or authorized grant.                                                                          |
+| `POST /v1/devices/enroll`              | Exchange the enrollment token and a proof from the requested P-256 key for a device session.                   |
+| `POST /v1/session/refresh`             | Rotate the device's refresh credential and receive a new access token.                                         |
+| `POST /v1/session/logout`              | Revoke the device session. A later sign-in can reuse the same device and key.                                  |
+
+Check the displayed code, computer name, and request location before continuing. The displayed code expires after 15 minutes. Start polling after five seconds and add five seconds to the interval when the service returns `slow_down`. Enrollment tokens expire after five minutes.
+
+Send enrollment and refresh credentials in the `Authorization` header and use the `DPoP` header for the proof. An access token lasts 15 minutes. For access-token calls, the proof includes the token hash in `ath`. Keep the device code, enrollment token, and session credentials private.
+
+Google and GitHub sign-ins link when their verified email addresses match. If the account has lost its active admins, choose **Recover admin access** on the Google activation page and authenticate again. Open the activation link in a private window if Google reuses an earlier sign-in.
+
+## Hosted browser sign-in
+
+A hosted route starts browser sign-in at `GET /v1/browser/authorize` with the hostname, the browser's `public_jwk`, OAuth state, and PKCE challenge. Compozy Cloud can reuse a first-party web session for 30 days of inactivity, up to 90 days from sign-in. The first-party `__Host-compozy_bd` cookie associates the browser's separate origin keys with one account device.
+
+The destination computer verifies the browser's `DPoP` proof, then calls `POST /v1/browser/token` using its own computer key. The request supplies `code`, `code_verifier`, and the proof key's `jkt`. A code expires after 60 seconds. Redemption with the matching key activates it, advances the account's security epoch, and returns a key-bound browser grant. A mismatched key returns `browser_key_mismatch`. If authorization redirects with `browser_key_rebind_required`, the browser needs a new key. The original key stays with its original device.
+
+## Devices, computers, and approvals
+
+Device-authenticated requests carry a bound access token and a fresh `DPoP` proof.
+
+| Endpoint                                         | Purpose                                                               |
+| ------------------------------------------------ | --------------------------------------------------------------------- |
+| `GET /v1/account`                                | Read the account profile, plan usage, and calling device              |
+| `GET /v1/devices`                                | List account devices and identify the calling device                  |
+| `PATCH /v1/devices/{id}`                         | Change a device's name, admin trust, or scopes for a computer         |
+| `DELETE /v1/devices/{id}`                        | Revoke a device and all its keys                                      |
+| `GET /v1/computers`                              | List linked computers, their direct endpoints, and their online state |
+| `PATCH /v1/computers/{id}`                       | Change the name or remote access setting                              |
+| `DELETE /v1/computers/{id}`                      | Unlink a computer and release its slot                                |
+| `POST /v1/computers/reservations`                | Reserve a slot or revalidate `previous_reservation_id`                |
+| `DELETE /v1/computers/reservations/{id}`         | Release an unconsumed reservation                                     |
+| `POST /v1/computers/link-tokens`                 | Create a ten-minute token, optionally tied to a reservation           |
+| `POST /v1/computers/{id}/grants`                 | Issue a signed grant for the requested `route`                        |
+| `GET /v1/approvals` and `GET /v1/approvals/{id}` | Read pending approvals and the results of recent decisions            |
+| `POST /v1/approvals/{id}/decision`               | Relay a device-signed `decision_jws` to the computer                  |
+| `GET /v1/account/events`                         | Subscribe to account changes through server-sent events               |
+
+A trusted admin device can change admin trust and scopes or revoke another device. Decisions also require the deciding key to be approved on the computer. A `202` response confirms delivery was accepted. Read `applied_result` or wait for `approval.applied` to learn what the computer did. After an event stream reconnect, re-read the account and any approvals you were following.
+
+Free has one slot. An enabled computer or active reservation uses it. A reservation lasts 15 minutes. Revalidating an active reservation returns the same ID. Compozy Cloud consumes the reservation in the transaction that links the computer. A new grant expires in 60 seconds and carries the requesting device's key thumbprint and the account security epoch. Free grants allow `direct` and `ssh`. Compozy Pro adds `cloud`.
+
+## Account lifecycle
+
+Use the device access token and DPoP with `PATCH /v1/account`. Send `marketing_opt_in` and a `source` of `sign_in`, `cli`, or `settings`. `GET /v1/account` includes `recent_sign_ins` for the last seven days. The signed link at `GET /v1/email/unsubscribe?t=…` shows a confirmation form. Submitting it or using the RFC 8058 one-click POST opts out. Compozy Cloud syncs the contact with the email provider and retries failed updates.
+
+An admin device can start deletion with `DELETE /v1/account` and `{"confirm_email":"…"}`. The cloud returns `202` with `state: "deleting"`, `subscription_cancelled`, and `refund`. The acceptance transaction revokes sessions and tokens, marks existing checkout links unavailable, and stops remote access. A cloud job expires open Stripe checkouts and cancels Pro before removing connected resources and account data. Refresh reports `reauth_required` with reason `account_deleted` during deletion and while the 90-day tombstone is retained.
+
+A suspended account receives `403 account_suspended` for account operations and `reauth_required` on credential revalidation. The cloud revokes sessions and tokens and sends a security snapshot with an empty device list. When suspension is lifted, linked computers can recover on their next revalidation.
+
+## Billing
+
+| Endpoint                          | Authorization and behavior                                          |
+| --------------------------------- | ------------------------------------------------------------------- |
+| `POST /v1/billing/checkout`       | Device access token and DPoP. Send `interval` as `month` or `year`. |
+| `POST /v1/billing/portal`         | Device access token and DPoP. Opens the Stripe Customer Portal.     |
+| `POST /v1/billing/stripe-webhook` | Stripe signature. Refreshes the current subscription from Stripe.   |
+| `GET /billing/upgrade`            | First-party web sign-in and plan selection.                         |
+
+Checkout and the portal return a `url`. Account reads return `payment_issue` and the active `subscription`, which includes the source, interval, period end, renewal setting, and refund deadline. A signed-in account may have Pro through Stripe or a complimentary grant. On a failed Stripe renewal, `payment_issue` is true while Stripe retries and the account stays on Pro.
+
+Opening another Checkout expires the account's previous open Checkout. If Stripe has already accepted the payment, the cloud records the subscription and reports `already_pro` for an active Pro plan.
+
+Set `COMPOZY_CLOUD_STRIPE_SECRET_KEY`, `COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO_ANNUAL`, and `STRIPE_PRICE_PRO_MONTHLY` on the cloud service. Use the same Stripe mode for the API key, prices, and webhook endpoint. Configure Managed Payments and enable monthly and annual switching, payment method updates, and period-end cancellation in the Customer Portal. Configure Smart Retries to cancel the subscription after the final attempt.
+
+Deliver `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `checkout.session.completed`, and `checkout.session.expired` to the signed webhook endpoint. Every six hours, the cloud reconciles Stripe subscriptions that were last synced before that window, skipping subscriptions that had already ended before it began.
+
+## Computer authentication and control
+
+`POST /v1/computers/link` accepts the computer's name, platform, version, Ed25519 public JWK, TLS root fingerprint, and an optional installation ID for counting active installations. Supply the link token as a bearer credential or as `link_token` in the body. Repeating the token with the same computer key returns the original `computer_id` and `account_id`.
+
+A signed-in device can link with a computer key proof instead of a link token. A computer can also use its own key to patch its row and report its direct endpoints. Send the proof in `X-Compozy-Computer-Proof`. The proof signs the HTTP method, the public Compozy Cloud URL, a SHA-256 hash of the request body, its issue time, and a single-use ID.
+
+Connect to `GET /v1/computers/control?computer_id=…` over WebSocket. Reply to `challenge` with an `authenticate` frame signed by the computer key. The first authenticated frame is a signed `snapshot`. Apply it and acknowledge its epoch before accepting a lease. Leases expire in 15 minutes and refresh every 5 minutes. Send `snapshot_request` after a gap. Reconnect on `going_away` to receive a fresh snapshot from a ready replica.
+
+## Hosted tunnels
+
+A linked computer uses its key proof to provision or read its hosted tunnel at `POST /v1/computers/{id}/tunnel`. The response contains `hostname`, `connector_token`, and `mode`. Treat the connector token as a secret. A retained tunnel can return `mode: "entitlement_only"` during the retention period after Pro ends. In this mode, `GET /remote/v1/browser/status` reports `plan_required`.
+
+When Pro ends, the most recently used linked and enabled computer keeps the Free slot on direct and SSH routes. Other enabled computers show **Needs Pro**. Use [the cloud upgrade page](https://cloud.compozy.com/billing/upgrade) to restore the plan. The saved hosted URL allows its owner to buy Pro and return to the same hostname for seven days. During that window hosted API calls and webhook deliveries return `402 plan_required`. Cloud deletes the retained tunnel after seven days.
+
+Compozy Pro includes ten hosted routes by default. The Cloud reserves a slot before provisioning. A request beyond the account's limit returns `cloud_routes_limit_reached`. Turning off the hosted route removes the tunnel with `DELETE /v1/computers/{id}/tunnel`. Unlinking also deletes the tunnel. The Cloud sweeps tunnels after 14 days offline.
+
+If the service operator removes a hosted route for abuse, provisioning returns `403 hosted_route_taken_down`. Contact support@compozy.com about a removed route.
+
+Discover the assigned hostname from the account's computer list. The control link sends `peers` updates with the account's other active hosted routes.

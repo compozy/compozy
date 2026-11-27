@@ -1605,7 +1605,7 @@ func goalDaemonClient(d *Daemon, workspaceID string) *e2etest.RuntimeHarness {
 	return &e2etest.RuntimeHarness{
 		WorkspaceID: workspaceID,
 		UDSBaseURL:  "http://unix",
-		UDSClient:   gatewayDaemonUDSClient(d.homePaths.DaemonSocket),
+		UDSClient:   daemonIntegrationUDSClient(d.homePaths.DaemonSocket),
 	}
 }
 

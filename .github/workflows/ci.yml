@@ -81,6 +81,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
+      cloud: ${{ steps.filter.outputs.cloud }}
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
       heavy: ${{ steps.filter.outputs.heavy }}
@@ -141,6 +142,20 @@ jobs:
             areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=true'
           fi
 
+          cloud=false
+          if [[ "$EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            if [[ "$base_sha" == "$zero_sha" ]]; then
+              base_sha=$(git hash-object -t tree -w --stdin </dev/null)
+            else
+              git fetch --no-tags --depth=1 origin "$base_sha"
+            fi
+            cloud_paths=$(git diff --name-only "$base_sha" "$head_sha" -- \
+              cmd/compozy-cloud internal/cloud internal/remoteproto infra/cloud-edge Dockerfile \
+              .github/workflows/cloud-deploy.yml .github/scripts/cloud-deploy.sh \
+              .github/scripts/cloud-deploy-target.sh .github/scripts/cloud-smoke.ts)
+            if [[ -n "$cloud_paths" ]]; then cloud=true; fi
+          fi
+
           # Non-PR events always run heavy lanes. The variable is a staged
           # rollout/rollback switch: explicit false enables backend PR fallback;
           # an unset variable keeps today's opt-in behavior until activation.
@@ -165,6 +180,7 @@ jobs:
 
           {
             grep -E '^(backend|web|desktop)=' <<<"$areas"
+            echo "cloud=$cloud"
             echo "heavy=$heavy"
             echo "release_pr=$release_pr"
             echo "workspaces=$workspaces"
@@ -201,6 +217,12 @@ jobs:
         uses: ./.github/actions/setup-bun
         with:
           install-playwright: "false"
+
+      - name: Verify cloud source SPDX headers
+        run: bash .github/scripts/cloud-license.sh
+
+      - name: Verify the cloud image build context
+        run: bash .github/scripts/cloud-build-context.sh
 
       - name: Verify generated artifacts
         run: make codegen-check
@@ -345,13 +367,13 @@ jobs:
       - name: Prepare contract test receipts
         run: mkdir -p /tmp/gotest-json
 
-      - name: Verify integration selection and census contracts
+      - name: Verify boundary, integration selection and census contracts
         env:
           CGO_ENABLED: "1"
         run: >-
           gotestsum --rerun-fails=1 --rerun-fails-max-failures=5
           --jsonfile /tmp/gotest-json/gotest-mage.json --packages ./magefiles -- -race -tags=mage
-          -run '^Test(Integration|GlobalDBIntegration|GoTest|LoadGoTestCensus|Census|Partition|MissingPackage|Flake|Perf)'
+          -run '^Test(DependencyClosureBoundaries|Integration|GlobalDBIntegration|GoTest|LoadGoTestCensus|Census|Partition|MissingPackage|Flake|Perf)'
           -count=1 -timeout=5m
 
       - uses: ./.github/actions/report-flakes
@@ -466,6 +488,29 @@ jobs:
     with:
       save-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
+  cloud-staging:
+    name: Deploy cloud to staging
+    needs:
+      [
+        changes,
+        preflight,
+        go-static,
+        go-test,
+        go-build,
+        go-integration,
+        sdk-go-test,
+        go-peer-darwin,
+        go-terminal-windows,
+      ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.cloud == 'true'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/cloud-deploy.yml
+    with:
+      target: staging
+    secrets: inherit
+
   sdk-go-test:
     name: Go SDK (race test)
     runs-on: ubuntu-latest
@@ -558,9 +603,6 @@ jobs:
         shell: pwsh
         run: |
           $testFiles = @(
-            'internal/cli/gateway_credentials_test.go',
-            'internal/cli/gateway_profile_transaction_test.go',
-            'internal/cli/gateway_permissions_windows_integration_test.go',
             'internal/fileutil/nofollow_windows_test.go',
             'internal/mcp/peer_test.go',
             'internal/mcp/peer_windows_test.go'
@@ -610,10 +652,10 @@ jobs:
         env:
           CGO_ENABLED: 0
 
-      - name: Verify Windows private files and Gateway recovery
+      - name: Verify Windows private files
         run: >-
-          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-5.json --packages "./internal/fileutil ./internal/cli" --
-          -run '^(TestAtomicRemoveFileRemovesFileAndRejectsUnsafeTargets|TestWindowsPrivateFiles|TestGatewayCredentialStore|TestGatewayProfileTransactionLock|TestGatewayProfileTransactionJournal|TestGatewayProfileTransactionRecovery|TestGatewayProfileTransactionJournalPath)$'
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-5.json --packages "./internal/fileutil" --
+          -run '^(TestAtomicRemoveFileRemovesFileAndRejectsUnsafeTargets|TestWindowsPrivateFiles)$'
           -count=1
         env:
           CGO_ENABLED: 0
@@ -633,17 +675,6 @@ jobs:
           -count=1
         env:
           CGO_ENABLED: 0
-
-      - name: Build native Windows CLI
-        run: go build -o "${{ runner.temp }}/compozy-gateway-test.exe" ./cmd/compozy
-        env:
-          CGO_ENABLED: 0
-
-      - name: Exercise repeated native Windows CLI and OS keyring recovery
-        run: gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-8.json --packages "./internal/cli" -- -tags integration -run '^TestWindowsGatewayCLI$' -count=1 -v
-        env:
-          CGO_ENABLED: 0
-          COMPOZY_TEST_BINARY: ${{ runner.temp }}/compozy-gateway-test.exe
 
       - uses: ./.github/actions/report-flakes
         if: always()
@@ -799,6 +830,20 @@ jobs:
         shard: [1, 2, 3, 4, 5, 6]
     needs: changes
     if: needs.changes.outputs.heavy == 'true' && (needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true')
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: cloud_test
+          POSTGRES_DB: cloud_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cloud_test -d cloud_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
 
@@ -838,6 +883,7 @@ jobs:
           CGO_ENABLED: 0
           CI: "true"
           COMPOZY_E2E_WEB_SHARD: ${{ matrix.shard }}/6
+          COMPOZY_CLOUD_TEST_POSTGRES: postgresql://cloud_test@127.0.0.1:5432/cloud_test?sslmode=disable
 
       - uses: ./.github/actions/report-flakes
         if: always()

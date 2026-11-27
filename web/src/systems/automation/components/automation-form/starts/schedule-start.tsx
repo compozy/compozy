@@ -100,8 +100,13 @@ export function ScheduleStart({ draft, form }: ScheduleStartProps) {
             type="datetime-local"
             value={schedule.time ?? ""}
           />
-          <span className="font-mono text-form-hint text-subtle">
-            {toRfc3339(localInputToDate(schedule.time ?? ""))}
+          <span
+            className="font-mono text-form-hint text-subtle"
+            data-testid="automation-schedule-timezone"
+          >
+            {form.timeZone
+              ? `· ${form.timeZone}${schedule.time ? ` (${toRfc3339(localInputToDate(schedule.time))})` : ""}`
+              : toRfc3339(localInputToDate(schedule.time ?? ""))}
           </span>
         </div>
       ) : null}
@@ -160,14 +165,24 @@ function RepeatsBuilder({ expr, form }: { expr: string; form: AutomationFormMode
           ))}
         </fieldset>
         <span>at</span>
-        <Input
-          aria-label="Time"
-          className="w-auto min-w-28 font-mono tabular-nums"
-          disabled={!builderApplies}
-          onChange={event => form.onTime(event.target.value)}
-          type="time"
-          value={scheduleClock(expr)}
-        />
+        <span className="inline-flex items-center gap-2">
+          <Input
+            aria-label="Time"
+            className="w-auto min-w-28 font-mono tabular-nums"
+            disabled={!builderApplies}
+            onChange={event => form.onTime(event.target.value)}
+            type="time"
+            value={scheduleClock(expr)}
+          />
+          {form.timeZone ? (
+            <span
+              className="font-mono text-form-hint text-subtle"
+              data-testid="automation-schedule-timezone"
+            >
+              · {form.timeZone}
+            </span>
+          ) : null}
+        </span>
       </div>
       {form.readout ? <ScheduleReadout id={READOUT_ID} readout={form.readout} /> : null}
       <Collapsible onOpenChange={setExpressionOpen} open={expressionOpen}>

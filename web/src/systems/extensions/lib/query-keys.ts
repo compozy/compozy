@@ -1,3 +1,5 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+
 /**
  * The daemon keys extension instances by `(name, workspace, profile)`: a workspace dev overlay and
  * the global published row are different rows, and profile placement changes the inventory answer.
@@ -16,7 +18,7 @@ export function extensionProfileKey(profileName?: string | null): string {
 }
 
 export const extensionKeys = {
-  all: ["extensions"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "extensions"),
   lists: () => [...extensionKeys.all, "list"] as const,
   list: (workspaceId?: string | null, profileName?: string | null) =>
     [
@@ -34,6 +36,14 @@ export const extensionKeys = {
       extensionWorkspaceKey(workspaceId),
       extensionProfileKey(profileName),
       name.trim(),
+    ] as const,
+  inputs: (name: string, workspaceId?: string | null, profileName?: string | null) =>
+    [
+      ...extensionKeys.all,
+      "inputs",
+      name,
+      extensionWorkspaceKey(workspaceId),
+      extensionProfileKey(profileName),
     ] as const,
   inventory: (name: string, workspaceId?: string | null, profileName?: string | null) =>
     [

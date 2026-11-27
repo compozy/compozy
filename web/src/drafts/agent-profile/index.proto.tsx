@@ -1,4 +1,4 @@
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import type { ScopePickerProps } from "../always-on-agents-shared/add-pickers";
 import { AgentAppPage } from "../always-on-agents-shared/agent-page";

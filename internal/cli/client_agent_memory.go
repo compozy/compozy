@@ -38,7 +38,7 @@ func agentMemoryRoute(operation string) (string, string, error) {
 		return http.MethodPost, agentMemoryEntriesPath, nil
 	case agentMemoryReplaceOperation:
 		return http.MethodPatch, agentMemoryEntriesPath, nil
-	case string(gatewayProfileTransactionRemove):
+	case cliRemoveAction:
 		return http.MethodDelete, agentMemoryEntriesPath, nil
 	case agentMemorySearchOperation:
 		return http.MethodPost, "/search", nil

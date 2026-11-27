@@ -21,6 +21,7 @@ import { DoesSection } from "./does/does-section";
 import { OnlyIfSection } from "./only-if/only-if-section";
 import { AutomationPreview } from "./preview/automation-preview";
 import { StartsSection } from "./starts/starts-section";
+import { WhereSection } from "./where-section";
 import type { AgentPayload } from "@/systems/agent";
 
 export interface AutomationFormProps {
@@ -134,9 +135,19 @@ function AutomationFormFields({
 }) {
   const { draft, mode } = formProps;
   const hasConditions = draft.start !== "schedule";
+  const showWhere = draft.start === "schedule";
   return (
     <>
       <AutomationNameSection error={nameError} name={draft.name} onName={form.onName} />
+      {showWhere ? (
+        <WhereSection
+          computerId={draft.computerId}
+          mode={mode}
+          number={2}
+          onComputerChange={form.onComputerChange}
+          timeZone={form.timeZone}
+        />
+      ) : null}
       <StartsSection draft={draft} form={form} mode={mode} />
       {hasConditions ? <OnlyIfSection conditions={draft.conditions} form={form} /> : null}
       <DoesSection

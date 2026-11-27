@@ -38,8 +38,16 @@ The same typed controls appear wherever Loop inputs are edited: scheduled automa
 mappings, fork and amend flows, and human-request answers annotated with `x-compozy-kind`. Every
 surface submits the exact stored identifier; display labels are never treated as references.
 
-From the CLI, repeat `--input key=value`. Number, boolean, and JSON values are decoded normally;
-runtime inputs also accept `provider/model@reasoning:speed=normal|fast`, with `-` leaving provider
+From the CLI, repeat `--input key=value`. The Loop's [declared input
+type](/docs/loops/dsl-reference#declared-inputs) decides how the text is read: a `number` or
+`boolean` input decodes the literal (`1`, `false`), while `string`, `file`, `agent`, and `ref`
+inputs keep the text exactly as typed, so `--input gate_command=false` passes the string `false`.
+When a textual input must carry a value that looks like another type, quote the value as JSON:
+`--input gate_command='"false"'` yields the string `false`. The same rule applies to
+`compozy loop fork --input`, which coerces overrides against the source run's executed definition —
+the definition the daemon revalidates the fork against. Keys the definition does not declare
+are sent as decoded JSON for the daemon to reject. Runtime inputs also accept
+`provider/model@reasoning:speed=normal|fast`, with `-` leaving provider
 or model unset and `-/-:speed=fast` selecting speed alone. Use a JSON runtime object with
 `acp_options: [{"id":"thinking","bool_value":true}]` when a run needs another advertised control. In
 an interactive terminal, `compozy loop run` prompts only for supported required inputs that remain
@@ -48,7 +56,9 @@ input never prompt, so scripts keep deterministic behavior.
 
 If validation fails, HTTP/UDS, CLI, native tools, and the web form receive the stable
 `input_validation` payload: `{ loop, field, kind?, value?, origin, reason }`. The web form attaches
-the reason to that field. No run row, task, or external action is created.
+the reason to that field, and the CLI names the failing field, its declared type, and — for a
+`type_mismatch` on a textual input — the quoted form that would pass. No run row, task, or external
+action is created.
 
 <OperatorNote label="What the run form does not offer">
   There is no cost cap — cost is [display-only](/docs/loops/guardrails#cost-is-a-meter-not-a-cap).

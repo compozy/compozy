@@ -2,7 +2,213 @@
 
 package client
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+// AgentEffectiveRuntimePayload is a daemon API value.
+type AgentEffectiveRuntimePayload struct {
+	SessionEnvStatus         []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	SessionEnv               map[string]SessionEnvBindingPayload       `json:"session_env,omitempty"`
+	AutoCompactWindow        *int                                      `json:"auto_compact_window,omitempty"`
+	LeanEnvironment          *bool                                     `json:"lean_environment,omitempty"`
+	Provider                 string                                    `json:"provider"`
+	Model                    string                                    `json:"model,omitempty"`
+	ReasoningEffort          Effort                                    `json:"reasoning_effort,omitempty"`
+	Speed                    Speed                                     `json:"speed,omitempty"`
+	ACPOptions               []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
+	PolicyExcludedACPOptions []AgentACPOptionSelection                 `json:"policy_excluded_acp_options,omitempty"`
+	Permissions              string                                    `json:"permissions,omitempty"`
+	FallbackChain            []RoleFallbackStatus                      `json:"fallback_chain,omitempty"`
+	Sources                  AgentEffectiveRuntimeSources              `json:"sources"`
+}
+
+// AgentEffectiveRuntimeSources is a daemon API value.
+type AgentEffectiveRuntimeSources struct {
+	Provider        AgentRuntimeValueSource `json:"provider"`
+	Model           AgentRuntimeValueSource `json:"model,omitempty"`
+	ReasoningEffort AgentRuntimeValueSource `json:"reasoning_effort,omitempty"`
+	Speed           AgentRuntimeValueSource `json:"speed,omitempty"`
+	Permissions     AgentRuntimeValueSource `json:"permissions,omitempty"`
+	FallbackChain   AgentRuntimeValueSource `json:"fallback_chain,omitempty"`
+}
+
+// AgentFallbackRoutePayload is a daemon API value.
+type AgentFallbackRoutePayload struct {
+	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider        string                              `json:"provider"`
+	Model           string                              `json:"model"`
+	ReasoningEffort Effort                              `json:"reasoning_effort,omitempty"`
+	Speed           Speed                               `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Command         string                              `json:"command,omitempty"`
+}
+
+// AgentIdentityPayload is a daemon API value.
+type AgentIdentityPayload struct {
+	SessionID string `json:"session_id"`
+	AgentName string `json:"agent_name"`
+	Provider  string `json:"provider"`
+	Model     string `json:"model,omitempty"`
+}
+
+// AgentInstanceAdoptRequest is a daemon API value.
+type AgentInstanceAdoptRequest struct {
+	Agent     string `json:"agent"`
+	SessionID string `json:"session_id"`
+}
+
+// AgentInstanceAwayResponse is a daemon API value.
+type AgentInstanceAwayResponse struct {
+	LastSeenAt    *time.Time                   `json:"last_seen_at"`
+	QuietCheckIns int                          `json:"quiet_check_ins"`
+	Reports       []AgentInstanceReportPayload `json:"reports"`
+}
+
+// AgentInstanceCheckDigest is a daemon API value.
+type AgentInstanceCheckDigest struct {
+	Source  *AgentInstanceProposalSource `json:"source,omitempty"`
+	Key     string                       `json:"key"`
+	Summary string                       `json:"summary"`
+}
+
+// AgentInstanceCheckInPayload is a daemon API value.
+type AgentInstanceCheckInPayload struct {
+	Proposals    CheckInProposalSummary `json:"proposals"`
+	OccurrenceID string                 `json:"occurrence_id"`
+	ToolsStatus  string                 `json:"tools_status"`
+	ToolCalls    []CheckInToolCall      `json:"tool_calls"`
+	ID           string                 `json:"id"`
+	Result       string                 `json:"result"`
+	Reason       string                 `json:"reason"`
+	Detail       string                 `json:"detail,omitempty"`
+	CreatedAt    time.Time              `json:"created_at"`
+}
+
+// AgentInstanceCheckInsResponse is a daemon API value.
+type AgentInstanceCheckInsResponse struct {
+	CheckIns   []AgentInstanceCheckInPayload `json:"check_ins"`
+	NextCursor string                        `json:"next_cursor"`
+}
+
+// AgentInstanceCheckRequest is a daemon API value.
+type AgentInstanceCheckRequest struct {
+	DryRun bool `json:"dry_run"`
+}
+
+// AgentInstanceCheckResponse is a daemon API value.
+type AgentInstanceCheckResponse struct {
+	Sources      []SourceOutcome            `json:"sources,omitempty"`
+	Gate         string                     `json:"gate,omitempty"`
+	OccurrenceID string                     `json:"occurrence_id,omitempty"`
+	Digest       []AgentInstanceCheckDigest `json:"digest"`
+}
+
+// AgentInstanceCreateRequest is a daemon API value.
+type AgentInstanceCreateRequest struct {
+	Agent     string `json:"agent"`
+	Workspace string `json:"workspace"`
+}
+
+// AgentInstanceDailyBudgetInput is a daemon API value.
+// AgentInstanceDailyBudgetInput preserves its custom JSON wire representation.
+type AgentInstanceDailyBudgetInput = json.RawMessage
+
+// AgentInstanceDailyBudgetLimits is a daemon API value.
+type AgentInstanceDailyBudgetLimits struct {
+	Tokens *int64   `json:"tokens,omitempty"`
+	USD    *float64 `json:"usd,omitempty"`
+}
+
+// AgentInstanceDailyBudgetUsage is a daemon API value.
+type AgentInstanceDailyBudgetUsage struct {
+	Day              string `json:"day"`
+	Tokens           int64  `json:"tokens"`
+	KnownUSD         string `json:"known_usd"`
+	HasUnpricedUsage bool   `json:"has_unpriced_usage"`
+}
+
+// AgentInstanceListResponse is a daemon API value.
+type AgentInstanceListResponse struct {
+	Peers              []AgentInstancePeer    `json:"peers,omitempty"`
+	PeersNote          string                 `json:"peers_note,omitempty"`
+	MaxActiveInstances int                    `json:"max_active_instances"`
+	ActiveCount        int64                  `json:"active_count"`
+	Instances          []AgentInstancePayload `json:"instances"`
+	NextCursor         string                 `json:"next_cursor"`
+}
+
+// AgentInstanceNextWake is a daemon API value.
+type AgentInstanceNextWake struct {
+	Kind        string `json:"kind"`
+	At          string `json:"at,omitempty"`
+	Description string `json:"description"`
+}
+
+// AgentInstanceOccurrenceResponse is a daemon API value.
+type AgentInstanceOccurrenceResponse struct {
+	State    string `json:"state"`
+	Result   string `json:"result,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+	ReportID string `json:"report_id,omitempty"`
+}
+
+// AgentInstancePayload is a daemon API value.
+type AgentInstancePayload struct {
+	DailyBudget          *AgentInstanceDailyBudgetLimits `json:"daily_budget,omitempty"`
+	DailyBudgetUsage     *AgentInstanceDailyBudgetUsage  `json:"daily_budget_usage,omitempty"`
+	AuthorityStatus      string                          `json:"authority_status"`
+	Sources              []HeartbeatSourceStatus         `json:"sources"`
+	UnattendedTurns      int64                           `json:"unattended_turns"`
+	UnattendedTurnLimit  int64                           `json:"unattended_turn_limit"`
+	HeldWakes            int64                           `json:"held_wakes"`
+	NextWake             *AgentInstanceNextWake          `json:"next_wake,omitempty"`
+	Created              bool                            `json:"created"`
+	ChecksEnabled        bool                            `json:"checks_enabled"`
+	LastWakeAt           string                          `json:"last_wake_at"`
+	NextWakeAt           string                          `json:"next_wake_at"`
+	QuietStreak          int64                           `json:"quiet_streak"`
+	FailureStreak        int64                           `json:"failure_streak"`
+	FatigueLimit         int                             `json:"fatigue_limit"`
+	Label                string                          `json:"label"`
+	Provider             string                          `json:"provider"`
+	ResolvedAppearance   map[string]any                  `json:"resolved_appearance"`
+	Scope                string                          `json:"scope"`
+	Activity             string                          `json:"activity"`
+	Now                  string                          `json:"now"`
+	AttentionDismissible bool                            `json:"attention_dismissible"`
+	NeedsAttention       bool                            `json:"needs_attention"`
+	ID                   string                          `json:"id"`
+	ProfileID            string                          `json:"profile_id"`
+	ProfileName          string                          `json:"profile_name"`
+	AgentName            string                          `json:"agent_name"`
+	WorkspaceID          string                          `json:"workspace_id"`
+	State                string                          `json:"state"`
+	PauseReason          string                          `json:"pause_reason"`
+	MainSessionID        string                          `json:"main_session_id"`
+	CreatedAt            time.Time                       `json:"created_at"`
+	UpdatedAt            time.Time                       `json:"updated_at"`
+}
+
+// AgentInstancePeer is a daemon API value.
+type AgentInstancePeer struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Scope       string   `json:"scope"`
+	State       string   `json:"state"`
+	Accepts     []string `json:"accepts,omitempty"`
+}
+
+// AgentInstancePickRequest is a daemon API value.
+type AgentInstancePickRequest struct {
+	Proposal *int `json:"proposal"`
+}
+
+// AgentInstancePickResponse is a daemon API value.
+type AgentInstancePickResponse struct {
+	Pick Pick `json:"pick"`
+}
 
 // AgentInstanceProposal is a daemon API value.
 type AgentInstanceProposal struct {
@@ -239,199 +445,4 @@ type AgentMemoryValidateRequest struct {
 type AgentMemoryValidateResponse struct {
 	Valid       bool     `json:"valid"`
 	Diagnostics []string `json:"diagnostics"`
-}
-
-// AgentMemoryWriteRequest is a daemon API value.
-type AgentMemoryWriteRequest struct {
-	Content        string `json:"content"`
-	ExpectedDigest string `json:"expected_digest"`
-}
-
-// AgentNotifyRequest is a daemon API value.
-type AgentNotifyRequest struct {
-	Title string `json:"title"`
-	Body  string `json:"body,omitempty"`
-}
-
-// AgentNotifyResponse is a daemon API value.
-type AgentNotifyResponse struct {
-	Outcome      string `json:"outcome"`
-	RetryAfterMS int64  `json:"retry_after_ms,omitzero"`
-}
-
-// AgentOrigin is a daemon API value.
-type AgentOrigin string
-
-// AgentPayload is a daemon API value.
-type AgentPayload struct {
-	DisplayName        string                              `json:"display_name,omitempty"`
-	Description        string                              `json:"description,omitempty"`
-	Kind               string                              `json:"kind,omitempty"`
-	Appearance         map[string]any                      `json:"appearance,omitempty"`
-	Label              string                              `json:"label"`
-	ResolvedAppearance map[string]any                      `json:"resolved_appearance"`
-	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	AutoCompactWindow  *int                                `json:"auto_compact_window,omitempty"`
-	LeanEnvironment    *bool                               `json:"lean_environment,omitempty"`
-	Name               string                              `json:"name"`
-	Provider           string                              `json:"provider"`
-	Command            string                              `json:"command,omitempty"`
-	Model              string                              `json:"model,omitempty"`
-	ReasoningEffort    Effort                              `json:"reasoning_effort,omitempty"`
-	Speed              Speed                               `json:"speed,omitempty"`
-	ACPOptions         []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	Tools              []string                            `json:"tools,omitempty"`
-	Toolsets           []string                            `json:"toolsets,omitempty"`
-	DenyTools          []string                            `json:"deny_tools,omitempty"`
-	SessionApproval    string                              `json:"session_approval,omitempty"`
-	PermissionRules    []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
-	WorkspaceAccess    string                              `json:"workspace_access,omitempty"`
-	Permissions        string                              `json:"permissions,omitempty"`
-	CategoryPath       []string                            `json:"category_path,omitempty"`
-	Accepts            []string                            `json:"accepts,omitempty"`
-	MCPServers         []AgentMCPServerJSON                `json:"mcp_servers,omitempty"`
-	Origin             AgentOrigin                         `json:"origin"`
-	PackageOwned       bool                                `json:"package_owned,omitempty"`
-	WorkspaceID        string                              `json:"workspace_id,omitempty"`
-	Layer              string                              `json:"layer,omitempty"`
-	Shadows            []AgentDefinitionShadowPayload      `json:"shadows,omitempty"`
-	Skills             *CreateAgentSkillsConfig            `json:"skills,omitzero"`
-	FallbackChain      []RoleFallbackStatus                `json:"fallback_chain,omitempty"`
-	DefinitionDigest   string                              `json:"definition_digest"`
-	Prompt             string                              `json:"prompt"`
-	Diagnostics        []AgentDiagnosticPayload            `json:"diagnostics,omitempty"`
-	EffectiveRuntime   *AgentEffectiveRuntimePayload       `json:"effective_runtime,omitzero"`
-}
-
-// AgentPermissionRulePayload is a daemon API value.
-type AgentPermissionRulePayload struct {
-	Kind     string `json:"kind,omitempty"`
-	Path     string `json:"path,omitempty"`
-	Decision string `json:"decision"`
-}
-
-// AgentProbeHealthPayload is a daemon API value.
-type AgentProbeHealthPayload struct {
-	AgentName  string    `json:"agent_name,omitempty"`
-	Provider   string    `json:"provider,omitempty"`
-	Command    string    `json:"command,omitempty"`
-	Executable string    `json:"executable,omitempty"`
-	Status     string    `json:"status"`
-	Error      string    `json:"error,omitempty"`
-	CheckedAt  time.Time `json:"checked_at"`
-	DurationMS int64     `json:"duration_ms"`
-}
-
-// AgentResponse is a daemon API value.
-type AgentResponse struct {
-	Warnings []string     `json:"warnings,omitempty"`
-	Agent    AgentPayload `json:"agent"`
-}
-
-// AgentRuntimeValueSource is a daemon API value.
-type AgentRuntimeValueSource string
-
-// AgentSessionMetricsPayload is a daemon API value.
-type AgentSessionMetricsPayload struct {
-	Total          int        `json:"total"`
-	Active         int        `json:"active"`
-	Failed         int        `json:"failed"`
-	RuntimeSeconds int64      `json:"runtime_seconds"`
-	LastActivityAt *time.Time `json:"last_activity_at,omitempty"`
-}
-
-// AgentSessionPayload is a daemon API value.
-type AgentSessionPayload struct {
-	ID        string                 `json:"id"`
-	Name      string                 `json:"name,omitempty"`
-	Type      Type                   `json:"type,omitempty"`
-	State     State                  `json:"state"`
-	Lineage   *SessionLineagePayload `json:"lineage,omitzero"`
-	CreatedAt time.Time              `json:"created_at"`
-	UpdatedAt time.Time              `json:"updated_at"`
-}
-
-// AgentSkillAutomaticContents is a daemon API value.
-type AgentSkillAutomaticContents struct {
-	Hooks      int `json:"hooks"`
-	MCPServers int `json:"mcp_servers"`
-	Scripts    int `json:"scripts"`
-}
-
-// AgentSkillDraftFile is a daemon API value.
-type AgentSkillDraftFile struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
-}
-
-// AgentSkillReviewDecisionRequest is a daemon API value.
-type AgentSkillReviewDecisionRequest struct {
-	Digest string `json:"digest"`
-}
-
-// AgentSkillReviewPayload is a daemon API value.
-type AgentSkillReviewPayload struct {
-	ID                string                      `json:"id"`
-	InstanceID        string                      `json:"instance_id"`
-	ProfileID         string                      `json:"profile_id"`
-	WorkspaceID       string                      `json:"workspace_id"`
-	Agent             string                      `json:"agent"`
-	Name              string                      `json:"name"`
-	State             string                      `json:"state"`
-	Digest            string                      `json:"digest"`
-	RunsAutomatically AgentSkillAutomaticContents `json:"runs_automatically"`
-	Files             []AgentSkillDraftFile       `json:"files,omitempty"`
-	CreatedAt         time.Time                   `json:"created_at"`
-	DecidedAt         *time.Time                  `json:"decided_at,omitempty"`
-	DecidedBy         string                      `json:"decided_by,omitempty"`
-	Problem           string                      `json:"problem,omitempty"`
-}
-
-// AgentSkillReviewResponse is a daemon API value.
-type AgentSkillReviewResponse struct {
-	Review AgentSkillReviewPayload `json:"review"`
-}
-
-// AgentSkillReviewsResponse is a daemon API value.
-type AgentSkillReviewsResponse struct {
-	Reviews    []AgentSkillReviewPayload `json:"reviews"`
-	NextCursor string                    `json:"next_cursor,omitempty"`
-}
-
-// AgentSoulConfigProvenancePayload is a daemon API value.
-type AgentSoulConfigProvenancePayload struct {
-	Digest                 string `json:"digest"`
-	Source                 string `json:"source,omitempty"`
-	Enabled                bool   `json:"enabled"`
-	MaxBodyBytes           int64  `json:"max_body_bytes"`
-	ContextProjectionBytes int64  `json:"context_projection_bytes"`
-}
-
-// AgentSoulDeleteByPathRequest is a daemon API value.
-type AgentSoulDeleteByPathRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	ExpectedDigest string `json:"expected_digest"`
-}
-
-// AgentSoulFrontmatterPayload is a daemon API value.
-type AgentSoulFrontmatterPayload struct {
-	Version       string   `json:"version,omitempty"`
-	Role          string   `json:"role,omitempty"`
-	Tone          []string `json:"tone,omitempty"`
-	Principles    []string `json:"principles,omitempty"`
-	Constraints   []string `json:"constraints,omitempty"`
-	Collaboration []string `json:"collaboration,omitempty"`
-	Tags          []string `json:"tags,omitempty"`
-}
-
-// AgentSoulHistoryResponse is a daemon API value.
-type AgentSoulHistoryResponse struct {
-	Revisions  []AgentSoulRevisionPayload `json:"revisions"`
-	NextCursor string                     `json:"next_cursor,omitempty"`
-}
-
-// AgentSoulMutationResponse is a daemon API value.
-type AgentSoulMutationResponse struct {
-	Soul     AgentSoulPayload         `json:"soul"`
-	Revision AgentSoulRevisionPayload `json:"revision"`
 }

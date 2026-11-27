@@ -36,6 +36,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithPromptInputAugmenter(deps.PromptInputAugmenter),
 			session.WithCommandService(deps.CommandService),
 			session.WithWorkAdmissionChecker(deps.WorkAdmission),
+			session.WithLocalExecutionChecker(deps.LocalExecution),
 			session.WithTransportReadinessGate(),
 			session.WithAgentResolver(deps.AgentResolver),
 			session.WithSkillRegistry(deps.SkillRegistry),

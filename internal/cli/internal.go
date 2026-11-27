@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/compozy/compozy/extensions/connectivity/tailscale"
 	forgegithub "github.com/compozy/compozy/extensions/forge/github"
 	opendesign "github.com/compozy/compozy/extensions/open-design"
 	"github.com/compozy/compozy/internal/shellwait"
@@ -39,13 +38,6 @@ func newInternalExtensionProviderCommand() *cobra.Command {
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch args[0] {
-			case tailscale.Name:
-				return tailscale.RunProvider(
-					cmd.Context(),
-					cmd.InOrStdin(),
-					cmd.OutOrStdout(),
-					cmd.ErrOrStderr(),
-				)
 			case forgegithub.Name:
 				return forgegithub.RunProvider(
 					cmd.Context(),

@@ -135,6 +135,7 @@ func (c *Config) resolveAgentDefinition(agent AgentDef, applied agentOverrideFie
 		ReasoningEffort: reasoningSource,
 		Speed:           speedSource,
 		Permissions:     permissionsSource(agent.Permissions),
+		FallbackChain:   fallbackChainSource(agent.FallbackChain),
 	}
 	applied.markOverrideSources(&resolved.RuntimeSources)
 	applyApproveAllProviderMode(&resolved, providerName, provider)

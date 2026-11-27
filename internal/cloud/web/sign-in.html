@@ -1,0 +1,134 @@
+<!-- SPDX-License-Identifier: FSL-1.1-MIT -->
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ .Title }} · Compozy Cloud</title>
+    <link rel="stylesheet" href="/auth-assets/sign-in.css" />
+    {{ if .Action }}
+    <script
+      defer
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+    ></script>
+    <script defer src="/auth-assets/turnstile.js"></script>
+    {{ end }}
+  </head>
+  <body>
+    <main class="stage" {{ if .ErrorCode }}data-error-code="{{ .ErrorCode }}" {{ end }}>
+      <aside aria-hidden="true" class="art">
+        <picture>
+          <source media="(min-width: 64rem)" srcset="/brand/visuals/swarm-portrait-1280.jpg" />
+          <img src="/brand/visuals/swarm-1280.jpg" alt="" />
+        </picture>
+        <img class="wordmark" src="/brand/svg/compozy-wordmark-white.svg" alt="" />
+        <p>Your agents, on all your computers.</p>
+      </aside>
+      <div class="content">
+        <section class="panel" aria-labelledby="page-title">
+          <h1 id="page-title">{{ .Title }}</h1>
+          {{ if .Status }}
+          <p class="status" role="alert">{{ .Status }}</p>
+          {{ end }} {{ if .Description }}
+          <p>{{ .Description }}</p>
+          {{ end }} {{ if and .Installation .Action }}
+          <p>Signing in CompozyOS on <strong>{{ .Installation }}</strong> ({{ .Platform }})</p>
+          {{ if .Location }}
+          <p>Requested from {{ .Location }}</p>
+          {{ end }} {{ end }} {{ if and .Code (or .Action .CodeUsed) }}
+          <p class="verification-code{{ if .CodeUsed }} used{{ end }}">{{ .Code }}</p>
+          {{ end }} {{ if .CodeUsed }}
+          <p>
+            Start a new sign-in from CompozyOS{{ if .Installation }} on
+            <strong>{{ .Installation }}</strong>{{ end }} to get a fresh code.
+          </p>
+          {{ end }} {{ if and .SignedIn .Installation }}
+          <p>
+            <strong>{{ .Installation }}</strong> is ready for <strong>{{ .AccountEmail }}</strong>.
+            You can close this tab.
+          </p>
+          {{ end }} {{ if .EnterCode }}
+          <form method="get" action="/activate" class="entry">
+            <label for="user-code">Code from your computer</label>
+            <input
+              id="user-code"
+              name="user_code"
+              type="text"
+              maxlength="9"
+              autocomplete="off"
+              required
+              autofocus
+            />
+            {{ if .Fresh }}<input type="hidden" name="max_age" value="0" />{{ end }}
+            <button class="primary" type="submit">Continue</button>
+          </form>
+          {{ end }} {{ if .Action }} {{ if .Code }}
+          <p>Confirm this code matches what CompozyOS shows on your computer.</p>
+          <p class="phishing-warning">
+            Only continue if you started this sign-in on your own computer.
+          </p>
+          {{ end }} {{ if .Fresh }}
+          <p>To recover admin access, sign in to Google again.</p>
+          {{ end }}
+          <form method="post" action="{{ .Action }}" id="provider-form">
+            {{ if .Code }}<input type="hidden" name="user_code" value="{{ .Code }}" />{{ end }} {{
+            if .Fresh }}<input type="hidden" name="max_age" value="0" />{{ end }} {{ if
+            .Browser.Hostname }}
+            <input type="hidden" name="hostname" value="{{ .Browser.Hostname }}" />
+            <input type="hidden" name="public_jwk" value="{{ .Browser.PublicJWK }}" />
+            <input type="hidden" name="state" value="{{ .Browser.State }}" />
+            <input type="hidden" name="code_challenge" value="{{ .Browser.Challenge }}" />
+            {{ end }}
+            <input type="hidden" name="cf-turnstile-response" />
+            <p class="status" role="alert" id="turnstile-error" hidden>
+              We couldn't verify this browser. Try again.
+            </p>
+            {{ range $index, $provider := .Providers }}
+            <button
+              type="submit"
+              name="provider"
+              value="{{ .ID }}"
+              {{
+              if
+              eq
+              (len
+              $.Providers)
+              1
+              }}class="primary"
+              {{
+              end
+              }}
+              {{
+              if
+              eq
+              $index
+              0
+              }}autofocus{{
+              end
+              }}
+            >
+              <img alt="" src="/auth-assets/{{ .ID }}.svg" />
+              Continue with {{ .Name }}
+            </button>
+            {{ end }}
+            <div
+              id="turnstile"
+              data-site-key="{{ .SiteKey }}"
+              data-action="{{ .TurnstileAction }}"
+            ></div>
+            <noscript><p>Enable JavaScript to verify this browser.</p></noscript>
+          </form>
+          {{ end }} {{ if .RecoveryURL }}<a class="subtle" href="{{ .RecoveryURL }}"
+            >Recover admin access</a
+          >{{ end }} {{ if .RetryURL }}<a href="{{ .RetryURL }}">Try again</a>{{ end }}
+          <footer>
+            <a href="https://compozy.com/legal/terms">Terms</a>
+            <a href="https://compozy.com/legal/privacy">Privacy</a>
+            <a href="https://compozy.com/legal/refunds">Refunds</a>
+          </footer>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

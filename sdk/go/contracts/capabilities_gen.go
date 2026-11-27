@@ -3,13 +3,12 @@
 package contracts
 
 var requiredMethodsByProvide = map[string][]string{
-	"connectivity.provider": []string{"connectivity/establish", "connectivity/status", "connectivity/teardown"},
-	"forge.provider":        []string{"forge/capabilities", "forge/pr_create", "forge/status"},
-	"heartbeat.source":      []string{"heartbeat/source_poll"},
-	"loop.watch_source":     []string{"watch/poll"},
-	"model.source":          []string{"models/list"},
-	"tool.provider":         []string{"provide_tools", "tools/call"},
-	"view.provider":         []string{"view/close", "view/event", "view/open"},
+	"forge.provider":    []string{"forge/capabilities", "forge/pr_create", "forge/status"},
+	"heartbeat.source":  []string{"heartbeat/source_poll"},
+	"loop.watch_source": []string{"watch/poll"},
+	"model.source":      []string{"models/list"},
+	"tool.provider":     []string{"provide_tools", "tools/call"},
+	"view.provider":     []string{"view/close", "view/event", "view/open"},
 }
 
 func RequiredMethods(provide string) []string {
@@ -26,9 +25,6 @@ type ProvideConformanceFixture struct {
 }
 
 var publicProvideConformanceFixtures = []ProvideConformanceFixture{{
-	Provide:         "connectivity.provider",
-	RequiredMethods: RequiredMethods("connectivity.provider"),
-}, {
 	Provide:         "forge.provider",
 	RequiredMethods: RequiredMethods("forge.provider"),
 }, {

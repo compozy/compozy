@@ -994,6 +994,10 @@ func TestScopeWorkspaceHookDeclsOnlyInjectsSupportedMatcherFields(t *testing.T) 
 				Name:  "message",
 				Event: hookspkg.HookMessageDelta,
 			},
+			{
+				Name:  "subagent",
+				Event: hookspkg.HookSubagentSettled,
+			},
 		}
 	}
 	resolved := workspaceResolvedForTest("ws-1", "/tmp/ws-1")
@@ -1038,18 +1042,40 @@ func TestScopeWorkspaceHookDeclsOnlyInjectsSupportedMatcherFields(t *testing.T) 
 			},
 		},
 		{
-			name: "Should not inject workspace fields for message hooks",
+			name: "Should inject only workspace id for message hooks",
 			assert: func(t *testing.T, _ []hookspkg.HookDecl, scoped []hookspkg.HookDecl) {
 				t.Helper()
 
-				if scoped[2].Matcher.WorkspaceID != "" || scoped[2].Matcher.WorkspaceRoot != "" {
+				if scoped[2].Matcher.WorkspaceID != resolved.WorkspaceID {
+					t.Fatalf("message WorkspaceID = %q, want %q", scoped[2].Matcher.WorkspaceID, resolved.WorkspaceID)
+				}
+				if scoped[2].Matcher.WorkspaceRoot != "" {
 					t.Fatalf(
-						"message matcher workspace fields = %#v, want no unsupported workspace scoping",
-						scoped[2].Matcher,
+						"message WorkspaceRoot = %q, want empty because message hooks do not support it",
+						scoped[2].Matcher.WorkspaceRoot,
 					)
 				}
 				if err := hookspkg.ValidateMatcherForEvent(scoped[2].Event, scoped[2].Matcher); err != nil {
 					t.Fatalf("message matcher validation error = %v", err)
+				}
+			},
+		},
+		{
+			name: "Should inject only workspace id for subagent hooks",
+			assert: func(t *testing.T, _ []hookspkg.HookDecl, scoped []hookspkg.HookDecl) {
+				t.Helper()
+
+				if scoped[3].Matcher.WorkspaceID != resolved.WorkspaceID {
+					t.Fatalf("subagent WorkspaceID = %q, want %q", scoped[3].Matcher.WorkspaceID, resolved.WorkspaceID)
+				}
+				if scoped[3].Matcher.WorkspaceRoot != "" {
+					t.Fatalf(
+						"subagent WorkspaceRoot = %q, want empty because subagent hooks do not support it",
+						scoped[3].Matcher.WorkspaceRoot,
+					)
+				}
+				if err := hookspkg.ValidateMatcherForEvent(scoped[3].Event, scoped[3].Matcher); err != nil {
+					t.Fatalf("subagent matcher validation error = %v", err)
 				}
 			},
 		},

@@ -87,3 +87,14 @@ export function isSkillReviewInvalid(error: unknown) {
 export function isSkillReviewStale(error: unknown) {
   return error instanceof AgentSkillReviewApiError && error.code === "skill_review_stale";
 }
+
+/**
+ * The skill changed while CompozyOS was replacing it, so both versions are kept until the operator
+ * resolves the conflict. Returns the conflicted operation ID named by the refusal; null otherwise.
+ */
+export function skillInstallConflictOp(error: unknown) {
+  if (!(error instanceof AgentSkillReviewApiError) || error.code !== "skill_install_conflict") {
+    return null;
+  }
+  return /\(op ([^)\s]+)\)/.exec(error.message)?.[1] ?? "";
+}

@@ -1,0 +1,5 @@
+{
+    "title": "Computers",
+    "icon": "Monitor",
+    "pages": ["index", "ssh-setup", "controller", "remote-host", "account", "cloud-service"]
+}

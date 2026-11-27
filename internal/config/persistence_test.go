@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -682,11 +683,11 @@ mode = "approve-all"
 func TestWriteScopeValidationAndTargetScope(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should reject gateway writes at workspace scope", func(t *testing.T) {
+	t.Run("Should reject computer settings writes at workspace scope", func(t *testing.T) {
 		t.Parallel()
 		if err := ValidateConfigWriteScope(
 			WriteScopeWorkspace,
-			[]string{"gateway", "active_connection"},
+			[]string{"computers", "local_run_agents"},
 		); err == nil || !strings.Contains(err.Error(), "global-only") {
 			t.Fatalf("ValidateConfigWriteScope() error = %v, want global-only rejection", err)
 		}
@@ -2564,6 +2565,77 @@ func TestPersistedAgentKindConfigMigration(t *testing.T) {
 			if _, err := loadConfigOverlayBytes(after, path); err != nil {
 				t.Fatalf("overlay not migrated: %s %v", path, err)
 			}
+		}
+	})
+}
+
+// UT-110. The persisted config loader owns the one-time Gateway config rewrite.
+func TestMigrateRemovedGateway(t *testing.T) {
+	t.Parallel()
+	t.Run("Should record profiles and rewrite only the retired keys once", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "config.toml")
+		contents := `# Keep this comment.
+[http]
+port = 2123
+[gateway]
+enabled = true
+active_connection = "one"
+[[gateway.connections]]
+name = "one"
+[[gateway.connections]]
+name = "two"
+[automation]
+timezone = "UTC"
+`
+		if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		calls := 0
+		record := func(count int) error {
+			calls++
+			if count != 2 {
+				t.Fatalf("profile count = %d, want 2", count)
+			}
+			original, err := os.ReadFile(path)
+			if err != nil || string(original) != contents {
+				t.Fatalf("config changed before recording profiles: %q, %v", original, err)
+			}
+			return nil
+		}
+
+		keys, err := MigrateRemovedGateway(path, record)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantKeys := []string{"gateway.active_connection", "gateway.connections", "gateway.enabled"}
+		if !slices.Equal(keys, wantKeys) {
+			t.Fatalf("removed keys = %v, want %v", keys, wantKeys)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil || bytes.Contains(data, []byte("gateway")) ||
+			!bytes.Contains(data, []byte("# Keep this comment.\n[http]\nport = 2123")) ||
+			!bytes.Contains(data, []byte("[automation]\ntimezone = \"UTC\"")) {
+			t.Fatalf("rewritten config = %q, %v", data, err)
+		}
+		var cleaned Config
+		if err := ApplyConfigOverlayFile(path, &cleaned); err != nil {
+			t.Fatal(err)
+		}
+		if cleaned.HTTP.Port != 2123 || cleaned.Automation.Timezone != "UTC" {
+			t.Fatalf("unrelated settings after migration = %+v, %+v", cleaned.HTTP, cleaned.Automation)
+		}
+		before, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		keys, err = MigrateRemovedGateway(path, record)
+		if err != nil || len(keys) != 0 || calls != 1 {
+			t.Fatalf("second migration = %v, %v, record calls = %d", keys, err, calls)
+		}
+		after, err := os.Stat(path)
+		if err != nil || !os.SameFile(before, after) {
+			t.Fatalf("second migration replaced the config: %v", err)
 		}
 	})
 }

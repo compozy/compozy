@@ -19,29 +19,28 @@ const (
 )
 
 const (
-	extensionCapabilitiesValue      = "Capabilities"
-	extensionEnabledValue           = "Enabled"
-	extensionHealthValue            = "Health"
-	extensionCapabilitiesKey        = "capabilities"
-	extensionEnabledKey             = "enabled"
-	extensionExtensionKey           = "extension"
-	extensionHealthKey              = "health"
-	extensionMissingEnvKey          = "missing_env"
-	extensionListKey                = "list"
-	extensionSearchQueryValue       = "search <query>"
-	extensionUpdateValue            = "Update"
-	extensionUpdateAvailable        = "available"
-	extensionRuntimeUnknown         = "unknown"
-	extensionDevVerb                = "dev"
-	extensionReloadVerb             = "reload"
-	extensionConfirmGatewayFlagName = "confirm-gateway-requirement"
-	extensionAgentPluginValue       = "agent plugin"
-	extensionMCPKind                = "mcp"
-	extensionMCPServerKind          = "mcp_server"
-	extensionSkillKind              = "skill"
-	cliRemoveNameUse                = "remove <name>"
-	cliUseEnableName                = "enable <name>"
-	cliUseDisableName               = "disable <name>"
+	extensionCapabilitiesValue = "Capabilities"
+	extensionEnabledValue      = "Enabled"
+	extensionHealthValue       = "Health"
+	extensionCapabilitiesKey   = "capabilities"
+	extensionEnabledKey        = "enabled"
+	extensionExtensionKey      = "extension"
+	extensionHealthKey         = "health"
+	extensionMissingEnvKey     = "missing_env"
+	extensionListKey           = "list"
+	extensionSearchQueryValue  = "search <query>"
+	extensionUpdateValue       = "Update"
+	extensionUpdateAvailable   = "available"
+	extensionRuntimeUnknown    = "unknown"
+	extensionDevVerb           = "dev"
+	extensionReloadVerb        = "reload"
+	extensionAgentPluginValue  = "agent plugin"
+	extensionMCPKind           = "mcp"
+	extensionMCPServerKind     = "mcp_server"
+	extensionSkillKind         = "skill"
+	cliRemoveNameUse           = "remove <name>"
+	cliUseEnableName           = "enable <name>"
+	cliUseDisableName          = "disable <name>"
 )
 
 type preparedExtensionInstall struct {
@@ -82,6 +81,7 @@ func newExtensionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newExtensionInventoryCommand(deps))
 	cmd.AddCommand(newExtensionProvenanceCommand(deps))
 	cmd.AddCommand(newExtensionSecretsCommand(deps))
+	cmd.AddCommand(newExtensionSetupCommand(deps))
 	cmd.AddCommand(newExtensionPublishCommand(deps))
 	return cmd
 }
@@ -130,16 +130,16 @@ func newExtensionListCommand(deps commandDeps) *cobra.Command {
 }
 
 type extensionInstallFlags struct {
-	scope                string
-	workspaceRef         string
-	inputs               extensionInputFlags
-	version              string
-	asset                string
-	confirmGatewayDigest string
-	allowUnverified      bool
-	enable               bool
-	replace              bool
-	yes                  bool
+	scope           string
+	workspaceRef    string
+	inputs          extensionInputFlags
+	dependencies    extensionDependencyFlags
+	version         string
+	asset           string
+	allowUnverified bool
+	enable          bool
+	replace         bool
+	yes             bool
 }
 
 func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
@@ -178,12 +178,7 @@ func (f *extensionInstallFlags) register(cmd *cobra.Command) {
 		"Allow install when the extension checksum is not registry-verified",
 	)
 	cmd.Flags().BoolVar(&f.yes, yesFlagName, false, "Skip confirmation when using --allow-unverified")
-	cmd.Flags().StringVar(
-		&f.confirmGatewayDigest,
-		extensionConfirmGatewayFlagName,
-		"",
-		"Confirm the candidate extension gateway requirement digest",
-	)
+	f.dependencies.register(cmd)
 }
 
 func runExtensionInstall(
@@ -206,7 +201,9 @@ func runExtensionInstall(
 		plan.Attempts[index].Scope = selected.scope
 		plan.Attempts[index].WorkspaceID = selected.workspaceID
 		plan.Attempts[index].Profile = selected.profile
-		plan.Attempts[index].ConfirmGatewayDigest = strings.TrimSpace(f.confirmGatewayDigest)
+	}
+	if err := f.dependencies.apply(plan); err != nil {
+		return err
 	}
 	plan, err = resolvePluginInstallPlan(cmd.Context(), deps, plan)
 	if err != nil {
@@ -228,8 +225,23 @@ func runExtensionInstall(
 	if err := confirmExtensionUnverifiedInstall(cmd, f.allowUnverified, f.yes); err != nil {
 		return err
 	}
-	item, err := executeExtensionInstallPlan(cmd.Context(), deps, plan)
+	if err := f.dependencies.confirmUnverified(cmd, f.yes); err != nil {
+		return err
+	}
+	if f.dependencies.withDependencies {
+		if err := pinExtensionDependencyDigests(cmd.Context(), deps, plan, preview); err != nil {
+			return err
+		}
+	}
+	item, err := executeExtensionInstallPlanWithPrompts(cmd, deps, plan)
 	if err != nil {
+		if len(item.InstallDependenciesInstalled) > 0 {
+			_, writeErr := fmt.Fprintf(cmd.ErrOrStderr(), "Installed dependencies first: %s.\n",
+				strings.Join(item.InstallDependenciesInstalled, ", "))
+			if writeErr != nil {
+				return errors.Join(err, fmt.Errorf("cli: write partial extension install notice: %w", writeErr))
+			}
+		}
 		return err
 	}
 	report := extensionInstallValidationReport(deps, plan, &item)
@@ -241,6 +253,7 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
 	var global bool
 	var permanent bool
+	var force bool
 	command := &cobra.Command{
 		Use:   cliRemoveNameUse,
 		Short: "Remove an installed extension from disk and the registry",
@@ -249,6 +262,7 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 			if err := validateExtensionPermanentRemoveFlags(permanent, workspaceRef); err != nil {
 				return err
 			}
+			withExtensionForce(cmd, force)
 			baseClient, err := requireExtensionDaemonClient(cmd.Context(), deps)
 			if err != nil {
 				return err
@@ -293,6 +307,7 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 		false,
 		"Remove a bundled built-in permanently; it will not return until restored (global only)",
 	)
+	registerExtensionForceFlag(command, &force)
 	return command
 }
 
@@ -303,7 +318,6 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 	var version string
 	var allowUnverified bool
 	var yes bool
-	var confirmGatewayDigest string
 
 	cmd := &cobra.Command{
 		Use:   "update [name]",
@@ -314,12 +328,6 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			}
 			if !updateAll && len(args) != 1 {
 				return errors.New("cli: update requires an extension name unless --all is set")
-			}
-			if updateAll && strings.TrimSpace(confirmGatewayDigest) != "" {
-				return fmt.Errorf(
-					"cli: --%s applies only to a single extension update",
-					extensionConfirmGatewayFlagName,
-				)
 			}
 			return nil
 		},
@@ -334,7 +342,7 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			items, err := updateMarketplaceExtensions(cmd.Context(), deps, extensionUpdateOptions{
 				Names: args, All: updateAll, CheckOnly: checkOnly, Version: version,
 				Scope: selected.scope, WorkspaceID: selected.workspaceID, Profile: selected.profile,
-				AllowUnverified: allowUnverified, ConfirmGatewayDigest: confirmGatewayDigest,
+				AllowUnverified: allowUnverified,
 			})
 			if err != nil {
 				return err
@@ -369,12 +377,6 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 		"Allow update when the extension checksum is not registry-verified",
 	)
 	cmd.Flags().BoolVar(&yes, yesFlagName, false, "Skip confirmation when using --allow-unverified")
-	cmd.Flags().StringVar(
-		&confirmGatewayDigest,
-		extensionConfirmGatewayFlagName,
-		"",
-		"Confirm the candidate extension gateway requirement digest",
-	)
 	return cmd
 }
 
@@ -394,11 +396,13 @@ func newExtensionEnableCommand(deps commandDeps) *cobra.Command {
 }
 
 func newExtensionDisableCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	var force bool
+	command := &cobra.Command{
 		Use:   cliUseDisableName,
 		Short: "Disable an installed extension",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			withExtensionForce(cmd, force)
 			item, err := setExtensionProfileEnablement(cmd, deps, args[0], false)
 			if err != nil {
 				return err
@@ -406,6 +410,8 @@ func newExtensionDisableCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, extensionEnablementBundle(item))
 		},
 	}
+	registerExtensionForceFlag(command, &force)
+	return command
 }
 
 func newExtensionStatusCommand(deps commandDeps) *cobra.Command {

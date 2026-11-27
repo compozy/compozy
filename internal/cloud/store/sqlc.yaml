@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: FSL-1.1-MIT
+
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "queries"
+    gen:
+      go:
+        package: "sqlcgen"
+        out: "sqlcgen"
+        sql_package: "pgx/v5"
+        emit_empty_slices: true

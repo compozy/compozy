@@ -10,6 +10,7 @@ func agentInstanceOperations() []OperationSpec {
 	operations := append(agentInstanceCheckOperations(), agentInstanceCatalogOperations()...)
 	operations = append(operations, agentInstanceDetailOperations()...)
 	operations = append(operations, agentSkillReviewOperations()...)
+	operations = append(operations, agentSkillInstallConflictOperations()...)
 	for i := range operations {
 		operations[i].AppAccess = AppAccessDenied
 		operations[i].Tags = []string{specAgentsKey}

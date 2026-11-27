@@ -33,14 +33,10 @@ const (
 	// #nosec G101 -- this public scaffold identifier is not a credential.
 	ScaffoldTemplateHeartbeatSourceGo ScaffoldTemplate = "heartbeat-source-go"
 	// #nosec G101 -- this public scaffold identifier is not a credential.
-	ScaffoldTemplateLoopWatchSourceGo      ScaffoldTemplate = "loop-watch-source-go"
-	ScaffoldTemplateConnectivityProviderGo ScaffoldTemplate = "connectivity-provider-go"
-	ScaffoldTemplateConnectivityProviderTS ScaffoldTemplate = "connectivity-provider-ts"
+	ScaffoldTemplateLoopWatchSourceGo ScaffoldTemplate = "loop-watch-source-go"
 )
 
 var scaffoldTemplates = []ScaffoldTemplate{
-	ScaffoldTemplateConnectivityProviderGo,
-	ScaffoldTemplateConnectivityProviderTS,
 	ScaffoldTemplateHeartbeatSourceGo,
 	ScaffoldTemplateLoopWatchSourceGo,
 	ScaffoldTemplateToolProviderGo,

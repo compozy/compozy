@@ -27,7 +27,7 @@ import type {
  * Carries the daemon's stable machine code alongside the message.
  *
  * Every profile refusal is typed (`profile_plan_stale`, `profile_owns_work`,
- * `profile_remote_management_forbidden`, …), and the dialogs branch on the code
+ * `profile_name_taken`, …), and the dialogs branch on the code
  * rather than on prose, so the message stays free to change.
  */
 export class ProfileApiError extends Error {

@@ -41,7 +41,7 @@ func (m *Manager) prepareDerive(
 	if err := validateDeriveTranscript(spec.fences, snapshot); err != nil {
 		return preparedDerive{}, err
 	}
-	pendingRoute, routeSelection, err := derivePendingRoute(agentName, agentDef, spec.route)
+	pendingRoute, routeSelection, err := derivePendingRoute(&workspace.Config, agentName, agentDef, spec.route)
 	if err != nil {
 		return preparedDerive{}, err
 	}
@@ -190,6 +190,7 @@ func applyDeriveRuntime(
 // derivePendingRoute resolves a 1-based declared route through the fallback-account
 // resolver; the chosen route is recorded on the child and applied at its first bind.
 func derivePendingRoute(
+	cfg *compozyconfig.Config,
 	agentName string,
 	agentDef compozyconfig.AgentDef,
 	index int,
@@ -197,7 +198,7 @@ func derivePendingRoute(
 	if index <= 0 {
 		return nil, nil, nil
 	}
-	routes := fallbackRoutesForAgent(agentDef)
+	routes := fallbackRoutesForAgent(cfg, agentDef)
 	if index > len(routes) {
 		return nil, nil, deriveErr(
 			ErrDeriveRouteNotFound,
@@ -333,14 +334,20 @@ func placeDeriveChild(opts *CreateOpts, spec deriveSpec, scope workspacepkg.Scop
 	}
 }
 
-// deriveResolutionMeta is the source as seen from the child's profile: a relocated copy
-// resolves its agent, route, and context budget from the target profile's layers.
+// deriveResolutionMeta is the source as seen from the child's profile: the child resolves its
+// agent, declared route, and context budget from the layers of the profile it binds in (a
+// relocated copy's target profile, else the requested profile), so a route index selected
+// here names the same route the child's first bind resolves.
 func deriveResolutionMeta(spec deriveSpec, meta *store.SessionMeta) *store.SessionMeta {
-	if spec.relocation == nil || meta == nil {
+	if meta == nil {
+		return nil
+	}
+	profileID := deriveChildProfileID(spec.childProfileID(), meta)
+	if profileID == normalizeCreateProfileID(meta.ProfileID) {
 		return meta
 	}
 	resolved := *meta
-	resolved.ProfileID = spec.relocation.profileID
+	resolved.ProfileID = profileID
 	return &resolved
 }
 

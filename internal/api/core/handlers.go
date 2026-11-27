@@ -13,6 +13,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -24,6 +25,8 @@ import (
 const (
 	handlersErrorKey     = "error"
 	handlersOperationKey = "operation"
+	sessionIDKey         = "session_id"
+	agentNameKey         = "agent_name"
 )
 
 const defaultPollInterval = 100 * time.Millisecond
@@ -60,6 +63,17 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		h.respondError(c, statusForCreateSessionValidationError(err), err)
 		return
 	}
+	selected, ok := h.placeSessionCreation(c, &req)
+	if ok {
+		h.createLocalSession(c, req, selected)
+	}
+}
+
+func (h *BaseHandlers) createLocalSession(
+	c *gin.Context,
+	req contract.CreateSessionRequest,
+	computerID remoteproto.ComputerID,
+) {
 	parentSessionID, err := h.resolveCreateSessionParent(c, req)
 	if err != nil {
 		h.respondError(c, StatusForAgentIdentityError(err), err)
@@ -124,7 +138,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		return
 	}
 	payload.FolderID = folderID
-	c.JSON(http.StatusCreated, contract.SessionResponse{Session: payload})
+	c.JSON(http.StatusCreated, contract.SessionResponse{Session: payload, ComputerID: computerID})
 }
 
 // createSessionLineage checks the parent is readable in the mutation profile and links the child to it.

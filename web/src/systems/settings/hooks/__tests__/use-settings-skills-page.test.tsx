@@ -515,7 +515,7 @@ describe("useSettingsSkillsPage", () => {
     // Two cache entries, not one entry answering for both profiles.
     const skillsEntries = queryClient
       .getQueryCache()
-      .findAll({ queryKey: ["settings", "section", "skills"] });
+      .findAll({ queryKey: ["computer", "local", "settings", "section", "skills"] });
     expect(skillsEntries.length).toBeGreaterThan(1);
   });
 

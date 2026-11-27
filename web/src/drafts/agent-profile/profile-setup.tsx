@@ -1,5 +1,5 @@
 /** How the agent is set up: one quiet list, every row one click from the thing it describes. */
-import { protoHref } from "@compozy/proto";
+import { protoHref } from "@protohq/cli";
 import { Bot, Brain, Clock, Sparkles, Wrench } from "@compozy/ui/icons";
 
 import { Panel, Section } from "@compozy/ui";

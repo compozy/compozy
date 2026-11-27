@@ -14,20 +14,23 @@ compozy agent skill review list [flags]
 ### Options
 
 ```
-      --cursor string      Continue from next_cursor
-  -h, --help               help for list
-      --instance string    Filter by instance ID
-      --limit int          Page size (1-100) (default 50)
-      --state string       pending, approved or rejected
-      --workspace string   Override workspace context (ID, name, or path)
+      --cursor string        Continue from next_cursor
+      --decided-via string   operator or auto_approve
+  -h, --help                 help for list
+      --instance string      Filter by instance ID
+      --kind string          new or edit
+      --limit int            Page size (1-100) (default 50)
+      --state string         pending, approved, rejected or reverted
+      --workspace string     Override workspace context (ID, name, or path)
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --json             Emit JSON output
-  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
-      --profile string   Act as a profile for this command
+      --computer string   Target a computer by name or ID
+      --json              Emit JSON output
+  -o, --output string     Output format: human, json, jsonl, or toon (default "human")
+      --profile string    Act as a profile for this command
 ```
 
 ## Output Formats

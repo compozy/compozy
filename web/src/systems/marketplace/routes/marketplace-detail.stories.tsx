@@ -231,7 +231,7 @@ export const DetailExtensionDevOverlay: Story = {
   },
 };
 
-/** Shipped-vs-live kit truth beside the bound-env presence and the declared gateway digest. */
+/** Shipped and live kit resources alongside bound environment keys. */
 export const DetailExtensionKitInventory: Story = {
   args: {},
   parameters: {
@@ -326,7 +326,6 @@ export const DetailExtensionEnabledUpdate: Story = {
               {
                 ...kitExtensionFixture,
                 enabled: true,
-                gateway_confirmation_required: false,
                 remote_version: "1.1.0",
                 update_available: true,
               },
@@ -345,24 +344,4 @@ export const DetailExtensionEnabledUpdate: Story = {
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
-};
-
-/** The daemon refuses an unratified gateway control permissions change; one affordance carries the digest. */
-export const DetailExtensionGatewayConfirm: Story = {
-  args: {},
-  parameters: {
-    ...appRouteParameters("/marketplace/dep-kit-ops?installed_name=dep-kit-ops"),
-    ...kitDetailHandlers(true),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-  tags: ["play-fn"],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByRole("button", { name: "Update" }));
-    const dialog = within(document.body);
-    await expect(dialog.findByTestId("extension-gateway-confirm-dialog")).resolves.toBeDefined();
-    await expect(
-      dialog.findByTestId("extension-gateway-confirm-digest")
-    ).resolves.toHaveTextContent("sha256:6f1c0a94d3b27e58");
-  },
 };

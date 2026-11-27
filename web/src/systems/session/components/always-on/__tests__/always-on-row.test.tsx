@@ -11,9 +11,16 @@ import { agentInstanceFixture } from "@/systems/agent/mocks";
 
 import { AlwaysOnRow } from "../always-on-row";
 
-const { mockNavigate, mockApi } = vi.hoisted(() => ({
+const { mockNavigate, mockApi, mockLineage } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
   mockApi: { ensureMain: vi.fn(), pause: vi.fn(), resume: vi.fn(), seen: vi.fn() },
+  mockLineage: new Map<string, { parent_session_id?: string; root_session_id?: string }>(),
+}));
+
+vi.mock("../../../hooks/use-sessions", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../../hooks/use-sessions")>()),
+  useSessionLineage: (id: string, enabled: boolean) =>
+    enabled && mockLineage.has(id) ? { id, lineage: mockLineage.get(id) } : undefined,
 }));
 
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
@@ -57,6 +64,7 @@ const seatNames = () =>
 describe("AlwaysOnRow", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
+    mockLineage.clear();
     for (const call of Object.values(mockApi)) call.mockReset();
   });
 
@@ -275,6 +283,86 @@ describe("AlwaysOnRow", () => {
       agent_name: "triage",
       workspace_id: "ws-compozy",
     });
+  });
+
+  it("Should mark the agent's seat and row while its side chat or a child under it is open", () => {
+    const triage = agentInstanceFixture();
+    const review = agentInstanceFixture({
+      id: "ainst-review",
+      label: "Review",
+      main_session_id: "sess-main-review",
+    });
+    mockLineage.set("sess-side", { parent_session_id: "sess-main-triage" });
+    mockLineage.set("sess-grandchild", {
+      parent_session_id: "sess-side",
+      root_session_id: "sess-main-review",
+    });
+
+    const { unmount } = render(
+      wrap(
+        <AlwaysOnRow
+          currentSessionId="sess-side"
+          instances={[triage, review]}
+          onOpenSession={vi.fn()}
+        />
+      )
+    );
+    expect(screen.getByTestId(`always-on-seat-${triage.id}`)).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(screen.getByTestId(`always-on-seat-${review.id}`)).not.toHaveAttribute("aria-current");
+    expect(screen.getByTestId("always-on-row")).toHaveAttribute("data-current", "true");
+    unmount();
+
+    renderRow([triage, review], { currentSessionId: "sess-grandchild" });
+    expect(screen.getByTestId(`always-on-seat-${review.id}`)).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(screen.getByTestId(`always-on-seat-${triage.id}`)).not.toHaveAttribute("aria-current");
+  });
+
+  it("Should leave the row unmarked for a session no agent owns", () => {
+    const instance = agentInstanceFixture();
+    mockLineage.set("sess-other", { parent_session_id: "sess-someone" });
+    renderRow([instance], { currentSessionId: "sess-other" });
+
+    expect(screen.getByTestId(`always-on-seat-${instance.id}`)).not.toHaveAttribute("aria-current");
+    expect(screen.getByTestId("always-on-row")).not.toHaveAttribute("data-current");
+  });
+
+  it("Should mark +N and the crew item when the open agent sits past the seats", async () => {
+    const user = userEvent.setup();
+    const crew = Array.from({ length: 5 }, (_, index) =>
+      agentInstanceFixture({
+        id: `i-${index}`,
+        label: `Agent ${index}`,
+        main_session_id: `sess-main-${index}`,
+      })
+    );
+    renderRow(crew, { currentSessionId: "sess-main-4", limit: 3, scopeName: "compozy" });
+
+    const trigger = screen.getByRole("button", { name: "Show all 5 agents in compozy" });
+    expect(trigger).toHaveAttribute("data-current", "true");
+    await user.click(trigger);
+
+    expect(screen.getByRole("button", { name: /Agent 4/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: /Agent 3/ })).not.toHaveAttribute("aria-current");
+  });
+
+  it("Should leave +N unmarked when the open agent already has a seat", () => {
+    const crew = Array.from({ length: 5 }, (_, index) =>
+      agentInstanceFixture({
+        id: `i-${index}`,
+        label: `Agent ${index}`,
+        main_session_id: `sess-main-${index}`,
+      })
+    );
+    renderRow(crew, { currentSessionId: "sess-main-0", limit: 3, scopeName: "compozy" });
+
+    expect(screen.getByTestId("always-on-seat-i-0")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("always-on-crew")).not.toHaveAttribute("data-current");
   });
 
   it("Should create the main session again when it was lost", async () => {

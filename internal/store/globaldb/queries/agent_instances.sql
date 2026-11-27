@@ -81,7 +81,8 @@ SELECT * FROM agent_instances WHERE (sqlc.arg(all_profiles) = 1 OR profile_id = 
 AND (sqlc.arg(all_workspaces) = 1 OR workspace_id = sqlc.arg(workspace_id))
 AND (sqlc.arg(agent_name) = '' OR agent_name = sqlc.arg(agent_name))
 AND (sqlc.arg(state) = '' OR state = sqlc.arg(state))
-AND archived_at IS NULL AND id > sqlc.arg(after_id) ORDER BY id LIMIT sqlc.arg(page_limit);
+AND (sqlc.arg(include_archived) = 1 OR archived_at IS NULL)
+AND id > sqlc.arg(after_id) ORDER BY id LIMIT sqlc.arg(page_limit);
 
 -- name: IsInstanceMainSession :one
 SELECT EXISTS(SELECT 1 FROM agent_instances WHERE main_session_id = ? AND archived_at IS NULL);

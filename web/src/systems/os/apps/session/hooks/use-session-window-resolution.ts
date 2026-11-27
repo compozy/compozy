@@ -1,5 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 
+import {
+  isRemoteComputerId,
+  LOCAL_COMPUTER_ID,
+  normalizeComputerId,
+  type ComputerId,
+} from "@/lib/computer-scope";
 import { useProfileReadScope } from "@/systems/profiles";
 import { isSessionUnavailable } from "@/systems/session/adapters/session-api-errors";
 import {
@@ -33,6 +39,50 @@ export interface SessionWindowResolution {
   crossesWorkspace: boolean;
 }
 
+function projectSessionWindowResolution({
+  isRemote,
+  session,
+  isLoading,
+  isFetching,
+  error,
+  retry,
+  scopedMiss,
+  foreign,
+  focusedScope,
+}: {
+  isRemote: boolean;
+  session: SessionPayload | undefined;
+  isLoading: boolean;
+  isFetching: boolean;
+  error: Error | null;
+  retry: () => void;
+  scopedMiss: boolean;
+  foreign: ForeignProfileSessionState;
+  focusedScope: FocusedDataScope | null;
+}): SessionWindowResolution {
+  const foreignSession = foreign.status === "found" ? foreign.session : undefined;
+  const shownSession = session ?? foreignSession;
+  const sessionWorkspaceId = shownSession ? (shownSession.workspace_id?.trim() ?? "") : null;
+  const sessionScope = sessionWorkspaceId === null ? null : ownerDataScope(sessionWorkspaceId);
+  return {
+    session,
+    shownSession,
+    workspaceId: sessionWorkspaceId ?? focusedWorkspaceId(focusedScope),
+    isLoading,
+    isFetching: isFetching || (foreign.status === "found" && foreign.isFetching),
+    error,
+    retry,
+    scopedMiss,
+    foreign,
+    // A remote session lives in its own computer's workspace; local project bounds don't apply.
+    crossesWorkspace:
+      !isRemote &&
+      sessionScope !== null &&
+      focusedScope !== null &&
+      !sameDataScope(sessionScope, focusedScope),
+  };
+}
+
 /**
  * Resolves a session on both ownership axes before the window commits to a view.
  *
@@ -43,44 +93,42 @@ export interface SessionWindowResolution {
  * something the operator can act on.
  */
 export function useSessionWindowResolution({
+  computerId = LOCAL_COMPUTER_ID,
   sessionId,
   focusedScope,
   liveTailEnabled,
   enabled = true,
 }: {
+  computerId?: ComputerId;
   sessionId: string | null;
   /** The window's data scope when bounded (a project or User); `null` for the aggregate or unsettled. */
   focusedScope: FocusedDataScope | null;
   liveTailEnabled: boolean;
   enabled?: boolean;
 }): SessionWindowResolution {
+  const scopedComputerId = normalizeComputerId(computerId);
+  const isRemote = isRemoteComputerId(scopedComputerId);
   const { params } = useProfileReadScope();
   const query = useQuery(
     sessionScopedDetailOptions(sessionId ?? "", params, {
+      computerId: scopedComputerId,
       enabled: sessionId !== null && enabled,
       liveTail: liveTailEnabled,
     })
   );
   const scopedMiss = query.isError && isSessionUnavailable(query.error);
-  const foreign = useForeignProfileSession(sessionId, scopedMiss && enabled);
-  const foreignSession = foreign.status === "found" ? foreign.session : undefined;
-  const resolvedSession = query.data ?? foreignSession;
-  const sessionWorkspaceId = resolvedSession ? (resolvedSession.workspace_id?.trim() ?? "") : null;
-  const sessionScope = sessionWorkspaceId === null ? null : ownerDataScope(sessionWorkspaceId);
-  return {
+  const foreign = useForeignProfileSession(sessionId, !isRemote && scopedMiss && enabled);
+  return projectSessionWindowResolution({
+    isRemote,
     session: query.data,
-    shownSession: resolvedSession,
-    workspaceId: sessionWorkspaceId ?? focusedWorkspaceId(focusedScope),
     isLoading: query.isLoading,
-    isFetching: query.isFetching || (foreign.status === "found" && foreign.isFetching),
+    isFetching: query.isFetching,
     error: query.error,
     retry: () => {
       void query.refetch();
     },
     scopedMiss,
     foreign,
-    // A project's session on the User desktop crosses too, and vice versa.
-    crossesWorkspace:
-      sessionScope !== null && focusedScope !== null && !sameDataScope(sessionScope, focusedScope),
-  };
+    focusedScope,
+  });
 }

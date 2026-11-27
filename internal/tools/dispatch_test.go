@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -217,6 +218,39 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		}
 	})
 
+	t.Run("Should accept and enforce boolean subschemas", func(t *testing.T) {
+		t.Parallel()
+		d := validDispatchDescriptor()
+		d.InputSchema = json.RawMessage(`{"type":"object","properties":{` +
+			`"hooks":{"type":"array","items":true},` +
+			`"line":{"anyOf":[{"type":"object","properties":{"words":{"type":"array","items":true}}},true]},` +
+			`"legacy":false,"tags":{"type":"array","items":{"not":false}},` +
+			`"range":{"type":"array","prefixItems":[{"type":"integer"},{"type":"integer"}],"items":false},` +
+			`"pair":{"type":"array","items":[{"type":"string"},{"type":"integer"}],"additionalItems":false}}}`)
+		if err := d.Validate(); err != nil {
+			t.Fatalf("Validate = %v", err)
+		}
+		accepted := `{"hooks":[1,"two",{"three":3}],"line":{"words":[null,true]},"tags":["a"],` +
+			`"range":[10,50],"pair":["a",1]}`
+		if err := validateCallInput(d, json.RawMessage(accepted)); err != nil {
+			t.Fatalf("validateCallInput(%s) = %v", accepted, err)
+		}
+		for _, tc := range []struct{ name, input string }{
+			{"Should reject a value for a false subschema", `{"legacy":"anything"}`},
+			{"Should reject an element past a closed prefixItems tuple", `{"range":[10,50,90]}`},
+			{"Should reject a wrong positional type in a prefixItems tuple", `{"range":["ten",50]}`},
+			{"Should reject an element past a closed draft-07 tuple", `{"pair":["a",1,2]}`},
+			{"Should reject a wrong positional type in a draft-07 tuple", `{"pair":[1,"a"]}`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				if err := validateCallInput(d, json.RawMessage(tc.input)); !errors.Is(err, ErrToolInvalidInput) {
+					t.Fatalf("validateCallInput(%s) = %v, want ErrToolInvalidInput", tc.input, err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should reject invalid input before provider invocation", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct{ name, input, cause string }{
@@ -380,6 +414,125 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 			t.Fatalf("event kinds = %#v, want %#v", got, want)
 		}
 	})
+}
+
+type recordingComputerForwarder struct {
+	resolve func(CallRequest) (remoteproto.ComputerID, error)
+	call    func(remoteproto.ComputerID, CallRequest) (ToolResult, error)
+}
+
+func (f recordingComputerForwarder) ResolveComputer(
+	_ context.Context, _ Scope, _ Descriptor, req CallRequest,
+) (remoteproto.ComputerID, error) {
+	return f.resolve(req)
+}
+
+func (f recordingComputerForwarder) CallComputer(
+	_ context.Context, id remoteproto.ComputerID, req CallRequest,
+) (ToolResult, error) {
+	return f.call(id, req)
+}
+
+func TestRuntimeRegistryComputerForwarding(t *testing.T) {
+	t.Parallel()
+	const computer remoteproto.ComputerID = "cmp_7f3k2q9x"
+	list := validDispatchDescriptor()
+	list.ID, list.Backend.NativeName = ToolIDSessionList, "session_list"
+	list.InputSchema = []byte(`{"type":"object","additionalProperties":false}`)
+	list.ToolExecutionMetadata = &ToolExecutionMetadata{RemoteScope: remoteproto.ScopeSessions}
+	complete := validDispatchDescriptor()
+	complete.ID, complete.Backend.NativeName = ToolIDTaskRunComplete, "task_run_complete"
+	newRegistry := func(t *testing.T, descriptor Descriptor, opts ...RegistryOption) *RuntimeRegistry {
+		t.Helper()
+		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
+			Descriptor: descriptor,
+			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
+				t.Fatal("a forwarded call ran the local handler")
+				return ToolResult{}, nil
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, err := NewRegistry(append([]RegistryOption{WithProviders(provider)}, opts...)...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return registry
+	}
+	// Safety Invariants 5 and 11. The projected selector uses only the computer's
+	// declared forwarding route, while the target sees the original tool shape.
+	t.Run("Should project the selector and preserve the remote result [UT-105]", func(t *testing.T) {
+		t.Parallel()
+		returned := json.RawMessage(`{"sessions":[{"id":"remote-session"}]}`)
+		registry := newRegistry(t, list, WithComputerForwarder(recordingComputerForwarder{
+			resolve: func(req CallRequest) (remoteproto.ComputerID, error) {
+				if req.ForwardComputer != "devbox" {
+					t.Fatalf("source computer = %q, want devbox", req.ForwardComputer)
+				}
+				return computer, nil
+			},
+			call: func(id remoteproto.ComputerID, req CallRequest) (ToolResult, error) {
+				if id != computer || req.ToolID != ToolIDSessionList || string(req.Input) != "{}" {
+					t.Fatalf("forwarded call = %q %+v, want session_list on %s without selector", id, req, computer)
+				}
+				return ToolResult{Structured: returned}, nil
+			},
+		}))
+		scope := Scope{ProfileID: "profile-a", SessionID: "source-session"}
+		input := json.RawMessage(`{"computer":"devbox"}`)
+		view, err := registry.Get(t.Context(), scope, ToolIDSessionList)
+		if err != nil || validateCallInput(view.Descriptor, input) != nil {
+			t.Fatalf("projected tool does not accept computer: %s, %v", view.Descriptor.InputSchema, err)
+		}
+		digest, err := SchemaDigest(view.Descriptor.InputSchema)
+		if err != nil || digest != view.Descriptor.InputSchemaDigest {
+			t.Fatalf("projected input digest = %q, want %q", view.Descriptor.InputSchemaDigest, digest)
+		}
+		result, err := registry.Call(t.Context(), scope, CallRequest{ToolID: ToolIDSessionList, Input: input})
+		if err != nil || result.ComputerID != computer || !bytes.Equal(result.Structured, returned) {
+			t.Fatalf("forwarded result = %+v, %v", result, err)
+		}
+		view, err = newRegistry(t, complete).Get(t.Context(), scope, ToolIDTaskRunComplete)
+		if err != nil || bytes.Contains(view.Descriptor.InputSchema, []byte(`"computer"`)) {
+			t.Fatalf("lease tool projection advertises a computer: %s, %v", view.Descriptor.InputSchema, err)
+		}
+	})
+
+	// Safety Invariants 11 and 13. Lease tools and calls denied at the source never cross the bridge.
+	t.Run(
+		"Should refuse nonforwardable and locally denied calls before resolving a destination [UT-107]",
+		func(t *testing.T) {
+			t.Parallel()
+			scope := Scope{ProfileID: "profile-a", SessionID: "source-session"}
+			input := json.RawMessage(`{"computer":"devbox"}`)
+			forwarder := WithComputerForwarder(recordingComputerForwarder{
+				resolve: func(CallRequest) (remoteproto.ComputerID, error) {
+					t.Fatal("denied call resolved a remote computer")
+					return "", nil
+				},
+			})
+			assertDenial := func(registry *RuntimeRegistry, id ToolID, code ErrorCode) {
+				t.Helper()
+				_, err := registry.Call(t.Context(), scope, CallRequest{ToolID: id, Input: input})
+				failure, ok := errors.AsType[*ToolError](err)
+				if !ok || failure.Code != code {
+					t.Fatalf("Call(%s) = %v, want %s", id, err, code)
+				}
+			}
+			assertDenial(newRegistry(t, complete, forwarder), ToolIDTaskRunComplete, "tool_not_forwardable")
+			create := cloneDescriptor(list)
+			create.ID, create.Backend.NativeName = ToolIDSessionCreate, "session_create"
+			denied, err := ParseToolPattern(create.ID.String())
+			if err != nil {
+				t.Fatal(err)
+			}
+			policy := DefaultPolicyInputs()
+			policy.DenyTools = []ToolPattern{denied}
+			assertDenial(newRegistry(t, create, forwarder, WithPolicyInputs(policy, ToolsetCatalog{})),
+				ToolIDSessionCreate, ErrorCodeDenied)
+		},
+	)
 }
 
 func TestPolicyDenyAll(t *testing.T) {
@@ -1914,6 +2067,27 @@ func TestInstanceCallApproval(t *testing.T) {
 		{"cleanup stop at approve-reads", ToolIDSessionCleanup, `{"action":"stop"}`, "", PermissionModeApproveReads, false, false},
 		{"hook escalates cleanup preview", ToolIDSessionCleanup, `{}`, `{"dry_run":false}`, PermissionModeApproveEdits, false, false},
 		{"cleanup at deny all", ToolIDSessionCleanup, `{}`, "", PermissionModeDenyAll, false, false},
+		{"setup read", ToolIDExtensionsSetup, `{"name":"kit"}`, "", PermissionModeApproveReads, false, true},
+		{"setup empty inputs", ToolIDExtensionsSetup, `{"name":"kit","inputs":{}}`, "", PermissionModeApproveEdits, false, true},
+		{"setup write", ToolIDExtensionsSetup, `{"name":"kit","inputs":{"project":{}}}`, "", PermissionModeApproveReads, false, false},
+		{"setup write at auto", ToolIDExtensionsSetup, `{"name":"kit","inputs":{"project":{}}}`, "", PermissionModeAuto, false, false},
+		{"setup name-only read", ToolIDExtensionsSetup, `{"name":"kit"}`, "", PermissionModeApproveEdits, false, true},
+		{"setup write at approve-edits", ToolIDExtensionsSetup, `{"name":"kit","inputs":{"project":{}}}`, "",
+			PermissionModeApproveEdits, false, false},
+		{"hook escalates setup read", ToolIDExtensionsSetup, `{"name":"kit"}`, `{"name":"kit","inputs":{"project":{}}}`,
+			PermissionModeApproveReads, false, false},
+		{"setup at deny all", ToolIDExtensionsSetup, `{"name":"kit"}`, "", PermissionModeDenyAll, false, false},
+		{"archive stopped dry run", ToolIDSessionArchiveStopped, `{"dry_run":true}`, "", PermissionModeApproveReads, false, true},
+		{"archive stopped dry run at auto", ToolIDSessionArchiveStopped, `{"dry_run":true}`, "", PermissionModeAuto, false, true},
+		{"archive stopped default", ToolIDSessionArchiveStopped, `{}`, "", PermissionModeApproveReads, false, false},
+		{"archive stopped run", ToolIDSessionArchiveStopped, `{"dry_run":false}`, "", PermissionModeApproveEdits, false, false},
+		{"hook escalates archive stopped dry run", ToolIDSessionArchiveStopped, `{"dry_run":true}`, `{"dry_run":false}`, PermissionModeApproveReads, false, false},
+		{"archive stopped dry run at deny all", ToolIDSessionArchiveStopped, `{"dry_run":true}`, "", PermissionModeDenyAll, false, false},
+		// force overrides the dependency guard; it never makes remove or disable skip approval.
+		{"forced disable at approve-edits", ToolIDExtensionsDisable, `{"name":"kit","force":true}`, "",
+			PermissionModeApproveEdits, false, false},
+		{"forced remove at auto", ToolIDExtensionsRemove, `{"name":"kit","force":true}`, "",
+			PermissionModeAuto, false, false},
 	} {
 		t.Run("Should enforce input approval for "+tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1927,7 +2101,9 @@ func TestInstanceCallApproval(t *testing.T) {
 			}
 			d.InputSchema = json.RawMessage(
 				`{"type":"object","properties":{"enabled":{"type":"boolean"},"dry_run":{"type":"boolean"},` +
-					`"action":{"type":"string"}},"additionalProperties":false}`,
+					`"action":{"type":"string"},"name":{"type":"string"},"inputs":{"type":"object"},` +
+					`"force":{"type":"boolean"}},` +
+					`"additionalProperties":false}`,
 			)
 			provider := providerWithDescriptors(d.Source, d)
 			called := false
@@ -1963,6 +2139,10 @@ func TestInstanceCallApproval(t *testing.T) {
 			)
 			if called != tc.wantCall || (err == nil) != tc.wantCall {
 				t.Fatalf("called=%v error=%v want call=%v", called, err, tc.wantCall)
+			}
+			// A refused call must fail at the permission gate, not on input validation.
+			if !tc.wantCall && !errors.Is(err, ErrToolApprovalRequired) && !errors.Is(err, ErrToolDenied) {
+				t.Fatalf("error = %v, want a permission denial (approval required or denied)", err)
 			}
 		})
 	}

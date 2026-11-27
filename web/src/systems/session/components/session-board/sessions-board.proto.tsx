@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import type { SessionsBoardView } from "../../hooks/use-sessions-board";
 import {

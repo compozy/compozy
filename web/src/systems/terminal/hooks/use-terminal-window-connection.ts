@@ -5,8 +5,10 @@ import { useSelector } from "@xstate/store-react";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { terminalRetainedOutputQuery, terminalScope } from "../lib/query-options";
+import type { ComputerId } from "@/lib/computer-scope";
 
+import { terminalRetainedOutputQuery, terminalScope } from "../lib/query-options";
+import { takePendingTerminalCommand } from "../lib/terminal-pending-command";
 import { terminalScopeKey } from "../lib/terminal-scope-key";
 import type { TerminalPaneState } from "../stores/terminal-store";
 import type { TerminalInfo } from "../types";
@@ -22,6 +24,7 @@ export interface UseTerminalWindowConnectionOptions {
   terminal: TerminalInfo;
   workspaceId: string;
   profile: string;
+  computerId?: ComputerId;
   viewer?: TerminalViewerIdentity | null;
   readOnly?: boolean;
   socketFactory?: TerminalAttachmentSocketFactory;
@@ -43,13 +46,14 @@ export function useTerminalWindowConnection({
   terminal,
   workspaceId,
   profile,
+  computerId,
   viewer,
   socketFactory,
   readOnly = false,
 }: UseTerminalWindowConnectionOptions): TerminalWindowConnection {
   const store = useTerminalStore();
   const handleRef = useRef<TerminalViewHandle>(null);
-  const scopeKey = terminalScopeKey(workspaceId, profile);
+  const scopeKey = terminalScopeKey(workspaceId, profile, computerId);
   // Pane state is only readable once the store agrees which scope it holds. A
   // terminal id can repeat across profiles, so reading a pane before the rebind
   // lands would show the previous profile's keyboard state for a frame.
@@ -67,7 +71,10 @@ export function useTerminalWindowConnection({
   const needsRetainedOutput =
     terminal.state === "exited" && !streamed && (!startedLive || pane?.status === "closed");
   const output = useQuery({
-    ...terminalRetainedOutputQuery(terminalScope(workspaceId, profile), terminal.id),
+    ...terminalRetainedOutputQuery(
+      terminalScope(workspaceId, profile, false, computerId),
+      terminal.id
+    ),
     enabled: needsRetainedOutput,
     staleTime: Infinity,
   });
@@ -81,6 +88,7 @@ export function useTerminalWindowConnection({
   const attachment = useTerminalAttachment({
     workspaceId,
     terminalId: terminal.id,
+    computerId,
     scope: { profile },
     mode: readOnly ? "read" : "write",
     viewer,
@@ -90,6 +98,13 @@ export function useTerminalWindowConnection({
     enabled: startedLive,
     onOutputPainted: () => setStreamed(true),
   });
+  useEffect(() => {
+    if (readOnly || !pane?.inputEnabled) return;
+    const pending = takePendingTerminalCommand(computerId, terminal.id);
+    if (pending !== null) {
+      attachment.sendInput(`${pending}\n`);
+    }
+  }, [attachment, computerId, pane?.inputEnabled, readOnly, terminal.id]);
 
   return {
     pane:

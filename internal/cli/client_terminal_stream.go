@@ -74,9 +74,6 @@ func (c *daemonClient) attachTerminalOnce(
 		if response != nil {
 			return options.AfterSeq, readAndCloseStreamHandshakeError(response)
 		}
-		if c.target.isRemoteGateway() {
-			return options.AfterSeq, newGatewayReachabilityError(c.target, err)
-		}
 		return options.AfterSeq, fmt.Errorf("cli: dial terminal stream: %w", err)
 	}
 	defer func() {
@@ -146,17 +143,6 @@ func (c *daemonClient) terminalStreamTarget(
 	}
 	if credentials.AgentName != "" {
 		headers.Set(agentidentity.HeaderAgent, credentials.AgentName)
-	}
-	if c.target.kind != clientTargetLocal {
-		parsed, parseErr := url.Parse(target)
-		if parseErr != nil {
-			return "", nil, terminalPermanentError(parseErr)
-		}
-		scheme := terminalClientHTTPProtocol
-		if parsed.Scheme == "wss" {
-			scheme = clientHTTPSProtocol
-		}
-		headers.Set("Origin", scheme+"://"+parsed.Host)
 	}
 	return target, headers, nil
 }

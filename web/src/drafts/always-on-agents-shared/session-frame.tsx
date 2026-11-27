@@ -1,5 +1,5 @@
 /** The Sessions app's window: its rail of project groups beside the session pane. */
-import { protoHref } from "@compozy/proto";
+import { protoHref } from "@protohq/cli";
 import { FolderPlus, MessageSquare, MessageSquarePlus, Plus, UserPlus } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 

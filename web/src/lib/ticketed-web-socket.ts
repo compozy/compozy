@@ -1,4 +1,6 @@
-import { acquireStreamTicket, appendStreamTicket } from "./gateway-stream-auth";
+import { isAccountSignInCloseCode, reportAccountGateSignal } from "./account-gate-signal";
+import { acquireHostedStreamTicket, appendHostedStreamTicket } from "./hosted-stream-auth";
+import { isHostedBrowserMode, reportHostedBrowserSocketClose } from "./hosted-browser-auth";
 
 /** The `WebSocket` surface the window-manager stream consumes. */
 export interface StreamWebSocket {
@@ -12,7 +14,7 @@ export interface StreamWebSocket {
 
 /**
  * Opens a live WebSocket upgrade for the page's own origin, minting a fresh
- * single-use ticket first on a remote gateway session.
+ * single-use ticket first on a hosted browser session.
  *
  * One instance is one connection attempt: the window-manager hook already
  * reconnects by calling its socket factory again, so every upgrade — the first
@@ -61,8 +63,12 @@ class TicketedWebSocket implements StreamWebSocket {
     if (this.closed || typeof WebSocket === "undefined" || typeof window === "undefined") return;
     let authorizedPath: string;
     try {
-      const ticket = await acquireStreamTicket(this.controller.signal);
-      authorizedPath = ticket === null ? this.path : appendStreamTicket(this.path, ticket);
+      if (isHostedBrowserMode()) {
+        const ticket = await acquireHostedStreamTicket(this.path, this.controller.signal);
+        authorizedPath = appendHostedStreamTicket(this.path, ticket);
+      } else {
+        authorizedPath = this.path;
+      }
     } catch {
       this.reportFailure();
       return;
@@ -75,7 +81,13 @@ class TicketedWebSocket implements StreamWebSocket {
     native.onopen = event => this.onopen?.(event);
     native.onmessage = event => this.onmessage?.(event);
     native.onerror = event => this.onerror?.(event);
-    native.onclose = event => this.onclose?.(event);
+    native.onclose = event => {
+      if (isAccountSignInCloseCode(event.code)) {
+        reportAccountGateSignal({ kind: "sign_in_required", code: "sign_in_required" });
+      }
+      reportHostedBrowserSocketClose(event);
+      this.onclose?.(event);
+    };
   }
 
   private reportFailure(): void {

@@ -1,4 +1,4 @@
-import { defineFlow } from "@compozy/proto/flow";
+import { defineFlow } from "@protohq/cli/flow";
 
 /**
  * From the Sessions board to the pull request a session opened: pick the running card, land on

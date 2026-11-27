@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/compozy/internal/admission"
-
 	"github.com/compozy/compozy/internal/heartbeat/source"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -26,12 +24,8 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
-	if errors.Is(err, admission.ErrStarting) {
-		payload.Code, payload.Error, payload.Retryable = admission.StartingCode, admission.ErrStarting.Error(), true
-		if code := DeriveErrorCode(err); code != "" {
-			payload.Code = code
-		}
-		return payload
+	if refusal := workAdmissionErrorPayload(err); refusal != nil {
+		return *refusal
 	}
 	if refusal, ok := errors.AsType[*session.MCPReloadError](err); ok {
 		payload.Error = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(refusal.Error()))
@@ -85,7 +79,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if errors.Is(err, workspace.ErrOperatorHomeWorkspace) {
 		payload.Code = "workspace_home_forbidden"
 	}
-	if code := GatewayErrorCode(err); code != "" {
+	if code := IngressErrorCode(err); code != "" {
 		payload.Code = code
 	}
 	if code := WorktreeErrorCode(err); code != "" {

@@ -6,6 +6,13 @@ artifact=${2:?release artifact is required}
 release_version=${3:?release version is required}
 runtime_version=${4:?current channel runtime version is required}
 linux_launch_mode=${5:-mount}
+smoke_gate=${COMPOZY_RELEASE_SMOKE_GATE:-0}
+smoke_token=${COMPOZY_RELEASE_SMOKE_ACCOUNT_TOKEN:-}
+unset COMPOZY_RELEASE_SMOKE_ACCOUNT_TOKEN
+if [[ "${smoke_gate}" == "1" && -z "${smoke_token}" ]]; then
+  echo "desktop release smoke: the test account token is required" >&2
+  exit 2
+fi
 
 if [[ "${platform}" == "linux" \
   && "${linux_launch_mode}" != "mount" \
@@ -140,6 +147,40 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# IT-104, Safety Invariant 14. Boot the same packaged runtime in a second
+# fresh home without the token and exercise the protected API through its socket.
+assert_signed_out_runtime() (
+  local_runtime="${smoke_home}/bin/compozy"
+  signed_out_home="${smoke_root}/signed-out"
+  signed_out_socket="${signed_out_home}/d.sock"
+  mkdir -p "${signed_out_home}"
+  signed_out_port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
+  printf '[http]\nhost = "127.0.0.1"\nport = %s\n[daemon]\nsocket = "%s"\n' \
+    "${signed_out_port}" "${signed_out_socket}" >"${signed_out_home}/config.toml"
+  env -u COMPOZY_ACCOUNT_TOKEN -u COMPOZY_INTERNAL_ACCOUNT_TOKEN \
+    COMPOZY_HOME="${signed_out_home}" HOME="${signed_out_home}" \
+    "${local_runtime}" daemon start --foreground >"${signed_out_home}/daemon.log" 2>&1 &
+  signed_out_pid=$!
+  trap 'kill -TERM "${signed_out_pid}" 2>/dev/null || true; wait "${signed_out_pid}" 2>/dev/null || true' EXIT
+  signed_out_deadline=$((SECONDS + 60))
+  while ((SECONDS < signed_out_deadline)); do
+    if [[ -S "${signed_out_socket}" ]]; then
+      protected_status=$(curl --silent --show-error --max-time 5 --unix-socket "${signed_out_socket}" \
+        -o "${signed_out_home}/read.json" -w '%{http_code}' "http://localhost/api/workspaces" || true)
+      [[ "${protected_status}" == "401" ]] && jq -e '.code == "sign_in_required"' \
+        "${signed_out_home}/read.json" >/dev/null && return 0
+      if [[ "${protected_status}" != "000" && -n "${protected_status}" ]]; then
+        echo "desktop release smoke: expected signed-out workspaces rejection, got ${protected_status}" >&2
+        return 1
+      fi
+    fi
+    kill -0 "${signed_out_pid}" 2>/dev/null || return 1
+    sleep 1
+  done
+  echo "desktop release smoke: signed-out runtime did not serve its API" >&2
+  return 1
+)
+
 if (
   PATH=/usr/bin:/bin:/usr/sbin:/sbin
   export PATH
@@ -191,7 +232,8 @@ esac
 
 case "${platform}" in
   macos)
-    COMPOZY_HOME="${smoke_home}" HOME="${smoke_home}" PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+    COMPOZY_ACCOUNT_TOKEN="${smoke_token}" \
+      COMPOZY_HOME="${smoke_home}" HOME="${smoke_home}" PATH=/usr/bin:/bin:/usr/sbin:/sbin \
       "${app_binary}" >"${smoke_home}/desktop.log" 2>&1 &
     ;;
   linux)
@@ -206,10 +248,12 @@ case "${platform}" in
         exit 1
       fi
       setsid env -u APPIMAGE_EXTRACT_AND_RUN \
+        COMPOZY_ACCOUNT_TOKEN="${smoke_token}" \
         COMPOZY_HOME="${smoke_home}" HOME="${smoke_home}" PATH=/usr/bin:/bin:/usr/sbin:/sbin \
         xvfb-run --auto-servernum "${app_binary}" >"${smoke_home}/desktop.log" 2>&1 &
     else
       setsid env COMPOZY_HOME="${smoke_home}" HOME="${smoke_home}" PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+        COMPOZY_ACCOUNT_TOKEN="${smoke_token}" \
         APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run --auto-servernum "${app_binary}" \
         >"${smoke_home}/desktop.log" 2>&1 &
     fi
@@ -253,6 +297,12 @@ while ((SECONDS < deadline)); do
             and .channel == $channel
             and .runtime_version == $runtime_version' \
           "${smoke_home}/bin/.desktop-provenance.json" >/dev/null; then
+        if [[ "${smoke_gate}" == "1" ]]; then
+          curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:${daemon_port}/api/account" |
+            jq -e '.gate == "enforced" and .state == "signed_in" and .source == "token"' >/dev/null
+          curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:${daemon_port}/api/workspaces" >/dev/null
+          assert_signed_out_runtime
+        fi
         echo "desktop release smoke: PASS (${platform}, ${release_version}, runtime ${runtime_version})"
         exit 0
       fi

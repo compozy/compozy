@@ -1645,14 +1645,23 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					assertResponseStatus(t, operation, http.StatusNotFound)
 					assertResponseStatus(t, operation, http.StatusConflict)
 				}
-				if schema := jsonResponseSchema(
-					t,
-					operationFor(t, doc, "/api/tools/{id}/invoke", "POST"),
-					400,
-				); len(
-					schema.OneOf,
-				) != 2 {
-					t.Fatalf("profile-scoped tool error variants = %d, want 2", len(schema.OneOf))
+				invoke := operationFor(t, doc, "/api/tools/{id}/invoke", "POST")
+				errorVariants := []struct {
+					status int
+					names  []string
+				}{
+					{http.StatusBadRequest, []string{"ProfileErrorPayload", "ToolErrorResponse", "ErrorPayload"}},
+					{http.StatusForbidden, []string{"ToolErrorResponse", "ErrorPayload"}},
+				}
+				for _, variant := range errorVariants {
+					schema := jsonResponseSchema(t, invoke, variant.status)
+					refs := make([]string, 0, len(schema.OneOf))
+					for _, ref := range schema.OneOf {
+						refs = append(refs, strings.TrimPrefix(ref.Ref, "#/components/schemas/"))
+					}
+					if !slices.Equal(refs, variant.names) {
+						t.Fatalf("tool invoke HTTP %d variants = %v, want %v", variant.status, refs, variant.names)
+					}
 				}
 				if schema := jsonResponseSchema(
 					t,
@@ -1672,6 +1681,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				toolSchema := toolsSchema.Items.Value
 				assertRequired(t, toolSchema, "descriptor", "availability", "decision")
 				descriptorSchema := propertySchema(t, toolSchema, "descriptor")
+				assertNotRequired(t, descriptorSchema, "remote_scope")
+				assertSchemaIncludesType(t, propertySchema(t, descriptorSchema, "remote_scope"), "string")
 				assertRequired(
 					t,
 					descriptorSchema,
@@ -1719,7 +1730,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"read",
 				)
 
-				invoke := operationFor(t, doc, "/api/tools/{id}/invoke", "POST")
 				assertResponseStatus(t, invoke, 202)
 				assertResponseStatus(t, invoke, 507)
 				invokeRequest := jsonRequestSchema(t, invoke)
@@ -3301,11 +3311,21 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addMCPReloadErrorFields(baseline) == 0 {
 			t.Fatal("approved MCP reload error fields: no historical error schemas found")
 		}
+		// #1845: extension operation errors name refused input ids and the invalid ones among them.
+		if addExtensionInputErrorFields(baseline) == 0 {
+			t.Fatal("approved extension input error fields: no historical extension error schemas found")
+		}
+		// #1845: extension input status items gain the optional setup state classification.
+		if addExtensionInputStateField(baseline) == 0 {
+			t.Fatal("approved extension input state field: no historical extension input schemas found")
+		}
 		addNativeReadPagingSchemas(t, baseline)
 		addManualJobWaitParameters(t, baseline)
-		if addNativeResultViewSchemas(baseline) == 0 {
-			t.Fatal("approved output_views addition: no historical tool descriptors found")
+		if addToolDescriptorSchemaFields(baseline) == 0 {
+			t.Fatal("approved output_views and remote_scope additions: no historical tool descriptors found")
 		}
+		addRemoteToolInvokeResponses(baseline)
+		addComputerPlacementSchemas(t, baseline)
 		addSettingsMCPHeaderPresence(t, baseline)
 		deprecateRetiredWindowManagerSettings(t, baseline)
 		deprecateRetiredWindowManagerWireFields(t, baseline)
@@ -3323,6 +3343,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addProviderUsageSettingsSection(t, baseline)
 		addAlwaysOnHardeningSchemas(t, baseline)
 		addPermanentExtensionRemoveParameter(t, baseline)
+		// #1845: extension error unions overlap because every alternative carries `error`.
+		relaxOverlappingExtensionErrorUnions(t, baseline)
 		// #1195: instance payloads label their owner profile.
 		if addAgentInstanceProfileName(baseline) == 0 {
 			t.Fatal("approved instance profile_name addition: no historical instance schemas found")
@@ -3343,6 +3365,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		// #1424: agent effective runtime names the inherited ACP options permission policy excludes.
 		if addAgentPolicyExcludedACPOptions(baseline) == 0 {
 			t.Fatal("approved policy_excluded_acp_options addition: no historical agent runtime schema found")
+		}
+		// #1928: agent effective runtime reports the effective fallback chain and its source.
+		if addAgentEffectiveFallbackChain(baseline) == 0 {
+			t.Fatal("approved effective_runtime fallback_chain addition: no historical agent runtime schema found")
 		}
 		// #1251: restart status reports a replacement daemon's data-migration progress.
 		addRestartProgressComponent(baseline)
@@ -3385,10 +3411,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
 		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
+		removeRetiredGatewaySchemas(t, baseline)
 		addMCPHotActivationSchemas(t, baseline, current)
-		// Gateway pairing exposes a hand-typed 6-digit alias beside the opaque artifact; the redeem
-		// request accepts either representation, so artifact becomes optional.
-		addGatewayManualPairingSchemas(t, baseline, current)
 		addMarketplacePluginCatalogSchemas(baseline)
 		oldComponents["ExtensionValidatePayload"].(map[string]any)["properties"].(map[string]any)["inputs"] = map[string]any{
 			"type": "array",
@@ -3472,6 +3496,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addCheckInToolSchemaFields(baseline)
 		addSessionCatalogExcludeRootParameter(baseline, current)
 		addSessionCatalogFolderParameter(t, baseline)
+		// #1926: the session list page counts its running sessions beside its total.
+		addSessionCatalogPageWorkingSchema(t, baseline)
 		addDaemonReadinessSchema(t, baseline, current)
 		addSubagentRemovedStreamEvent(t, baseline, current)
 		// #1644: session payloads name the parent a continued child is listed under.
@@ -3482,6 +3508,28 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addLoopRunOutcomeDiagnosticSchemas(baseline) == 0 {
 			t.Fatal("approved Loop run outcome diagnostics: no historical outcome schemas found")
 		}
+		// Authored gate terminal status arrives as the constrained on_result route map.
+		if addLoopOnResultSchemas(baseline) == 0 {
+			t.Fatal("approved Loop on_result grammar: no historical gate or contract schemas found")
+		}
+		// Loop run reads add the optional settled terminal cause.
+		if addLoopRunTerminalSchemas(baseline, current) == 0 {
+			t.Fatal("approved Loop terminal read projection: no historical run payload schemas found")
+		}
+		// #1943: automation Loop targets carry the optional fire-time input command.
+		if addAutomationLoopInputCommandSchema(baseline) == 0 {
+			t.Fatal("approved automation Loop input command: no historical Loop target schemas found")
+		}
+		// #1943: the job update request can patch only the fire-time command.
+		if addAutomationJobUpdateLoopInputCommandSchema(baseline) == 0 {
+			t.Fatal("approved automation job update command: no historical update request schemas found")
+		}
+		// #1845: install requests, previews, responses and operation errors gain the experimental dependency fields.
+		if added := addExtensionDependencyFields(baseline, newComponents); added < 5 {
+			t.Fatalf("approved extension dependency fields: matched %d historical schema kinds, want 5", added)
+		}
+		// #1845 S7: the experimental dependency guard adds force, dependents and unmet_dependencies.
+		addExtensionDependencyGuardFields(t, baseline, current, newComponents)
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
@@ -4058,8 +4106,8 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// #1011: optional typed diagnostics; existing fields and required sets stay unchanged.
 	addMissingWorkspaceDiagnosticsSchemas(t, baseline)
 
-	// #1005: lossless workspace archive metadata and typed busy blockers are additive.
-	if addWorkspaceArchiveSchemas(baseline) == 0 {
+	// Workspace archive metadata, busy blockers, and normalized repository identity are additive.
+	if addWorkspaceSchemaFields(baseline) == 0 {
 		t.Fatal("no historical workspace/error schemas found")
 	}
 	for _, code := range []tools.ErrorCode{tools.ErrorCodeWorkspaceBusy, tools.ErrorCodeWorkspaceArchived, tools.ErrorCodeWorkspaceRootMissing} {
@@ -5455,16 +5503,16 @@ func addShellAppearanceSchema(t *testing.T, baseline map[string]any) {
 	}
 }
 
-func addWorkspaceArchiveSchemas(value any) int {
+func addWorkspaceSchemaFields(value any) int {
 	count := 0
 	switch node := value.(type) {
 	case []any:
 		for _, child := range node {
-			count += addWorkspaceArchiveSchemas(child)
+			count += addWorkspaceSchemaFields(child)
 		}
 	case map[string]any:
 		for child := range maps.Values(node) {
-			count += addWorkspaceArchiveSchemas(child)
+			count += addWorkspaceSchemaFields(child)
 		}
 		properties, ok := node["properties"].(map[string]any)
 		if !ok {
@@ -5473,6 +5521,7 @@ func addWorkspaceArchiveSchemas(value any) int {
 		if properties["id"] != nil && properties["root_dir"] != nil && properties["created_at"] != nil {
 			properties["archived_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
 			properties["root_missing"] = map[string]any{"type": "boolean"}
+			properties["repository_key"] = map[string]any{"type": "string"}
 			count++
 		}
 		if properties["error"] != nil && properties["current_turn_id"] != nil && properties["diagnostic"] != nil {
@@ -6332,6 +6381,30 @@ func addSessionCatalogFolderParameter(t *testing.T, baseline map[string]any) {
 	}
 }
 
+// The two list operations' page gained optional nullable integers, working and needs_you, beside total.
+// Keep the historical baseline and the full comparison for every other page property.
+func addSessionCatalogPageWorkingSchema(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	for _, path := range []string{"/api/sessions", "/api/workspaces/{workspace_id}/sessions"} {
+		node := paths[path].(map[string]any)["get"].(map[string]any)
+		for _, key := range []string{"responses", "200", "content", "application/json", "schema", "properties", "page"} {
+			next, ok := node[key].(map[string]any)
+			if !ok {
+				t.Fatalf("%s: historical list response has no %s", path, key)
+			}
+			node = next
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s: historical list page has no properties", path)
+		}
+		properties["working"] = map[string]any{"type": "integer", "nullable": true}
+		// Session folders show needs-you beside running when collapsed.
+		properties["needs_you"] = map[string]any{"type": "integer", "nullable": true}
+	}
+}
+
 func addCheckInToolSchemaFields(value any) {
 	switch node := value.(type) {
 	case []any:
@@ -6548,6 +6621,43 @@ func addAgentPolicyExcludedACPOptions(value any) int {
 			return count
 		}
 		properties["policy_excluded_acp_options"] = maps.Clone(acpOptions)
+		count++
+	}
+	return count
+}
+
+// addAgentEffectiveFallbackChain adds the authored fallback_chain schema of an agent payload to
+// its effective_runtime, and a string fallback_chain source to effective_runtime.sources.
+func addAgentEffectiveFallbackChain(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAgentEffectiveFallbackChain(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAgentEffectiveFallbackChain(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			return count
+		}
+		authored, hasChain := properties["fallback_chain"].(map[string]any)
+		runtime, hasRuntime := properties["effective_runtime"].(map[string]any)
+		if !hasChain || !hasRuntime {
+			return count
+		}
+		runtimeProperties, ok := runtime["properties"].(map[string]any)
+		if !ok || runtimeProperties["fallback_chain"] != nil {
+			return count
+		}
+		runtimeProperties["fallback_chain"] = maps.Clone(authored)
+		if sources, ok := runtimeProperties["sources"].(map[string]any); ok {
+			if sourceProperties, ok := sources["properties"].(map[string]any); ok {
+				sourceProperties["fallback_chain"] = map[string]any{"type": "string"}
+			}
+		}
 		count++
 	}
 	return count
@@ -6977,19 +7087,20 @@ func addAgentMCPAttachmentSchemas(t *testing.T, baseline map[string]any) {
 	}
 }
 
-func addNativeResultViewSchemas(value any) int {
+func addToolDescriptorSchemaFields(value any) int {
 	count := 0
 	switch node := value.(type) {
 	case []any:
 		for _, child := range node {
-			count += addNativeResultViewSchemas(child)
+			count += addToolDescriptorSchemaFields(child)
 		}
 	case map[string]any:
 		for _, child := range node {
-			count += addNativeResultViewSchemas(child)
+			count += addToolDescriptorSchemaFields(child)
 		}
 		properties, ok := node["properties"].(map[string]any)
 		if ok && properties["tool_id"] != nil && properties["input_schema_digest"] != nil && properties["risk"] != nil {
+			properties["remote_scope"] = map[string]any{"type": "string"}
 			view := map[string]any{
 				"type":       "object",
 				"required":   []any{"schema"},
@@ -7007,6 +7118,65 @@ func addNativeResultViewSchemas(value any) int {
 		}
 	}
 	return count
+}
+
+func addRemoteToolInvokeResponses(baseline map[string]any) {
+	paths := baseline["paths"].(map[string]any)
+	invoke := paths["/api/tools/{id}/invoke"].(map[string]any)["post"].(map[string]any)
+	responses := invoke["responses"].(map[string]any)
+	media := func(status string) map[string]any {
+		return responses[status].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	}
+	// The existing 503 response already freezes the same generic error schema.
+	remoteError := media("503")["schema"]
+	badRequest := media("400")["schema"].(map[string]any)
+	badRequest["oneOf"] = append(badRequest["oneOf"].([]any), remoteError)
+	forbidden := media("403")
+	forbidden["schema"] = map[string]any{"oneOf": []any{forbidden["schema"], remoteError}}
+	result := media("200")["schema"].(map[string]any)["properties"].(map[string]any)
+	result["_meta"] = map[string]any{
+		"type": "object", "nullable": true, "required": []any{"computer_id"},
+		"properties": map[string]any{"computer_id": map[string]any{"type": "string"}},
+	}
+}
+
+func addComputerPlacementSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	for _, code := range []string{
+		admission.LocalExecutionDisabledCode, "remote_scope_denied", string(tools.ErrorCodeNotForwardable),
+		string(tools.ErrorCodeForwardDenied), string(tools.ErrorCodeSecretAnswerOperatorOnly),
+	} {
+		if addToolErrorCode(baseline, code) == 0 {
+			t.Fatalf("approved computer tool error %s: no historical tool error enums found", code)
+		}
+	}
+	paths := baseline["paths"].(map[string]any)
+	text := map[string]any{"type": "string"}
+	create := baselineOperationSchema(t, paths, specSessionsPath, "post", "requestBody")
+	fields := create["properties"].(map[string]any)
+	fields["computer"], fields["project_computer_id"] = text, text
+
+	// SessionResponse is shared by these operations, and only Auto creation populates computer_id.
+	for _, route := range []struct{ path, method, status string }{
+		{specSessionsPath, "post", "201"},
+		{specSessionsPath + "/{session_id}", "get", "200"},
+		{specWorkspaceSessionPath, "get", "200"},
+		{specWorkspaceSessionPath, "patch", "200"},
+		{specWorkspaceSessionPath + "/archive", "post", "200"},
+		{specWorkspaceSessionPath + "/clear", "post", "200"},
+		{specWorkspaceSessionPath + "/runtime", "delete", "200"},
+		{specWorkspaceSessionPath + "/runtime", "put", "200"},
+		{specWorkspaceSessionPath + "/unarchive", "post", "200"},
+		{specWorkspaceSessionPath + "/worktree-fork", "post", "201"},
+	} {
+		response := baselineOperationSchema(t, paths, route.path, route.method, "responses", route.status)
+		response["properties"].(map[string]any)["computer_id"] = text
+	}
+	workspaces := paths["/api/workspaces"].(map[string]any)["get"].(map[string]any)
+	workspaces["parameters"] = []any{
+		map[string]any{"name": "archived", "in": "query", "schema": map[string]any{"type": "boolean"}},
+		map[string]any{"name": "include_repository", "in": "query", "schema": map[string]any{"type": "boolean"}},
+	}
 }
 
 // addPermanentExtensionRemoveParameter inserts the optional boolean `permanent` query flag into the
@@ -7035,6 +7205,30 @@ func addPermanentExtensionRemoveParameter(t *testing.T, baseline map[string]any)
 		"name":   "permanent",
 		"schema": map[string]any{"type": "boolean"},
 	}))
+}
+
+// relaxOverlappingExtensionErrorUnions turns the historical install and update (single and batch) error unions from
+// oneOf into anyOf. ErrorPayload is open and requires only `error`, so an extension operation or
+// validation error also matches it, and oneOf would reject every documented body.
+func relaxOverlappingExtensionErrorUnions(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	for _, response := range []struct{ path, method, status string }{
+		{"/api/extensions", "post", "409"},
+		{"/api/extensions", "post", "422"},
+		{"/api/extensions/{name}", "put", "422"},
+		{"/api/extensions/update", "post", "422"},
+	} {
+		operation := paths[response.path].(map[string]any)[response.method].(map[string]any)
+		status := operation["responses"].(map[string]any)[response.status].(map[string]any)
+		schema := status["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+		alternatives, ok := schema["oneOf"]
+		if !ok {
+			t.Fatalf("historical %s %s %s has no oneOf error union", response.method, response.path, response.status)
+		}
+		delete(schema, "oneOf")
+		schema["anyOf"] = alternatives
+	}
 }
 
 func addManualJobWaitParameters(t *testing.T, baseline map[string]any) {
@@ -7098,6 +7292,214 @@ func addWindowManagerTabHookSchemas(t *testing.T, baseline map[string]any) {
 	}
 }
 
+// Extension operation errors gain the optional input_ids and invalid string lists.
+func addExtensionInputErrorFields(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addExtensionInputErrorFields(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addExtensionInputErrorFields(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["listed_digest"] != nil && properties["declared_env"] != nil &&
+			properties["input_id"] != nil {
+			stringList := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+			properties["input_ids"] = stringList
+			properties["invalid"] = maps.Clone(stringList)
+			count++
+		}
+	}
+	return count
+}
+
+// addExtensionDependencyFields copies the experimental dependency properties, refs inlined, from the current
+// components into every historical install request, preview, install response, operation error and validation
+// error schema. It returns how many of those five schema kinds it matched.
+func addExtensionDependencyFields(baseline map[string]any, components map[string]any) int {
+	targets := []struct {
+		component string
+		signature []string
+		size      int // exact historical property count, 0 for any
+		fields    []string
+	}{
+		{"InstallExtensionRequest", []string{"ref", "source", "allow_unverified", "expected_digest"}, 0,
+			[]string{"with_dependencies", "dependencies"}},
+		{"ExtensionInstallPreviewPayload", []string{"declared_profiles", "placements", "inputs", "digest_sha256"}, 5,
+			[]string{"dependencies"}},
+		{"InstallExtensionResponse", []string{"enable_error", "extension"}, 0,
+			[]string{"dependencies_installed"}},
+		{"ExtensionOperationErrorPayload", []string{"listed_digest", "declared_env", "input_id"}, 0, []string{
+			"dependency", "dependencies", "dependencies_installed", "reason", "path", "parents", "retry_command",
+		}},
+		// G-2: a dependency's validation failure keeps its field issue and names the dependency.
+		{"ExtensionValidationErrorPayload", []string{"error", "diagnostic", "issues"}, 3,
+			[]string{"dependency", "dependencies_installed"}},
+	}
+	matched := 0
+	for _, target := range targets {
+		source := components[target.component].(map[string]any)["properties"].(map[string]any)
+		if addSchemaPropertiesBySignature(
+			baseline,
+			target.signature,
+			target.size,
+			target.fields,
+			source,
+			components,
+		) > 0 {
+			matched++
+		}
+	}
+	return matched
+}
+
+// addExtensionDependencyGuardFields approves the experimental dependency guard: operation errors gain dependents,
+// extension payloads gain unmet_dependencies, the enablement request gains force, and removeExtension gains the
+// force query flag after permanent plus the structured 409 body.
+func addExtensionDependencyGuardFields(t *testing.T, baseline, current, components map[string]any) {
+	t.Helper()
+	fields := []struct {
+		component string
+		signature []string
+		field     string
+	}{
+		{"ExtensionOperationErrorPayload", []string{"listed_digest", "declared_env", "input_id"}, "dependents"},
+		{"ExtensionPayload", []string{"missing_env", "consecutive_failures", "restart_backoff_ms"},
+			"unmet_dependencies"},
+	}
+	for _, target := range fields {
+		source := components[target.component].(map[string]any)["properties"].(map[string]any)
+		if addSchemaPropertiesBySignature(
+			baseline, target.signature, 0, []string{target.field}, source, components,
+		) == 0 {
+			t.Fatalf("approved %s.%s: no historical schemas found", target.component, target.field)
+		}
+	}
+	oldPaths, newPaths := baseline["paths"].(map[string]any), current["paths"].(map[string]any)
+	enablementBody := func(paths map[string]any) map[string]any {
+		node := paths["/api/extensions/{name}/enablement"].(map[string]any)["put"].(map[string]any)
+		for _, key := range []string{"requestBody", "content", "application/json", "schema"} {
+			node = node[key].(map[string]any)
+		}
+		return node
+	}
+	newRequest := inlineSchemaRefs(enablementBody(newPaths), components).(map[string]any)
+	force := newRequest["properties"].(map[string]any)["force"]
+	if force == nil {
+		t.Fatal("approved enablement force field: current request has no force property")
+	}
+	enablementBody(oldPaths)["properties"].(map[string]any)["force"] = force
+	oldRemove := oldPaths["/api/extensions/{name}"].(map[string]any)["delete"].(map[string]any)
+	newRemove := newPaths["/api/extensions/{name}"].(map[string]any)["delete"].(map[string]any)
+	parameters := oldRemove["parameters"].([]any)
+	afterPermanent := slices.IndexFunc(parameters, func(raw any) bool {
+		return raw.(map[string]any)["name"] == "permanent"
+	}) + 1
+	if afterPermanent == 0 {
+		t.Fatal("approved removeExtension force flag: historical operation has no permanent parameter")
+	}
+	currentParameters := newRemove["parameters"].([]any)
+	if afterPermanent >= len(currentParameters) {
+		t.Fatal("approved removeExtension force flag: current operation has no parameter after permanent")
+	}
+	currentForce := currentParameters[afterPermanent].(map[string]any)
+	if required := currentForce["required"]; currentForce["name"] != "force" || currentForce["in"] != "query" ||
+		(required != nil && required != false) {
+		t.Fatalf("approved removeExtension force flag: want an optional force query parameter, got %v", currentForce)
+	}
+	oldRemove["parameters"] = slices.Insert(parameters, afterPermanent, any(map[string]any{
+		"name": "force", "in": "query", "schema": map[string]any{"type": "boolean"},
+	}))
+	responseMedia := func(operation map[string]any, status string) map[string]any {
+		response := operation["responses"].(map[string]any)[status].(map[string]any)
+		return response["content"].(map[string]any)["application/json"].(map[string]any)
+	}
+	// Both new alternatives can also match the generic error schema, so these unions use anyOf.
+	operationError := inlineSchemaRefs(components["ExtensionOperationErrorPayload"], components)
+	genericError := inlineSchemaRefs(components["ErrorPayload"], components)
+	conflict := responseMedia(oldRemove, "409")
+	conflict["schema"] = map[string]any{"anyOf": []any{conflict["schema"], operationError}}
+	oldPreview := oldPaths["/api/extensions/preview-install"].(map[string]any)["post"].(map[string]any)
+	unprocessable := responseMedia(oldPreview, "422")
+	unprocessable["schema"] = map[string]any{
+		"anyOf": []any{genericError, operationError, unprocessable["schema"]},
+	}
+}
+
+func addSchemaPropertiesBySignature(
+	value any, signature []string, size int, fields []string, source, components map[string]any,
+) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSchemaPropertiesBySignature(child, signature, size, fields, source, components)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addSchemaPropertiesBySignature(child, signature, size, fields, source, components)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || (size > 0 && len(properties) != size) ||
+			slices.ContainsFunc(signature, func(key string) bool { return properties[key] == nil }) ||
+			slices.ContainsFunc(fields, func(key string) bool { return source[key] == nil }) {
+			return count
+		}
+		for _, field := range fields {
+			properties[field] = inlineSchemaRefs(source[field], components)
+		}
+		count++
+	}
+	return count
+}
+
+func inlineSchemaRefs(value any, components map[string]any) any {
+	switch node := value.(type) {
+	case []any:
+		items := make([]any, 0, len(node))
+		for _, child := range node {
+			items = append(items, inlineSchemaRefs(child, components))
+		}
+		return items
+	case map[string]any:
+		if reference, ok := node["$ref"].(string); ok {
+			return inlineSchemaRefs(components[strings.TrimPrefix(reference, "#/components/schemas/")], components)
+		}
+		copied := make(map[string]any, len(node))
+		for key, child := range node {
+			copied[key] = inlineSchemaRefs(child, components)
+		}
+		return copied
+	default:
+		return value
+	}
+}
+
+// Extension input status items gain the optional state string next to set and active.
+func addExtensionInputStateField(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addExtensionInputStateField(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addExtensionInputStateField(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && len(properties) == 4 && properties["id"] != nil && properties["type"] != nil &&
+			properties["set"] != nil && properties["active"] != nil {
+			properties["state"] = map[string]any{"type": "string"}
+			count++
+		}
+	}
+	return count
+}
+
 // MCP reload failures return retry information before prompt acceptance.
 func addMCPReloadErrorFields(value any) int {
 	count := 0
@@ -7123,34 +7525,55 @@ func addMCPReloadErrorFields(value any) int {
 	return count
 }
 
-// These additions expose MCP status without changing any historical field.
-// addGatewayManualPairingSchemas approves the hand-typed 6-digit pairing alias.
-func addGatewayManualPairingSchemas(t *testing.T, baseline, current map[string]any) {
+// ADR-002 removes the Gateway routes and the fields carrying its runtime state and consent.
+func removeRetiredGatewaySchemas(t *testing.T, baseline map[string]any) {
 	t.Helper()
-	newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
-	oldPaths := baseline["paths"].(map[string]any)
-	manualCodeProperty := map[string]any{"type": "string"}
-	pairingComponent := newComponents["GatewayPairingArtifactPayload"].(map[string]any)
-	if pairingComponent["properties"].(map[string]any)["manual_code"] == nil {
-		t.Fatal("missing approved gateway pairing field manual_code")
+	paths := baseline["paths"].(map[string]any)
+	maps.DeleteFunc(paths, func(path string, _ any) bool { return strings.HasPrefix(path, "/api/gateway/") })
+	for path, method := range map[string]string{
+		"/api/extensions/update": "post",
+		"/api/extensions/{name}": "put",
+	} {
+		operation := paths[path].(map[string]any)[method].(map[string]any)
+		responses := operation["responses"].(map[string]any)
+		conflict, ok := responses["409"].(map[string]any)
+		if !ok || conflict["description"] != "Gateway confirmation required" {
+			t.Fatalf("%s %s has unexpected historical conflict response: %v", method, path, conflict)
+		}
+		delete(responses, "409")
 	}
-	// The mint response gains the required alias beside the opaque artifact.
-	mint := gatewayBaselineSchema(t, oldPaths, "/api/gateway/pairings", "post", "responses", "201")
-	mint["properties"].(map[string]any)["manual_code"] = manualCodeProperty
-	mint["required"] = append(mint["required"].([]any), "manual_code")
-	// The redeem request accepts the artifact or the alias, so artifact is no longer required.
-	redeem := gatewayBaselineSchema(t, oldPaths, "/api/gateway/pairings/redeem", "post", "requestBody")
-	redeem["properties"].(map[string]any)["manual_code"] = manualCodeProperty
-	required := make([]any, 0, len(redeem["required"].([]any)))
-	for _, name := range redeem["required"].([]any) {
-		if name != "artifact" {
-			required = append(required, name)
+	schemas := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	maps.DeleteFunc(schemas, func(name string, _ any) bool { return strings.HasPrefix(name, "Gateway") })
+	var visit func(any)
+	visit = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				visit(child)
+			}
+		case map[string]any:
+			if properties, ok := node["properties"].(map[string]any); ok {
+				for _, field := range []string{
+					"confirm_gateway_digest", "gateway", "gateway_confirmation_required", "gateway_requirement_digest",
+				} {
+					delete(properties, field)
+					if required, ok := node["required"].([]any); ok {
+						node["required"] = slices.DeleteFunc(required, func(name any) bool { return name == field })
+					}
+				}
+				if properties["agents"] != nil && properties["fetched_digest"] != nil {
+					delete(properties, "current_digest")
+				}
+			}
+			for child := range maps.Values(node) {
+				visit(child)
+			}
 		}
 	}
-	redeem["required"] = required
+	visit(baseline)
 }
 
-func gatewayBaselineSchema(
+func baselineOperationSchema(
 	t *testing.T,
 	paths map[string]any,
 	path string,
@@ -7256,6 +7679,64 @@ func addSideChatLineageKind(value any) int {
 			kind["enum"] = append(legacy, "side")
 			count++
 		}
+	}
+	return count
+}
+
+// addAutomationLoopInputCommandSchema adds the optional input_command to every historical
+// automation Loop target schema (the objects carrying inputs/input_mapping). The field stays
+// optional, so stored jobs and triggers keep decoding unchanged.
+func addAutomationLoopInputCommandSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAutomationLoopInputCommandSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAutomationLoopInputCommandSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["inputs"] == nil || properties["input_mapping"] == nil ||
+			properties["loop_name"] == nil {
+			return count
+		}
+		if _, exists := properties["input_command"]; exists {
+			return count
+		}
+		properties["input_command"] = map[string]any{"type": "string"}
+		count++
+	}
+	return count
+}
+
+// addAutomationJobUpdateLoopInputCommandSchema adds the optional command-only update field to every
+// historical automation job update request (the payload carrying prompt/schedule/task plus a
+// loop_target, but none of the create-time scope fields).
+func addAutomationJobUpdateLoopInputCommandSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAutomationJobUpdateLoopInputCommandSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAutomationJobUpdateLoopInputCommandSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["loop_target"] == nil || properties["prompt"] == nil ||
+			properties["schedule"] == nil || properties["task"] == nil ||
+			properties["enabled"] == nil || properties["fire_limit"] == nil ||
+			properties["scope"] != nil || properties["target_kind"] != nil {
+			return count
+		}
+		if _, exists := properties["loop_input_command"]; exists {
+			return count
+		}
+		properties["loop_input_command"] = map[string]any{"nullable": true, "type": "string"}
+		count++
 	}
 	return count
 }

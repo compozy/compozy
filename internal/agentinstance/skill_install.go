@@ -3,114 +3,131 @@ package agentinstance
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
+// Approve installs a pending `new` review through the install transaction. Approving a review
+// whose install already committed is an idempotent success with no writes. A Warning on the result
+// reports a post-commit projection or publication failure; the skill is installed regardless.
 func (s *SkillProposalService) Approve(
 	ctx context.Context,
 	actor workspaceaccess.ActorRef,
 	instance Instance,
 	id, digest, operator, targetRoot string,
-) (err error) {
+) (_ SkillInstallResult, err error) {
 	if !actor.Operator {
-		return ErrSkillReviewOperatorOnly
+		return SkillInstallResult{}, ErrSkillReviewOperatorOnly
 	}
 	if operator == "" {
-		return errors.New("skill review operator identity is required")
+		return SkillInstallResult{}, errors.New("skill review operator identity is required")
 	}
 	if targetRoot == "" {
-		return ErrSkillReviewNoTarget
+		return SkillInstallResult{}, ErrSkillReviewNoTarget
 	}
 	review, draft, err := s.Review(ctx, actor, instance, id)
 	if err != nil {
-		return err
+		return SkillInstallResult{}, err
 	}
-	if review.Digest != digest || (review.State != SkillReviewPending && review.State != "approved") {
-		return ErrSkillReviewStale
+	if review.Digest != digest {
+		return SkillInstallResult{}, ErrSkillReviewStale
 	}
 	if !proposedSkillName.MatchString(draft.Name) || draft.Name != review.SkillName {
-		return ErrSkillReviewInvalid
+		return SkillInstallResult{}, ErrSkillReviewInvalid
 	}
-	target, err := fileutil.ResolvePathWithinRoot(targetRoot, filepath.Join(targetRoot, draft.Name))
+	t, err := s.acquireSkill(ctx, targetRoot, draft.Name, true)
 	if err != nil {
-		return err
+		return SkillInstallResult{}, err
 	}
-	if _, statErr := os.Lstat(target); statErr == nil {
-		if err := matchInstalledDraft(target, draft); err != nil {
-			return err
+	defer func() {
+		if closeErr := t.close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
 		}
-	} else if !errors.Is(statErr, os.ErrNotExist) {
-		return statErr
-	}
-	// A hidden staging directory is ignored by skillscan and stays on the target filesystem.
-	// The durable review draft remains outside scan roots; only a decided draft is published.
-	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
-		return err
-	}
-	stage, err := os.MkdirTemp(filepath.Dir(target), ".skill-install-")
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, os.RemoveAll(stage)) }()
-	if err := writeSkillInstallStage(stage, draft); err != nil {
-		return err
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	// Publish before recording the decision, so an approved review always has its skill on
-	// disk. A crash in between leaves a pending review whose re-approval finds the installed
-	// draft and only records the decision.
-	published, err := publishSkillInstall(stage, target, draft)
-	if err != nil {
-		return err
-	}
-	if review.State != SkillReviewPending {
-		return nil
-	}
-	return s.recordApproval(ctx, instance.ID, id, digest, operator, target, published)
+	}()
+	return s.approveLocked(ctx, t, instance, id, digest, operator, draft)
 }
 
-// recordApproval writes the approved decision. If that fails, a skill this call installed is
-// removed again, so the review and the scan root never disagree.
-func (s *SkillProposalService) recordApproval(
+func (s *SkillProposalService) approveLocked(
 	ctx context.Context,
-	instanceID, id, digest, operator, target string,
-	published bool,
-) error {
-	if err := s.Store.DecideReview(ctx, id, digest, "approved", operator); err != nil {
-		if published {
-			return errors.Join(err, os.RemoveAll(target))
-		}
-		return err
+	t *skillTarget,
+	instance Instance,
+	id, digest, operator string,
+	draft SkillDraft,
+) (SkillInstallResult, error) {
+	blocked, warning, err := s.reconcileSkill(ctx, t)
+	if err != nil {
+		return SkillInstallResult{}, err
 	}
-	slog.InfoContext(ctx, "skill.review.decided", "instance_id", instanceID, "review_id", id, "decision", "approved")
-	return nil
+	if blocked != nil {
+		return SkillInstallResult{}, skillInstallConflictError(t.name, blocked.OpID)
+	}
+	// Step 2: re-read the review and the install log after Reconcile projected them.
+	review, err := s.reviewRow(ctx, instance, id)
+	if err != nil {
+		return SkillInstallResult{}, err
+	}
+	entries, err := readSkillInstallLog(t.root, t.name)
+	if err != nil {
+		return SkillInstallResult{}, err
+	}
+	current := currentSkillWriter(entries)
+	live, err := skillTreeState(t.dir)
+	if errors.Is(err, ErrSkillTreeUnsupported) {
+		// Something that is not a skill tree occupies the target name.
+		return SkillInstallResult{}, errors.Join(skillTargetExistsError(t.name), err)
+	}
+	if err != nil {
+		return SkillInstallResult{}, err
+	}
+	committed := current != nil && current.ReviewID == review.ID && live == current.InstalledDigest
+	switch {
+	case review.Digest != digest:
+		return SkillInstallResult{}, ErrSkillReviewStale
+	case review.State == "approved" && committed && review.InstalledDigest == live:
+		return SkillInstallResult{Warning: warning}, nil
+	case review.State == SkillReviewPending && committed:
+		// Committed earlier; its projection is still failing and stays reported.
+		return SkillInstallResult{Warning: warning}, nil
+	case review.State != SkillReviewPending:
+		return SkillInstallResult{}, ErrSkillReviewStale
+	case review.Kind != SkillProposalNew:
+		return SkillInstallResult{}, ErrSkillReviewInvalid
+	case live != "":
+		return SkillInstallResult{}, skillTargetExistsError(t.name)
+	}
+	result, err := s.runSkillOp(ctx, t, skillOp{
+		reviewID: review.ID, instanceID: instance.ID, action: SkillInstallActionInstall,
+		decidedVia: skillDecidedViaOperator, decidedBy: operator,
+		changed: skillTargetExistsError(t.name),
+		stage:   func(dir string) error { return writeSkillInstallStage(dir, draft) },
+		prev:    current,
+		next: &SkillInstallMarker{
+			ReviewID: review.ID, InstanceID: instance.ID, HomeID: s.HomeID,
+			DecidedVia: skillDecidedViaOperator, DecidedBy: operator,
+		},
+	})
+	if err != nil {
+		return SkillInstallResult{}, err
+	}
+	slog.InfoContext(ctx, "skill.review.decided", "instance_id", instance.ID, "review_id", review.ID,
+		"decision", "approved", "kind", string(review.Kind), "decided_via", skillDecidedViaOperator,
+		"skill_key", string(review.SkillKey))
+	result.Warning = errors.Join(warning, result.Warning)
+	return result, nil
 }
 
-// publishSkillInstall moves the staged draft into place and reports whether this call
-// installed it; an already-installed matching draft is left as is.
-func publishSkillInstall(stage, target string, draft SkillDraft) (bool, error) {
-	if _, statErr := os.Lstat(target); statErr == nil {
-		return false, matchInstalledDraft(target, draft)
-	} else if !errors.Is(statErr, os.ErrNotExist) {
-		return false, statErr
-	}
-	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
-		return false, err
-	}
-	if err := os.Rename(stage, target); err != nil {
-		return false, err
-	}
-	return true, nil
+const skillDecidedViaOperator = "operator"
+
+func skillTargetExistsError(name string) error {
+	return fmt.Errorf("%w: %s is already installed; reject this review and ask for an edit proposal",
+		ErrSkillReviewTargetExists, name)
 }
 
 func writeSkillInstallStage(stage string, draft SkillDraft) error {
@@ -122,7 +139,7 @@ func writeSkillInstallStage(stage string, draft SkillDraft) error {
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			return err
 		}
-		if err := os.WriteFile(path, []byte(file.Content), 0o600); err != nil {
+		if err := writeSkillFile(path, []byte(file.Content), 0o600); err != nil {
 			return err
 		}
 	}
@@ -132,61 +149,6 @@ func writeSkillInstallStage(stage string, draft SkillDraft) error {
 				return err
 			}
 		}
-	}
-	return nil
-}
-
-func matchInstalledDraft(root string, draft SkillDraft) (err error) {
-	directory, err := os.OpenRoot(root)
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, directory.Close()) }()
-	want := make(map[string]string, len(draft.Files))
-	for _, file := range draft.Files {
-		want[file.Path] = file.Content
-	}
-	seen := 0
-	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		if !entry.Type().IsRegular() {
-			return errors.New("skill installation target contains a non-regular file")
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		expected, ok := want[filepath.ToSlash(rel)]
-		if !ok {
-			return errors.New("skill installation target contains different files")
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		if info.Size() != int64(len(expected)) {
-			return errors.New("skill installation target contains different contents")
-		}
-		content, err := directory.ReadFile(rel)
-		if err != nil {
-			return err
-		}
-		if string(content) != expected {
-			return errors.New("skill installation target contains different contents")
-		}
-		seen++
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	if seen != len(want) {
-		return errors.New("skill installation target is incomplete")
 	}
 	return nil
 }

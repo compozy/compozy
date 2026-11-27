@@ -141,6 +141,7 @@ func AgentPayloadFromEntryWithConfig(
 		Speed:             resolved.SpeedValue(),
 		ACPOptions:        agentACPOptionsToContract(resolved.ACPOptionsValue()),
 		Permissions:       permissions,
+		FallbackChain:     agentFallbackChainToContract(cfg.EffectiveAgentFallbackChain(entry.Def)),
 		PolicyExcludedACPOptions: agentACPOptionsToContract(
 			policyExcludedACPOptions(entry.Def, &resolved),
 		),
@@ -150,6 +151,7 @@ func AgentPayloadFromEntryWithConfig(
 			ReasoningEffort: contract.AgentRuntimeValueSource(resolved.RuntimeSources.ReasoningEffort.String()),
 			Speed:           contract.AgentRuntimeValueSource(resolved.RuntimeSources.Speed.String()),
 			Permissions:     permissionsSource,
+			FallbackChain:   contract.AgentRuntimeValueSource(resolved.RuntimeSources.FallbackChain.String()),
 		},
 	}
 	return payload

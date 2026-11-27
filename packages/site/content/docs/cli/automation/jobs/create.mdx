@@ -20,6 +20,7 @@ compozy automation jobs create [flags]
   -h, --help                        help for create
       --loop string                 Loop name; choose either --loop or --agent
       --loop-input stringArray      Static Loop input as key=value; repeat for multiple inputs
+      --loop-input-command string   Resolve Loop inputs at each fire by running a shell command in the workspace
       --loop-workspace string       Workspace that owns the Loop; required for global automation
       --misfire-grace-seconds int   Missed-fire grace in seconds for recurring schedules; 0 uses the daemon jitter default
       --name string                 Job name
@@ -33,9 +34,10 @@ compozy automation jobs create [flags]
 ### Options inherited from parent commands
 
 ```
-      --json             Emit JSON output
-  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
-      --profile string   Act as a profile for this command
+      --computer string   Target a computer by name or ID
+      --json              Emit JSON output
+  -o, --output string     Output format: human, json, jsonl, or toon (default "human")
+      --profile string    Act as a profile for this command
 ```
 
 ## Output Formats

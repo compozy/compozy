@@ -7,7 +7,7 @@ import type { SettingsSectionSlug } from "../types";
 import { SettingsRestartNotice } from "./settings-restart-notice";
 
 export interface SettingsPageFrameProps {
-  slug: SettingsSectionSlug;
+  slug: SettingsSectionSlug | (string & {});
   /**
    * Visible consequence line only — inherited defaults, irreversible apply,
    * or what this save will do. Restating the page title belongs in `help`.

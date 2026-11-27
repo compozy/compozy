@@ -46,13 +46,13 @@ describe("useEnableSkill", () => {
 
     expect(enableSkill).toHaveBeenCalledWith("test-skill", "ws_123", "research");
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["skills", "list", "ws_123", "research"],
+      queryKey: ["computer", "local", "skills", "list", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
-      queryKey: ["skills", "detail", "test-skill", "ws_123", "research"],
+      queryKey: ["computer", "local", "skills", "detail", "test-skill", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["skills", "content", "test-skill", "ws_123", "research"],
+      queryKey: ["computer", "local", "skills", "content", "test-skill", "ws_123", "research"],
     });
   });
 
@@ -78,13 +78,13 @@ describe("useEnableSkill", () => {
     });
 
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["skills", "list", "ws_123", "research"],
+      queryKey: ["computer", "local", "skills", "list", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
-      queryKey: ["skills", "detail", "test-skill", "ws_123", "research"],
+      queryKey: ["computer", "local", "skills", "detail", "test-skill", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["skills", "content", "test-skill", "ws_123", "research"],
+      queryKey: ["computer", "local", "skills", "content", "test-skill", "ws_123", "research"],
     });
   });
 });
@@ -121,13 +121,13 @@ describe("useDisableSkill", () => {
 
     expect(disableSkill).toHaveBeenCalledWith("test-skill", "ws_123", "research");
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["skills", "list", "ws_123", "research"],
+      queryKey: ["computer", "local", "skills", "list", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
-      queryKey: ["skills", "detail", "test-skill", "ws_123", "research"],
+      queryKey: ["computer", "local", "skills", "detail", "test-skill", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["skills", "content", "test-skill", "ws_123", "research"],
+      queryKey: ["computer", "local", "skills", "content", "test-skill", "ws_123", "research"],
     });
   });
 
@@ -153,13 +153,13 @@ describe("useDisableSkill", () => {
     });
 
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["skills", "list", "ws_123", "research"],
+      queryKey: ["computer", "local", "skills", "list", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
-      queryKey: ["skills", "detail", "test-skill", "ws_123", "research"],
+      queryKey: ["computer", "local", "skills", "detail", "test-skill", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["skills", "content", "test-skill", "ws_123", "research"],
+      queryKey: ["computer", "local", "skills", "content", "test-skill", "ws_123", "research"],
     });
   });
 });

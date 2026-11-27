@@ -1,4 +1,5 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../adapters/session-catalog-api";
 import { fetchSessionFolders, type SessionLayoutScope } from "../adapters/session-folders-api";
 import { fetchWorkspaceLayout } from "../adapters/workspace-layout-api";
@@ -11,15 +12,21 @@ export interface SessionCatalogCursor {
   previous: (string | undefined)[];
 }
 
-export function sessionCatalogOptions(filters: SessionListFilters = {}) {
+export function sessionCatalogOptions(
+  filters: SessionListFilters = {},
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
   const normalized = normalizeSessionListFilters({
     ...filters,
     skip_total: filters.skip_total ?? true,
   });
+  const keys = sessionKeys.forComputer(computerId);
   return infiniteQueryOptions({
-    queryKey: sessionKeys.catalogPage(normalized),
+    queryKey: keys.catalogPage(normalized),
     queryFn: ({ pageParam, signal }) =>
-      fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal),
+      isRemoteComputerId(computerId)
+        ? fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal, computerId)
+        : fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal),
     initialPageParam: { previous: [] } as SessionCatalogCursor,
     getNextPageParam: (page, _pages, current) =>
       page.page.has_more && page.page.next_cursor
@@ -30,6 +37,25 @@ export function sessionCatalogOptions(filters: SessionListFilters = {}) {
         ? { cursor: current.previous.at(-1), previous: current.previous.slice(0, -1) }
         : undefined,
     maxPages: 1,
+    staleTime: 5_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+/** Single-page session catalog query used by multi-computer fan-out (`useQueries`). */
+export function sessionCatalogFirstPageOptions(
+  filters: SessionListFilters = {},
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const normalized = normalizeSessionListFilters({
+    ...filters,
+    skip_total: filters.skip_total ?? true,
+  });
+  const keys = sessionKeys.forComputer(computerId);
+  return queryOptions({
+    queryKey: [...keys.catalogPage(normalized), "first-page"] as const,
+    queryFn: ({ signal }) => fetchSessionCatalogPage(normalized, signal, computerId),
     staleTime: 5_000,
     refetchOnWindowFocus: false,
     retry: false,

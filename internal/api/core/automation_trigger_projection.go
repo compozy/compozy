@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 )
 
 func (h *BaseHandlers) triggerPayloadBestEffort(
@@ -35,24 +35,28 @@ func (h *BaseHandlers) triggerPayload(
 	trigger automationpkg.Trigger,
 ) (contract.TriggerPayload, error) {
 	payload := TriggerPayloadFromTrigger(trigger)
-	if strings.TrimSpace(trigger.WebhookID) == "" || strings.TrimSpace(trigger.EndpointSlug) == "" || h.Gateway == nil {
+	if strings.TrimSpace(trigger.WebhookID) == "" || strings.TrimSpace(trigger.EndpointSlug) == "" ||
+		h.Ingress == nil {
 		return payload, nil
 	}
-	ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: trigger.ID}
-	projection, err := h.Gateway.ProjectIngress(ctx, ref)
-	if errors.Is(err, gateway.ErrIngressSubjectNotFound) {
-		payload.Ingress = &contract.GatewayIngressPayload{
+	ref := ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: trigger.ID}
+	projection, err := ingress.Projection{}, ingress.ErrSubjectNotFound
+	if h.Ingress != nil {
+		projection, err = h.Ingress.Project(ctx, ref)
+	}
+	if errors.Is(err, ingress.ErrSubjectNotFound) {
+		payload.Ingress = &contract.IngressPayload{
 			SubjectKind: string(ref.Kind), SubjectID: ref.ID, ScopeKind: string(trigger.Scope),
-			WorkspaceID: trigger.WorkspaceID, Reachability: string(gateway.IngressReachabilityOff),
-			EnablePath: gateway.IngressEnablePath,
+			WorkspaceID: trigger.WorkspaceID, Reachability: string(ingress.ReachabilityOff),
+			EnablePath: ingress.EnablePath,
 		}
 		return payload, nil
 	}
 	if err != nil {
 		return contract.TriggerPayload{}, err
 	}
-	ingress := GatewayIngressPayload(projection)
-	payload.Ingress = &ingress
+	ingressPayload := IngressPayload(projection)
+	payload.Ingress = &ingressPayload
 	return payload, nil
 }
 
