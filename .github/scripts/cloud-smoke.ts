@@ -20,7 +20,7 @@ async function waitForRevision() {
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now();
     const health = await request("/healthz", {}, Math.min(10_000, remaining)).catch(
-      () => undefined,
+      () => undefined
     );
     if (health) {
       const body: { status?: string } = await health.json();
