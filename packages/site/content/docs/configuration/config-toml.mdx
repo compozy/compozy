@@ -534,6 +534,10 @@ refresh_interval = "5m"
 # macOS only: consent to read Claude Code's Keychain login on an explicit refresh.
 keychain_access = false
 
+[provider_usage.providers.agy]
+# macOS only: consent to read the Antigravity CLI's Keychain login.
+keychain_access = false
+
 [marketplace.catalog]
 # Base directory containing mcp.json, extensions.json, and skills.json.
 base_url = "https://raw.githubusercontent.com/compozy/compozy/main/catalog"
@@ -2077,6 +2081,7 @@ agents and scripts can use `compozy config set provider_usage.<key> <value>`. Se
 | `refresh_interval`                 | duration | `5m`    | `1m` to `1h`                | Background refresh cadence per provider. Popover open and explicit refreshes are not bound by it.                |
 | `providers.<id>.enabled`           | boolean  | `true`  | Known canonical provider ID | Per-provider opt-out. A turned-off provider is not collected and leaves the usage views.                         |
 | `providers.claude.keychain_access` | boolean  | `false` | Only valid under `claude`   | macOS consent to read Claude Code's Keychain login, only on an explicit local refresh. Ignored on other systems. |
+| `providers.agy.keychain_access`    | boolean  | `false` | Only valid under `agy`      | macOS consent to read the Antigravity CLI's Keychain login on each refresh. Ignored on other systems.            |
 
 ```toml
 [provider_usage]
@@ -2099,11 +2104,11 @@ error: validate config write for "global-config": provider_usage.refresh_interva
 
 A provider ID that is neither built in nor configured under `[providers.<id>]` is rejected with
 `unknown canonical provider ID`. In `config.toml` and Settings, `keychain_access` under any provider
-other than `claude` is rejected with `is only valid for claude`, and `compozy config set` accepts it
-only under `claude`. Agents' native config tools cannot write `keychain_access` at all; consent is an
+other than `claude` or `agy` is rejected with `is only valid for agy or claude`, and
+`compozy config set` accepts it only under those two. Agents' native config tools cannot write `keychain_access` at all; consent is an
 operator action. The settings response reports `keychain_supported`, which is `true` only when the
-daemon runs on macOS. Turning `keychain_access` off clears the Claude login the
-daemon loaded from the Keychain and its usage snapshot.
+daemon runs on macOS. Turning `keychain_access` off clears the login the
+daemon loaded from the Keychain for that provider and its usage snapshot.
 
 ## `[marketplace.catalog]`
 

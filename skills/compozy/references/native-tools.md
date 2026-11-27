@@ -766,7 +766,7 @@ ACL/partition/unlocked-state check. Unsafe metadata prevents the secret read. A 
 change can still briefly prompt; a 1.5-second deadline kills the reader and reports
 `keychain_read_timeout` / `needs_consent`. Agents cannot grant missing consent or
 OS authorization, and
-`compozy__config_set` refuses `provider_usage.providers.claude.keychain_access`: report it to the
+`compozy__config_set` refuses `provider_usage.providers.<claude|agy>.keychain_access`: report it to the
 operator. CLI fallbacks are `compozy provider usage list|refresh`; statuses and recovery are
 in `references/runtime-operations.md#provider-usage-experimental`.
 

@@ -188,7 +188,7 @@ export function useProviderUsageOpenRefresh(profile: string): () => void {
 
 export interface UseProviderUsageActionsOptions {
   /**
-   * Saves `provider_usage.providers.claude.keychain_access = true` through the
+   * Saves `provider_usage.providers.<id>.keychain_access = true` through the
    * settings apply lifecycle. The OS layer owns settings, so it supplies this
    * and reports a failed save itself. The daemon owns the consent collection.
    */

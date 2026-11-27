@@ -1322,7 +1322,7 @@ effective cooldown end. During a cooldown, background refreshes send no request;
 refresh per account may retry until the next success.
 
 Collectors exist for `codex`, `claude`, `openrouter`, `vercel-ai-gateway`, `zai`, `moonshot`,
-`kimi-cli`, `cursor`, and `gemini`. A custom provider whose own ID has no collector collects through
+`kimi-cli`, `cursor`, `gemini`, and `agy`. A custom provider whose own ID has no collector collects through
 its `runtime_provider`'s collector with its own launch environment (for example its own
 `CLAUDE_CONFIG_DIR`) and bound secrets; every other provider reports `unsupported` (`no_collector`).
 A native-CLI alias must set its account variable to a non-empty value in its own `command` (a leading
@@ -1337,7 +1337,7 @@ may renew its own login). Codex runs only with its file credential store; `keyri
 
 Refresh intent is `background` (scheduler, popover open, agents, remote devices, app tokens) or
 `explicit` (local desktop Refresh/Allow and the local CLI). Keychain reads require
-`provider_usage.providers.claude.keychain_access = true`. Background refreshes reuse a valid cached
+`provider_usage.providers.<id>.keychain_access = true`, valid only for `claude` and `agy`. Background refreshes reuse a valid cached
 Claude token, then silently reread the exact routed Keychain item after expiry, account changes, or
 daemon restart. Before a background secret read, a noninteractive metadata check requires an unlocked
 keychain, `/usr/bin/security` in the decrypt ACL, its `apple-tool:` partition, and no confirmation
@@ -1349,6 +1349,12 @@ the process group on timeout, canceling a waiting client. A prompt could briefly
 window; this is not an absolute macOS no-dialog guarantee. `keychain_read_timeout` is an additive
 `needs_consent` diagnostic with an explicit Refresh action.
 CompozyOS never redeems Claude Code refresh tokens or writes its credentials.
+The `agy` collector (macOS only; other hosts and agy aliases report `unsupported`) reads the
+Antigravity CLI's go-keyring login (`gemini`/`antigravity` item) through the same reader and
+preflight on every collection, then posts to Google's `retrieveUserQuotaSummary`. Each enabled quota
+bucket becomes a percent-only window labeled with its group (for example
+`Claude and GPT models · Weekly`; `5h` buckets are `Session`). It never refreshes the CLI's token:
+an expired access token reports `auth_expired` until the CLI runs again and renews it.
 Foreign-origin app tokens may read but not refresh (`app_token_route_forbidden`). An agent without
 a `profile` reads its own session profile; naming another fails with `profile_session_conflict`.
 
@@ -1356,14 +1362,15 @@ Per-row recovery: `signed_out` → the operator signs in with the provider's own
 includes a Claude login missing from the Keychain, `auth_missing`); `needs_consent`
 `keychain_consent_required`/`keychain_denied` (OS denial or an unsafe background preflight) → the operator clicks
 **Allow**/**Try again** or runs
-`compozy config set provider_usage.providers.claude.keychain_access true` then
-`compozy provider usage refresh claude` on the daemon host. Agents cannot grant consent: native config
-tools refuse `provider_usage.providers.claude.keychain_access`. `keychain_token_expired` or
+`compozy config set provider_usage.providers.<claude|agy>.keychain_access true` then
+`compozy provider usage refresh <claude|agy>` on the daemon host. Agents cannot grant consent: native
+config tools refuse every `provider_usage.providers.<id>.keychain_access`. `keychain_token_expired` or
 `keychain_read_timeout` → an explicit
 local refresh; `rate_limited`/`error`/`stale` → retry later; `disabled` → re-enable under
 `provider_usage.providers.<id>.enabled`. After a daemon restart rows are `refreshing` until their first
 collection. With consent and readable credentials, Claude recovers automatically; if OS authorization
-is required, refresh explicitly on the host. An expired native credential requires `claude /login`.
+is required, refresh explicitly on the host. An expired native credential requires `claude /login`;
+an expired agy login recovers after any `agy` run renews it (or `compozy provider auth login agy`).
 
 ## MCP Serve
 

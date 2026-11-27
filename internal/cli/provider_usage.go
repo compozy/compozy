@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -99,7 +100,7 @@ func renderProviderUsage(envelope contract.ProviderUsageEnvelope, now time.Time)
 		return "Provider usage is turned off. Enable it with: compozy config set provider_usage.enabled true"
 	}
 	rows := [][]string{{"PROVIDER", "STATUS", "TIGHTEST WINDOW", "USED", "RESETS IN", "UPDATED"}}
-	consent := false
+	var consent []contract.ProviderUsageTarget
 	for _, target := range envelope.Targets {
 		status := target.Status
 		if target.Refreshing {
@@ -119,8 +120,10 @@ func renderProviderUsage(envelope contract.ProviderUsageEnvelope, now time.Time)
 			row[5] = providerUsageDuration(now.Sub(*target.MeasuredAt)) + " ago"
 		}
 		rows = append(rows, row)
-		consent = consent ||
-			(target.ProviderID == "claude" && target.Error != nil && target.Error.Action == "allow_keychain")
+		if compozyconfig.ProviderUsageKeychainProvider(target.ProviderID) && target.Error != nil &&
+			target.Error.Action == "allow_keychain" {
+			consent = append(consent, target)
+		}
 	}
 	var b strings.Builder
 	widths := humanTableColumnWidths(rows)
@@ -128,11 +131,9 @@ func renderProviderUsage(envelope contract.ProviderUsageEnvelope, now time.Time)
 		writeHumanTableRow(&b, row, widths)
 	}
 	b.WriteByte('\n')
-	if consent {
-		b.WriteString(
-			"Claude: Needs Keychain access. Allow it with: " +
-				"compozy config set provider_usage.providers.claude.keychain_access true\n",
-		)
+	for _, target := range consent {
+		fmt.Fprintf(&b, "%s: Needs Keychain access. Allow it with: "+
+			"compozy config set provider_usage.providers.%s.keychain_access true\n", target.ProviderName, target.ProviderID)
 	}
 	b.WriteString(providerUsageExperimental)
 	return b.String()

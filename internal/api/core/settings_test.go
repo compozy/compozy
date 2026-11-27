@@ -4983,7 +4983,7 @@ func TestSettingsProviderUsageHandlers(t *testing.T) {
 		got := service.LastUpdateSectionRequest.ProviderUsage
 		if response.Code != http.StatusOK || got == nil || !got.ProviderEnabled("claude") ||
 			got.ProviderEnabled("cursor") ||
-			!got.ClaudeKeychainAccess() {
+			!got.KeychainAccess("claude") {
 			t.Fatalf("PATCH = %d %s, config %#v", response.Code, response.Body.String(), got)
 		}
 	})

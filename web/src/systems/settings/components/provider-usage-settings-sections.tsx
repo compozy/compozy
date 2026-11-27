@@ -4,6 +4,7 @@ import { Button, Empty, NativeSelect, NativeSelectOption, Switch } from "@compoz
 
 import {
   PROVIDER_USAGE_INTERVAL_OPTIONS,
+  PROVIDER_USAGE_KEYCHAIN_PROVIDERS,
   providerUsageIntervalValue,
   providerUsageKeychainAccess,
   providerUsageProviderEnabled,
@@ -150,10 +151,22 @@ export function ProviderUsageProvidersSection({
   );
 }
 
+const KEYCHAIN_PROVIDER_COPY: Record<string, { label: string; description: string }> = {
+  claude: {
+    label: "Claude Keychain access",
+    description:
+      "Reads Claude Code's login from your Keychain only when you refresh; macOS asks first.",
+  },
+  agy: {
+    label: "Antigravity Keychain access",
+    description: "Reads the Antigravity CLI's login from your Keychain to show its quota.",
+  },
+};
+
 /**
- * macOS only: consent to read Claude Code's login from the Keychain. Shown
- * when the daemon reports Keychain support, or while consent is on so it can
- * be withdrawn.
+ * macOS only: consent to read a CLI login from the Keychain, one row per
+ * Keychain provider. A row shows when the daemon reports Keychain support, or
+ * while its consent is on so it can be withdrawn.
  */
 export function ProviderUsageKeychainSection({
   draft,
@@ -161,24 +174,38 @@ export function ProviderUsageKeychainSection({
   disabled,
   keychainSupported,
 }: DraftProps & { keychainSupported: boolean }) {
-  const allowed = providerUsageKeychainAccess(draft);
-  if (!draft.enabled || (!keychainSupported && !allowed)) return null;
+  if (!draft.enabled) return null;
+  const rows = PROVIDER_USAGE_KEYCHAIN_PROVIDERS.filter(
+    id => keychainSupported || providerUsageKeychainAccess(draft, id)
+  );
+  if (rows.length === 0) return null;
   return (
     <SettingsGroup title="Privacy">
-      <SettingRow
-        data-testid="settings-provider-usage-keychain-row"
-        label="Claude Keychain access"
-        description="Reads Claude Code's login from your Keychain only when you refresh; macOS asks first."
-        control={
-          <Switch
-            aria-label="Claude Keychain access"
-            checked={allowed}
-            data-testid="settings-provider-usage-keychain"
-            disabled={disabled}
-            onCheckedChange={checked => onChange(withProviderUsageKeychainAccess(draft, checked))}
+      {rows.map(id => {
+        const copy = KEYCHAIN_PROVIDER_COPY[id] ?? {
+          label: `${id} Keychain access`,
+          description: "",
+        };
+        return (
+          <SettingRow
+            data-testid={`settings-provider-usage-keychain-${id}-row`}
+            description={copy.description}
+            key={id}
+            label={copy.label}
+            control={
+              <Switch
+                aria-label={copy.label}
+                checked={providerUsageKeychainAccess(draft, id)}
+                data-testid={`settings-provider-usage-keychain-${id}`}
+                disabled={disabled}
+                onCheckedChange={checked =>
+                  onChange(withProviderUsageKeychainAccess(draft, id, checked))
+                }
+              />
+            }
           />
-        }
-      />
+        );
+      })}
     </SettingsGroup>
   );
 }

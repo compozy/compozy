@@ -1,7 +1,7 @@
 ---
 id: APP-provider-usage-tray
 area: APP
-title: See provider limits from the topbar, popover, and Usage app, and grant Claude Keychain consent
+title: See provider limits from the topbar, popover, and Usage app, and grant Claude and Antigravity Keychain consent
 persona: Bruno
 journey: J-provider-usage
 expected: The topbar Provider usage meter shows the tightest known window with an accessible label; the popover and Usage app show one truthful row per provider, collapsed to a single line with a compact cue (percent used, or the status in a word or two) and detail only on expand, in an overlay scroll area whose bar appears only on hover or scroll; Refresh and Allow run explicit refreshes while popover open and the scheduler stay background; Claude Keychain authorization on macOS is requested by local explicit actions; background reads enforce metadata checks and a short timeout, and denial, token expiry, and daemon restart each show their recovery; settings changes apply live; CLI, HTTP, UDS, and native tools return the same profile-scoped envelope.
@@ -85,6 +85,21 @@ Claude on macOS (login in the Keychain, no usable `.credentials.json`):
   retain their own login. Missing or unreadable account evidence still forbids background token reuse;
 - turn **Claude Keychain access** off: the loaded login and snapshot are dropped immediately.
 
+Antigravity on macOS (`agy` signed in; its login is the `gemini`/`antigravity` Keychain item):
+
+- with consent off the `agy` row reads `Needs access` with **Allow**, and the CLI table ends with
+  `Google Antigravity: Needs Keychain access. Allow it with: compozy config set
+  provider_usage.providers.agy.keychain_access true`; no macOS prompt appears;
+- **Allow** (or the **Antigravity Keychain access** switch) saves consent and runs one explicit
+  collection; the row shows the plan and one Session and one Weekly window per model group, labeled
+  `<group> · Session`/`<group> · Weekly`, with reset times;
+- background refreshes keep the row fresh without a prompt while `agy` keeps renewing its token;
+  with `agy` idle past its token expiry the row reads `Signed out · Run agy to refresh your login`,
+  and a later `agy` run recovers it on the next refresh;
+- a custom provider with `runtime_provider = "agy"` reads `Usage not available` and its consent is
+  never used; turning **Antigravity Keychain access** off returns the row to `Needs access`;
+- `compozy__config_set provider_usage.providers.agy.keychain_access true` is refused.
+
 Key-based providers and settings:
 
 - with an OpenRouter or Vercel AI Gateway key bound to the profile, the row shows balance and cap
@@ -95,7 +110,8 @@ Key-based providers and settings:
   `disabled`); **Show provider usage** off removes the meter, and `compozy provider usage list`
   prints the turned-off message while `refresh` exits 1 with `provider_usage_disabled`;
 - on a Linux or Windows host (`keychain_supported: false` in the envelope and settings response)
-  the Settings Keychain row and every **Allow** button are absent.
+  the Settings Keychain rows and every **Allow** button are absent, and the `agy` row reads
+  `Usage not available`.
 
 Parity and profile isolation:
 

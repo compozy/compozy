@@ -44,8 +44,8 @@ export function useUpdateSettingsProviderUsage() {
 }
 
 /**
- * The usage row's **Allow**: saves `provider_usage.providers.claude.keychain_access
- * = true` over the current config for `profile` — the profile the follow-up
+ * The usage row's **Allow**: saves `provider_usage.providers.<id>.keychain_access
+ * = true` for that row's Keychain provider over the current config for `profile` — the profile the follow-up
  * refresh targets — and reports a failed save itself. The returned promise
  * rejects on failure so the caller sends no refresh.
  */
@@ -54,11 +54,11 @@ export function useAllowProviderUsageKeychain(
 ): (providerId: string) => Promise<void> {
   const queryClient = useQueryClient();
   const mutation = useUpdateSettingsProviderUsage();
-  return async () => {
+  return async providerId => {
     try {
       const section = await queryClient.fetchQuery(settingsProviderUsageOptions());
       await mutation.mutateAsync({
-        body: { config: withProviderUsageKeychainAccess(section.config, true) },
+        body: { config: withProviderUsageKeychainAccess(section.config, providerId, true) },
         collectionProfile: profile,
       });
     } catch (error) {

@@ -19,8 +19,23 @@ func (c ProviderUsageConfig) ProviderEnabled(id string) bool {
 	return c.Enabled && (!ok || provider.Enabled)
 }
 
-func (c ProviderUsageConfig) ClaudeKeychainAccess() bool {
-	return c.Providers[providerClaudeKey].KeychainAccess
+// providerUsageKeychainProviders lists the collectors that read a native login from the macOS
+// Keychain, so only they accept the operator's keychain_access consent.
+var providerUsageKeychainProviders = []string{providerAgyKey, providerClaudeKey}
+
+const providerUsageKeychainMessage = "is only valid for agy or claude"
+
+// ProviderUsageKeychainProviders returns the provider IDs that accept keychain_access, sorted.
+func ProviderUsageKeychainProviders() []string { return slices.Clone(providerUsageKeychainProviders) }
+
+// ProviderUsageKeychainProvider reports whether id accepts keychain_access.
+func ProviderUsageKeychainProvider(id string) bool {
+	return slices.Contains(providerUsageKeychainProviders, id)
+}
+
+// KeychainAccess reports the operator's Keychain consent for one keychain provider.
+func (c ProviderUsageConfig) KeychainAccess(id string) bool {
+	return ProviderUsageKeychainProvider(id) && c.Providers[id].KeychainAccess
 }
 
 func (c ProviderUsageConfig) Clone() ProviderUsageConfig {
@@ -39,8 +54,8 @@ func (c ProviderUsageConfig) Validate(providers map[string]ProviderConfig) error
 		if CanonicalProviderName(id) != id || (!builtin && !custom) {
 			return ValidationError{Path: path, Message: "unknown canonical provider ID"}
 		}
-		if id != providerClaudeKey && c.Providers[id].KeychainAccess {
-			return ValidationError{Path: path + ".keychain_access", Message: "is only valid for claude"}
+		if !ProviderUsageKeychainProvider(id) && c.Providers[id].KeychainAccess {
+			return ValidationError{Path: path + ".keychain_access", Message: providerUsageKeychainMessage}
 		}
 	}
 	return nil
@@ -57,7 +72,7 @@ const ProviderUsageAPIKeySlot = "api_key"
 // ProviderUsageAuthSupported reports whether a usage collector family reads credentials for mode.
 func ProviderUsageAuthSupported(family string, mode ProviderAuthMode) bool {
 	switch family {
-	case "codex", providerClaudeKey, "cursor", "gemini", "kimi-cli":
+	case "codex", providerClaudeKey, "cursor", "gemini", "kimi-cli", providerAgyKey:
 		return mode == ProviderAuthModeNativeCLI
 	case "openrouter", "vercel-ai-gateway", "zai", "moonshot":
 		return mode == ProviderAuthModeBoundSecret

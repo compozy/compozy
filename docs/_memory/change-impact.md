@@ -1,5 +1,26 @@
 # Compozy Change Impact
 
+## Antigravity (`agy`) provider usage collector — 2026-11-27
+
+Owner: branch `feat/agy-usage-collector`.
+
+- **Runtime / native tools / CLI / HTTP / UDS:** new `agy` collector reads the Antigravity CLI's
+  macOS Keychain login (`gemini`/`antigravity`, go-keyring encoding) through the existing
+  `security` reader and background metadata gate, then Google's `retrieveUserQuotaSummary`.
+  Buckets become percent-only Session/Weekly windows per model group. No DTO, OpenAPI, SDK, native
+  tool ID, or migration change: `agy` rows move from `unsupported` to real statuses, and the CLI
+  consent hint is printed per Keychain provider.
+- **Config / security / isolation:** `provider_usage.providers.agy.keychain_access` (default
+  `false`) joins the claude key; any other provider still rejects the key, now with
+  `is only valid for agy or claude`. Native config tools still refuse every `keychain_access`
+  path. Revocation clears per provider. The collector never refreshes or writes the CLI's token,
+  sends a transparent `antigravity compozy-provider-usage` User-Agent, and refuses agy aliases
+  (one machine-wide login) and non-macOS hosts as `unsupported`. Profiles keep their own routes.
+- **Web / docs / official skill:** Settings shows one Keychain consent row per Keychain provider;
+  the usage row's **Allow** saves the row's provider. `agents/provider-usage`, `config-toml`,
+  `skills/compozy/references/{runtime-operations,configuration,native-tools}.md`, and
+  `APP-provider-usage-tray` cover the agy branch. No hook or extension surface.
+
 ## Extension inputs for subprocesses, setup and dependencies (GH-1845)
 
 - **Native tools.** New `compozy__extensions_setup` (stable): read input state or write missing,
