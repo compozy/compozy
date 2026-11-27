@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -667,9 +668,14 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 		if err != nil || !bytes.Equal(first, again) {
 			t.Fatalf("restart changed key: %v", err)
 		}
-		info, err := os.Stat(filepath.Join(home, "mcp-digest.key"))
-		if err != nil || info.Mode().Perm() != 0o600 {
-			t.Fatalf("private key mode: %v", err)
+		if runtime.GOOS != "windows" {
+			info, err := os.Stat(filepath.Join(home, "mcp-digest.key"))
+			if err != nil {
+				t.Fatalf("Stat(mcp-digest.key) error = %v", err)
+			}
+			if got := info.Mode().Perm(); got != 0o600 {
+				t.Fatalf("mcp-digest.key permissions = %o, want 0600", got)
+			}
 		}
 		other, err := NewMCPDigestKeyProvider(t.TempDir()).Key()
 		if err != nil || bytes.Equal(first, other) {
@@ -715,40 +721,45 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 		t.Parallel()
 
 		homeDir := filepath.Join(t.TempDir(), "compozy-home")
-		provider := NewFileKeyProvider(homeDir, func(string) (string, bool) { return "", false })
-		first, err := provider.Key()
+		lookupEnv := func(string) (string, bool) { return "", false }
+		first, err := NewFileKeyProvider(homeDir, lookupEnv).Key()
 		if err != nil {
 			t.Fatalf("Key(first) error = %v", err)
 		}
 		if len(first) != keySizeBytes {
 			t.Fatalf("Key(first) length = %d, want %d", len(first), keySizeBytes)
 		}
-		info, err := os.Stat(filepath.Join(homeDir, "vault.key"))
-		if err != nil {
-			t.Fatalf("Stat(vault.key) error = %v", err)
-		}
-		if got := info.Mode().Perm(); got != 0o600 {
-			t.Fatalf("vault.key permissions = %o, want 0600", got)
-		}
-		dirInfo, err := os.Stat(homeDir)
-		if err != nil {
-			t.Fatalf("Stat(homeDir) error = %v", err)
-		}
-		if got := dirInfo.Mode().Perm(); got != 0o700 {
-			t.Fatalf("homeDir permissions = %o, want 0700", got)
+		if runtime.GOOS != "windows" {
+			info, err := os.Stat(filepath.Join(homeDir, "vault.key"))
+			if err != nil {
+				t.Fatalf("Stat(vault.key) error = %v", err)
+			}
+			if got := info.Mode().Perm(); got != 0o600 {
+				t.Fatalf("vault.key permissions = %o, want 0600", got)
+			}
+			dirInfo, err := os.Stat(homeDir)
+			if err != nil {
+				t.Fatalf("Stat(homeDir) error = %v", err)
+			}
+			if got := dirInfo.Mode().Perm(); got != 0o700 {
+				t.Fatalf("homeDir permissions = %o, want 0700", got)
+			}
 		}
 
-		second, err := provider.Key()
+		second, err := NewFileKeyProvider(homeDir, lookupEnv).Key()
 		if err != nil {
 			t.Fatalf("Key(second) error = %v", err)
 		}
 		if !bytes.Equal(second, first) {
-			t.Fatalf("Key(second) = %x, want reused key %x", second, first)
+			t.Fatal("Key(second) changed the persisted key")
 		}
 	})
 
 	t.Run("Should tighten preexisting key directory before creating daemon key file", func(t *testing.T) {
 		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("requires POSIX directory permissions")
+		}
 
 		homeDir := filepath.Join(t.TempDir(), "compozy-home")
 		if err := os.MkdirAll(homeDir, 0o755); err != nil {
@@ -774,6 +785,9 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 
 	t.Run("Should reject preexisting key files with group or other permissions", func(t *testing.T) {
 		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("requires POSIX file permissions")
+		}
 
 		homeDir := filepath.Join(t.TempDir(), "compozy-home")
 		keyPath := filepath.Join(homeDir, "vault.key")
@@ -784,11 +798,14 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 		if err := os.WriteFile(keyPath, []byte(base64.StdEncoding.EncodeToString(rawKey)+"\n"), 0o644); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", keyPath, err)
 		}
+		if err := os.Chmod(keyPath, 0o644); err != nil {
+			t.Fatalf("Chmod(%q) error = %v", keyPath, err)
+		}
 
 		provider := NewFileKeyProvider(homeDir, func(string) (string, bool) { return "", false })
-		key, err := provider.Key()
+		_, err := provider.Key()
 		if err == nil {
-			t.Fatalf("Key() error = nil with key %x, want permission rejection", key)
+			t.Fatal("Key() error = nil, want permission rejection")
 		}
 		if !strings.Contains(err.Error(), "must not grant group or other permissions") {
 			t.Fatalf("Key() error = %q, want permission guidance", err)

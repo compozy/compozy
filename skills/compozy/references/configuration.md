@@ -108,6 +108,8 @@ Read the same path back and inspect the apply lifecycle before starting a new se
 ### Vault Key Provider
 
 `vault.key_provider` is a machine-only key: `file` is the default and `os-keyring` is opt-in.
+Unix file keys must deny group and other access. On Windows, filesystem access controls govern
+access to `vault.key` and `mcp-digest.key`.
 The default Vault path never probes or accesses the OS credential store. Selecting `os-keyring`
 alone does not import a key: run `compozy vault key migrate -o json` explicitly in the intended
 local CompozyOS home. The command may prompt for OS permission. It imports the existing `vault.key`,
