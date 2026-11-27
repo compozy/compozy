@@ -37,8 +37,10 @@ const fixtureRoot = path.resolve(
 );
 const attentionFixture = path.join(fixtureRoot, "attention_truth_fixture.json");
 const faultFixture = path.join(fixtureRoot, "driver_fault_fixture.json");
+const browserLifecycleFixture = path.join(fixtureRoot, "browser_session_lifecycle_fixture.json");
 const attentionAgent = "attention-agent";
 const faultAgent = "attention-fault-agent";
+const monitoredChildAgent = "attention-monitored-child";
 
 const bell = {
   trigger: '[data-slot="os-menubar-bell"]',
@@ -84,6 +86,11 @@ test.use({
           agentName: faultAgent,
           fixtureAgent: "faulty",
           fixturePath: faultFixture,
+        },
+        {
+          agentName: monitoredChildAgent,
+          fixtureAgent: "browser-dashboard-agent",
+          fixturePath: browserLifecycleFixture,
         },
       ],
     },
@@ -365,13 +372,13 @@ test.describe("Sessions Kanban E2E-004 waiting is not done", () => {
     const created = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {
       method: "POST",
       body: JSON.stringify({
-        agent_name: attentionAgent,
+        agent_name: monitoredChildAgent,
         workspace: workspace.id,
         parent_session_id: coordinator.id,
       }),
     });
     await waitForSeedSessionActive(runtime, created.session.id);
-    await promptSession(runtime, created.session, "wait for attention monitor");
+    await promptSession(runtime, created.session, "wait for dashboard monitor");
     await waitForBadge(runtime, created.session.id, "waiting");
 
     // The child's armed monitor keeps the coordinator waiting after its turn settles.
