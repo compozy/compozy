@@ -294,11 +294,11 @@ export function useSessionLifecycleActions(
       reportDeletedSessions(results);
     } else
       narrowDeleteTarget(
-        deleteTarget.sessions
-          .filter(
-            session => !results.some(result => result.id === session.id && result.status === "done")
-          )
-          .map(session => refreshedSessions?.get(session.id) ?? session)
+        deleteTarget.sessions.flatMap(session =>
+          results.some(result => result.id === session.id && result.status === "done")
+            ? []
+            : [refreshedSessions?.get(session.id) ?? session]
+        )
       );
   };
 
