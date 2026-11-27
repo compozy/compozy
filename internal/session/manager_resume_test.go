@@ -1148,6 +1148,41 @@ func TestResumeMonitorOwner(t *testing.T) {
 			)
 		}
 	})
+
+	t.Run("Should stop attempting to reopen an idle owner at the restart limit", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		h := newHarness(t, WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}))
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		stream, err := h.manager.Prompt(ctx, target.ID, "record the restart binding")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		if err := h.manager.StopWithCause(ctx, target.ID, CauseShutdown, "daemon restart"); err != nil {
+			t.Fatal(err)
+		}
+		h.resolver.mu.Lock()
+		workspace := h.resolver.byRef[h.workspaceID]
+		workspace.Config.Session.Restart.MaxAttempts = 1
+		h.resolver.byRef[h.workspaceID] = workspace
+		h.resolver.mu.Unlock()
+		startErr := errors.New("provider start failed")
+		h.driver.mu.Lock()
+		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) { return nil, startErr }
+		h.driver.mu.Unlock()
+		if err := h.manager.ResumeIdleSessionAfterRestart(ctx, target.ID); !errors.Is(err, startErr) {
+			t.Fatalf("first resume error = %v, want provider start failure", err)
+		}
+		err = h.manager.ResumeIdleSessionAfterRestart(ctx, target.ID)
+		if refusal, ok := errors.AsType[*MonitorOwnerIneligibleError](err); !ok || refusal.Reason != "restart_limit" {
+			t.Fatalf("second resume error = %v, want restart_limit", err)
+		}
+		if _, live := h.manager.Get(target.ID); live || len(h.driver.startCalls) != 2 {
+			t.Fatalf("live = %t, starts = %d, want stopped after one retry", live, len(h.driver.startCalls))
+		}
+	})
 }
 
 // Invariant: an owner that is already live is still checked against the binding captured for its

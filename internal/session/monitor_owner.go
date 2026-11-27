@@ -53,6 +53,14 @@ func (m *Manager) MonitorOwnerBinding(ctx context.Context, id string) (string, e
 	return MonitorOwnerBinding(active)
 }
 
+type restartOwnerResume uint8
+
+const (
+	resumeForMonitor restartOwnerResume = iota
+	resumeIdleOwner
+	resumeIdleInstanceMain
+)
+
 // ResumeMonitorOwner readmits an ordinary session the daemon interrupted with a restart, so a
 // recovered monitor can wake it. It applies the same eligibility rules as restart continuation
 // (auto-continue, archive, worktree, route, permission, and policy changes) against the binding
@@ -65,11 +73,11 @@ func (m *Manager) ResumeMonitorOwner(ctx context.Context, id, binding string) er
 	if binding == "" || json.Unmarshal([]byte(binding), &checkpoint) != nil {
 		return &MonitorOwnerIneligibleError{Reason: restartBindingUnknownReason}
 	}
-	return m.resumeMonitorOwnerBinding(ctx, id, checkpoint, false)
+	return m.resumeMonitorOwnerBinding(ctx, id, checkpoint, resumeForMonitor)
 }
 
 func (m *Manager) resumeMonitorOwnerBinding(
-	ctx context.Context, id string, checkpoint store.SessionRestartCheckpoint, recheckInstanceMain bool,
+	ctx context.Context, id string, checkpoint store.SessionRestartCheckpoint, purpose restartOwnerResume,
 ) error {
 	if active, ok := m.Get(id); ok && active.Info().State == StateActive {
 		// A restart continuation or an operator may already have resumed the owner under a new route
@@ -106,6 +114,11 @@ func (m *Manager) resumeMonitorOwnerBinding(
 		return fmt.Errorf("%w: restart recovery already running", ErrPromptInProgress)
 	}
 	defer m.restartInputsHeld.Delete(id)
+	if purpose != resumeForMonitor {
+		if err := m.appendRestartEvent(ctx, &meta, restartAttemptEvent, checkpoint, ""); err != nil {
+			return err
+		}
+	}
 	active, err := m.resume(ctx, id, resumeWithoutDispatch)
 	if err != nil {
 		return err
@@ -113,7 +126,7 @@ func (m *Manager) resumeMonitorOwnerBinding(
 	if err := monitorOwnerBindingMatches(active, checkpoint); err != nil {
 		return errors.Join(err, m.StopWithCause(ctx, id, CauseShutdown, "Monitor owner needs review."))
 	}
-	if recheckInstanceMain {
+	if purpose == resumeIdleInstanceMain {
 		if err := m.checkReopenedInstanceMain(ctx, id); err != nil {
 			return err
 		}

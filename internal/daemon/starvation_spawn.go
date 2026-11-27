@@ -35,7 +35,8 @@ func (r *taskRoleRuntime) resumeStarvationOwner(
 		return errStarvationSpawnUnresolvable
 	}
 	owner, err := storedSessionStatus(ctx, r.sessions, ownerID)
-	if errors.Is(err, session.ErrSessionNotFound) {
+	if errors.Is(err, session.ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotFound) ||
+		errors.Is(err, store.ErrSessionSuperseded) {
 		return errStarvationSpawnUnresolvable
 	}
 	if err != nil {
@@ -101,6 +102,7 @@ func starvationOwnerResumeRefused(err error) bool {
 	return ineligible || errors.Is(err, session.ErrMonitorOwnerStopped) ||
 		errors.Is(err, session.ErrRestartContinuationSkipped) ||
 		errors.Is(err, session.ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotAttachable) ||
+		errors.Is(err, store.ErrSessionNotFound) || errors.Is(err, store.ErrSessionSuperseded) ||
 		errors.Is(err, session.ErrSessionInLater) || errors.Is(err, session.ErrSessionArchived) ||
 		errors.Is(err, session.ErrPromptInProgress) ||
 		errors.Is(err, admission.ErrDraining) || errors.Is(err, admission.ErrStarting)

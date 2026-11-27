@@ -105,7 +105,11 @@ func (m *Manager) ResumeIdleSessionAfterRestart(ctx context.Context, id string) 
 	if err != nil {
 		return err
 	}
-	return m.resumeMonitorOwnerBinding(ctx, meta.ID, *meta.RestartBoundary, instance != nil && instance.Main)
+	purpose := resumeIdleOwner
+	if instance != nil && instance.Main {
+		purpose = resumeIdleInstanceMain
+	}
+	return m.resumeMonitorOwnerBinding(ctx, meta.ID, *meta.RestartBoundary, purpose)
 }
 
 func (m *Manager) requireSettledRestartTurn(ctx context.Context, meta *store.SessionMeta) error {

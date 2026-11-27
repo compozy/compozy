@@ -621,6 +621,8 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		{name: "Should skip a workspace owner for a global task", global: true},
 		{name: "Should skip activation while the daemon drains", resumeError: admission.ErrDraining},
 		{name: "Should skip activation while startup admission is closed", resumeError: admission.ErrStarting},
+		{name: "Should skip a superseded owner", resumeError: store.ErrSessionSuperseded},
+		{name: "Should skip an owner whose session row was removed", statusError: store.ErrSessionNotFound},
 		{
 			name:        "Should skip activation when the session manager refuses restart recovery",
 			resumeError: resumeRefusal,
