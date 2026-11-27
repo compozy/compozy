@@ -1,6 +1,5 @@
 import { emptyForScope } from "@/systems/profiles";
 
-import { useRemoteSessionsFanout } from "../../hooks/use-remote-sessions-fanout";
 import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
 import type { WorkspaceFolderPayload } from "../../types";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
@@ -12,7 +11,6 @@ import { SessionListGroupBody, type GroupRowProps } from "./session-list-group-b
 import { GroupLoadFailure } from "./session-list-group-note";
 import { SessionListGroupHeader, type SessionListGroupArrange } from "./session-list-group-header";
 import { SessionListProjectFolders } from "./session-list-project-folders";
-import { SessionListRemoteGroups } from "./session-list-remote-body";
 import { SessionGroupsSkeleton } from "./session-list-skeleton";
 
 /**
@@ -78,6 +76,7 @@ export function SessionListGroupSection({
                 group={subgroup}
                 path={subPath}
                 nested
+                readOnly={readOnly}
               />
             )}
           />
@@ -93,35 +92,13 @@ export interface SessionListProjectFoldersHost {
 }
 
 /**
- * Group-by groups (ADR-004): membership, counts, and the collapsed needs-you or
- * working dot come from server facets, so an off-page group is never missing.
- * Every expanded group reads and pages its own query; a failed group retries in
- * place. Inside a project group rows omit the project badge; inside a profile
- * group they omit the profile tag.
+ * Group-by groups for one daemon (ADR-004): membership, counts, and the collapsed
+ * needs-you or working dot come from server facets, so an off-page group is never
+ * missing. Every expanded group reads and pages its own query; a failed group
+ * retries in place. Inside a project group rows omit the project badge; inside a
+ * profile group they omit the profile tag.
  */
 export function SessionListGroups(props: GroupRowProps & SessionListProjectFoldersHost) {
-  const { view } = props;
-  const showRemote = view.shelf === "active";
-  const remote = useRemoteSessionsFanout({
-    enabled: showRemote,
-    filters: view.groupFilters.q ? { q: view.groupFilters.q } : undefined,
-  });
-  const hasRemoteResults =
-    showRemote &&
-    (remote.remoteSessions.length > 0 ||
-      remote.loadingComputers.length > 0 ||
-      remote.failedComputers.length > 0);
-  return (
-    <>
-      <LocalSessionListGroups {...props} hasRemoteResults={hasRemoteResults} />
-      {showRemote ? <SessionListRemoteGroups {...props} remote={remote} /> : null}
-    </>
-  );
-}
-
-function LocalSessionListGroups(
-  props: GroupRowProps & SessionListProjectFoldersHost & { hasRemoteResults: boolean }
-) {
   const { view, testIdPrefix } = props;
   if (view.groupsError) {
     return (
@@ -149,7 +126,7 @@ function LocalSessionListGroups(
           />
         )}
         emptyMessage={
-          props.hasRemoteResults || sessionListHasPinnedRows(view)
+          sessionListHasPinnedRows(view)
             ? null
             : `${emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.`
         }
@@ -158,7 +135,7 @@ function LocalSessionListGroups(
     );
   }
   if (view.groups.length === 0) {
-    if (props.hasRemoteResults || sessionListHasPinnedRows(view)) return null;
+    if (sessionListHasPinnedRows(view)) return null;
     return (
       <p className="px-3 py-8 text-center text-small-body text-muted-foreground">
         {emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.

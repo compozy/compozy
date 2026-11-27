@@ -1,10 +1,7 @@
 import { useQueries } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { Button } from "@compozy/ui";
-
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
-import { ScopedComputerError, ScopedComputerSkeleton } from "@/systems/computers";
 import { useProfileReadScope } from "@/systems/profiles";
 import type { DataScope } from "@/systems/workspace";
 
@@ -32,6 +29,7 @@ import { recordSessionsComputer, sessionComputerOf } from "../../lib/session-row
 import type { SessionListFilters, SessionPayload } from "../../types";
 import type { GroupRowProps } from "./session-list-group-body";
 import { SessionListGroupSection } from "./session-list-groups";
+import { SessionListRemoteFooter } from "./session-list-remote-body";
 import { SessionListSkeleton } from "./session-list-skeleton";
 import { SessionListThreadList } from "./session-list-thread-list";
 
@@ -128,23 +126,18 @@ export function SessionListTogetherProjectGroups(
           {emptyMessage}
         </p>
       ) : null}
-      {connecting.map(source => (
-        <ScopedComputerSkeleton
-          className="mx-1"
-          computerId={source.key}
-          computerName={source.name}
-          key={source.key}
-        />
-      ))}
-      {failed.map(source => (
-        <ScopedComputerError
-          className="mx-1 mt-1"
-          computerId={source.key}
-          computerName={source.name}
-          key={source.key}
-          onRetry={source.retry}
-        />
-      ))}
+      <SessionListRemoteFooter
+        failedComputers={failed.map(source => ({
+          id: source.key,
+          name: source.name,
+          retry: source.retry,
+        }))}
+        hasMore={false}
+        loadingComputers={connecting.map(source => ({ id: source.key, name: source.name }))}
+        loadingMore={false}
+        onLoadMore={() => undefined}
+        testIdPrefix={props.testIdPrefix}
+      />
     </div>
   );
 }
@@ -291,38 +284,19 @@ export function SessionListTogetherFlatBody({
           />
         </SessionListBadgeContext>
       </SessionListComputerContext>
-      {connecting.map(source => (
-        <ScopedComputerSkeleton
-          className="mx-1"
-          computerId={source.key}
-          computerName={source.name}
-          key={source.key}
-        />
-      ))}
-      {failed.map(source => (
-        <ScopedComputerError
-          className="mx-1 mt-1"
-          computerId={source.key}
-          computerName={source.name}
-          key={source.key}
-          onRetry={source.retry}
-        />
-      ))}
-      {nextToLoad ? (
-        <div className="px-1 py-1.5">
-          <Button
-            className="w-full"
-            data-testid={`${rows.testIdPrefix}-remote-load-more`}
-            disabled={loadingMore}
-            onClick={() => void handleLoadMore()}
-            size="xs"
-            type="button"
-            variant="secondary"
-          >
-            {loadingMore ? "Loading…" : `Load more from ${nextToLoad.computerName}`}
-          </Button>
-        </div>
-      ) : null}
+      <SessionListRemoteFooter
+        failedComputers={failed.map(source => ({
+          id: source.key,
+          name: source.name,
+          retry: source.retry,
+        }))}
+        hasMore={nextToLoad !== null}
+        loadingComputers={connecting.map(source => ({ id: source.key, name: source.name }))}
+        loadingMore={loadingMore}
+        loadMoreLabel={nextToLoad ? `Load more from ${nextToLoad.computerName}` : undefined}
+        onLoadMore={() => void handleLoadMore()}
+        testIdPrefix={rows.testIdPrefix}
+      />
     </>
   );
 }

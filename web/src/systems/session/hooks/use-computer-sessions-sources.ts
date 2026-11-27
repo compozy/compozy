@@ -1,5 +1,5 @@
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { QueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryClientContext, useQueries, useQuery } from "@tanstack/react-query";
+import { useContext } from "react";
 
 import {
   isRemoteComputerId,
@@ -81,6 +81,10 @@ export interface ComputerSessionsSourcesResult {
   uncountedNames: readonly string[];
 }
 
+const NOOP_QUERY_CLIENT = new QueryClient({
+  defaultOptions: { queries: { enabled: false, retry: false } },
+});
+
 /** True when any catalog page for `computerId` holds at least one session in memory (Rule 23). */
 function hasCachedRowsForComputer(queryClient: QueryClient, computerId: ComputerId): boolean {
   const keys = sessionKeys.forComputer(computerId);
@@ -111,9 +115,14 @@ export function useComputerSessionsSources(options: {
   worktreeId?: string;
   enabled?: boolean;
 }): ComputerSessionsSourcesResult {
-  const queryClient = useQueryClient();
-  const { scope, lens, shelf, showAutomation, search, worktreeId, enabled = true } = options;
-  const { canRead, enabledComputers, computerViews, localView } = useComputers({ passive: true });
+  const contextClient = useContext(QueryClientContext);
+  const queryClient = contextClient ?? NOOP_QUERY_CLIENT;
+  const { scope, lens, shelf, showAutomation, search, worktreeId } = options;
+  const enabled = (options.enabled ?? true) && contextClient !== undefined;
+  const { canRead, enabledComputers, computerViews, localView } = useComputers({
+    enabled,
+    passive: true,
+  });
   const { registeredWorkspaces } = useActiveWorkspace();
 
   const enabledRemoteIds = new Set(enabledComputers.map(computer => computer.id));
@@ -138,50 +147,61 @@ export function useComputerSessionsSources(options: {
 
   // Local facets read (reuses the window's active scope and profile lens).
   const localFacetsFilters = sessionCatalogScopedFilters(scope, basePopulation, lens);
-  const localFacetsQuery = useQuery({
-    ...sessionFacetsOptions(localFacetsFilters, LOCAL_COMPUTER_ID),
-    enabled: enabled && scope !== null && hasRemoteComputers,
-  });
+  const localFacetsQuery = useQuery(
+    {
+      ...sessionFacetsOptions(localFacetsFilters, LOCAL_COMPUTER_ID),
+      enabled: enabled && scope !== null && hasRemoteComputers,
+    },
+    queryClient
+  );
 
   // Remote workspace catalogs for name resolution (P1) and repository_key matching (Q5).
-  const remoteWorkspaceQueries = useQueries({
-    queries: remoteViews.map(computer =>
-      computerWorkspacesOptions(
-        computer.id,
-        enabled && hasRemoteComputers && computer.status === "connected"
-      )
-    ),
-  });
+  const remoteWorkspaceQueries = useQueries(
+    {
+      queries: remoteViews.map(computer =>
+        computerWorkspacesOptions(
+          computer.id,
+          enabled && hasRemoteComputers && computer.status === "connected"
+        )
+      ),
+    },
+    queryClient
+  );
 
   // Remote facets reads: remote computers read all of their own profiles (Q4).
-  const remoteFacetsQueries = useQueries({
-    queries: remoteViews.map((computer, index) => {
-      const remoteWorkspaces = remoteWorkspaceQueries[index]?.data ?? [];
-      const matched =
-        scope?.kind === "project"
-          ? matchRemoteWorkspaceIds(focusedRepoKey, remoteWorkspaces)
-          : null;
-      const remoteFilters: SessionListFilters =
-        scope?.kind === "user"
-          ? sessionCatalogScopedFilters(scope, basePopulation, { all_profiles: true })
-          : scope?.kind === "project"
-            ? {
-                ...basePopulation,
-                all_profiles: true,
-                ...(matched && matched.length > 0 ? { workspace_ids: [...matched] } : {}),
-              }
-            : sessionCatalogScopedFilters({ kind: "all" }, basePopulation, { all_profiles: true });
-      const canQuery =
-        enabled &&
-        hasRemoteComputers &&
-        computer.status === "connected" &&
-        (scope?.kind !== "project" || (matched !== null && matched.length > 0));
-      return {
-        ...sessionFacetsOptions(remoteFilters, computer.id),
-        enabled: canQuery,
-      };
-    }),
-  });
+  const remoteFacetsQueries = useQueries(
+    {
+      queries: remoteViews.map((computer, index) => {
+        const remoteWorkspaces = remoteWorkspaceQueries[index]?.data ?? [];
+        const matched =
+          scope?.kind === "project"
+            ? matchRemoteWorkspaceIds(focusedRepoKey, remoteWorkspaces)
+            : null;
+        const remoteFilters: SessionListFilters =
+          scope?.kind === "user"
+            ? sessionCatalogScopedFilters(scope, basePopulation, { all_profiles: true })
+            : scope?.kind === "project"
+              ? {
+                  ...basePopulation,
+                  all_profiles: true,
+                  ...(matched && matched.length > 0 ? { workspace_ids: [...matched] } : {}),
+                }
+              : sessionCatalogScopedFilters({ kind: "all" }, basePopulation, {
+                  all_profiles: true,
+                });
+        const canQuery =
+          enabled &&
+          hasRemoteComputers &&
+          computer.status === "connected" &&
+          (scope?.kind !== "project" || (matched !== null && matched.length > 0));
+        return {
+          ...sessionFacetsOptions(remoteFilters, computer.id),
+          enabled: canQuery,
+        };
+      }),
+    },
+    queryClient
+  );
 
   if (!hasRemoteComputers) {
     return {

@@ -3,6 +3,7 @@ import { Button } from "@compozy/ui";
 import { useListArchiveStopped } from "../../hooks/use-list-archive-stopped";
 import type { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
+import type { SessionViewOptionsMenuProps } from "../session-view-options-menu";
 import { AlwaysOnCreateMenu } from "../always-on/always-on-create-menu";
 import { SessionListSelectionBar } from "./session-list-selection-bar";
 import { SessionListToolbar } from "./session-list-toolbar";
@@ -14,6 +15,8 @@ export function SessionListControls({
   onNewSession,
   onNewFolder,
   newFolderUnavailable,
+  computerLayout,
+  laterCount,
   testIdPrefix,
 }: {
   bulk: ReturnType<typeof useSessionListBulkSelection>;
@@ -21,6 +24,8 @@ export function SessionListControls({
   onNewSession: () => void;
   onNewFolder?: () => void;
   newFolderUnavailable: string | null;
+  computerLayout?: SessionViewOptionsMenuProps["computerLayout"];
+  laterCount?: number;
   testIdPrefix: string;
 }) {
   const archiveStopped = useListArchiveStopped(view);
@@ -30,7 +35,7 @@ export function SessionListControls({
     <>
       <SessionListToolbar
         shelf={view.shelf}
-        laterCount={view.laterCount}
+        laterCount={laterCount ?? view.laterCount}
         sort={view.sort}
         groupBy={view.groupBy}
         groupByOptions={view.groupByOptions}
@@ -46,6 +51,7 @@ export function SessionListControls({
         onNewSession={onNewSession}
         onNewFolder={onNewFolder}
         newFolderUnavailable={newFolderUnavailable}
+        computerLayout={computerLayout}
         createMenu={
           <AlwaysOnCreateMenu
             newFolderUnavailable={newFolderUnavailable}

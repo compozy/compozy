@@ -6,63 +6,13 @@ import {
   type ScopedComputerFailureItem,
 } from "@/systems/computers";
 
-import type { RemoteSessionsFanoutResult } from "../../hooks/use-remote-sessions-fanout";
-import { SessionListComputerContext } from "../../lib/session-list-computer";
-import { buildSessionListThreads } from "../../lib/session-list-threads";
-import type { GroupRowProps } from "./session-list-group-body";
-import { SessionListGroupToggle } from "./session-list-group-toggle";
-import { SessionListThreadList } from "./session-list-thread-list";
-
-export function SessionListRemoteGroups({
-  remote,
-  view,
-  onSelectSession,
-  ...rows
-}: GroupRowProps & { remote: RemoteSessionsFanoutResult }) {
-  return (
-    <SessionListComputerContext value={remote.computerBySessionId}>
-      {remote.projectComputerGroups.map(group => {
-        const collapsed = view.collapsedGroupKeys.has(group.key);
-        return (
-          <section key={group.key} data-group-key={group.key}>
-            <SessionListGroupToggle
-              collapsed={collapsed}
-              count={null}
-              identity={<span className="truncate text-small-body font-medium">{group.label}</span>}
-              onToggle={() => view.toggleGroup(group.key)}
-            />
-            {collapsed ? null : (
-              <SessionListThreadList
-                {...rows}
-                emptyMessage={null}
-                onSelectSession={session =>
-                  onSelectSession({ ...session, computerId: group.computerId })
-                }
-                readOnly
-                threads={buildSessionListThreads(
-                  group.rows.map(row => row.session),
-                  ""
-                )}
-              />
-            )}
-          </section>
-        );
-      })}
-      <SessionListRemoteFooter
-        {...remote}
-        onLoadMore={remote.loadMore}
-        testIdPrefix={rows.testIdPrefix}
-      />
-    </SessionListComputerContext>
-  );
-}
-
-/** Per-computer loading skeletons, inline retryable failures, and oldest-cursor Load more. */
+/** Per-computer loading skeletons, inline retryable failures, and Load more naming the next computer (`F6`, `S10`). */
 export function SessionListRemoteFooter({
   loadingComputers,
   failedComputers,
   hasMore,
   loadingMore,
+  loadMoreLabel,
   onLoadMore,
   testIdPrefix,
 }: {
@@ -70,6 +20,7 @@ export function SessionListRemoteFooter({
   failedComputers: readonly ScopedComputerFailureItem[];
   hasMore: boolean;
   loadingMore: boolean;
+  loadMoreLabel?: string;
   onLoadMore: () => void;
   testIdPrefix: string;
 }) {
@@ -77,6 +28,7 @@ export function SessionListRemoteFooter({
     <>
       {loadingComputers.map(computer => (
         <ScopedComputerSkeleton
+          className="mx-1"
           computerId={computer.id}
           computerName={computer.name}
           key={computer.id}
@@ -84,6 +36,7 @@ export function SessionListRemoteFooter({
       ))}
       {failedComputers.map(computer => (
         <ScopedComputerError
+          className="mx-1 mt-1"
           computerId={computer.id}
           computerName={computer.name}
           key={computer.id}
@@ -101,7 +54,7 @@ export function SessionListRemoteFooter({
             type="button"
             variant="secondary"
           >
-            {loadingMore ? "Loading…" : "Load more"}
+            {loadingMore ? "Loading…" : (loadMoreLabel ?? "Load more")}
           </Button>
         </div>
       ) : null}
