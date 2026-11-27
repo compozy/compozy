@@ -717,7 +717,7 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 		}
 	})
 
-	t.Run("Should create and reuse daemon key file with restricted permissions", func(t *testing.T) {
+	t.Run("Should create and reuse the vault key across provider restarts", func(t *testing.T) {
 		t.Parallel()
 
 		homeDir := filepath.Join(t.TempDir(), "compozy-home")

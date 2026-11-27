@@ -679,7 +679,7 @@ jobs:
       - name: Verify Windows Vault and MCP digest key reuse
         run: >-
           gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-8.json --packages "./internal/vault" --
-          -run '^TestFileKeyProviderLoadsEnvAndCreatesKeyFile$/^(Should_persist_a_private_independent_MCP_digest_key|Should_create_and_reuse_daemon_key_file_with_restricted_permissions)$'
+          -run '^TestFileKeyProviderLoadsEnvAndCreatesKeyFile$/^(Should_persist_a_private_independent_MCP_digest_key|Should_create_and_reuse_the_vault_key_across_provider_restarts)$'
           -count=1
         env:
           CGO_ENABLED: 0
