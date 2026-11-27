@@ -186,7 +186,10 @@ async function registerLinuxPackage(home: string, executablePath: string): Promi
   return operatorHome;
 }
 
-async function terminateRuntime(home: string, environment: NodeJS.ProcessEnv): Promise<void> {
+export async function terminateRuntime(
+  home: string,
+  environment: NodeJS.ProcessEnv
+): Promise<void> {
   const runtime = join(home, "bin", process.platform === "win32" ? "compozy.exe" : "compozy");
   try {
     await access(runtime);

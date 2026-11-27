@@ -21,6 +21,7 @@ import {
   type DesktopInstance,
   type PackagedCopy,
   terminateRestartedDesktop,
+  terminateRuntime,
 } from "../fixtures";
 import { completeOnboarding, readDiagnosticFile } from "../helpers";
 import { runCommand } from "../process";
@@ -733,6 +734,7 @@ test("Windows desktop: signed NSIS install, authenticated control, update and un
       .toBe("updated");
     expect(await readFile(join(desktop.home, "config.toml"), "utf8")).toBe(originalConfig);
     await terminateRestartedDesktop(desktop.home);
+    await terminateRuntime(desktop.home, desktop.environment);
     const uninstallerPath = join(installation, "Uninstall CompozyOS.exe");
     const uninstalled = await runCommand(uninstallerPath, ["/S"]);
     expect(uninstalled.exitCode, uninstalled.stderr).toBe(0);
@@ -767,6 +769,7 @@ test("Windows desktop: signed NSIS install, authenticated control, update and un
       if (desktop) {
         await desktop.closeShell();
         await terminateRestartedDesktop(desktop.home);
+        await terminateRuntime(desktop.home, desktop.environment);
       }
     } finally {
       await stopWindowsProcessesIn(installation);

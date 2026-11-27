@@ -94,6 +94,8 @@ export class BootstrapRunner {
         "jsonl",
       ],
       {
+        // Keep the detached runtime out of the app installation directory so Windows uninstall can remove it.
+        cwd: dirname(this.#logPath),
         env: this.#environment,
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
