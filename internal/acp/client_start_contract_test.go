@@ -1848,6 +1848,35 @@ func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
 		defer stopProcess(t, driver, proc)
 		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "max", "none", "max")
 	})
+
+	t.Run("Should reject a duplicate selection for a late startup reasoning option", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "startup-reasoning-conflict.jsonl")
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:       "helper",
+			Command:         helperCommand(t),
+			Cwd:             t.TempDir(),
+			Env:             helperEnvWithCapture("model_specific_config_options", "late-reasoning", captureFile),
+			Permissions:     compozyconfig.PermissionModeApproveAll,
+			PreferredModel:  "other-model",
+			ReasoningEffort: "max",
+			ProviderConfig:  reasoningACPProviderConfig(),
+			ACPOptions:      []SessionConfigOptionSelection{{ID: "reasoning_effort", ValueID: "none"}},
+		})
+		if proc != nil {
+			defer stopProcess(t, driver, proc)
+		}
+		const conflict = `config option "reasoning_effort" duplicates the dedicated reasoning effort setting`
+		if err == nil || !strings.Contains(err.Error(), conflict) {
+			t.Fatalf("Start() error = %v, want %s", err, conflict)
+		}
+		got := captureNegotiationSequence(t, captureFile)
+		want := []string{"mode:bypassPermissions", "model:other-model"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("negotiation sequence = %v, want %v", got, want)
+		}
+	})
 }
 
 func TestAwaitSessionReasoningOption(t *testing.T) {
