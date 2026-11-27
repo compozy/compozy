@@ -2597,6 +2597,7 @@ describe("SessionList Mark as seen", () => {
       badge: "needs-attention",
       attention: "ended_early",
       attention_dismissible: true,
+      returned_from_later_at: "2026-10-30T09:00:00Z",
     };
     const asking: SessionPayload = {
       ...primarySessionFixture,
@@ -2613,9 +2614,9 @@ describe("SessionList Mark as seen", () => {
       attention_dismissible: false,
     };
     const { actions } = renderList({ sessions: [endedEarly, asking, done] });
-    expect(screen.getByTestId("session-sidebar-session-ended-early").title).toContain(
-      "Stopped before delivering"
-    );
+    const earlyStopRow = screen.getByTestId("session-sidebar-session-ended-early");
+    expect(earlyStopRow.title).toContain("Stopped before delivering");
+    expect(earlyStopRow.title).toContain("Back from Later");
     expect(screen.getByTestId("session-sidebar-session-done")).toHaveAttribute(
       "data-status",
       "done"

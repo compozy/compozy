@@ -604,7 +604,7 @@ describe("useSessionTopbarSlot", () => {
     );
     const markSeen = screen.getByRole("button", { name: "Mark as seen" });
     expect(markSeen).toBeEnabled();
-    expect(markSeen).toHaveAccessibleDescription(/Stopped before delivering.*Back from Later/);
+    expect(markSeen).toHaveAccessibleDescription(/Back from Later.*Stopped before delivering/);
     await user.hover(markSeen);
     const tooltip = await screen.findByRole("tooltip");
     expect(tooltip).toHaveTextContent("Stopped before delivering");

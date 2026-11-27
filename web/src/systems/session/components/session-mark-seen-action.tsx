@@ -2,11 +2,8 @@ import { Button, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@compo
 import { CheckCheck } from "@compozy/ui/icons";
 
 import { useMarkSessionSeenAction } from "../hooks/use-mark-session-seen";
-import {
-  BACK_FROM_LATER_REASON,
-  ENDED_EARLY_ATTENTION,
-  ENDED_EARLY_DETAIL,
-} from "../lib/session-attention-reason";
+import { ENDED_EARLY_ATTENTION, sessionAttentionReason } from "../lib/session-attention-reason";
+import { sessionBadgeOf } from "../lib/session-badge";
 import type { SessionPayload } from "../types";
 
 /**
@@ -16,11 +13,11 @@ import type { SessionPayload } from "../types";
 export function SessionMarkSeenAction({ session }: { session: SessionPayload }) {
   const { pending, onMarkSeen } = useMarkSessionSeenAction();
   if (!session.attention_dismissible) return null;
-  const reasons = [];
-  if (session.attention === ENDED_EARLY_ATTENTION) {
-    reasons.push(ENDED_EARLY_DETAIL);
-    if (session.returned_from_later_at) reasons.push(BACK_FROM_LATER_REASON);
-  }
+  const reason =
+    session.attention === ENDED_EARLY_ATTENTION
+      ? sessionAttentionReason(session, sessionBadgeOf(session))
+      : null;
+  const reasons = reason?.detail.split("\n") ?? [];
   const Glyph = pending ? Spinner : CheckCheck;
   return (
     <Tooltip>

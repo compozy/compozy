@@ -41,7 +41,7 @@ const STOP_REASON = "Stop not confirmed";
 export const ENDED_EARLY_ATTENTION = "ended_early";
 
 const ENDED_EARLY_REASON = "Stopped before delivering";
-export const ENDED_EARLY_DETAIL =
+const ENDED_EARLY_DETAIL =
   "Stopped before delivering: no pull request, and nothing left running to resume it";
 
 function capitalize(text: string): string {
@@ -71,15 +71,20 @@ function sourceDetail(source: SourceState): string {
 const SOURCE_RANK: Record<string, number> = { attention: 0, stale: 1, unknown: 2 };
 
 /**
- * Why a session needs you: back from Later on its return date (whatever the
- * badge), else the cause behind a `needs-attention` badge; `null` for every
- * other badge and for a payload that names no cause.
+ * Why a session needs you, including both causes when a Later return and an
+ * early stop overlap. Returns `null` when the payload names no cause.
  */
 export function sessionAttentionReason(
   session: AttentionSource,
   badge: string
 ): SessionAttentionReason | null {
   if (session.returned_from_later_at) {
+    if (badge === "needs-attention" && session.attention === ENDED_EARLY_ATTENTION) {
+      return {
+        summary: `${BACK_FROM_LATER_REASON} (+1)`,
+        detail: `${BACK_FROM_LATER_REASON}\n${ENDED_EARLY_DETAIL}`,
+      };
+    }
     return { summary: BACK_FROM_LATER_REASON, detail: BACK_FROM_LATER_REASON };
   }
   if (badge !== "needs-attention") return null;

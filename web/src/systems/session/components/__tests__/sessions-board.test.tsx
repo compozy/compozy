@@ -205,6 +205,18 @@ describe("SessionsBoard", () => {
     );
   });
 
+  it("Should explain an early stop alongside a Later return on the session card", () => {
+    const child = card("ended-early", {
+      board_column: "needs_you",
+      badge: "needs-attention",
+      attention: "ended_early",
+      returned_from_later_at: "2026-10-30T09:00:00Z",
+    });
+    renderBoard(board({ needs_you: { sessions: [child], count: 1 } }));
+    const row = screen.getByTestId("session-board-card-ended-early");
+    expect(row).toHaveAccessibleDescription(/Back from Later.*Stopped before delivering/);
+  });
+
   it("UT-070: Should show the parent link on a child and a highlighted rollup on its parent", () => {
     const parent = card("parent", {
       name: "Coordinator",

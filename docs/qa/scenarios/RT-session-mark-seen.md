@@ -28,7 +28,8 @@ Mark as seen acknowledges one occurrence; it never mutes a session. The payload 
 3. Resume the session and fail it again: Failed and Needs you return.
 4. Repeat from the Kanban card menu and the session header button with a child session whose turn
    ended without a pull request ("Stopped before delivering") and with a session back from Later.
-   For the child, confirm the reason in the row and header tooltips. The next early stop or the
+   For the child, confirm the reason in the row, card and header tooltips. If the daemon reports
+   both an early stop and a Later return, the tooltips explain both. The next early stop or the
    next return from Later raises Needs you again.
 5. Repeat the child's turn while its creator has a session monitor that watches for settlement.
    The unseen turn reads Done and the row, card and header offer no **Mark as seen** action.

@@ -161,6 +161,9 @@ compozy spawn --agent researcher --ttl-seconds 3600 \
 
 `notify_creator` defaults to true on HTTP, UDS, and `compozy__session_spawn`. Set it explicitly to
 false to opt out for one child. This default has no `config.toml` key.
+An active reply watch for the turn or a session monitor that covers completion carries the wake
+instead. With queued input, the completion monitor waits for the queue to drain and the opted-in
+completion wake can still report the finished turn.
 
 Provider, model, reasoning effort, and speed are optional child-runtime overrides on the CLI,
 HTTP/UDS request, and native tool. Omit them to use the named agent and workspace defaults.

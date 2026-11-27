@@ -212,7 +212,8 @@ Governed child sessions have the parallel session-level feedback path. `compozy 
 the parent when the child completes a turn, stops, fails, or enters a needs-you state. A canceled
 child turn sends no completed wake. When the parent holds an open reply watch on the child (a spawn
 `prompt`, or `session_prompt` with `notify_on_complete`), the reply watch carries the child's answer and any
-follow-up and the bare completed wake is skipped. Otherwise the completed wake points at
+follow-up. A session monitor that covers the child's completion also carries the wake unless the
+child has queued input. The standalone completed wake points at
 `compozy__session_history` for the answer; pass `type: "agent_message"` and the reply's `turn_id`
 to omit tool payloads. Use CLI
 `--no-notify-creator` or explicit `notify_creator: false` on the API/tool request for a child that
