@@ -29,6 +29,12 @@ Bug 2026-08-18 (operator report, live run): attention toasts rendered transparen
 
 QA impact 2026-10-23 (Sessions Kanban, sk-web-chip; walk pending): an idle session that still waits on children, a reply, a Loop run, a task lease or a monitor now reads `waiting` and fires no finished toast; the toast fires once when its last waiting signal closes. A single finished toast for a session with an open PR reads "#N ready for review" in its body line (title, meta and click-to-open unchanged); grouped toasts are unchanged. The PR number comes from the session read model the client already holds, so a session never read by this client keeps "Finished while you were away". Automated: `attention.spec.ts` Sessions Kanban E2E-004 (child live → no toast; child stopped → one toast) and `attention-delivery.test.ts` (UT-065, UT-066).
 
+
+Child wait regression (#2011): arm a timer in a child session and let the parent finish its turn.
+The parent stays waiting on sessions and shows no finished toast. Stop the child while its timer is
+armed and verify the parent shows one finished toast. Automated: `attention.spec.ts` Sessions Kanban
+E2E-004.
+
 Monitor retry regression: let a timer expire while wake admission temporarily fails. The
 session must remain waiting while the monitor is delivering, even after its original watch
 deadline; no finished transition is justified by that expired deadline. Cancel or finish the

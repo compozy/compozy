@@ -371,14 +371,16 @@ test.describe("Sessions Kanban E2E-004 waiting is not done", () => {
       }),
     });
     await waitForSeedSessionActive(runtime, created.session.id);
+    await promptSession(runtime, created.session, "wait for attention monitor");
+    await waitForBadge(runtime, created.session.id, "waiting");
 
-    // The coordinator settles its turn while its child is live: waiting, not done.
+    // The child's armed monitor keeps the coordinator waiting after its turn settles.
     await promptSession(runtime, coordinator, "complete turn");
     const waiting = await waitForBadge(runtime, coordinator.id, "waiting");
     expect((waiting as SessionPayload & { waiting_on?: string }).waiting_on).toBe("sessions");
     const modal = await openSessionsModal(page);
     const row = modal.getByTestId(`os-sessions-modal-session-${coordinator.id}`);
-    // The child is idle (created, never prompted), so nothing lifts the mark (#1926).
+    // The child is waiting between turns, so nothing lifts the mark (#1926).
     const mark = row.getByRole("img", { name: "Session badge: waiting" });
     await expect(mark).toHaveAttribute("data-waiting-on", "sessions");
     await expect(mark).not.toHaveAttribute("data-descendants");

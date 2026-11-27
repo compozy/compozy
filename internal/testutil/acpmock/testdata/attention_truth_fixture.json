@@ -40,6 +40,29 @@
                     ]
                 },
                 {
+                    "name": "attention-monitor",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "wait for attention monitor"
+                    },
+                    "steps": [
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__monitor_create",
+                            "tool_call_id": "attention-monitor",
+                            "raw_input": {
+                                "kind": "timer",
+                                "description": "Finish the attention wait",
+                                "delay_seconds": 600
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Waiting for the monitor."
+                        }
+                    ]
+                },
+                {
                     "name": "session-wake",
                     "match": {
                         "turn_source": "synthetic"
