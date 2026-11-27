@@ -150,6 +150,12 @@ choice wins and only one continuation is queued. Answer another question before 
 confirm the tool receives its answer and the prompt queue stays empty.
 
 Automated coverage is in `TestDaemonE2EAttentionTruthJourneys` (hosted MCP, HTTP, and the next
-ACP turn) and `TestInteractionResolutionCouplesQueueAndIsIdempotent` (atomic SQLite resolution,
-queue-full rollback, and a duplicate answer). The provider-specific 30-second return in the original
-report remains a Codex retest. The daemon's 30-second keepalive interval does not expire the card.
+ACP turn). A later turn holds the continuation in the queue. When that queue is full, HTTP 503
+keeps the card pending and the same answer succeeds after capacity is freed.
+`TestInteractionResolutionCouplesQueueAndIsIdempotent` checks atomic SQLite resolution,
+queue-full rollback, and a duplicate answer.
+
+The provider-specific 30-second return in the original report remains a Codex retest. The
+daemon's 30-second keepalive interval does not expire the card. If the provider stops waiting for
+the tool before the daemon settles the issuing run, an answer in that interval still takes the tool
+result path. The daemon has no acknowledgment of whether the provider used that result.

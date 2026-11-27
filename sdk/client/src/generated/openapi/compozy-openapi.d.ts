@@ -61966,7 +61966,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Clarification broker is not configured */
+      /** @description Clarification broker is unavailable or the input queue is full */
       503: {
         headers: {
           [name: string]: unknown;

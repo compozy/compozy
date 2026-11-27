@@ -163,8 +163,9 @@ func (m *Manager) commitApplyClarifyAttentionEvent(
 		}
 		return commit, false, err
 	}
+	info := target.Info()
 	interaction := pendingInteractionByProviderRequest(
-		target.Info(),
+		info,
 		store.PendingInteractionKindClarify,
 		requestID,
 	)
@@ -188,7 +189,7 @@ func (m *Manager) commitApplyClarifyAttentionEvent(
 		transition.Resolution = event.Answer.Resolution(question)
 		transition.ResolvedBy = event.ResolvedBy
 		if askingScope.RunID != "" && askingScope.Generation > 0 {
-			if target.Info().State != StateActive {
+			if info.State == StateStopping || info.State == StateStopped {
 				return store.SessionAttentionCommit{}, false, toolspkg.ErrClarifyCanceled
 			}
 			run, active := m.activePromptRunSnapshot(target.ID)

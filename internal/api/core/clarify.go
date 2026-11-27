@@ -85,10 +85,9 @@ func statusForClarifyError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, toolspkg.ErrClarifyNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, toolspkg.ErrClarifyPending), errors.Is(err, toolspkg.ErrClarifyCanceled),
-		errors.Is(err, store.ErrSessionInputQueueFull):
+	case errors.Is(err, toolspkg.ErrClarifyPending), errors.Is(err, toolspkg.ErrClarifyCanceled):
 		return http.StatusConflict
-	case errors.Is(err, toolspkg.ErrClarifyClosed):
+	case errors.Is(err, toolspkg.ErrClarifyClosed), errors.Is(err, store.ErrSessionInputQueueFull):
 		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError

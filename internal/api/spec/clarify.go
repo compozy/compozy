@@ -51,7 +51,11 @@ func clarifyOperationSpecs() []OperationSpec {
 				{Status: 400, Description: "Invalid clarification answer", Body: contract.ErrorPayload{}},
 				{Status: 404, Description: "Session or clarification not found", Body: contract.ErrorPayload{}},
 				{Status: 409, Description: "Clarification is no longer answerable", Body: contract.ErrorPayload{}},
-				{Status: 503, Description: "Clarification broker is not configured", Body: contract.ErrorPayload{}},
+				{
+					Status:      503,
+					Description: "Clarification broker is unavailable or the input queue is full",
+					Body:        contract.ErrorPayload{},
+				},
 			},
 		},
 	}
