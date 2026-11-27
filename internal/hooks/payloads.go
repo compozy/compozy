@@ -93,6 +93,7 @@ type ContextBlock struct {
 
 // ToolCallRef identifies a tool invocation in hook payloads.
 type ToolCallRef struct {
+	ComputerID       string `json:"computer_id,omitempty"`
 	ToolCallID       string `json:"tool_call_id,omitempty"`
 	ToolID           string `json:"tool_id,omitempty"`
 	ReadOnly         bool   `json:"read_only,omitempty"`

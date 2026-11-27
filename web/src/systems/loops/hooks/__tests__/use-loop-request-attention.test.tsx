@@ -47,7 +47,16 @@ describe("useLoopRequestAttention", () => {
 
     expect(useQueryMock).toHaveBeenCalledTimes(1);
     const options = useQueryMock.mock.calls[0]?.[0];
-    expect(options.queryKey).toEqual(["loops", "requests", "@all", "attention", "", "engineering"]);
+    expect(options.queryKey).toEqual([
+      "computer",
+      "local",
+      "loops",
+      "requests",
+      "@all",
+      "attention",
+      "",
+      "engineering",
+    ]);
     expect(options.enabled).toBe(true);
     expect(hook.current.pendingCount).toBe(6);
     expect(hook.current.items).toEqual([
@@ -64,7 +73,9 @@ describe("useLoopRequestAttention", () => {
       useLoopRequestAttention({ kind: "project", workspaceId: "ws-a" })
     );
 
-    expect(useQueryMock.mock.calls[0]?.[0].queryKey.slice(0, 4)).toEqual([
+    expect(useQueryMock.mock.calls[0]?.[0].queryKey.slice(0, 6)).toEqual([
+      "computer",
+      "local",
       "loops",
       "requests",
       "ws-a",
@@ -78,7 +89,7 @@ describe("useLoopRequestAttention", () => {
 
     const { result: hook } = renderHook(() => useLoopRequestAttention({ kind: "user" }));
 
-    expect(useQueryMock.mock.calls[0]?.[0].queryKey[2]).toBe("@user");
+    expect(useQueryMock.mock.calls[0]?.[0].queryKey[4]).toBe("@user");
     expect(hook.current.pendingCount).toBe(0);
     expect(hook.current.items[0]).toMatchObject({ workspaceId: "", stale: true });
     expect(hook.current.disconnected).toBe(true);

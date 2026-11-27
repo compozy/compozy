@@ -1373,6 +1373,7 @@ jobs:
       - name: Build signed desktop bundle
         if: steps.reuse.outputs.available != 'true'
         env:
+          COMPOZY_RELEASE_BUILD: "1"
           COMPOZY_RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
           COMPOZY_MIN_APP_VERSION: ${{ needs.desktop-compatibility.outputs.min_app_version }}
           COMPOZY_RELEASE_CHANNEL: ${{ needs.release-plan.outputs.desktop_channel }}
@@ -1588,6 +1589,8 @@ jobs:
 
       - name: Provision from an empty isolated home
         env:
+          COMPOZY_RELEASE_SMOKE_GATE: "1"
+          COMPOZY_RELEASE_SMOKE_ACCOUNT_TOKEN: ${{ secrets.COMPOZY_RELEASE_SMOKE_ACCOUNT_TOKEN }}
           RELEASE_CHANNEL: ${{ needs.release-plan.outputs.desktop_channel }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
@@ -1602,6 +1605,8 @@ jobs:
         env:
           RELEASE_CHANNEL: ${{ needs.release-plan.outputs.desktop_channel }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          COMPOZY_RELEASE_SMOKE_GATE: "1"
+          COMPOZY_RELEASE_SMOKE_ACCOUNT_TOKEN: ${{ secrets.COMPOZY_RELEASE_SMOKE_ACCOUNT_TOKEN }}
         run: |
           bash "${RUNNER_TEMP}/smoke-desktop-release-artifact.sh" \
             "${{ matrix.platform }}" \

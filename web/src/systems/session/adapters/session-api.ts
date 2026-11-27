@@ -1,4 +1,13 @@
-import { apiClient, apiRequestFailed, daemonFetch, requireResponseData } from "@/lib/api-client";
+import {
+  apiClient,
+  apiClientFor,
+  apiErrorCode,
+  apiErrorMessage,
+  apiRequestFailed,
+  daemonFetch,
+  requireResponseData,
+  type ComputerId,
+} from "@/lib/api-client";
 
 import type {
   ApproveSessionParams,
@@ -79,32 +88,46 @@ export type {
 } from "../types";
 import { sessionWorkspacePath } from "./session-workspace-path";
 
+/** Session creation result; carries `computer_id` when the daemon resolved `computer: "auto"`. */
+export type CreatedSessionPayload = SessionPayload & {
+  computer_id?: ComputerId;
+};
+
 export async function createSession(
   params: CreateSessionParams,
   /** The profile that will own the session. Omitting it files into `default`. */
   profile?: string,
-  signal?: AbortSignal
-): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST("/api/sessions", {
+  signal?: AbortSignal,
+  computerId?: ComputerId
+): Promise<CreatedSessionPayload> {
+  const { data, error, response } = await apiClientFor(computerId).POST("/api/sessions", {
     body: params,
     params: { query: profile ? { profile } : {} },
     signal,
   });
   if (apiRequestFailed(response, error)) {
     if (response.status === 409) {
+      if (apiErrorCode(error) || apiErrorMessage(error)) {
+        throwSessionRequestError(response, error, "Max sessions reached");
+      }
       throw new SessionApiError("Max sessions reached", 409);
     }
     throwSessionRequestError(response, error, "Failed to create session");
   }
-  return requireResponseData(data, response, "Failed to create session").session;
+  const payload = requireResponseData(data, response, "Failed to create session");
+  if (payload.computer_id) {
+    return { ...payload.session, computer_id: payload.computer_id };
+  }
+  return payload.session;
 }
 
 export async function fetchSession(
   workspaceId: string,
   id: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
       params: {
@@ -311,9 +334,10 @@ export async function sendSessionPrompt(
   workspaceId: string,
   id: string,
   params: SessionPromptRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPromptSendResult> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt",
     {
       params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
@@ -418,12 +442,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function isSessionEnvelope(value: unknown): value is { session: SessionPayload } {
-  if (!isPlainObject(value) || !("session" in value)) {
-    return false;
-  }
-
-  const session = value.session;
-  return isPlainObject(session) && typeof session.id === "string";
+  return (
+    isPlainObject(value) && isPlainObject(value.session) && typeof value.session.id === "string"
+  );
 }
 
 export async function clearSessionConversation(
@@ -431,36 +452,19 @@ export async function clearSessionConversation(
   id: string,
   signal?: AbortSignal
 ): Promise<SessionPayload> {
-  const request = new Request(
-    new URL(
-      `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/clear`,
-      typeof window === "undefined" ? "http://localhost" : window.location.origin
-    ),
-    {
-      method: "POST",
-      signal,
-    }
+  const origin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+  const path = `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/clear`;
+  const response = await daemonFetch(
+    new Request(new URL(path, origin), { method: "POST", signal })
   );
-
-  const response = await daemonFetch(request);
   if (!response.ok) {
-    if (response.status === 404) {
-      throw new SessionNotFoundError(id);
-    }
-    if (response.status === 409) {
-      throw new SessionApiError(
-        `Cannot clear session "${id}" while a prompt is still running`,
-        409,
-        id
-      );
-    }
-    throw new SessionApiError(
-      `Failed to clear session "${id}": ${response.status}`,
-      response.status,
-      id
-    );
+    if (response.status === 404) throw new SessionNotFoundError(id);
+    const message =
+      response.status === 409
+        ? `Cannot clear session "${id}" while a prompt is still running`
+        : `Failed to clear session "${id}": ${response.status}`;
+    throw new SessionApiError(message, response.status, id);
   }
-
   const body: unknown = await response.json();
   if (!isSessionEnvelope(body)) {
     throw new SessionApiError(
@@ -469,7 +473,6 @@ export async function clearSessionConversation(
       id
     );
   }
-
   return body.session;
 }
 

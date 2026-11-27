@@ -1,0 +1,17 @@
+{
+    "name": "@compozy/cloud-edge",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "test": "vitest run",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@cloudflare/containers": "0.3.7"
+    },
+    "devDependencies": {
+        "@cloudflare/workers-types": "5.20260730.1",
+        "esbuild": "0.28.2",
+        "miniflare": "4.20260730.0"
+    }
+}

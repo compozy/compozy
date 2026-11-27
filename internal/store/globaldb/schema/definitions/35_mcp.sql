@@ -13,6 +13,7 @@ CREATE TABLE mcp_auth_tokens (
 			expires_at     TEXT,
 			obtained_at    TEXT NOT NULL,
 			updated_at     TEXT NOT NULL,
+			requested_scopes_json TEXT NOT NULL DEFAULT '[]',
 			PRIMARY KEY (scope, workspace_id, owner, server_name),
 			CHECK (
 				(scope = 'user' AND workspace_id = '') OR

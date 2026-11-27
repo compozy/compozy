@@ -1,3 +1,5 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+
 /**
  * Every cached palette read is qualified by three axes, because the same command
  * id answers differently on each of them: the canonical workspace id, the profile
@@ -24,7 +26,7 @@ export function cmdPaletteProfileKey(profileKey: string): string {
 }
 
 export const cmdPaletteKeys = {
-  all: ["cmd-palette"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "cmd-palette"),
   approval: (profile: string, approvalId: string) =>
     [...cmdPaletteKeys.all, "approval", profile, approvalId] as const,
   catalogs: () => [...cmdPaletteKeys.all, "catalog"] as const,

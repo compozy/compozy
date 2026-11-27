@@ -1,6 +1,6 @@
 import "@/drafts/mcp-oauth-callback/callback.css";
 
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 import { BrowserFrame } from "@/drafts/mcp-oauth-callback/browser-frame";
 import { CallbackPage } from "@/drafts/mcp-oauth-callback/callback-page";

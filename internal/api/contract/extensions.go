@@ -22,19 +22,59 @@ const (
 
 // InstallExtensionRequest is the shared extension install request payload.
 type InstallExtensionRequest struct {
-	Enable               bool                            `json:"enable,omitzero"`
-	Scope                string                          `json:"scope,omitempty"`
-	WorkspaceID          string                          `json:"workspace_id,omitempty"`
-	Profile              string                          `json:"profile,omitempty"`
-	Inputs               map[string]extensioninput.Value `json:"inputs,omitempty"`
-	ExpectedDigest       string                          `json:"expected_digest,omitempty"`
-	Source               InstallExtensionSource          `json:"source"`
-	Ref                  string                          `json:"ref"`
-	Version              string                          `json:"version,omitempty"`
-	Asset                string                          `json:"asset,omitempty"`
-	AllowUnverified      bool                            `json:"allow_unverified,omitzero"`
-	Replace              bool                            `json:"replace,omitzero"`
-	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest,omitempty"`
+	Enable          bool                            `json:"enable,omitzero"`
+	Scope           string                          `json:"scope,omitempty"`
+	WorkspaceID     string                          `json:"workspace_id,omitempty"`
+	Profile         string                          `json:"profile,omitempty"`
+	Inputs          map[string]extensioninput.Value `json:"inputs,omitempty"`
+	ExpectedDigest  string                          `json:"expected_digest,omitempty"`
+	Source          InstallExtensionSource          `json:"source"`
+	Ref             string                          `json:"ref"`
+	Version         string                          `json:"version,omitempty"`
+	Asset           string                          `json:"asset,omitempty"`
+	AllowUnverified bool                            `json:"allow_unverified,omitzero"`
+	Replace         bool                            `json:"replace,omitzero"`
+	// WithDependencies consents to installing or enabling unmet dependencies first. Experimental.
+	WithDependencies bool `json:"with_dependencies,omitzero"`
+	// Dependencies carries per-dependency trust consent keyed by dependency name. Experimental.
+	Dependencies map[string]ExtensionDependencyConsent `json:"dependencies,omitempty"`
+}
+
+// ExtensionDependencyConsent is the trust consent for one dependency artifact. Experimental.
+type ExtensionDependencyConsent struct {
+	ExpectedDigest  string `json:"expected_digest,omitempty"`
+	AllowUnverified bool   `json:"allow_unverified,omitzero"`
+}
+
+// ExtensionDependencyPayload describes one node of an install dependency graph. Experimental.
+type ExtensionDependencyPayload struct {
+	Name             string   `json:"name"`
+	Source           string   `json:"source"`
+	Ref              string   `json:"ref"`
+	MinVersion       string   `json:"min_version,omitempty"`
+	RequiredBy       []string `json:"required_by"`
+	Depth            int      `json:"depth"`
+	State            string   `json:"state"`
+	InstalledVersion string   `json:"installed_version,omitempty"`
+	Version          string   `json:"version,omitempty"`
+	DigestSHA256     string   `json:"digest_sha256,omitempty"`
+	RegistryTier     string   `json:"registry_tier,omitempty"`
+	ConsentRequired  bool     `json:"consent_required,omitzero"`
+	RetryCommand     string   `json:"retry_command,omitempty"`
+}
+
+// ExtensionDependencyParentPayload names one parent that declared a conflicting dependency. Experimental.
+type ExtensionDependencyParentPayload struct {
+	Name   string `json:"name"`
+	Source string `json:"source"`
+	Ref    string `json:"ref"`
+}
+
+// ExtensionDependentPayload names one installed dependent that still needs a dependency. Experimental.
+type ExtensionDependentPayload struct {
+	Name        string `json:"name"`
+	WorkspaceID string `json:"workspace_id"`
+	Profile     string `json:"profile"`
 }
 
 // ExtensionValidationErrorPayload reports positioned extension validation failures.
@@ -42,6 +82,10 @@ type ExtensionValidationErrorPayload struct {
 	Error      string            `json:"error"`
 	Diagnostic *DiagnosticItem   `json:"diagnostic,omitzero"`
 	Issues     []ValidationIssue `json:"issues"`
+	// Dependency names the dependency whose package or consent failed validation. Experimental.
+	Dependency string `json:"dependency,omitempty"`
+	// DependenciesInstalled lists dependencies a failed consented install already installed. Experimental.
+	DependenciesInstalled []string `json:"dependencies_installed,omitempty"`
 }
 
 // ExtensionOperationErrorPayload is the deterministic extension lifecycle error envelope.
@@ -51,27 +95,40 @@ type ExtensionOperationErrorPayload struct {
 	ListedDigest     string                    `json:"listed_digest,omitempty"`
 	FetchedDigest    string                    `json:"fetched_digest,omitempty"`
 	InputID          string                    `json:"input_id,omitempty"`
+	InputIDs         []string                  `json:"input_ids,omitempty"`
 	Inputs           []string                  `json:"inputs,omitempty"`
+	Invalid          []string                  `json:"invalid,omitempty"`
 	MissingEnv       []string                  `json:"missing_env,omitempty"`
 	Error            string                    `json:"error"`
 	Code             string                    `json:"code"`
 	Diagnostic       *DiagnosticItem           `json:"diagnostic,omitzero"`
-	CurrentDigest    string                    `json:"current_digest,omitempty"`
 	Agents           []string                  `json:"agents,omitempty"`
 	EnvName          string                    `json:"env_name,omitempty"`
 	DeclaredEnv      []string                  `json:"declared_env,omitempty"`
+	// Dependency names the dependency whose gate refused. Experimental.
+	Dependency string `json:"dependency,omitempty"`
+	// Dependencies lists the unmet dependencies of an extension_dependencies_required refusal. Experimental.
+	Dependencies []ExtensionDependencyPayload `json:"dependencies,omitempty"`
+	// DependenciesInstalled lists dependencies a failed consented install already installed. Experimental.
+	DependenciesInstalled []string `json:"dependencies_installed,omitempty"`
+	// Reason, Path and Parents describe an extension_dependency_graph_invalid refusal. Experimental.
+	Reason       string                             `json:"reason,omitempty"`
+	Path         []string                           `json:"path,omitempty"`
+	Parents      []ExtensionDependencyParentPayload `json:"parents,omitempty"`
+	RetryCommand string                             `json:"retry_command,omitempty"`
+	// Dependents lists the installed dependents of an extension_dependency_in_use refusal. Experimental.
+	Dependents []ExtensionDependentPayload `json:"dependents,omitempty"`
 }
 
 // UpdateExtensionRequest is the shared marketplace extension update payload.
 type UpdateExtensionRequest struct {
-	Scope                string                          `json:"scope,omitempty"`
-	WorkspaceID          string                          `json:"workspace_id,omitempty"`
-	Profile              string                          `json:"profile,omitempty"`
-	Inputs               map[string]extensioninput.Value `json:"inputs,omitempty"`
-	Version              string                          `json:"version,omitempty"`
-	CheckOnly            bool                            `json:"check_only,omitzero"`
-	AllowUnverified      bool                            `json:"allow_unverified,omitzero"`
-	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest,omitempty"`
+	Scope           string                          `json:"scope,omitempty"`
+	WorkspaceID     string                          `json:"workspace_id,omitempty"`
+	Profile         string                          `json:"profile,omitempty"`
+	Inputs          map[string]extensioninput.Value `json:"inputs,omitempty"`
+	Version         string                          `json:"version,omitempty"`
+	CheckOnly       bool                            `json:"check_only,omitzero"`
+	AllowUnverified bool                            `json:"allow_unverified,omitzero"`
 }
 
 // UpdateExtensionsRequest selects one or more managed extension updates.
@@ -89,20 +146,17 @@ type UpdateExtensionsRequest struct {
 
 // DevLinkExtensionRequest links one immutable generation under the caller's trusted workspace.
 type DevLinkExtensionRequest struct {
-	OriginPath           string `json:"origin_path"`
-	GenerationHash       string `json:"generation_hash"`
-	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
+	OriginPath     string `json:"origin_path"`
+	GenerationHash string `json:"generation_hash"`
 }
 
 // ReloadExtensionRequest swaps one dev-linked extension to an immutable generation.
 type ReloadExtensionRequest struct {
-	GenerationHash       string `json:"generation_hash"`
-	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
+	GenerationHash string `json:"generation_hash"`
 }
 
-// EnableExtensionRequest carries digest-exact gateway permission consent.
+// EnableExtensionRequest selects where to enable the extension.
 type EnableExtensionRequest struct {
-	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
 }
 
 // ExtensionSecretBindingInput is one write-only value or existing Vault binding.
@@ -179,54 +233,56 @@ type ExtensionProvenancePayload struct {
 // ExtensionPayload is the shared extension response payload surfaced by CLI APIs.
 type ExtensionPayload struct {
 	// InstallEnableError carries the install outcome to transport envelopes without changing inventory JSON.
-	InstallEnableError          *ExtensionEnableError             `json:"-"`
-	Description                 string                            `json:"description,omitempty"`
-	InstallationProfile         string                            `json:"installation_profile,omitempty"`
-	Layout                      string                            `json:"layout,omitempty"`
-	MCPServers                  []MarketplaceServerPayload        `json:"mcp_servers,omitempty"`
-	Inputs                      []ExtensionInputStatePayload      `json:"inputs,omitempty"`
-	MissingInputs               []string                          `json:"missing_inputs,omitempty"`
-	Contents                    ExtensionContentsPayload          `json:"contents"`
-	Origin                      *MarketplaceOriginPayload         `json:"origin,omitzero"`
-	Name                        string                            `json:"name"`
-	Profile                     string                            `json:"profile"`
-	WorkspaceID                 string                            `json:"workspace_id,omitempty"`
-	Version                     string                            `json:"version"`
-	Type                        string                            `json:"type"`
-	Format                      string                            `json:"format"`
-	Source                      string                            `json:"source"`
-	Enabled                     bool                              `json:"enabled"`
-	State                       string                            `json:"state"`
-	Capabilities                []string                          `json:"capabilities,omitempty"`
-	Permissions                 []string                          `json:"permissions,omitempty"`
-	RequiresEnv                 []string                          `json:"requires_env,omitempty"`
-	MissingEnv                  []string                          `json:"missing_env,omitempty"`
-	BoundEnvKeys                []string                          `json:"bound_env_keys,omitempty"`
-	GatewayRequirementDigest    string                            `json:"gateway_requirement_digest,omitempty"`
-	GatewayConfirmationRequired bool                              `json:"gateway_confirmation_required"`
-	PID                         int                               `json:"pid,omitzero"`
-	UptimeSeconds               int64                             `json:"uptime_seconds,omitzero"`
-	Health                      string                            `json:"health,omitempty"`
-	HealthMessage               string                            `json:"health_message,omitempty"`
-	LastError                   string                            `json:"last_error,omitempty"`
-	FailureCode                 string                            `json:"failure_code,omitempty"`
-	ConsecutiveFailures         int                               `json:"consecutive_failures"`
-	RestartBackoffMS            int64                             `json:"restart_backoff_ms"`
-	GenerationHash              string                            `json:"generation_hash,omitempty"`
-	Dev                         bool                              `json:"dev,omitzero"`
-	OverridesPublished          bool                              `json:"overrides_published,omitzero"`
-	OriginPath                  string                            `json:"origin_path,omitempty"`
-	UpdateAvailable             bool                              `json:"update_available"`
-	RemoteVersion               string                            `json:"remote_version,omitempty"`
-	DigestMatched               bool                              `json:"digest_matched"`
-	DaemonRunning               bool                              `json:"daemon_running"`
-	Provenance                  *ExtensionProvenancePayload       `json:"provenance,omitzero"`
-	Marketplace                 *MarketplaceListingPayload        `json:"marketplace,omitzero"`
-	Trust                       *ExtensionTrustReportPayload      `json:"trust,omitzero"`
-	Diagnostics                 []DiagnosticItem                  `json:"diagnostics,omitempty"`
-	DeclaredProfiles            []ExtensionDeclaredProfilePayload `json:"declared_profiles,omitempty"`
-	Placements                  []ExtensionPlacementPayload       `json:"placements,omitempty"`
-	DormantPlacements           []ExtensionPlacementPayload       `json:"dormant_placements,omitempty"`
+	InstallEnableError *ExtensionEnableError `json:"-"`
+	// InstallDependenciesInstalled carries the consented dependency installs to transport envelopes. Experimental.
+	InstallDependenciesInstalled []string                     `json:"-"`
+	Description                  string                       `json:"description,omitempty"`
+	InstallationProfile          string                       `json:"installation_profile,omitempty"`
+	Layout                       string                       `json:"layout,omitempty"`
+	MCPServers                   []MarketplaceServerPayload   `json:"mcp_servers,omitempty"`
+	Inputs                       []ExtensionInputStatePayload `json:"inputs,omitempty"`
+	MissingInputs                []string                     `json:"missing_inputs,omitempty"`
+	// UnmetDependencies lists the declared dependencies this instance does not currently meet. Experimental.
+	UnmetDependencies   []ExtensionDependencyPayload      `json:"unmet_dependencies,omitempty"`
+	Contents            ExtensionContentsPayload          `json:"contents"`
+	Origin              *MarketplaceOriginPayload         `json:"origin,omitzero"`
+	Name                string                            `json:"name"`
+	Profile             string                            `json:"profile"`
+	WorkspaceID         string                            `json:"workspace_id,omitempty"`
+	Version             string                            `json:"version"`
+	Type                string                            `json:"type"`
+	Format              string                            `json:"format"`
+	Source              string                            `json:"source"`
+	Enabled             bool                              `json:"enabled"`
+	State               string                            `json:"state"`
+	Capabilities        []string                          `json:"capabilities,omitempty"`
+	Permissions         []string                          `json:"permissions,omitempty"`
+	RequiresEnv         []string                          `json:"requires_env,omitempty"`
+	MissingEnv          []string                          `json:"missing_env,omitempty"`
+	BoundEnvKeys        []string                          `json:"bound_env_keys,omitempty"`
+	PID                 int                               `json:"pid,omitzero"`
+	UptimeSeconds       int64                             `json:"uptime_seconds,omitzero"`
+	Health              string                            `json:"health,omitempty"`
+	HealthMessage       string                            `json:"health_message,omitempty"`
+	LastError           string                            `json:"last_error,omitempty"`
+	FailureCode         string                            `json:"failure_code,omitempty"`
+	ConsecutiveFailures int                               `json:"consecutive_failures"`
+	RestartBackoffMS    int64                             `json:"restart_backoff_ms"`
+	GenerationHash      string                            `json:"generation_hash,omitempty"`
+	Dev                 bool                              `json:"dev,omitzero"`
+	OverridesPublished  bool                              `json:"overrides_published,omitzero"`
+	OriginPath          string                            `json:"origin_path,omitempty"`
+	UpdateAvailable     bool                              `json:"update_available"`
+	RemoteVersion       string                            `json:"remote_version,omitempty"`
+	DigestMatched       bool                              `json:"digest_matched"`
+	DaemonRunning       bool                              `json:"daemon_running"`
+	Provenance          *ExtensionProvenancePayload       `json:"provenance,omitzero"`
+	Marketplace         *MarketplaceListingPayload        `json:"marketplace,omitzero"`
+	Trust               *ExtensionTrustReportPayload      `json:"trust,omitzero"`
+	Diagnostics         []DiagnosticItem                  `json:"diagnostics,omitempty"`
+	DeclaredProfiles    []ExtensionDeclaredProfilePayload `json:"declared_profiles,omitempty"`
+	Placements          []ExtensionPlacementPayload       `json:"placements,omitempty"`
+	DormantPlacements   []ExtensionPlacementPayload       `json:"dormant_placements,omitempty"`
 }
 
 // ExtensionDeclaredProfilePayload reports one manifest-declared profile and its live setup state.
@@ -290,14 +346,12 @@ type ExtensionKitChangePayload struct {
 
 // ExtensionEnablePreviewPayload is the mutation-free enable projection.
 type ExtensionEnablePreviewPayload struct {
-	MissingInputs               []string                    `json:"missing_inputs"`
-	Extension                   string                      `json:"extension"`
-	Changes                     []ExtensionKitChangePayload `json:"changes"`
-	AgentConflicts              []string                    `json:"agent_conflicts"`
-	MissingEnv                  []string                    `json:"missing_env"`
-	AutomationStarting          []string                    `json:"automation_starting"`
-	GatewayRequirementDigest    string                      `json:"gateway_requirement_digest"`
-	GatewayConfirmationRequired bool                        `json:"gateway_confirmation_required"`
+	MissingInputs      []string                    `json:"missing_inputs"`
+	Extension          string                      `json:"extension"`
+	Changes            []ExtensionKitChangePayload `json:"changes"`
+	AgentConflicts     []string                    `json:"agent_conflicts"`
+	MissingEnv         []string                    `json:"missing_env"`
+	AutomationStarting []string                    `json:"automation_starting"`
 }
 
 // ExtensionCommandPayload is one executable command leaf projected from an active extension tool.

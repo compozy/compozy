@@ -1,4 +1,5 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 
 import {
   fetchAgent,
@@ -268,10 +269,18 @@ export function agentAggregateOptions(
   });
 }
 
-export function agentsListOptions(workspace?: string | null, profile = "default") {
+export function agentsListOptions(
+  workspace?: string | null,
+  profile = "default",
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const keys = agentKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: agentKeys.list(workspace, profile),
-    queryFn: ({ signal }) => fetchAgents(workspace, signal, profile),
+    queryKey: keys.list(workspace, profile),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchAgents(workspace, signal, profile, computerId)
+        : fetchAgents(workspace, signal, profile),
     staleTime: 60_000,
   });
 }

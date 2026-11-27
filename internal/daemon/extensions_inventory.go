@@ -3,7 +3,6 @@ package daemon
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -87,10 +86,6 @@ func (s *daemonExtensionService) previewExtensionTarget(
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
-	gatewayDigest, gatewayConfirmationRequired, err := candidateGatewayConfirmationRequirement(&ext.Info, ext.Manifest)
-	if err != nil {
-		return contract.ExtensionEnablePreviewPayload{}, err
-	}
 	conflicts, err := s.extensionAgentConflicts(ctx, ext)
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
@@ -104,14 +99,12 @@ func (s *daemonExtensionService) previewExtensionTarget(
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
 	return contract.ExtensionEnablePreviewPayload{
-		Extension:                   ext.Info.Name,
-		Changes:                     changes,
-		AgentConflicts:              conflicts,
-		MissingEnv:                  slices.Clone(status.MissingEnv),
-		MissingInputs:               slices.Clone(status.MissingInputs),
-		AutomationStarting:          automationStarting,
-		GatewayRequirementDigest:    gatewayDigest,
-		GatewayConfirmationRequired: gatewayConfirmationRequired,
+		Extension:          ext.Info.Name,
+		Changes:            changes,
+		AgentConflicts:     conflicts,
+		MissingEnv:         slices.Clone(status.MissingEnv),
+		MissingInputs:      slices.Clone(status.MissingInputs),
+		AutomationStarting: automationStarting,
 	}, nil
 }
 
@@ -361,8 +354,9 @@ func (s *daemonExtensionService) previewExtensionAutomation(
 	ext *extensionpkg.Extension,
 	changes []contract.ExtensionKitChangePayload,
 ) ([]string, error) {
+	// A daemon with automation disabled wires no previewer and starts no package automation.
 	if s.automation == nil {
-		return nil, errors.New("daemon: extension automation previewer is required")
+		return nil, nil
 	}
 	jobs := slices.Clone(ext.AutomationJobs)
 	triggers := slices.Clone(ext.AutomationTriggers)

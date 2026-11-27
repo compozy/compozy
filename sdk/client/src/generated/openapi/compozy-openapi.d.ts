@@ -4,6 +4,266 @@
  */
 
 export interface paths {
+  "/api/account": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the installation account */
+    get: operations["getAccount"];
+    put?: never;
+    post?: never;
+    /** Start account deletion and sign out */
+    delete: operations["deleteAccount"];
+    options?: never;
+    head?: never;
+    /** Update the product news preference */
+    patch: operations["patchAccountEmail"];
+    trace?: never;
+  };
+  "/api/account/approvals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List pending and recently decided approvals */
+    get: operations["listAccountApprovals"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/approvals/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read an approval and its applied result */
+    get: operations["getAccountApproval"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/approvals/{id}/decision": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Deliver an approval decision */
+    post: operations["decideAccountApproval"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/billing-portal": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Open account billing */
+    post: operations["accountBillingPortal"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/checkout": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start a Pro checkout */
+    post: operations["checkoutAccount"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/devices": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the account's devices */
+    get: operations["listAccountDevices"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/devices/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Revoke a device on this account */
+    delete: operations["revokeAccountDevice"];
+    options?: never;
+    head?: never;
+    /** Update a device on this account */
+    patch: operations["patchAccountDevice"];
+    trace?: never;
+  };
+  "/api/account/login": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start account sign-in */
+    post: operations["startAccountLogin"];
+    /** Cancel account sign-in */
+    delete: operations["cancelAccountLogin"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/logout": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Sign out this installation */
+    post: operations["logoutAccount"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/sign-in-notices/dismiss": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Dismiss sign-in notices on this installation */
+    post: operations["dismissAccountSignInNotices"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/sign-in/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream anonymous sign-in progress */
+    get: operations["streamAccountSignIn"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream changes for the active account */
+    get: operations["streamAccount"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/tokens": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List account tokens */
+    get: operations["listAccountTokens"];
+    put?: never;
+    /** Create an account token for local use */
+    post: operations["createAccountToken"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/tokens/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Revoke an account token */
+    delete: operations["revokeAccountToken"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent-instances": {
     parameters: {
       query?: never;
@@ -1509,6 +1769,197 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/computers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List computers added to this controller */
+    get: operations["listComputers"];
+    put?: never;
+    /** Add a linked account computer or start SSH setup */
+    post: operations["addAccountComputer"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/computers/available": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List linked computers available to add */
+    get: operations["listAvailableComputers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/computers/local": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update local execution and load balancing */
+    patch: operations["patchLocalComputer"];
+    trace?: never;
+  };
+  "/api/computers/placement": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resolve Auto placement for a project */
+    post: operations["previewComputerPlacement"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/computers/setups/{setup_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read or wait for SSH setup progress */
+    get: operations["getComputerSetup"];
+    put?: never;
+    post?: never;
+    /** Cancel an unlinked SSH setup */
+    delete: operations["cancelComputerSetup"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/computers/setups/{setup_id}/answer": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Answer an SSH setup prompt */
+    post: operations["answerComputerSetup"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/computers/ssh-hosts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Discover SSH hosts on the controller */
+    get: operations["listComputerSSHHosts"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/computers/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream changes for the active account's computers */
+    get: operations["streamComputers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/computers/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect a computer and its routes */
+    get: operations["getComputer"];
+    put?: never;
+    post?: never;
+    /** Remove a computer from this controller */
+    delete: operations["removeComputer"];
+    options?: never;
+    head?: never;
+    /** Update a computer in this controller */
+    patch: operations["patchComputer"];
+    trace?: never;
+  };
+  "/api/computers/{id}/routes/{route_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Remove a learned route */
+    delete: operations["removeComputerRoute"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/computers/{id}/update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start an SSH computer update */
+    post: operations["startComputerUpdate"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/daemon/profile/{kind}": {
     parameters: {
       query?: never;
@@ -1700,6 +2151,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/extensions/{name}/inputs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read declared extension inputs and their setup state without values */
+    get: operations["getExtensionInputs"];
+    /** Write extension input values for one installed instance */
+    put: operations["setExtensionInputs"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/extensions/{name}/inventory": {
     parameters: {
       query?: never;
@@ -1854,228 +2323,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/gateway/audit": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Audit the current gateway security posture */
-    get: operations["getGatewayAudit"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/devices": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List the operator-global paired device inventory */
-    get: operations["listGatewayDevices"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/devices/{id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Revoke one paired gateway device and its live streams */
-    delete: operations["revokeGatewayDevice"];
-    options?: never;
-    head?: never;
-    /** Rename one paired gateway device */
-    patch: operations["renameGatewayDevice"];
-    trace?: never;
-  };
-  "/api/gateway/devices/{id}/record": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Remove one paired gateway device record */
-    delete: operations["removeGatewayDevice"];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/ingress-bindings": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Confirm one subject against the verified public endpoint */
-    post: operations["bindGatewayIngress"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Remove one public ingress confirmation */
-    delete: operations["unbindGatewayIngress"];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/pairings": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Mint a bounded one-time gateway pairing artifact */
-    post: operations["mintGatewayPairing"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/pairings/redeem": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Redeem a one-time gateway pairing artifact */
-    post: operations["redeemGatewayPairing"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/providers/{name}/disable": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Disable one named connectivity provider for a gateway tier */
-    post: operations["disableGatewayProvider"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/providers/{name}/enable": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Enable one connectivity provider for a gateway tier */
-    post: operations["enableGatewayProvider"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get the operator-global gateway posture */
-    get: operations["getGatewayStatus"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/stream-tickets": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Mint a short-lived single-use stream ticket */
-    post: operations["mintGatewayStreamTicket"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/surfaces": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Set durable exposure for one gateway surface */
-    post: operations["setGatewaySurface"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/hooks/catalog": {
     parameters: {
       query?: never;
@@ -2105,6 +2352,57 @@ export interface paths {
     put?: never;
     post?: never;
     delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/host/resources": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the latest host resource sample */
+    get: operations["getHostResources"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/ingress/bindings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirm one subject against the verified public endpoint */
+    post: operations["bindIngress"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/ingress/bindings/{subject_kind}/{subject_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Remove one public ingress confirmation */
+    delete: operations["unbindIngress"];
     options?: never;
     head?: never;
     patch?: never;
@@ -2327,6 +2625,40 @@ export interface paths {
     get: operations["completeMCPAuthCallback"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/migration-notices": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List undismissed upgrade notices on this computer */
+    get: operations["listMigrationNotices"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/migration-notices/{key}/dismiss": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Dismiss an upgrade notice on this computer */
+    post: operations["dismissMigrationNotice"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2984,6 +3316,77 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/remote": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read this computer's remote access status */
+    get: operations["getRemoteStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update this computer's remote access */
+    patch: operations["patchRemoteStatus"];
+    trace?: never;
+  };
+  "/api/remote/devices": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List devices allowed on this computer */
+    get: operations["listRemoteDevices"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/remote/devices/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Revoke a device on this account */
+    delete: operations["revokeRemoteDevice"];
+    options?: never;
+    head?: never;
+    /** Change device scopes or decide a local approval */
+    patch: operations["patchRemoteDevice"];
+    trace?: never;
+  };
+  "/api/remote/link": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Link this computer from the local daemon */
+    post: operations["linkRemote"];
+    /** Unlink this computer from the local daemon */
+    delete: operations["unlinkRemote"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/resources": {
     parameters: {
       query?: never;
@@ -3287,6 +3690,23 @@ export interface paths {
     put?: never;
     /** Create a session */
     post: operations["createSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/archive-stopped": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Archive every stopped thread of one workspace or all workspaces that is not running, waiting on the operator, holding queued input, pinned, in Later, or an always-on agent's main session; dry_run reports the same result without archiving */
+    post: operations["archiveStoppedSessions"];
     delete?: never;
     options?: never;
     head?: never;
@@ -8494,6 +8914,92 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/remote/v1/browser/approvals/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the approval for the waiting browser key */
+    get: operations["getBrowserApproval"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/remote/v1/browser/peers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List other hosted computers on this account */
+    get: operations["listBrowserPeers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/remote/v1/browser/session": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Redeem a hosted sign-in code */
+    post: operations["startBrowserSession"];
+    /** Revoke the current browser session */
+    delete: operations["endBrowserSession"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/remote/v1/browser/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the hosted listener status */
+    get: operations["getBrowserStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/remote/v1/stream-tickets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mint a single-use ticket for one stream path */
+    post: operations["mintBrowserStreamTicket"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -8520,6 +9026,161 @@ export interface components {
       bool_value?: boolean | null;
       id: string;
       value_id?: string;
+    };
+    AccountApproval: {
+      applied_result: string | null;
+      can_decide: boolean;
+      computer_id: string;
+      /** Format: date-time */
+      created_at: string;
+      device_name: string;
+      id: string;
+      key_fingerprint: string;
+      state: string;
+    };
+    AccountApprovalDecisionRequest: {
+      approve: boolean | null;
+    };
+    AccountApprovalsResponse: {
+      approvals: components["schemas"]["AccountApproval"][];
+    };
+    AccountBillingResponse: {
+      url: string;
+    };
+    AccountCheckoutRequest: {
+      interval: string;
+    };
+    AccountDeleteRequest: {
+      confirm_email: string;
+    };
+    AccountDeleteResponse: {
+      refund: string;
+      state: string;
+      subscription_cancelled: boolean;
+    };
+    AccountDevice: {
+      admin: boolean;
+      id: string;
+      kind: string;
+      /** Format: date-time */
+      last_seen_at: string;
+      name: string;
+      this_device: boolean;
+    };
+    AccountDevicePatch: {
+      admin?: boolean | null;
+      name?: string | null;
+      scopes?: {
+        [key: string]: string[];
+      };
+    };
+    AccountDeviceSummary: {
+      admin: boolean;
+      id: string;
+      name: string;
+    };
+    AccountDevicesResponse: {
+      devices: components["schemas"]["AccountDevice"][];
+    };
+    AccountEmailPatchRequest: {
+      marketing_opt_in: boolean | null;
+      source?: string;
+    };
+    AccountGrace: {
+      message: string;
+      source: string;
+      /** Format: date-time */
+      until: string;
+    };
+    AccountLoginRequest: {
+      marketing_opt_in: boolean;
+      provider: string | null;
+    };
+    AccountLoginResponse: {
+      attempt_id: string;
+      /** Format: date-time */
+      expires_at: string;
+      user_code: string;
+      verification_uri: string;
+      verification_uri_complete: string;
+    };
+    AccountLogoutRequest: {
+      unlink: boolean;
+    };
+    AccountLogoutResponse: {
+      state: string;
+    };
+    AccountSignInNotice: {
+      /** Format: date-time */
+      at: string;
+      device_id: string;
+      kind: string;
+      location: string;
+      name: string;
+    };
+    AccountSignInProgress: {
+      attempt_id: string;
+      code?: string;
+      new_account?: boolean;
+      state: string;
+    };
+    AccountStatePayload: {
+      signed_out_reason: string | null;
+      state: string;
+    };
+    AccountStatusResponse: {
+      /** Format: int64 */
+      cloud_routes_limit: number;
+      /** Format: int64 */
+      cloud_routes_used: number;
+      device: components["schemas"]["AccountDeviceSummary"] | null;
+      email?: string;
+      gate: string;
+      grace: components["schemas"]["AccountGrace"] | null;
+      installation_linked: boolean;
+      marketing_opt_in: boolean;
+      name?: string;
+      payment_issue: boolean;
+      plan: string;
+      pre_account_install: boolean;
+      provider?: string;
+      recent_sign_ins: components["schemas"]["AccountSignInNotice"][];
+      /** Format: int64 */
+      remote_computers_limit: number | null;
+      /** Format: int64 */
+      remote_computers_used: number;
+      signed_in: boolean;
+      signed_out_reason: string | null;
+      source: string | null;
+      state: string;
+      subscription: components["schemas"]["AccountSubscription"] | null;
+      token_name: string | null;
+    };
+    AccountSubscription: {
+      cancel_at_period_end: boolean;
+      /** Format: date-time */
+      current_period_end: string | null;
+      interval: string | null;
+      /** Format: date-time */
+      refund_eligible_until: string | null;
+      source: string;
+    };
+    AccountToken: {
+      id: string;
+      /** Format: date-time */
+      last_used_at: string | null;
+      name: string;
+    };
+    AccountTokenCreate: {
+      name: string;
+    };
+    AccountTokenCreated: {
+      id: string;
+      name: string;
+      token: string;
+    };
+    AccountTokenList: {
+      tokens: components["schemas"]["AccountToken"][];
     };
     AcknowledgeAttentionRequest: {
       id?: string;
@@ -8565,6 +9226,15 @@ export interface components {
       /** @enum {string} */
       kind: "human" | "agent_session" | "automation" | "extension" | "daemon";
       ref: string;
+    };
+    AddComputerRequest: {
+      computer_id?: string;
+      host?: string;
+      kind: string;
+      name?: string;
+      port?: number;
+      trust_host_fingerprint?: string;
+      user?: string;
     };
     AddMarketplaceSourceRequest: {
       name?: string;
@@ -9229,7 +9899,7 @@ export interface components {
     AgentSkillRevertConflictPayload: {
       code: string;
       error: string;
-      reason: string;
+      reason?: string;
     };
     AgentSkillRevertEligibility: {
       allowed: boolean;
@@ -9492,6 +10162,27 @@ export interface components {
     AppTokensResponse: {
       app_tokens: components["schemas"]["AppTokenPayload"][];
     };
+    Approval: {
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      decided_at: string | null;
+      device_id: string;
+      /** Format: date-time */
+      expires_at: string;
+      id: string;
+      jkt: string;
+      name: string;
+      state: string;
+    };
+    ApprovalDelivery: {
+      approval_id: string;
+      state: string;
+    };
+    ApprovalResult: {
+      id: string;
+      result: string;
+    };
     ApproveLoopRunRequest: {
       /** @enum {string} */
       decision: "approve" | "request_changes" | "reject";
@@ -9672,6 +10363,15 @@ export interface components {
       task_id?: string;
       workflow_id?: string;
     };
+    AvailableComputer: {
+      added: boolean;
+      id: string;
+      name: string;
+      online: boolean;
+    };
+    AvailableComputersResponse: {
+      computers: components["schemas"]["AvailableComputer"][];
+    };
     BindSessionWorktreeRequest: {
       expected_worktree_id?: string | null;
       worktree: string;
@@ -9716,6 +10416,36 @@ export interface components {
       status: string;
       tone: string;
       usage: components["schemas"]["RunUsage"];
+    };
+    BrowserApprovalStatus: {
+      approval_id: string;
+      /** Format: date-time */
+      expires_at: string;
+      state: string;
+    };
+    BrowserPeersResponse: {
+      peers: components["schemas"]["HostedPeer"][];
+    };
+    BrowserSessionRequest: {
+      code: string;
+      code_verifier: string;
+    };
+    BrowserSessionResponse: {
+      /** Format: int64 */
+      expires_at: number;
+      scopes: string[];
+      session_id: string;
+    };
+    BrowserStatus: {
+      state: string;
+    };
+    BrowserStreamTicketRequest: {
+      path: string;
+    };
+    BrowserStreamTicketResponse: {
+      /** Format: date-time */
+      expires_at: string;
+      ticket: string;
     };
     Budget: {
       /** @enum {string} */
@@ -9766,6 +10496,18 @@ export interface components {
       category?: string;
       keywords?: string[];
       use_when?: string;
+    };
+    Change: {
+      approval?: components["schemas"]["ApprovalResult"] | null;
+      approval_id?: string;
+      computer_id?: string;
+      device_id?: string;
+      evict_remote?: boolean;
+      kind?: string;
+      payment_issue?: boolean | null;
+      plan?: string;
+      /** Format: uint64 */
+      security_epoch?: number;
     };
     ChangeBasePayload: {
       merge_base_sha: string;
@@ -10047,6 +10789,115 @@ export interface components {
       created_task_ids?: string[];
       result?: unknown;
     };
+    Computer: {
+      account_id: string;
+      /** Format: date-time */
+      added_at: string;
+      diagnosis: components["schemas"]["ComputerDiagnosis"] | null;
+      enabled: boolean;
+      id: string;
+      /** Format: date-time */
+      last_connected_at: string | null;
+      load_balancing_weight: number;
+      name: string;
+      plan_state: string;
+      platform: string;
+      protocol: components["schemas"]["ProtocolRange"] | null;
+      route_in_use: components["schemas"]["ComputerRouteInUse"] | null;
+      routes: components["schemas"]["ComputerRoute"][];
+      scopes: string[];
+      status: string;
+      version: string;
+    };
+    ComputerChange: {
+      answered?: boolean;
+      computer?: components["schemas"]["Computer"] | null;
+      computer_id?: string;
+      error?: components["schemas"]["ErrorPayload"] | null;
+      prompt?: components["schemas"]["ComputerSetupPrompt"] | null;
+      removed?: boolean;
+      setup_id?: string;
+      state?: string;
+      step?: string;
+    };
+    ComputerDiagnosis: {
+      /** Format: date-time */
+      at: string;
+      code: string;
+      message: string;
+      step: string;
+    };
+    ComputerEvent: {
+      data: components["schemas"]["ComputerChange"];
+      event: string;
+      id: string;
+    };
+    ComputerListResponse: {
+      computers: components["schemas"]["Computer"][];
+      local: components["schemas"]["LocalComputer"];
+    };
+    ComputerPlacementRequest: {
+      project_computer_id?: string;
+      workspace: string;
+    };
+    ComputerPlacementResponse: {
+      computer_id: string;
+      name: string;
+      workspace_id: string;
+    };
+    ComputerRoute: {
+      address: string;
+      id: string;
+      in_use: boolean;
+      kind: string;
+      last_error: string | null;
+      learned: boolean;
+    };
+    ComputerRouteInUse: {
+      id: string;
+      kind: string;
+      label: string;
+    };
+    ComputerSSHHost: {
+      alias: string;
+      hostname: string;
+      port: number;
+      source: string;
+      user: string;
+    };
+    ComputerSSHHostsResponse: {
+      hosts: components["schemas"]["ComputerSSHHost"][];
+    };
+    ComputerSetupAnswer: {
+      accept?: boolean | null;
+      kind: string;
+      value?: string;
+    };
+    ComputerSetupCanceled: {
+      setup_id: string;
+      state: string;
+    };
+    ComputerSetupPrompt: {
+      fingerprint?: string;
+      host?: string;
+      kind: string;
+    };
+    ComputerSetupStarted: {
+      computer_id: string | null;
+      setup_id: string;
+    };
+    ComputerSetupStatus: {
+      computer_id: string | null;
+      error: components["schemas"]["ErrorPayload"] | null;
+      prompt: components["schemas"]["ComputerSetupPrompt"] | null;
+      prompt_kind?: string;
+      setup_id: string;
+      state: string;
+      step: string;
+    };
+    ComputerUpdateStarted: {
+      setup_id: string;
+    };
     ConfigApplyRecordPayload: {
       active_config_hash: string;
       actor: string;
@@ -10166,6 +11017,27 @@ export interface components {
       on_exhausted?: components["schemas"]["EffectSpec"][];
       on_failed?: components["schemas"]["EffectSpec"][];
       on_noop?: components["schemas"]["EffectSpec"][];
+      on_result?: {
+        [key: string]:
+          | ("continue" | "done" | "next_generation" | "halt" | "escalate")
+          | {
+              /** @enum {string} */
+              action: "continue" | "done" | "next_generation" | "escalate";
+            }
+          | {
+              /** @enum {string} */
+              action: "halt";
+              /** @enum {string} */
+              terminal_status?:
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+            };
+      };
       on_stalled?: components["schemas"]["EffectSpec"][];
       runtime_defaults?: components["schemas"]["RuntimeDefaults"] | null;
       runtime_rules?: components["schemas"]["RuntimeRule"][];
@@ -10492,11 +11364,13 @@ export interface components {
     };
     CreateSessionRequest: {
       agent_name?: string;
+      computer?: string;
       folder_id?: string;
       lineage_kind?: string;
       name?: string;
       new_worktree?: components["schemas"]["NewSessionWorktreeRequest"] | null;
       parent_session_id?: string;
+      project_computer_id?: string;
       scope?: string;
       workspace?: string;
       workspace_path?: string;
@@ -10613,7 +11487,6 @@ export interface components {
     };
     DaemonStatusPayload: {
       active_sessions: number;
-      gateway?: components["schemas"]["GatewayStatusPayload"] | null;
       http_host: string;
       http_port: number;
       min_app_version: string;
@@ -10669,7 +11542,6 @@ export interface components {
       metadata?: components["schemas"]["MetaField"][];
     };
     DevLinkExtensionRequest: {
-      confirm_gateway_digest?: string;
       generation_hash: string;
       origin_path: string;
     };
@@ -10691,6 +11563,10 @@ export interface components {
       severity: string;
       suggested_command?: string;
       title: string;
+    };
+    DirectStatus: {
+      addresses?: string[];
+      enabled: boolean;
     };
     DiscoveredWorktreePayload: {
       branch: string;
@@ -10820,6 +11696,11 @@ export interface components {
       idempotency_key?: string;
       metadata?: unknown;
     };
+    EntitlementStatus: {
+      plan: string;
+      /** Format: date-time */
+      valid_until: string;
+    };
     Entry: {
       message: components["schemas"]["UIMessage"];
       /** Format: int64 */
@@ -10845,6 +11726,11 @@ export interface components {
       provider_error?: string;
       retryable?: boolean;
       unknown_keys?: string[];
+    };
+    Event: {
+      data: components["schemas"]["Change"];
+      event: string;
+      id: string;
     };
     ExecutionPolicy: {
       retry_safe: boolean;
@@ -10897,6 +11783,35 @@ export interface components {
       name: string;
       needs_setup: boolean;
     };
+    ExtensionDependencyConsent: {
+      allow_unverified?: boolean;
+      expected_digest?: string;
+    };
+    ExtensionDependencyParentPayload: {
+      name: string;
+      ref: string;
+      source: string;
+    };
+    ExtensionDependencyPayload: {
+      consent_required?: boolean;
+      depth: number;
+      digest_sha256?: string;
+      installed_version?: string;
+      min_version?: string;
+      name: string;
+      ref: string;
+      registry_tier?: string;
+      required_by: string[];
+      retry_command?: string;
+      source: string;
+      state: string;
+      version?: string;
+    };
+    ExtensionDependentPayload: {
+      name: string;
+      profile: string;
+      workspace_id: string;
+    };
     ExtensionEnableError: {
       code: string;
       error: string;
@@ -10906,8 +11821,6 @@ export interface components {
       automation_starting: string[];
       changes: components["schemas"]["ExtensionKitChangePayload"][];
       extension: string;
-      gateway_confirmation_required: boolean;
-      gateway_requirement_digest: string;
       missing_env: string[];
       missing_inputs: string[];
     };
@@ -10919,7 +11832,32 @@ export interface components {
       active: boolean;
       id: string;
       set: boolean;
+      state?: string;
       type: string;
+    };
+    ExtensionInputStatusPayload: {
+      binding: components["schemas"]["MarketplaceInputBindingPayload"];
+      default?: unknown;
+      id: string;
+      prompt: string;
+      required: boolean;
+      state: string;
+      targets: string[];
+      type: string;
+    };
+    ExtensionInputsPayload: {
+      changed?: string[];
+      daemon_env: string[];
+      enabled: boolean;
+      extension: string;
+      inputs: components["schemas"]["ExtensionInputStatusPayload"][];
+      invalid: string[];
+      mcp_auth_servers: string[];
+      missing: string[];
+      missing_env: string[];
+      profile: string;
+      reloaded?: boolean;
+      workspace_id: string;
     };
     ExtensionInstallDeclaredProfilePayload: {
       create: boolean;
@@ -10928,8 +11866,8 @@ export interface components {
     };
     ExtensionInstallPreviewPayload: {
       declared_profiles: components["schemas"]["ExtensionInstallDeclaredProfilePayload"][];
+      dependencies?: components["schemas"]["ExtensionDependencyPayload"][];
       digest_sha256?: string;
-      gateway_requirement_digest?: string;
       inputs: components["schemas"]["MarketplaceInputPayload"][];
       name: string;
       placements: components["schemas"]["ExtensionPlacementPayload"][];
@@ -10977,18 +11915,27 @@ export interface components {
     ExtensionOperationErrorPayload: {
       agents?: string[];
       code: string;
-      current_digest?: string;
       declared_env?: string[];
+      dependencies?: components["schemas"]["ExtensionDependencyPayload"][];
+      dependencies_installed?: string[];
+      dependency?: string;
+      dependents?: components["schemas"]["ExtensionDependentPayload"][];
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       env_name?: string;
       error: string;
       fetched_digest?: string;
       input_definitions?: components["schemas"]["MarketplaceInputPayload"][];
       input_id?: string;
+      input_ids?: string[];
       inputs?: string[];
       installed_origin?: components["schemas"]["MarketplaceOriginPayload"] | null;
+      invalid?: string[];
       listed_digest?: string;
       missing_env?: string[];
+      parents?: components["schemas"]["ExtensionDependencyParentPayload"][];
+      path?: string[];
+      reason?: string;
+      retry_command?: string;
     };
     ExtensionPayload: {
       bound_env_keys?: string[];
@@ -11005,8 +11952,6 @@ export interface components {
       enabled: boolean;
       failure_code?: string;
       format: string;
-      gateway_confirmation_required: boolean;
-      gateway_requirement_digest?: string;
       generation_hash?: string;
       health?: string;
       health_message?: string;
@@ -11035,6 +11980,7 @@ export interface components {
       state: string;
       trust?: components["schemas"]["ExtensionTrustReportPayload"] | null;
       type: string;
+      unmet_dependencies?: components["schemas"]["ExtensionDependencyPayload"][];
       update_available: boolean;
       /** Format: int64 */
       uptime_seconds?: number;
@@ -11144,6 +12090,8 @@ export interface components {
       transport?: string;
     };
     ExtensionValidationErrorPayload: {
+      dependencies_installed?: string[];
+      dependency?: string;
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       issues: components["schemas"]["ValidationIssue"][];
@@ -11376,175 +12324,11 @@ export interface components {
       tool?: string;
       type: string;
     };
-    GatewayAddressPayload: {
-      address: string;
-      live: boolean;
-      tier: string;
-    };
-    GatewayAuditAuthPayload: {
-      active_device_count: number;
-      mode: string;
-      required_remotely: boolean;
-    };
-    GatewayAuditFindingPayload: {
-      id: string;
-      remediation: string;
-      resource?: string;
-      severity: string;
-      summary: string;
-      tier?: string;
-    };
-    GatewayAuditPayload: {
-      auth: components["schemas"]["GatewayAuditAuthPayload"];
-      device_highlights: components["schemas"]["GatewayDeviceHighlights"];
-      findings: components["schemas"]["GatewayAuditFindingPayload"][];
-      local_only: boolean;
-      no_findings: boolean;
-      ran: boolean;
-      status: components["schemas"]["GatewayStatusPayload"];
-    };
-    GatewayDeviceHighlights: {
-      active: number;
-      recently_paired: number;
-      revoked: number;
-      stale: number;
-      stale_device_ids: string[];
-    };
-    GatewayDevicePayload: {
-      actor_kind: string;
-      /** Format: date-time */
-      created_at: string;
-      id: string;
-      /** Format: date-time */
-      last_seen_at?: string | null;
-      name: string;
-      pairing_origin: string;
-      /** Format: uint64 */
-      revoke_epoch: number;
-      /** Format: date-time */
-      revoked_at?: string | null;
-    };
-    GatewayDeviceRenameRequest: {
-      name: string;
-    };
-    GatewayDevicesResponse: {
-      devices: components["schemas"]["GatewayDevicePayload"][];
-    };
-    GatewayIngressBindRequest: {
-      confirmed: boolean;
-      subject_id: string;
-      subject_kind: string;
-    };
-    GatewayIngressBindingResponse: {
-      binding: components["schemas"]["GatewayIngressPayload"];
-      changed: boolean;
-    };
-    GatewayIngressPayload: {
-      /** Format: date-time */
-      confirmed_at?: string | null;
-      /** Format: uint64 */
-      confirmed_endpoint_generation?: number;
-      enable_path?: string;
-      /** Format: uint64 */
-      endpoint_generation: number;
-      reachability: string;
-      scope_kind: string;
-      subject_id: string;
-      subject_kind: string;
-      url?: string;
-      workspace_id?: string;
-    };
-    GatewayIngressUnbindResponse: {
-      changed: boolean;
-      subject_id: string;
-      subject_kind: string;
-    };
-    GatewayIssuedCredentialPayload: {
-      credential?: string;
-      device: components["schemas"]["GatewayDevicePayload"];
-    };
-    GatewayPairingArtifactPayload: {
-      artifact: string;
-      /** Format: date-time */
-      expires_at: string;
-      manual_code: string;
-    };
-    GatewayPairingRedeemRequest: {
-      actor_kind: string;
-      artifact?: string;
-      credential?: string;
-      manual_code?: string;
-      name: string;
-    };
-    GatewayProviderEnableRequest: {
-      digest_confirmed?: string;
-      /** Format: uint64 */
-      expected_generation: number;
-      install_source: string;
-      tier: string;
-    };
-    GatewayProviderPayload: {
-      cause?: string;
-      desired: string;
-      /** Format: uint64 */
-      generation: number;
-      health: string;
-      name: string;
-      observed: string;
-      tier: string;
-    };
-    GatewayRefusalPayload: {
-      cause: string;
-      fix: string;
-    };
-    GatewayRemovedDevicePayload: {
-      canceled: number;
-      device: components["schemas"]["GatewayDevicePayload"];
-      revoked: boolean;
-    };
-    GatewayRevokePayload: {
-      canceled: number;
-      changed: boolean;
-      device: components["schemas"]["GatewayDevicePayload"];
-    };
-    GatewayStatusPayload: {
-      addresses: components["schemas"]["GatewayAddressPayload"][];
-      bindings: components["schemas"]["GatewayIngressPayload"][];
-      changed: boolean;
-      devices: components["schemas"]["GatewayDevicePayload"][];
-      enabled: boolean;
-      providers: components["schemas"]["GatewayProviderPayload"][];
-      refusal?: components["schemas"]["GatewayRefusalPayload"] | null;
-      surfaces: components["schemas"]["GatewaySurfacePayload"][];
-      tiers: components["schemas"]["GatewayTierPayload"][];
-    };
-    GatewayStreamTicketPayload: {
-      /** Format: date-time */
-      expires_at: string;
-      ticket: string;
-    };
-    GatewaySurfacePayload: {
-      desired: string;
-      /** Format: uint64 */
-      generation: number;
-      observed: string;
-      surface: string;
-      tier: string;
-    };
-    GatewaySurfaceRequest: {
-      consent: boolean;
-      desired: string;
-      /** Format: uint64 */
-      expected_generation: number;
-      surface: string;
-      tier: string;
-    };
-    GatewayTierPayload: {
-      advertised: boolean;
-      desired: string;
-      listener_address?: string;
-      observed: string;
-      tier: string;
+    GatewayRemovalNoticePayload: {
+      bindings_needing_confirmation: number;
+      connection_profiles: number;
+      devices: number;
+      providers: number;
     };
     GlobalShortcut: {
       active_chord?: string;
@@ -12033,7 +12817,28 @@ export interface components {
             }
         )[];
         on_result?: {
-          [key: string]: unknown;
+          [key: string]:
+            | ("continue" | "revise" | "next_generation" | "halt" | "escalate")
+            | {
+                route: string;
+              }
+            | {
+                /** @enum {string} */
+                action: "continue" | "revise" | "next_generation" | "escalate";
+              }
+            | {
+                /** @enum {string} */
+                action: "halt";
+                /** @enum {string} */
+                terminal_status?:
+                  | "done"
+                  | "no-op"
+                  | "blocked"
+                  | "failed"
+                  | "exhausted"
+                  | "stalled"
+                  | "canceled";
+              };
         };
         on_retry?: (
           | {
@@ -12670,10 +13475,56 @@ export interface components {
     HookRunsResponse: {
       runs: components["schemas"]["HookRunPayload"][];
     };
+    HostResourcesResponse: {
+      cpu_count: number;
+      /** Format: double */
+      cpu_util: number | null;
+      /** Format: uint64 */
+      mem_available: number | null;
+      /** Format: uint64 */
+      mem_total: number | null;
+      /** Format: date-time */
+      sampled_at: string;
+    };
+    HostedPeer: {
+      computer_id: string;
+      hosted_url: string;
+      name: string;
+    };
+    HostedStatus: {
+      diagnosis?: string;
+      enabled: boolean;
+      hostname: string | null;
+      state: string;
+    };
     Image: {
       emoji?: string;
       token?: string;
       url?: string;
+    };
+    IngressBindRequest: {
+      confirmed: boolean;
+      subject_id: string;
+      subject_kind: string;
+    };
+    IngressBindingResponse: {
+      binding: components["schemas"]["IngressPayload"];
+      changed: boolean;
+    };
+    IngressPayload: {
+      /** Format: date-time */
+      confirmed_at?: string | null;
+      /** Format: uint64 */
+      confirmed_endpoint_generation?: number;
+      enable_path?: string;
+      /** Format: uint64 */
+      endpoint_generation: number;
+      reachability: string;
+      scope_kind: string;
+      subject_id: string;
+      subject_kind: string;
+      url?: string;
+      workspace_id?: string;
     };
     Input: {
       default?: unknown;
@@ -12691,7 +13542,10 @@ export interface components {
     InstallExtensionRequest: {
       allow_unverified?: boolean;
       asset?: string;
-      confirm_gateway_digest?: string;
+      /** @description Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies. */
+      dependencies?: {
+        [key: string]: components["schemas"]["ExtensionDependencyConsent"];
+      };
       /**
        * @description Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
        * @default false
@@ -12717,10 +13571,13 @@ export interface components {
        */
       source: "curated" | "marketplace" | "github" | "git" | "local_path";
       version?: string;
+      /** @description Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse. */
+      with_dependencies?: boolean;
       /** @description Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound. */
       workspace_id?: string;
     };
     InstallExtensionResponse: {
+      dependencies_installed?: string[];
       enable_error?: components["schemas"]["ExtensionEnableError"] | null;
       extension: components["schemas"]["ExtensionPayload"];
     };
@@ -12779,6 +13636,11 @@ export interface components {
       kind: string;
       params_schema?: unknown;
       title: string;
+    };
+    LocalComputer: {
+      load_balancing: boolean;
+      load_balancing_weight: number;
+      run_agents: boolean;
     };
     LogEventPayload: {
       actor_id?: string;
@@ -12975,6 +13837,27 @@ export interface components {
       on_exhausted?: components["schemas"]["LoopEffectSpec"][];
       on_failed?: components["schemas"]["LoopEffectSpec"][];
       on_noop?: components["schemas"]["LoopEffectSpec"][];
+      on_result?: {
+        [key: string]:
+          | ("continue" | "done" | "next_generation" | "halt" | "escalate")
+          | {
+              /** @enum {string} */
+              action: "continue" | "done" | "next_generation" | "escalate";
+            }
+          | {
+              /** @enum {string} */
+              action: "halt";
+              /** @enum {string} */
+              terminal_status?:
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+            };
+      };
       on_stalled?: components["schemas"]["LoopEffectSpec"][];
       runtime_defaults?: components["schemas"]["LoopRuntimeDefaults"] | null;
       runtime_rules?: components["schemas"]["LoopRuntimeRule"][];
@@ -13710,6 +14593,7 @@ export interface components {
         | "exhausted"
         | "stalled"
         | "canceled";
+      terminal?: components["schemas"]["LoopRunTerminal"] | null;
       /** Format: int64 */
       tokens_used: number;
       workspace_id: string;
@@ -13730,6 +14614,17 @@ export interface components {
       run: components["schemas"]["LoopRunPayload"];
       waits: components["schemas"]["LoopNodeWaitPayload"][];
       watch_events?: components["schemas"]["LoopWatchEventsState"] | null;
+    };
+    LoopRunTerminal: {
+      /** Format: date-time */
+      at?: string;
+      cause?: string;
+      gate_id?: string;
+      message?: string;
+      node_id?: string;
+      reason_code?: string;
+      /** @enum {string} */
+      status: "done" | "no-op" | "blocked" | "failed" | "exhausted" | "stalled" | "canceled";
     };
     LoopRunsAggregatePayload: {
       failed: number;
@@ -13790,6 +14685,7 @@ export interface components {
       kind: string;
     };
     LoopTarget: {
+      input_command?: string;
       input_mapping?: {
         [key: string]: string;
       };
@@ -14118,6 +15014,15 @@ export interface components {
       direction: "maximize" | "minimize";
       /** Format: double */
       min_delta?: number | null;
+    };
+    MigrationNoticePayload: {
+      /** Format: date-time */
+      created_at: string;
+      key: string;
+      payload: components["schemas"]["GatewayRemovalNoticePayload"];
+    };
+    MigrationNoticesResponse: {
+      notices: components["schemas"]["MigrationNoticePayload"][];
     };
     /** @description Layout migration status. A conversion diagnostic is present in error only when state is failed; a successful retry clears error. */
     MigrationStatus: {
@@ -14545,6 +15450,16 @@ export interface components {
       preferred_capabilities?: string[];
       required_capabilities?: string[];
     };
+    PatchComputerRequest: {
+      enabled?: boolean | null;
+      load_balancing_weight?: number | null;
+      name?: string | null;
+    };
+    PatchLocalComputerRequest: {
+      load_balancing?: boolean | null;
+      load_balancing_weight?: number | null;
+      run_agents?: boolean | null;
+    };
     PatchLoopRequest: {
       definition: components["schemas"]["LoopDefinitionDocument"];
       expected_version?: number | null;
@@ -14764,6 +15679,10 @@ export interface components {
     PromptUITextPart: {
       text?: string;
       type?: string;
+    };
+    ProtocolRange: {
+      max: number;
+      min: number;
     };
     ProvenancePayload: {
       /** Format: date-time */
@@ -15239,8 +16158,59 @@ export interface components {
       workspace_id?: string;
     };
     ReloadExtensionRequest: {
-      confirm_gateway_digest?: string;
       generation_hash: string;
+    };
+    RemoteDevicePatchRequest: {
+      approval_id?: string;
+      approved?: boolean | null;
+      scopes?: string[] | null;
+    };
+    RemoteDeviceResponse: {
+      admin: boolean;
+      approvals?: components["schemas"]["Approval"][];
+      id: string;
+      /** Format: date-time */
+      last_seen_at: string | null;
+      name: string;
+      pending_approval: boolean;
+      scopes: string[];
+    };
+    RemoteDevicesResponse: {
+      devices: components["schemas"]["RemoteDeviceResponse"][];
+    };
+    RemoteLinkRequest: {
+      link_token?: string;
+    };
+    RemoteLinkResponse: {
+      attempt_id?: string;
+      computer_id?: string;
+      enabled?: boolean;
+      /** Format: date-time */
+      expires_at?: string;
+      name?: string;
+      user_code?: string;
+      verification_uri?: string;
+      verification_uri_complete?: string;
+    };
+    RemotePatchRequest: {
+      cloud_route?: boolean | null;
+      direct?: boolean | null;
+      enabled?: boolean | null;
+      require_device_approval?: boolean | null;
+    };
+    RemoteStatusResponse: {
+      cloud_route: components["schemas"]["HostedStatus"];
+      computer_id: string;
+      control_link: string;
+      direct: components["schemas"]["DirectStatus"];
+      enabled: boolean;
+      entitlement: components["schemas"]["EntitlementStatus"] | null;
+      listener: string;
+      require_device_approval: boolean;
+    };
+    RemoveComputerResponse: {
+      removed: boolean;
+      uninstall: string;
     };
     RemoveDiscoveredWorktreeRequest: {
       expect_stale?: boolean;
@@ -16069,6 +17039,45 @@ export interface components {
       request_id: string;
       resolved_decision?: string;
     };
+    SessionArchiveStoppedFailure: {
+      code: string;
+      message: string;
+      root_id: string;
+      title: string;
+      workspace_id: string;
+    };
+    SessionArchiveStoppedRequest: {
+      all_workspaces?: boolean;
+      dry_run?: boolean;
+      workspace_id?: string;
+    };
+    SessionArchiveStoppedResponse: {
+      archived: components["schemas"]["SessionArchiveStoppedThread"][];
+      archived_session_count: number;
+      archived_thread_count: number;
+      dry_run: boolean;
+      failure_count: number;
+      failures: components["schemas"]["SessionArchiveStoppedFailure"][];
+      failures_truncated: boolean;
+      skip_counts: {
+        [key: string]: number;
+      };
+      skipped: components["schemas"]["SessionArchiveStoppedSkip"][];
+      skipped_truncated: boolean;
+    };
+    SessionArchiveStoppedSkip: {
+      reason: string;
+      root_id: string;
+      title: string;
+      workspace_id: string;
+    };
+    SessionArchiveStoppedThread: {
+      restore_ids: string[];
+      root_id: string;
+      session_ids: string[];
+      title: string;
+      workspace_id: string;
+    };
     SessionAttachPayload: {
       /** Format: date-time */
       attach_expires_at: string;
@@ -16176,8 +17185,10 @@ export interface components {
     SessionCatalogPagePayload: {
       has_more: boolean;
       limit: number;
+      needs_you?: number | null;
       next_cursor?: string;
       total?: number | null;
+      working?: number | null;
     };
     SessionCatalogResponse: {
       page: components["schemas"]["SessionCatalogPagePayload"];
@@ -17169,6 +18180,7 @@ export interface components {
       repair: components["schemas"]["SessionRepairPayload"];
     };
     SessionResponse: {
+      computer_id?: string;
       session: components["schemas"]["SessionPayload"];
     };
     SessionRuntimeMCP: {
@@ -17415,7 +18427,13 @@ export interface components {
     };
     SetExtensionEnablementRequest: {
       enabled: boolean;
+      force?: boolean;
       profile: string;
+    };
+    SetExtensionInputsRequest: {
+      inputs: {
+        [key: string]: components["schemas"]["Value"];
+      };
     };
     SetExtensionSecretsRequest: {
       bindings: components["schemas"]["ExtensionSecretBindingInput"][];
@@ -21221,6 +22239,7 @@ export interface components {
         | "input_request_superseded"
         | "invalid_cwd"
         | "journal_unavailable"
+        | "local_execution_disabled"
         | "message_hop_limit"
         | "message_rate_limited"
         | "model_not_found"
@@ -21233,6 +22252,8 @@ export interface components {
         | "recording_already_started"
         | "recording_not_active"
         | "recording_unavailable"
+        | "remote_scope_denied"
+        | "secret_answer_operator_only"
         | "session_archive_stop_failed"
         | "session_busy"
         | "session_in_later"
@@ -21256,7 +22277,9 @@ export interface components {
         | "tool_canceled"
         | "tool_conflict"
         | "tool_denied"
+        | "tool_forward_denied"
         | "tool_invalid_input"
+        | "tool_not_forwardable"
         | "tool_not_found"
         | "tool_result_persistence_failed"
         | "tool_result_too_large"
@@ -21409,6 +22432,7 @@ export interface components {
       output_views?: components["schemas"]["ResultViews"] | null;
       preview?: string;
       read_only: boolean;
+      remote_scope?: string;
       requires_interaction: boolean;
       /** @enum {string} */
       risk: "read" | "mutating" | "open_world" | "destructive";
@@ -21438,6 +22462,7 @@ export interface components {
         | "input_request_superseded"
         | "invalid_cwd"
         | "journal_unavailable"
+        | "local_execution_disabled"
         | "message_hop_limit"
         | "message_rate_limited"
         | "model_not_found"
@@ -21450,6 +22475,8 @@ export interface components {
         | "recording_already_started"
         | "recording_not_active"
         | "recording_unavailable"
+        | "remote_scope_denied"
+        | "secret_answer_operator_only"
         | "session_archive_stop_failed"
         | "session_busy"
         | "session_in_later"
@@ -21473,7 +22500,9 @@ export interface components {
         | "tool_canceled"
         | "tool_conflict"
         | "tool_denied"
+        | "tool_forward_denied"
         | "tool_invalid_input"
+        | "tool_not_forwardable"
         | "tool_not_found"
         | "tool_result_persistence_failed"
         | "tool_result_too_large"
@@ -21586,6 +22615,9 @@ export interface components {
     ToolErrorResponse: {
       error: components["schemas"]["ToolErrorPayload"];
     };
+    ToolInvokeMetadata: {
+      computer_id: string;
+    };
     ToolInvokeRequest: {
       agent_name?: string;
       approval_token?: string;
@@ -21598,6 +22630,7 @@ export interface components {
       workspace_id?: string;
     };
     ToolInvokeResponse: {
+      _meta?: components["schemas"]["ToolInvokeMetadata"] | null;
       /** Format: int64 */
       duration_ms: number;
       events: components["schemas"]["ToolCallEventPayload"][];
@@ -21909,7 +22942,7 @@ export interface components {
       };
       fire_limit: components["schemas"]["FireLimitConfig"];
       id: string;
-      ingress?: components["schemas"]["GatewayIngressPayload"] | null;
+      ingress?: components["schemas"]["IngressPayload"] | null;
       last_run?: components["schemas"]["AutomationLastRunPayload"] | null;
       loop_target?: components["schemas"]["LoopTarget"] | null;
       name: string;
@@ -21984,7 +23017,6 @@ export interface components {
     UpdateExtensionRequest: {
       allow_unverified?: boolean;
       check_only?: boolean;
-      confirm_gateway_digest?: string;
       inputs?: {
         [key: string]: components["schemas"]["Value"];
       };
@@ -22019,6 +23051,7 @@ export interface components {
     UpdateJobRequest: {
       enabled?: boolean | null;
       fire_limit?: components["schemas"]["FireLimitConfig"] | null;
+      loop_input_command?: string | null;
       loop_target?: components["schemas"]["LoopTarget"] | null;
       name?: string | null;
       prompt?: string | null;
@@ -23199,6 +24232,7 @@ export interface components {
       default_agent?: string;
       id: string;
       name: string;
+      repository_key?: string;
       root_dir: string;
       root_missing?: boolean;
       /** Format: date-time */
@@ -23431,6 +24465,1724 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  getAccount: {
+    parameters: {
+      query?: {
+        /** @description Refresh account details from Compozy Cloud */
+        refresh?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Installation account status */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountStatusResponse"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  deleteAccount: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AccountDeleteRequest"];
+      };
+    };
+    responses: {
+      /** @description Deletion started */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountDeleteResponse"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  patchAccountEmail: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AccountEmailPatchRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated installation account */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountStatusResponse"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listAccountApprovals: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Account approvals */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountApprovalsResponse"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getAccountApproval: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Account resource ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Device approval */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountApproval"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  decideAccountApproval: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Account resource ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AccountApprovalDecisionRequest"];
+      };
+    };
+    responses: {
+      /** @description Decision queued for the computer */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApprovalDelivery"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  accountBillingPortal: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Billing portal URL */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountBillingResponse"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  checkoutAccount: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AccountCheckoutRequest"];
+      };
+    };
+    responses: {
+      /** @description Checkout URL */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountBillingResponse"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listAccountDevices: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Account devices */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountDevicesResponse"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  revokeAccountDevice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Account resource ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Device revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  patchAccountDevice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Account resource ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AccountDevicePatch"];
+      };
+    };
+    responses: {
+      /** @description Updated device */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountDevice"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  startAccountLogin: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["AccountLoginRequest"];
+      };
+    };
+    responses: {
+      /** @description Device activation */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountLoginResponse"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  cancelAccountLogin: {
+    parameters: {
+      query?: {
+        /** @description Cancel only the named sign-in attempt */
+        attempt_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Sign-in attempt ended */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  logoutAccount: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["AccountLogoutRequest"];
+      };
+    };
+    responses: {
+      /** @description Signed out */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountLogoutResponse"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  dismissAccountSignInNotices: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Notices dismissed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  streamAccountSignIn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Sign-in progress and account state */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream":
+            | components["schemas"]["AccountSignInProgress"]
+            | components["schemas"]["AccountStatePayload"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  streamAccount: {
+    parameters: {
+      query?: {
+        /** @description Last account event ID in this auth generation */
+        after_sequence?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Account changes and stream resets */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": components["schemas"]["Event"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listAccountTokens: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Account tokens */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountTokenList"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  createAccountToken: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AccountTokenCreate"];
+      };
+    };
+    responses: {
+      /** @description One-time account token */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountTokenCreated"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  revokeAccountToken: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Account resource ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Account token revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   listAgentInstances: {
     parameters: {
       query?: {
@@ -32548,6 +35300,1465 @@ export interface operations {
       };
     };
   };
+  listComputers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Computer registry */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ComputerListResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  addAccountComputer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AddComputerRequest"];
+      };
+    };
+    responses: {
+      /** @description Computer added */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Computer"];
+        };
+      };
+      /** @description SSH setup started */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ComputerSetupStarted"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description SSH setup input failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listAvailableComputers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Available account computers */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AvailableComputersResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  patchLocalComputer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PatchLocalComputerRequest"];
+      };
+    };
+    responses: {
+      /** @description Local computer settings */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LocalComputer"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  previewComputerPlacement: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ComputerPlacementRequest"];
+      };
+    };
+    responses: {
+      /** @description Selected computer and workspace */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ComputerPlacementResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getComputerSetup: {
+    parameters: {
+      query?: {
+        /** @description Wait for up to 30,000 ms */
+        wait_ms?: number;
+      };
+      header?: never;
+      path: {
+        /** @description SSH setup ID */
+        setup_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Current SSH setup status */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ComputerSetupStatus"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  cancelComputerSetup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description SSH setup ID */
+        setup_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Setup stopped and slot released */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ComputerSetupCanceled"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  answerComputerSetup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description SSH setup ID */
+        setup_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ComputerSetupAnswer"];
+      };
+    };
+    responses: {
+      /** @description Answer accepted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listComputerSSHHosts: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description SSH hosts */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ComputerSSHHostsResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  streamComputers: {
+    parameters: {
+      query?: {
+        /** @description Resume from a computer event sequence */
+        after_sequence?: string;
+      };
+      header?: {
+        /** @description Resume from the last computer event received */
+        "Last-Event-ID"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Computer changes and resets */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": components["schemas"]["ComputerEvent"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getComputer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Computer ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Computer status */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Computer"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  removeComputer: {
+    parameters: {
+      query?: {
+        /** @description Also unlink the computer from the account */
+        unlink?: boolean;
+        /** @description Also uninstall the managed SSH service */
+        uninstall?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Computer ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Computer removed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RemoveComputerResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  patchComputer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Computer ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PatchComputerRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated computer */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Computer"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  removeComputerRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Computer ID */
+        id: string;
+        /** @description Learned route ID */
+        route_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Route removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  startComputerUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Computer ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Update setup started */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ComputerUpdateStarted"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   captureDaemonProfile: {
     parameters: {
       query?: {
@@ -32952,6 +37163,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description A marketplace dependency listing was not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
       /** @description The approved source digest changed */
       409: {
         headers: {
@@ -32961,13 +37181,16 @@ export interface operations {
           "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
-      /** @description Package validation failure */
+      /** @description Extension trust decision, dependency graph refusal, or package validation failure */
       422: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ExtensionValidationErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ExtensionOperationErrorPayload"]
+            | components["schemas"]["ExtensionValidationErrorPayload"];
         };
       };
       /** @description Extension service is not configured */
@@ -33079,15 +37302,6 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway confirmation required */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
       /** @description Extension trust or input configuration is required */
@@ -33232,15 +37446,6 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Gateway confirmation required */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
-        };
-      };
       /** @description Extension trust or input configuration is required */
       422: {
         headers: {
@@ -33279,6 +37484,8 @@ export interface operations {
         workspace?: string;
         /** @description Remove a bundled built-in permanently. It is not re-enrolled at boot or update until restored. Global only. */
         permanent?: boolean;
+        /** @description Experimental. Remove even while an installed dependent still needs the extension; the dependent then reports unmet_dependencies. Removal never cascades. */
+        force?: boolean;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -33327,13 +37534,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Extension is in use */
+      /** @description Extension is in use, or experimental: an installed dependent still needs it */
       409: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
       /** @description Extension is not a built-in */
@@ -33476,7 +37685,16 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Extension inputs are required */
+      /** @description Experimental: an installed dependent still needs the extension (extension_dependency_in_use) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Extension inputs are required, or experimental: its dependencies are unmet */
       422: {
         headers: {
           [name: string]: unknown;
@@ -33492,6 +37710,125 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getExtensionInputs: {
+    parameters: {
+      query?: {
+        /** @description Installation scope: global or workspace */
+        scope?: string;
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionInputsPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Extension not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+    };
+  };
+  setExtensionInputs: {
+    parameters: {
+      query?: {
+        /** @description Installation scope: global or workspace */
+        scope?: string;
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SetExtensionInputsRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionInputsPayload"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Forbidden, or an agent tried to overwrite inputs that are already set */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Extension not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Invalid input value */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
     };
@@ -33771,7 +38108,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Extension is not dev linked or needs gateway confirmation */
+      /** @description Extension is not dev linked */
       409: {
         headers: {
           [name: string]: unknown;
@@ -34094,730 +38431,6 @@ export interface operations {
       };
     };
   };
-  getGatewayAudit: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Completed gateway security audit */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayAuditPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  listGatewayDevices: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayDevicesResponse"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  revokeGatewayDevice: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Gateway device id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Revoked */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayRevokePayload"];
-        };
-      };
-      /** @description Gateway device not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  renameGatewayDevice: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Gateway device id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["GatewayDeviceRenameRequest"];
-      };
-    };
-    responses: {
-      /** @description Renamed */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayDevicePayload"];
-        };
-      };
-      /** @description Invalid gateway device name */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway device not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  removeGatewayDevice: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Gateway device id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Removed */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayRemovedDevicePayload"];
-        };
-      };
-      /** @description Gateway device not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  bindGatewayIngress: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["GatewayIngressBindRequest"];
-      };
-    };
-    responses: {
-      /** @description Already confirmed */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayIngressBindingResponse"];
-        };
-      };
-      /** @description Created */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayIngressBindingResponse"];
-        };
-      };
-      /** @description Invalid ingress binding request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Ingress subject is outside the caller workspace */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Ingress subject not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Public ingress is not reachable */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  unbindGatewayIngress: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Ingress subject kind */
-        subject_kind: string;
-        /** @description Ingress subject id */
-        subject_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Unbound */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayIngressUnbindResponse"];
-        };
-      };
-      /** @description Invalid ingress subject */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Ingress subject is outside the caller workspace */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Ingress subject not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  mintGatewayPairing: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Created */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayPairingArtifactPayload"];
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Rate limited */
-      429: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  redeemGatewayPairing: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["GatewayPairingRedeemRequest"];
-      };
-    };
-    responses: {
-      /** @description Redeemed */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayIssuedCredentialPayload"];
-        };
-      };
-      /** @description Invalid pairing request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Invalid pairing artifact */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Pairing artifact already spent */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Pairing artifact expired */
-      410: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Rate limited */
-      429: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  disableGatewayProvider: {
-    parameters: {
-      query: {
-        /** @description Gateway tier */
-        tier: string;
-      };
-      header?: never;
-      path: {
-        /** @description Connectivity provider name */
-        name: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Disabled */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayStatusPayload"];
-        };
-      };
-      /** @description Invalid gateway tier */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway provider not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway provider conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  enableGatewayProvider: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Connectivity provider name */
-        name: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["GatewayProviderEnableRequest"];
-      };
-    };
-    responses: {
-      /** @description Enabled */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayStatusPayload"];
-        };
-      };
-      /** @description Invalid provider request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway provider conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Provider digest confirmation required */
-      428: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  getGatewayStatus: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayStatusPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  mintGatewayStreamTicket: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Created */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayStreamTicketPayload"];
-        };
-      };
-      /** @description Gateway device authentication required */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  setGatewaySurface: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["GatewaySurfaceRequest"];
-      };
-    };
-    responses: {
-      /** @description Updated */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayStatusPayload"];
-        };
-      };
-      /** @description Invalid gateway surface request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway exposure conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway consent required */
-      428: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
   getHookCatalog: {
     parameters: {
       query?: {
@@ -35021,6 +38634,164 @@ export interface operations {
       };
       /** @description Invalid filter */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getHostResources: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Host resource sample */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HostResourcesResponse"];
+        };
+      };
+    };
+  };
+  bindIngress: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["IngressBindRequest"];
+      };
+    };
+    responses: {
+      /** @description Already confirmed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IngressBindingResponse"];
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IngressBindingResponse"];
+        };
+      };
+      /** @description Invalid ingress binding request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Ingress subject is outside the caller workspace */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Ingress subject not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Public ingress is not reachable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  unbindIngress: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Ingress subject kind */
+        subject_kind: string;
+        /** @description Ingress subject id */
+        subject_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Unbound */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid ingress subject */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Ingress subject is outside the caller workspace */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Ingress subject not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -36204,6 +39975,101 @@ export interface operations {
         };
         content: {
           "text/html": string;
+        };
+      };
+    };
+  };
+  listMigrationNotices: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Upgrade notices */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MigrationNoticesResponse"];
+        };
+      };
+      /** @description Sign-in required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Operator permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  dismissMigrationNotice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Migration notice key */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Notice dismissed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Sign-in required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Operator permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
     };
@@ -39043,6 +42909,667 @@ export interface operations {
       };
     };
   };
+  getRemoteStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Remote access status */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RemoteStatusResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  patchRemoteStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RemotePatchRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated remote access */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RemoteStatusResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listRemoteDevices: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Remote devices and pending approvals */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RemoteDevicesResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  revokeRemoteDevice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Device ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Device revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  patchRemoteDevice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Device ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RemoteDevicePatchRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated device */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RemoteDeviceResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  linkRemote: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RemoteLinkRequest"];
+      };
+    };
+    responses: {
+      /** @description Computer link or device activation */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RemoteLinkResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  unlinkRemote: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Computer unlinked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   listResources: {
     parameters: {
       query?: {
@@ -40620,6 +45147,79 @@ export interface operations {
         };
       };
       /** @description New-work admission is unavailable while the daemon is draining */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  archiveStoppedSessions: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SessionArchiveStoppedRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionArchiveStoppedResponse"];
+        };
+      };
+      /** @description Choose exactly one of workspace_id and all_workspaces */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace not found or archived */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
       503: {
         headers: {
           [name: string]: unknown;
@@ -50049,7 +54649,7 @@ export interface operations {
           "application/json": components["schemas"]["ToolErrorResponse"];
         };
       };
-      /** @description Invalid invocation request or profile selection */
+      /** @description Invalid request, remote_caller_override_forbidden or tool_not_forwardable */
       400: {
         headers: {
           [name: string]: unknown;
@@ -50057,16 +54657,19 @@ export interface operations {
         content: {
           "application/json":
             | components["schemas"]["ProfileErrorPayload"]
-            | components["schemas"]["ToolErrorResponse"];
+            | components["schemas"]["ToolErrorResponse"]
+            | components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Invocation denied */
+      /** @description Invocation denied or remote_scope_denied */
       403: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ToolErrorResponse"];
+          "application/json":
+            | components["schemas"]["ToolErrorResponse"]
+            | components["schemas"]["ErrorPayload"];
         };
       };
       /** @description Tool or profile not found */
@@ -51383,6 +55986,8 @@ export interface operations {
       query?: {
         /** @description List archived projects instead of active projects */
         archived?: boolean;
+        /** @description Include normalized Git repository identities */
+        include_repository?: boolean;
       };
       header?: never;
       path?: never;
@@ -67631,6 +72236,584 @@ export interface operations {
         };
       };
       /** @description Worktree catalog stream is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getBrowserApproval: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Proof from the browser key */
+        DPoP: string;
+      };
+      path: {
+        /** @description Approval ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BrowserApprovalStatus"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listBrowserPeers: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Proof from the browser key */
+        DPoP: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BrowserPeersResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  startBrowserSession: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Proof from the browser key */
+        DPoP: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BrowserSessionRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BrowserSessionResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  endBrowserSession: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Proof from the browser key */
+        DPoP: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getBrowserStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BrowserStatus"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  mintBrowserStreamTicket: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Proof from the browser key */
+        DPoP: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BrowserStreamTicketRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BrowserStreamTicketResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
       503: {
         headers: {
           [name: string]: unknown;

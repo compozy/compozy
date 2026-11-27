@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { buildSessionStreamUrl, fetchSessionTranscript } from "../adapters/session-api";
 import { normalizeTranscriptEntries } from "../lib/message-schemas";
 import { sessionKeys } from "../lib/query-keys";
@@ -64,6 +65,7 @@ import {
 } from "./session-stream-source";
 
 interface CreateSessionLiveTailRuntimeOptions {
+  computerId?: ComputerId;
   eventSourceFactory: SessionStreamEventSourceFactory;
   queryClient: QueryClient;
   sessionId: string;
@@ -148,6 +150,7 @@ function transcriptFrameCanApply(
 }
 
 export function createSessionLiveTailRuntime({
+  computerId,
   eventSourceFactory,
   queryClient,
   sessionId,
@@ -155,10 +158,11 @@ export function createSessionLiveTailRuntime({
   catalogDeltaRefreshMs = SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS,
 }: CreateSessionLiveTailRuntimeOptions): SessionLiveTailRuntime {
   let catalogRefreshedAt = Number.NEGATIVE_INFINITY;
-  const transcriptQueryKey = sessionKeys.transcript(workspaceId, sessionId);
+  const keys = sessionKeys.forComputer(computerId);
+  const transcriptQueryKey = keys.transcript(workspaceId, sessionId);
   const readTranscript = () => queryClient.getQueryData<SessionTranscriptData>(transcriptQueryKey);
   const readCursor = () => transcriptStreamCursor(readTranscript()).afterSequence ?? 0;
-  const subagentRosterKey = sessionKeys.subagentRoster(workspaceId, sessionId);
+  const subagentRosterKey = keys.subagentRoster(workspaceId, sessionId);
   const updateSubagentRoster = (update: (roster: SubagentRoster) => SubagentRoster) => {
     queryClient.setQueryData<SubagentRoster>(subagentRosterKey, existing =>
       update(existing ?? EMPTY_SUBAGENT_ROSTER)
@@ -170,8 +174,8 @@ export function createSessionLiveTailRuntime({
     const catalogs = reason !== "delta" || now - catalogRefreshedAt >= catalogDeltaRefreshMs;
     if (catalogs) catalogRefreshedAt = now;
     const invalidation = catalogs
-      ? invalidateSessionLiveQueries(queryClient, workspaceId, sessionId)
-      : invalidateSessionOwnLiveQueries(queryClient, workspaceId, sessionId);
+      ? invalidateSessionLiveQueries(queryClient, workspaceId, sessionId, computerId)
+      : invalidateSessionOwnLiveQueries(queryClient, workspaceId, sessionId, computerId);
     void invalidation.catch(error => reportInvalidationFailure("session live queries", error));
   };
 
@@ -182,7 +186,9 @@ export function createSessionLiveTailRuntime({
   };
 
   const refreshTranscript = async (signal: AbortSignal): Promise<void> => {
-    const response = await fetchSessionTranscript(workspaceId, sessionId, {}, signal);
+    const response = isRemoteComputerId(computerId)
+      ? await fetchSessionTranscript(workspaceId, sessionId, {}, signal, computerId)
+      : await fetchSessionTranscript(workspaceId, sessionId, {}, signal);
     if (signal.aborted) return;
     const tail = transcriptPageFromResponse(response);
     queryClient.setQueryData<SessionTranscriptData>(transcriptQueryKey, existing =>
@@ -238,15 +244,15 @@ export function createSessionLiveTailRuntime({
     ).length;
     if (resets > 0) {
       void queryClient.resetQueries({
-        queryKey: sessionKeys.usage(workspaceId, sessionId),
+        queryKey: keys.usage(workspaceId, sessionId),
         exact: true,
       });
       void queryClient.resetQueries({
-        queryKey: sessionKeys.usageTurns(workspaceId, sessionId),
+        queryKey: keys.usageTurns(workspaceId, sessionId),
         exact: true,
       });
       queryClient.setQueryData<number>(
-        sessionKeys.contextReset(workspaceId, sessionId),
+        keys.contextReset(workspaceId, sessionId),
         value => (value ?? 0) + resets
       );
     }
@@ -255,21 +261,19 @@ export function createSessionLiveTailRuntime({
 
   const applyTerminal = (payload: SessionEventPayload | null, sequence: number) => {
     if (!payload) return;
-    queryClient.setQueryData<SessionPayload>(
-      sessionKeys.detail(workspaceId, sessionId),
-      existing =>
-        existing
-          ? {
-              ...existing,
-              failure: payload.failure ?? existing.failure,
-              state: "stopped",
-              stop_detail: payload.stop_detail ?? existing.stop_detail,
-              stop_reason: payload.stop_reason ?? existing.stop_reason,
-              updated_at: payload.timestamp || existing.updated_at,
-            }
-          : existing
+    queryClient.setQueryData<SessionPayload>(keys.detail(workspaceId, sessionId), existing =>
+      existing
+        ? {
+            ...existing,
+            failure: payload.failure ?? existing.failure,
+            state: "stopped",
+            stop_detail: payload.stop_detail ?? existing.stop_detail,
+            stop_reason: payload.stop_reason ?? existing.stop_reason,
+            updated_at: payload.timestamp || existing.updated_at,
+          }
+        : existing
     );
-    void invalidateSessionByIdReads(queryClient, sessionId);
+    void invalidateSessionByIdReads(queryClient, sessionId, { computerId });
     const failureMessage = terminalFailureMessage(payload, sessionId);
     if (failureMessage) {
       queryClient.setQueryData<SessionTranscriptData>(transcriptQueryKey, existing =>
@@ -281,7 +285,9 @@ export function createSessionLiveTailRuntime({
   const openStream = (handlers: SessionLiveTailStreamHandlers) => {
     updateSubagentRoster(markSubagentRosterStale);
     const streamCursor = transcriptStreamCursor(readTranscript());
-    const source = eventSourceFactory(buildSessionStreamUrl(workspaceId, sessionId, streamCursor));
+    const source = eventSourceFactory(
+      buildSessionStreamUrl(workspaceId, sessionId, streamCursor, computerId)
+    );
     recordSessionDebugEvent(SESSION_DEBUG_EVENTS.sseOpen, {
       cursor: streamCursor.afterSequence ?? 0,
       session_id: sessionId,
@@ -348,18 +354,15 @@ export function createSessionLiveTailRuntime({
       if (!payload?.subagent_id || payload.session_id !== sessionId) return;
       const { subagent_id } = payload;
       updateSubagentRoster(roster => applySubagentRemoved(roster, subagent_id));
-      invalidateExact(
-        sessionKeys.subagentBranch(workspaceId, sessionId),
-        "session subagent branch"
-      );
-      invalidateExact(sessionKeys.subagents(workspaceId, sessionId), "session subagents");
+      invalidateExact(keys.subagentBranch(workspaceId, sessionId), "session subagent branch");
+      invalidateExact(keys.subagents(workspaceId, sessionId), "session subagents");
     };
 
     let usageTimer: ReturnType<typeof setTimeout> | undefined;
     const flushUsageChanges = () => {
       usageTimer = undefined;
-      void invalidateSessionUsageQueries(queryClient, workspaceId, sessionId).catch(error =>
-        reportInvalidationFailure("session usage", error)
+      void invalidateSessionUsageQueries(queryClient, workspaceId, sessionId, computerId).catch(
+        error => reportInvalidationFailure("session usage", error)
       );
     };
     const usageChangedListener: EventListener = () => {
@@ -422,11 +425,11 @@ export function createSessionLiveTailRuntime({
     applyFrames,
     applyTerminal,
     invalidateClarifications: () =>
-      invalidateExact(sessionKeys.clarifications(workspaceId, sessionId), "clarifications"),
-    invalidateMCP: () => invalidateExact(sessionKeys.mcp(workspaceId, sessionId), "session MCP"),
+      invalidateExact(keys.clarifications(workspaceId, sessionId), "clarifications"),
+    invalidateMCP: () => invalidateExact(keys.mcp(workspaceId, sessionId), "session MCP"),
     invalidateCommands: () =>
-      invalidateExact(sessionKeys.commands(workspaceId, sessionId), "session commands"),
-    invalidateGoal: () => invalidateExact(sessionKeys.goal(workspaceId, sessionId), "session Goal"),
+      invalidateExact(keys.commands(workspaceId, sessionId), "session commands"),
+    invalidateGoal: () => invalidateExact(keys.goal(workspaceId, sessionId), "session Goal"),
     invalidateSessionSurfaces,
     openStream,
     recordApplyFailure: (frame, error) => {

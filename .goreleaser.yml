@@ -47,6 +47,7 @@ builds:
       - -X github.com/compozy/compozy/internal/version.Version={{ .Version }}
       - -X github.com/compozy/compozy/internal/version.Commit={{ .ShortCommit }}
       - -X github.com/compozy/compozy/internal/version.BuildDate={{ .CommitDate }}
+      - -X github.com/compozy/compozy/internal/version.SignInRequired=true
     env:
       - CGO_ENABLED=0
     flags:

@@ -268,161 +268,6 @@ func TestRegistryPersistsAgentPluginInstanceMetadata(t *testing.T) {
 	})
 }
 
-func TestConnectivityProviderRegistryPolicy(t *testing.T) {
-	withDaemonVersion(t, "0.6.0")
-
-	t.Run("Should require an explicit gateway tier scope", func(t *testing.T) {
-		for _, test := range []struct {
-			name   string
-			slug   string
-			scopes []string
-			field  string
-		}{
-			{
-				name: "Should reject missing gateway permissions", slug: "missing-gateway-permissions",
-				field: "gateway",
-			},
-			{
-				name: "Should reject an unrelated permission", slug: "unrelated-permission",
-				scopes: []string{"unknown.permission"}, field: "gateway.permissions",
-			},
-		} {
-			t.Run(test.name, func(t *testing.T) {
-				env := newRegistryTestEnv(t)
-				dir, manifest, checksum := createRegistryTestExtension(
-					t,
-					"invalid-connectivity-"+test.slug,
-					registryManifestOptions{
-						capabilities: []string{"connectivity.provider"},
-					},
-				)
-				if test.scopes != nil {
-					manifest.Gateway = &GatewayRequirement{Permissions: test.scopes}
-				}
-				err := env.registry.Install(manifest, dir, checksum)
-				validationErr, ok := errors.AsType[*ManifestValidationError](err)
-				if !ok || validationErr.Field != test.field {
-					t.Fatalf("Install() error = %v, want validation field %q", err, test.field)
-				}
-			})
-		}
-	})
-
-	t.Run("Should refuse an extension acting outside its declared provider role [UT-076]", func(t *testing.T) {
-		env := newRegistryTestEnv(t)
-		dir, manifest, checksum := createRegistryTestExtension(t, "not-connectivity", registryManifestOptions{})
-		if err := env.registry.Install(manifest, dir, checksum); err != nil {
-			t.Fatalf("Install() error = %v", err)
-		}
-		resolver, err := NewConnectivityProviderTrustResolver(env.registry)
-		if err != nil {
-			t.Fatalf("NewConnectivityProviderTrustResolver() error = %v", err)
-		}
-		if _, err := resolver.ResolveProviderTrust(testutil.Context(t), manifest.Name); err == nil ||
-			!strings.Contains(err.Error(), "does not declare connectivity.provider") {
-			t.Fatalf("ResolveProviderTrust() error = %v, want declared-role refusal", err)
-		}
-	})
-
-	t.Run("Should reject a workspace-scoped connectivity provider [UT-077]", func(t *testing.T) {
-		env := newRegistryTestEnv(t)
-		dir, manifest, checksum := createRegistryTestExtension(t, "workspace-connectivity", registryManifestOptions{
-			capabilities:       []string{"connectivity.provider"},
-			gatewayPermissions: []string{"gateway.private"},
-		})
-		err := env.registry.Install(manifest, dir, checksum, WithInstallSource(SourceWorkspace))
-		if err == nil {
-			t.Fatal("Install() error = nil, want workspace provider rejection")
-		}
-		validationErr, ok := errors.AsType[*ManifestValidationError](err)
-		if !ok || validationErr.Field != "capabilities.provides" {
-			t.Fatalf("Install() error = %v, want capabilities.provides validation", err)
-		}
-	})
-
-	t.Run("Should invalidate confirmed connectivity control after an extension update [IT-032]", func(t *testing.T) {
-		env := newRegistryTestEnv(t)
-		firstDir, firstManifest, firstChecksum := createRegistryTestExtension(
-			t,
-			"updated-connectivity",
-			registryManifestOptions{
-				capabilities:       []string{"connectivity.provider"},
-				gatewayPermissions: []string{"gateway.private"},
-			},
-		)
-		if err := env.registry.Install(firstManifest, firstDir, firstChecksum); err != nil {
-			t.Fatalf("Install(first) error = %v", err)
-		}
-		firstDigest, err := GatewayRequirementDigest(firstManifest.Gateway)
-		if err != nil {
-			t.Fatalf("GatewayRequirementDigest(first) error = %v", err)
-		}
-		if err := env.registry.ConfirmGatewayRequirement(
-			GlobalInstanceKey(firstManifest.Name), firstDigest, "operator", env.installedAt,
-		); err != nil {
-			t.Fatalf("ConfirmGatewayRequirement(first) error = %v", err)
-		}
-		resolver, err := NewConnectivityProviderTrustResolver(env.registry)
-		if err != nil {
-			t.Fatalf("NewConnectivityProviderTrustResolver() error = %v", err)
-		}
-		confirmed, err := resolver.ResolveProviderTrust(testutil.Context(t), firstManifest.Name)
-		if err != nil {
-			t.Fatalf("ResolveProviderTrust(first) error = %v", err)
-		}
-		if confirmed.ControlDigest != firstDigest || confirmed.ConfirmedDigest != firstDigest {
-			t.Fatalf("confirmed trust = %#v, want exact first digest", confirmed)
-		}
-
-		secondDir, secondManifest, secondChecksum := createRegistryTestExtension(
-			t,
-			"updated-connectivity",
-			registryManifestOptions{
-				capabilities:       []string{"connectivity.provider"},
-				gatewayPermissions: []string{"gateway.private", "gateway.public"},
-			},
-		)
-		if err := env.registry.Install(
-			secondManifest, secondDir, secondChecksum, WithInstallReplaceExisting(),
-		); err != nil {
-			t.Fatalf("Install(second) error = %v", err)
-		}
-		updated, err := resolver.ResolveProviderTrust(testutil.Context(t), secondManifest.Name)
-		if err != nil {
-			t.Fatalf("ResolveProviderTrust(second) error = %v", err)
-		}
-		if updated.ControlDigest == firstDigest || updated.ConfirmedDigest != "" {
-			t.Fatalf("updated trust = %#v, want changed unconfirmed digest", updated)
-		}
-	})
-
-	t.Run("Should fail closed when the installed provider artifact changes outside the registry", func(t *testing.T) {
-		env := newRegistryTestEnv(t)
-		dir, manifest, checksum := createRegistryTestExtension(t, "tampered-connectivity", registryManifestOptions{
-			capabilities:       []string{"connectivity.provider"},
-			gatewayPermissions: []string{"gateway.private"},
-		})
-		if err := env.registry.Install(manifest, dir, checksum); err != nil {
-			t.Fatalf("Install() error = %v", err)
-		}
-		resolver, err := NewConnectivityProviderTrustResolver(env.registry)
-		if err != nil {
-			t.Fatalf("NewConnectivityProviderTrustResolver() error = %v", err)
-		}
-		manifestPath := filepath.Join(dir, manifestTOMLFileName)
-		content, err := os.ReadFile(manifestPath)
-		if err != nil {
-			t.Fatalf("ReadFile(manifest) error = %v", err)
-		}
-		if err := os.WriteFile(manifestPath, append(content, []byte("\n# tampered\n")...), 0o600); err != nil {
-			t.Fatalf("WriteFile(manifest) error = %v", err)
-		}
-		if _, err := resolver.ResolveProviderTrust(testutil.Context(t), manifest.Name); err == nil {
-			t.Fatal("ResolveProviderTrust() error = nil, want checksum refusal")
-		}
-	})
-}
-
 func TestRegistryInstallRejectsDuplicateName(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
@@ -1777,52 +1622,6 @@ min_compozy_version = "0.5.0"
 		}
 	})
 
-	t.Run("Should preserve gateway confirmation row inspection errors by scope", func(t *testing.T) {
-		t.Parallel()
-
-		boom := errors.New("rows affected failed")
-		tests := []struct {
-			name    string
-			result  registryTestResult
-			key     InstanceKey
-			wantErr error
-		}{
-			{
-				name:   "Should accept an updated row",
-				result: registryTestResult{rowsAffected: 1},
-				key:    InstanceKey{Name: "dev-extension", WorkspaceID: "workspace-a"},
-			},
-			{
-				name:    "Should translate a missing global row",
-				result:  registryTestResult{},
-				key:     GlobalInstanceKey("missing-global"),
-				wantErr: ErrExtensionNotFound,
-			},
-			{
-				name:    "Should translate a missing development row",
-				result:  registryTestResult{},
-				key:     InstanceKey{Name: "missing-dev", WorkspaceID: "workspace-a"},
-				wantErr: ErrExtensionNotDevLinked,
-			},
-			{
-				name:    "Should preserve a rows affected failure",
-				result:  registryTestResult{err: boom},
-				key:     InstanceKey{Name: "broken-dev", WorkspaceID: "workspace-a"},
-				wantErr: boom,
-			},
-		}
-		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
-				t.Parallel()
-
-				err := inspectGatewayConfirmationUpdate(test.result, test.key, "test update")
-				if !errors.Is(err, test.wantErr) {
-					t.Fatalf("inspectGatewayConfirmationUpdate() error = %v, want %v", err, test.wantErr)
-				}
-			})
-		}
-	})
-
 	t.Run("Should write checksum entry covers regular files symlinks and errors", func(t *testing.T) {
 		t.Parallel()
 
@@ -1883,10 +1682,9 @@ func (failingHash) Size() int                   { return 0 }
 func (failingHash) BlockSize() int              { return 0 }
 
 type registryManifestOptions struct {
-	capabilities       []string
-	permissions        []string
-	extraFiles         map[string]string
-	gatewayPermissions []string
+	capabilities []string
+	permissions  []string
+	extraFiles   map[string]string
 }
 
 func newRegistryTestEnv(t *testing.T) registryTestEnv {
@@ -2001,220 +1799,6 @@ func TestRegistryDBReturnsBackingHandleAndNilSafe(t *testing.T) {
 	}
 }
 
-func TestRegistryGatewayConfirmationTracksCurrentArtifactDigest(t *testing.T) {
-	t.Parallel()
-
-	withDaemonVersion(t, "0.6.0")
-
-	t.Run("Should persist actor attribution only for the exact current digest", func(t *testing.T) {
-		t.Parallel()
-		env := newRegistryTestEnv(t)
-		dir, manifest, checksum := createRegistryTestExtension(t, "gateway-confirm", registryManifestOptions{
-			gatewayPermissions: []string{"gateway.private"},
-		})
-		if err := env.registry.Install(manifest, dir, checksum); err != nil {
-			t.Fatalf("Install() error = %v", err)
-		}
-		digest, err := GatewayRequirementDigest(manifest.Gateway)
-		if err != nil {
-			t.Fatalf("GatewayRequirementDigest() error = %v", err)
-		}
-		key := GlobalInstanceKey(manifest.Name)
-		before, err := env.registry.GatewayConfirmation(key)
-		if err != nil {
-			t.Fatalf("GatewayConfirmation(before) error = %v", err)
-		}
-		if before.Digest != digest || before.ConfirmedBy != "" || !before.ConfirmedAt.IsZero() {
-			t.Fatalf("GatewayConfirmation(before) = %#v, want unconfirmed current digest", before)
-		}
-
-		stale := strings.Repeat("0", 64)
-		staleConfirmationErr := env.registry.ConfirmGatewayRequirement(key, stale, "operator", env.installedAt)
-		if !errors.Is(
-			staleConfirmationErr,
-			ErrExtensionGatewayConfirmationRequired,
-		) {
-			t.Fatalf("ConfirmGatewayRequirement(stale) error = %v", staleConfirmationErr)
-		}
-		staleErr, staleErrMatched := errors.AsType[*GatewayConfirmationRequiredError](staleConfirmationErr)
-		if !staleErrMatched ||
-			staleErr.CurrentDigest != digest {
-			t.Fatalf("stale confirmation error = %#v, want current digest %q", staleErr, digest)
-		}
-
-		confirmedAt := env.installedAt.Add(time.Minute)
-		if err := env.registry.ConfirmGatewayRequirement(key, digest, "agent:session-a", confirmedAt); err != nil {
-			t.Fatalf("ConfirmGatewayRequirement() error = %v", err)
-		}
-		confirmed, err := env.registry.GatewayConfirmation(key)
-		if err != nil {
-			t.Fatalf("GatewayConfirmation(confirmed) error = %v", err)
-		}
-		if confirmed.Digest != digest || confirmed.ConfirmedBy != "agent:session-a" ||
-			!confirmed.ConfirmedAt.Equal(confirmedAt) {
-			t.Fatalf("GatewayConfirmation(confirmed) = %#v", confirmed)
-		}
-		if err := env.registry.Disable(manifest.Name); err != nil {
-			t.Fatalf("Disable() error = %v", err)
-		}
-		if err := env.registry.Enable(manifest.Name); err != nil {
-			t.Fatalf("Enable() error = %v", err)
-		}
-		unchanged, err := env.registry.GatewayConfirmation(key)
-		if err != nil {
-			t.Fatalf("GatewayConfirmation(after toggle) error = %v", err)
-		}
-		if unchanged.ConfirmedBy != "agent:session-a" {
-			t.Fatalf(
-				"GatewayConfirmation(after toggle).ConfirmedBy = %q, want %q",
-				unchanged.ConfirmedBy,
-				"agent:session-a",
-			)
-		}
-	})
-
-	t.Run("Should rearm confirmation when replacement changes the digest", func(t *testing.T) {
-		t.Parallel()
-		env := newRegistryTestEnv(t)
-		firstDir, firstManifest, firstChecksum := createRegistryTestExtension(
-			t,
-			"gateway-rearm",
-			registryManifestOptions{gatewayPermissions: []string{"gateway.private"}},
-		)
-		if err := env.registry.Install(firstManifest, firstDir, firstChecksum); err != nil {
-			t.Fatalf("Install(first) error = %v", err)
-		}
-		firstDigest, err := GatewayRequirementDigest(firstManifest.Gateway)
-		if err != nil {
-			t.Fatalf("first digest error = %v", err)
-		}
-		key := GlobalInstanceKey(firstManifest.Name)
-		if err := env.registry.ConfirmGatewayRequirement(key, firstDigest, "operator", env.installedAt); err != nil {
-			t.Fatalf("ConfirmGatewayRequirement(first) error = %v", err)
-		}
-
-		secondDir, secondManifest, secondChecksum := createRegistryTestExtension(
-			t,
-			"gateway-rearm",
-			registryManifestOptions{gatewayPermissions: []string{"gateway.private", "gateway.public"}},
-		)
-		if err := env.registry.Install(
-			secondManifest,
-			secondDir,
-			secondChecksum,
-			WithInstallReplaceExisting(),
-		); err != nil {
-			t.Fatalf("Install(replacement) error = %v", err)
-		}
-		secondDigest, err := GatewayRequirementDigest(secondManifest.Gateway)
-		if err != nil {
-			t.Fatalf("second digest error = %v", err)
-		}
-		confirmation, err := env.registry.GatewayConfirmation(key)
-		if err != nil {
-			t.Fatalf("GatewayConfirmation(replacement) error = %v", err)
-		}
-		if confirmation.Digest != secondDigest || confirmation.ConfirmedBy != "" ||
-			!confirmation.ConfirmedAt.IsZero() {
-			t.Fatalf("GatewayConfirmation(replacement) = %#v, want rearmed", confirmation)
-		}
-	})
-
-	t.Run("Should leave confirmation columns empty without a gateway requirement", func(t *testing.T) {
-		t.Parallel()
-		env := newRegistryTestEnv(t)
-		dir, manifest, checksum := createRegistryTestExtension(t, "gateway-none", registryManifestOptions{})
-		if err := env.registry.Install(manifest, dir, checksum); err != nil {
-			t.Fatalf("Install() error = %v", err)
-		}
-		key := GlobalInstanceKey(manifest.Name)
-		if err := env.registry.ConfirmGatewayRequirement(key, "", "operator", env.installedAt); err != nil {
-			t.Fatalf("ConfirmGatewayRequirement(empty) error = %v", err)
-		}
-		info, err := env.registry.Get(manifest.Name)
-		if err != nil {
-			t.Fatalf("Get() error = %v", err)
-		}
-		if info.GatewayRequirementDigest != "" || info.GatewayConfirmedBy != "" || !info.GatewayConfirmedAt.IsZero() {
-			t.Fatalf("gateway columns = %#v", info)
-		}
-	})
-
-	t.Run("Should persist an inspected development candidate before activation", func(t *testing.T) {
-		t.Parallel()
-		env := newRegistryTestEnv(t)
-		key := InstanceKey{Name: "gateway-dev-candidate", WorkspaceID: "workspace-a"}
-		origin := t.TempDir()
-		initialDigest := strings.Repeat("1", 64)
-		if _, err := env.registry.LinkDev(DevLinkRequest{
-			Name:                     key.Name,
-			WorkspaceID:              key.WorkspaceID,
-			OriginPath:               origin,
-			GenerationHash:           strings.Repeat("a", 64),
-			GatewayRequirementDigest: initialDigest,
-		}); err != nil {
-			t.Fatalf("LinkDev(initial) error = %v", err)
-		}
-		candidateDigest := strings.Repeat("2", 64)
-		confirmedAt := env.installedAt.Add(2 * time.Minute)
-		if err := env.registry.ConfirmDevelopmentGatewayCandidate(
-			key,
-			candidateDigest,
-			"agent:session-dev",
-			confirmedAt,
-		); err != nil {
-			t.Fatalf("ConfirmDevelopmentGatewayCandidate() error = %v", err)
-		}
-		beforeActivation, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
-		if err != nil {
-			t.Fatalf("GetDevLink(before activation) error = %v", err)
-		}
-		if beforeActivation.BundleGeneration != strings.Repeat("a", 64) ||
-			beforeActivation.GatewayRequirementDigest != candidateDigest ||
-			beforeActivation.GatewayConfirmedBy != "agent:session-dev" ||
-			!beforeActivation.GatewayConfirmedAt.Equal(confirmedAt) {
-			t.Fatalf("development confirmation before activation = %#v", beforeActivation)
-		}
-		linkedCandidate, err := env.registry.LinkDev(DevLinkRequest{
-			Name:                     key.Name,
-			WorkspaceID:              key.WorkspaceID,
-			OriginPath:               origin,
-			GenerationHash:           strings.Repeat("b", 64),
-			GatewayRequirementDigest: candidateDigest,
-		})
-		if err != nil {
-			t.Fatalf("LinkDev(candidate) error = %v", err)
-		}
-		if linkedCandidate.GatewayConfirmedBy != "agent:session-dev" ||
-			!linkedCandidate.GatewayConfirmedAt.Equal(confirmedAt) {
-			t.Fatalf("LinkDev(candidate) = %#v, want preserved confirmation tuple", linkedCandidate)
-		}
-		afterActivation, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
-		if err != nil {
-			t.Fatalf("GetDevLink(after activation) error = %v", err)
-		}
-		if afterActivation.GatewayConfirmedBy != "agent:session-dev" ||
-			!afterActivation.GatewayConfirmedAt.Equal(confirmedAt) {
-			t.Fatalf("development confirmation after activation = %#v, want preserved tuple", afterActivation)
-		}
-	})
-
-	t.Run("Should reject a development candidate without a linked row", func(t *testing.T) {
-		t.Parallel()
-
-		env := newRegistryTestEnv(t)
-		err := env.registry.ConfirmDevelopmentGatewayCandidate(
-			InstanceKey{Name: "missing-dev", WorkspaceID: "workspace-a"},
-			strings.Repeat("3", 64),
-			"agent:session-dev",
-			env.installedAt,
-		)
-		if !errors.Is(err, ErrExtensionNotDevLinked) {
-			t.Fatalf("ConfirmDevelopmentGatewayCandidate() error = %v, want ErrExtensionNotDevLinked", err)
-		}
-	})
-}
-
 func createRegistryTestExtension(t *testing.T, name string, opts registryManifestOptions) (string, *Manifest, string) {
 	t.Helper()
 
@@ -2252,13 +1836,6 @@ func registryManifestTOML(name string, opts registryManifestOptions) string {
 		permissions = []string{"sessions/list"}
 	}
 
-	gatewayBlock := ""
-	if len(opts.gatewayPermissions) > 0 {
-		gatewayBlock = fmt.Sprintf(`
-[gateway]
-permissions = %s
-`, tomlStringArray(opts.gatewayPermissions))
-	}
 	return fmt.Sprintf(
 		`[extension]
 name = %q
@@ -2271,11 +1848,10 @@ provides = %s
 
 [permissions]
 requires = %s
-%s`,
+`,
 		name,
 		tomlStringArray(capabilities),
 		tomlStringArray(permissions),
-		gatewayBlock,
 	)
 }
 

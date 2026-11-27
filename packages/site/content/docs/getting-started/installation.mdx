@@ -14,10 +14,13 @@ installing either surface, make sure you have:
 
 - **An install method that fits your machine**. For the desktop app, use the package for your
   architecture from GitHub Releases. For the `compozy` command, use the verified installer,
-  Homebrew, npm, or an explicit Go release tag.
+  Homebrew, npm, or a Linux release package.
   The verified binary installer requires `curl`, `tar`, and either `sha256sum` or `shasum`. It uses
   a local `cosign` when available; otherwise it downloads a pinned temporary cosign verifier before
   checking CompozyOS release provenance.
+- **An internet connection for your first sign-in**. Official release builds require signing in once
+  with Google or GitHub on first run. After that, local sessions, projects, and worktrees continue
+  working offline. See [Why CompozyOS asks you to sign in](/docs/account/sign-in).
 - **At least one supported agent CLI** such as Claude Code, Codex, Cursor, or another
   ACP-compatible agent runtime you already use.
 - **At least one provider authenticated in its native way**. Direct ACP providers such as Claude
@@ -55,7 +58,9 @@ support is unavailable, such as inside some containers, use the built-in extract
 
 Open the app after installation. It first attaches to a healthy runtime already running on the
 machine. Otherwise it starts the installed runtime or verifies and installs the runtime bundled
-inside the app. A clean first run does not need a network connection.
+inside the app without downloading binaries. On first run, the app asks you to sign in once with
+Google or GitHub; that first sign-in needs an internet connection, and local work continues offline
+afterward.
 On macOS, the first launch also makes `compozy` available in a new terminal when it can
 safely create a link in the installer's directory: `/usr/local/bin`, or `~/.local/bin` when
 that fallback is already on your shell's `PATH`. The link points to the stable
@@ -119,29 +124,15 @@ Use npm when you want Node package-manager-owned updates:
 npm install -g @compozy/cli
 ```
 
-### Option 4: explicit Go release
-
-Pin the current release tag:
-
-<InstallCommand method="go" />
-
-### Option 5: Linux packages
+### Option 4: Linux packages
 
 Tagged releases publish archive checksums, `checksums.txt.sigstore.json`, SBOMs, and Linux `.deb`
 and `.rpm` packages. Download the package for your architecture from the GitHub release, verify it
 against `checksums.txt`, then install it with your distribution package manager.
 
-### Option 6: build from a repository checkout
-
-Use this when you are already working from the CompozyOS source tree or want a local build artifact you
-control explicitly. This path requires Go 1.27.3 or later.
-
-```bash
-git clone https://github.com/compozy/compozy
-cd compozy
-go build -o ./bin/compozy .
-export PATH="$PWD/bin:$PATH"
-```
+Building from source is documented in the
+[contributor guide](https://github.com/compozy/compozy/blob/main/.github/CONTRIBUTING.md#building-from-source).
+Source builds are development builds without the sign-in gate and without Compozy Cloud features.
 
 ## Verify the command install
 
@@ -156,7 +147,7 @@ If your shell reports `command not found`, fix `PATH` first. Do that before you 
 ## Bootstrap the command-managed home
 
 The verified binary installer runs this step automatically when it can access an interactive
-terminal. If you used `--skip-bootstrap`, a managed install, a Linux package, or a source build, run
+terminal. If you used `--skip-bootstrap`, a managed install, or a Linux package, run
 the interactive bootstrap once:
 
 ```bash
@@ -170,6 +161,23 @@ This creates or updates:
 
 The bootstrap flow lets you pick a default provider and model for the built-in `general` agent.
 
+## Sign in
+
+Official CompozyOS releases ask you to sign in once with Google or GitHub.
+
+- **Desktop app:** choose **Continue with Google** or **Continue with GitHub** on the first screen.
+- **Terminal:** run:
+
+```bash
+compozy account login
+```
+
+Your first sign-in requires an internet connection so Compozy Cloud can authenticate your device.
+After enrollment, CompozyOS caches your signed-in state locally and local sessions keep working
+offline. For CI runners and headless environments, use an
+[account token](/docs/account/tokens). To learn what is stored and what stays on your computer, read
+[Why CompozyOS asks you to sign in](/docs/account/sign-in).
+
 ## Manage the command install
 
 Use `compozy config path` to inspect the exact global and workspace config files CompozyOS will read, and use
@@ -181,21 +189,22 @@ bounded repair. Pass `--workspace <id|name|path>` only to override the inferred 
 `compozy update` installs the latest stable release. An install still on a v0.3.0 beta moves to the
 latest stable release in place, without a reinstall. Use `compozy update --check` for a status-only
 check. Managed installs defer to their package manager and return the command to run instead of
-mutating files directly: `brew upgrade compozy/compozy/compozy`, `npm install -g @compozy/cli`, the
-hosted installer, or the pinned `go install` command for the current release
-(<CurrentReleaseTag />). Windows direct-binary installs remain manual in this first cut.
+mutating files directly: `brew upgrade compozy/compozy/compozy`, `npm install -g @compozy/cli`, or
+the hosted installer (<CurrentReleaseTag />). Windows direct-binary installs remain manual in this
+first cut.
 `compozy uninstall` removes runtime launch artifacts idempotently and preserves `~/.compozy` unless
 you explicitly pass `--purge --force`.
 
 ## Sanity Check the Runtime Inputs
 
-Before moving to Quick Start, verify these four things:
+Before moving to Quick Start, verify these five things:
 
 1. `compozy version` succeeds.
 2. `compozy install` completed, either through the verified binary installer's automatic bootstrap, a
    managed install, a Linux package, or a manual run, and created `~/.compozy/config.toml`.
-3. `compozy config validate` reports a valid config.
-4. Your selected provider is authenticated. For native CLI providers, run the provider's own login
+3. `compozy account status` reports your signed-in account.
+4. `compozy config validate` reports a valid config.
+5. Your selected provider is authenticated. For native CLI providers, run the provider's own login
    command first; for `bound_secret` providers, make sure the daemon can resolve the configured
    `env:` or `vault:` secret.
 

@@ -117,10 +117,10 @@ type AgentSkillRevertEligibility struct {
 	Reason  string `json:"reason,omitempty"`
 }
 
-// AgentSkillRevertConflictPayload is the 409 body of a refused revert: the stable code, the
-// eligibility reason (superseded, changed_on_disk, legacy, target_unavailable) and the message.
+// AgentSkillRevertConflictPayload is the 409 body of a refused revert. Eligibility refusals
+// include a reason; stale digests and install conflicts carry the code and message only.
 type AgentSkillRevertConflictPayload struct {
 	Code   string `json:"code"`
-	Reason string `json:"reason"`
+	Reason string `json:"reason,omitempty"`
 	Error  string `json:"error"`
 }

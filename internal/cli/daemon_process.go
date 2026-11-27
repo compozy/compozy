@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/compozy/compozy/internal/account"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	compozylogger "github.com/compozy/compozy/internal/logger"
@@ -30,10 +32,14 @@ func spawnDetachedDaemonProcess(
 		return nil, fmt.Errorf("cli: resolve executable: %w", err)
 	}
 
+	sandbox := compozylogger.WithMirrorToStderrEnv(procutil.WithoutInternalHandoffEnv(os.Environ()), false)
+	if token := cmp.Or(os.Getenv(procutil.InternalAccountTokenEnv), os.Getenv(account.TokenEnv)); token != "" {
+		sandbox = append(sandbox, procutil.InternalAccountTokenEnv+"="+token)
+	}
 	child, err := procutil.SpawnDetachedLoggedProcess(ctx, procutil.DetachedLaunchRequest{
 		Binary:  binary,
 		Args:    []string{daemonDaemonKey, daemonStartKey, "--foreground", "--" + internalChildFlagName},
-		Sandbox: compozylogger.WithMirrorToStderrEnv(procutil.WithoutInternalHandoffEnv(os.Environ()), false),
+		Sandbox: sandbox,
 		LogPath: daemonStdioLogPath(homePaths),
 	})
 	if err != nil {

@@ -21,8 +21,8 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/apptoken"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/providerusage"
@@ -4210,7 +4210,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 		remote := selection.remote
 		t.Run(
 			fmt.Sprintf(
-				"Should apply consent only for a local selected profile IT004 IT005 remote=%t profile=%s",
+				"Should apply consent only for a local selected profile IT004 IT005 app_token=%t profile=%s",
 				remote,
 				selection.profileID,
 			),
@@ -4289,7 +4289,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 				engine.POST("/api/provider-usage/refresh", handlers.RefreshProviderUsage)
 				requestCtx := t.Context()
 				if remote {
-					requestCtx = gateway.ContextWithDevice(requestCtx, gateway.DeviceSession{})
+					requestCtx = core.ContextWithAppToken(requestCtx, apptoken.Token{})
 				}
 				response := httptest.NewRecorder()
 				engine.ServeHTTP(response, httptest.NewRequestWithContext(
@@ -4321,7 +4321,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 					}
 					if len(reader.prompts) != 0 ||
 						!strings.Contains(refreshResponse.Body.String(), "auth_missing") {
-						t.Fatalf("gateway prompted: %s", refreshResponse.Body.String())
+						t.Fatalf("app token prompted: %s", refreshResponse.Body.String())
 					}
 					return
 				}

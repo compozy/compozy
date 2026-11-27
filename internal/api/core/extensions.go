@@ -199,7 +199,9 @@ func (h *BaseHandlers) InstallExtension(c *gin.Context) {
 		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
 	}
-	c.JSON(http.StatusCreated, contract.InstallExtensionResponse{Extension: item, EnableError: item.InstallEnableError})
+	c.JSON(http.StatusCreated, contract.InstallExtensionResponse{
+		Extension: item, EnableError: item.InstallEnableError, DependenciesInstalled: item.InstallDependenciesInstalled,
+	})
 }
 
 // UpdateExtension updates one marketplace-installed extension via the daemon.
@@ -421,7 +423,6 @@ func normalizeInstallExtensionRequest(req *contract.InstallExtensionRequest) {
 	req.Ref = strings.TrimSpace(req.Ref)
 	req.Version = strings.TrimSpace(req.Version)
 	req.Asset = strings.TrimSpace(req.Asset)
-	req.ConfirmGatewayDigest = strings.TrimSpace(req.ConfirmGatewayDigest)
 }
 
 func validateInstallExtensionRequest(req contract.InstallExtensionRequest) error {

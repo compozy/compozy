@@ -225,28 +225,58 @@ export function FinalCta() {
   );
 }
 
-export function SiteFooter() {
+const FOOTER_PRIMARY_LINKS = [...NAV.slice(0, 2), "Pricing", ...NAV.slice(2), "GitHub"];
+const FOOTER_LEGAL_LINKS = ["Terms", "Privacy", "Refunds"] as const;
+
+export function SiteFooter({
+  active,
+  id = "site-footer",
+}: {
+  active?: string;
+  id?: string;
+} = {}) {
   return (
-    <footer className={cn("border-t", HAIRLINE)}>
+    <footer id={id} className={cn("border-t", HAIRLINE)}>
       <div
         className={cn(
           CONTAINER,
-          "flex flex-col gap-6 py-9 md:flex-row md:items-center md:justify-between"
+          "flex flex-col gap-6 py-9 lg:flex-row lg:items-center lg:justify-between"
         )}
       >
-        <Logo variant="logo" className="h-[22px] self-start md:self-auto" />
-        <nav className="flex flex-wrap gap-x-7 gap-y-3">
-          {[...NAV, "GitHub"].map(item => (
+        <Logo variant="logo" className="h-[22px] self-start lg:self-auto" />
+        <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          {FOOTER_PRIMARY_LINKS.map(item => (
             <a
               key={item}
               href="#"
-              className="text-[14px] text-muted-foreground transition-colors hover:text-fg"
+              aria-current={active === item ? "page" : undefined}
+              className={cn(
+                "text-[14px] transition-colors",
+                active === item ? "text-fg" : "text-muted-foreground hover:text-fg"
+              )}
+            >
+              {item}
+            </a>
+          ))}
+          <span
+            aria-hidden
+            className="hidden h-3.5 w-px bg-[color:var(--light-150)] sm:inline-block"
+          />
+          {FOOTER_LEGAL_LINKS.map(item => (
+            <a
+              key={item}
+              href="#"
+              aria-current={active === item ? "page" : undefined}
+              className={cn(
+                "text-[14px] transition-colors",
+                active === item ? "text-fg" : "text-muted-foreground hover:text-fg"
+              )}
             >
               {item}
             </a>
           ))}
         </nav>
-        <p className="m-0 text-[14px] text-muted-foreground">Keep every agent running.</p>
+        <p className="m-0 shrink-0 text-[14px] text-muted-foreground">Keep every agent running.</p>
       </div>
     </footer>
   );

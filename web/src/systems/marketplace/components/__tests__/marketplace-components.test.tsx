@@ -1483,7 +1483,6 @@ describe("Extension source installation", () => {
       ],
       declared_profiles: [{ create: true, credentials: [], name: "operations" }],
       name: "gen-a1b2c3",
-      gateway_requirement_digest: "sha256:local-network",
       placements: [],
     });
     renderInstaller();
@@ -1525,7 +1524,6 @@ describe("Extension source installation", () => {
         enable: false,
         allow_unverified: true,
         expected_digest: "a".repeat(64),
-        confirm_gateway_digest: "sha256:local-network",
         inputs: { token: { value: "literal-secret" } },
         ref: "/srv/hello/dist/gen-a1b2c3",
         replace: false,
@@ -1715,6 +1713,251 @@ describe("Extension source installation", () => {
       "blocked by policy"
     );
     expect(screen.queryByTestId("extension-trust-dialog")).not.toBeInTheDocument();
+  });
+
+  // T-20 [US-014] D16: direct sources preview dependencies and install them jointly, like Add.
+  // Invariant: each dependency keeps its own consent; a cancel or blocked dependency sends nothing.
+  describe("with dependencies", () => {
+    const CORE_DIGEST = "c".repeat(64);
+    const LOG_DIGEST = "d".repeat(64);
+    const UTIL_DIGEST = "e".repeat(64);
+    const dependencyPreview = (core: Record<string, unknown> = {}) => ({
+      name: "kit",
+      digest_sha256: "a".repeat(64),
+      inputs: [],
+      declared_profiles: [],
+      placements: [],
+      dependencies: [
+        {
+          name: "acme-core",
+          source: "github",
+          ref: "acme/core",
+          min_version: "0.4.0",
+          required_by: ["acme-net", "kit"],
+          depth: 2,
+          state: "missing",
+          version: "0.5.1",
+          digest_sha256: CORE_DIGEST,
+          consent_required: true,
+          ...core,
+        },
+        {
+          name: "acme-net",
+          source: "curated",
+          ref: "acme/net",
+          required_by: ["kit"],
+          depth: 1,
+          state: "disabled",
+          installed_version: "1.0.0",
+          registry_tier: "unverified",
+        },
+        {
+          name: "acme-util",
+          source: "github",
+          ref: "acme/util",
+          required_by: ["kit"],
+          depth: 1,
+          state: "missing",
+          version: "1.0.0",
+          digest_sha256: UTIL_DIGEST,
+          consent_required: true,
+        },
+        {
+          name: "acme-log",
+          source: "curated",
+          ref: "acme/log",
+          required_by: ["kit"],
+          depth: 1,
+          state: "missing",
+          version: "2.0.0",
+          digest_sha256: LOG_DIGEST,
+          registry_tier: "community",
+        },
+        {
+          name: "acme-met",
+          source: "curated",
+          ref: "acme/met",
+          required_by: ["kit"],
+          depth: 1,
+          state: "met",
+        },
+      ],
+    });
+
+    async function previewKit(user: ReturnType<typeof userEvent.setup>, allowUnverified = false) {
+      renderInstaller();
+      await user.click(screen.getByTestId("marketplace-extension-install"));
+      await user.click(screen.getByTestId("extension-install-ref"));
+      await user.paste("/srv/kit");
+      if (allowUnverified) {
+        await user.click(screen.getByRole("button", { name: "More options" }));
+        await user.click(screen.getByTestId("extension-install-allow-unverified"));
+      }
+      await user.click(screen.getByTestId("extension-install-submit"));
+      return screen.findByRole("region", { name: "Also installs" });
+    }
+
+    it("Should list Also installs, gate each dependency before the root, and send per-dependency consent", async () => {
+      const user = userEvent.setup();
+      mocks.previewExtensionInstall.mockResolvedValueOnce(dependencyPreview());
+      mocks.installExtension.mockResolvedValueOnce({
+        dependencies_installed: ["acme-core", "acme-net"],
+        extension: extensionFixtures[0],
+      });
+      const section = await previewKit(user, true);
+
+      expect(
+        within(section).getByTestId("extension-install-dependency-acme-core")
+      ).toHaveTextContent("Not verified");
+      expect(
+        within(section).getByTestId("extension-install-dependency-acme-net")
+      ).toHaveTextContent("Turns on");
+      expect(
+        within(section).getByTestId("extension-install-dependency-acme-log")
+      ).toHaveTextContent("Checked by CompozyOS");
+      expect(within(section).queryByTestId("extension-install-dependency-acme-met")).toBeNull();
+      await user.click(screen.getByTestId("extension-install-submit"));
+
+      expect(await screen.findByTestId("extension-trust-dialog")).toHaveTextContent(
+        "Install acme-core?"
+      );
+      expect(screen.queryByTestId("extension-install-dialog")).toBeNull();
+      await user.click(screen.getByTestId("extension-trust-confirm"));
+      expect(await screen.findByTestId("extension-trust-dialog")).toHaveTextContent(
+        "Install acme-util?"
+      );
+      await user.click(screen.getByTestId("extension-trust-confirm"));
+      // The root's own unverified opt-in is confirmed last, after every dependency gate.
+      expect(await screen.findByTestId("extension-trust-dialog")).toHaveTextContent(
+        "Install /srv/kit?"
+      );
+      expect(mocks.installExtension).not.toHaveBeenCalled();
+      await user.click(screen.getByTestId("extension-trust-confirm"));
+
+      await waitFor(() => expect(mocks.installExtension).toHaveBeenCalledOnce());
+      expect(mocks.installExtension.mock.calls[0]![0]).toEqual({
+        allow_unverified: true,
+        enable: false,
+        expected_digest: "a".repeat(64),
+        ref: "/srv/kit",
+        replace: false,
+        source: "local_path",
+        with_dependencies: true,
+        // Only the two dependencies that received consent can install unverified.
+        dependencies: {
+          "acme-core": { expected_digest: CORE_DIGEST, allow_unverified: true },
+          "acme-util": { expected_digest: UTIL_DIGEST, allow_unverified: true },
+          "acme-log": { expected_digest: LOG_DIGEST },
+        },
+      });
+      await waitFor(() =>
+        expect(mocks.toast).toHaveBeenCalledWith(
+          "/srv/kit installed with acme-core, acme-net",
+          expect.anything()
+        )
+      );
+    });
+
+    // BUG-20261122-source-install-stale-preview-after-success: a success closes through the store.
+    it("Should reopen on a fresh form after a successful install, without repeating its gates", async () => {
+      const user = userEvent.setup();
+      mocks.previewExtensionInstall.mockResolvedValueOnce(dependencyPreview());
+      mocks.installExtension.mockResolvedValueOnce({
+        dependencies_installed: ["acme-core", "acme-net", "acme-log"],
+        extension: extensionFixtures[0],
+      });
+      await previewKit(user);
+      await user.click(screen.getByTestId("extension-install-submit"));
+      await user.click(await screen.findByTestId("extension-trust-confirm"));
+      await user.click(await screen.findByTestId("extension-trust-confirm"));
+      await waitFor(() => expect(screen.queryByTestId("extension-install-dialog")).toBeNull());
+      expect(mocks.installExtension).toHaveBeenCalledOnce();
+
+      await user.click(screen.getByTestId("marketplace-extension-install"));
+      expect(await screen.findByTestId("extension-install-dialog")).toBeVisible();
+      expect(screen.getByTestId("extension-install-ref")).toHaveValue("");
+      expect(screen.queryByTestId("extension-install-summary")).toBeNull();
+      expect(screen.queryByRole("region", { name: "Also installs" })).toBeNull();
+
+      await user.click(screen.getByTestId("extension-install-submit"));
+      expect(screen.queryByTestId("extension-trust-dialog")).toBeNull();
+      expect(mocks.installExtension).toHaveBeenCalledOnce();
+    });
+
+    it("Should abort the whole install when a dependency gate is canceled", async () => {
+      const user = userEvent.setup();
+      mocks.previewExtensionInstall.mockResolvedValueOnce(dependencyPreview());
+      await previewKit(user);
+      await user.click(screen.getByTestId("extension-install-submit"));
+
+      const gate = await screen.findByTestId("extension-trust-dialog");
+      expect(gate).toHaveTextContent("Install acme-core?");
+      await user.click(within(gate).getByRole("button", { name: "Cancel" }));
+
+      await waitFor(() => expect(screen.queryByTestId("extension-trust-dialog")).toBeNull());
+      expect(screen.queryByTestId("extension-install-dialog")).toBeNull();
+      expect(mocks.installExtension).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        "version_unmet",
+        {
+          state: "version_unmet",
+          installed_version: "0.3.0",
+          retry_command: "compozy extension update acme-core --scope global",
+        },
+        "Update acme-core to 0.4.0 or later first: run compozy extension update acme-core --scope global",
+      ],
+      [
+        "installed_elsewhere",
+        { state: "installed_elsewhere", installed_version: "0.3.0" },
+        "Another profile or workspace uses a different copy of acme-core. Reinstall it there from a source with 0.4.0 or later first",
+      ],
+      [
+        "source too old",
+        { state: "version_unmet", version: "0.3.5" },
+        "Its source has no version of acme-core at 0.4.0 or later",
+      ],
+    ] as const)("Should block Install when acme-core is %s", async (_, core, guidance) => {
+      const user = userEvent.setup();
+      mocks.previewExtensionInstall.mockResolvedValueOnce(dependencyPreview(core));
+      await previewKit(user);
+
+      expect(screen.getByTestId("extension-install-dependency-acme-core")).toHaveTextContent(
+        guidance
+      );
+      const submit = screen.getByTestId("extension-install-submit");
+      expect(submit).toBeDisabled();
+      await user.click(submit);
+      expect(screen.queryByTestId("extension-trust-dialog")).toBeNull();
+      expect(mocks.installExtension).not.toHaveBeenCalled();
+    });
+
+    it("Should name the dependencies a failed install already installed", async () => {
+      const user = userEvent.setup();
+      mocks.previewExtensionInstall.mockResolvedValueOnce(dependencyPreview());
+      mocks.installExtension.mockRejectedValueOnce(
+        new MarketplaceApiError(
+          "acme-log failed to install",
+          422,
+          "extension_inputs_required",
+          false,
+          {
+            dependenciesInstalled: ["acme-core", "acme-net"],
+          }
+        )
+      );
+      await previewKit(user);
+      await user.click(screen.getByTestId("extension-install-submit"));
+      await user.click(await screen.findByTestId("extension-trust-confirm"));
+      await user.click(await screen.findByTestId("extension-trust-confirm"));
+
+      expect(await screen.findByTestId("extension-install-error")).toHaveTextContent(
+        "acme-log failed to install · Installed first: acme-core, acme-net"
+      );
+      expect(mocks.toast).not.toHaveBeenCalled();
+    });
   });
 });
 

@@ -1,6 +1,7 @@
 export { AntigravityLogo } from "./antigravity";
 export { SlackLogo } from "./slack";
 export { GithubLogo } from "./github";
+export { GoogleLogo } from "./google";
 export { LinearLogo } from "./linear";
 export { ClaudeLogo } from "./claude";
 export { OpenAILogo } from "./openai";

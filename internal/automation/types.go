@@ -96,7 +96,8 @@ const (
 	// SchedulerSkipReasonGraceExceeded reports a missed fire outside its grace window.
 	SchedulerSkipReasonGraceExceeded = modelpkg.SchedulerSkipReasonGraceExceeded
 	// SchedulerSkipReasonSelfOverlap reports an active prior run for the same job.
-	SchedulerSkipReasonSelfOverlap = modelpkg.SchedulerSkipReasonSelfOverlap
+	SchedulerSkipReasonSelfOverlap    = modelpkg.SchedulerSkipReasonSelfOverlap
+	SchedulerSkipReasonSignInRequired = modelpkg.SchedulerSkipReasonSignInRequired
 	// SchedulerSkipReasonMetadataKey identifies durable skip reason metadata.
 	SchedulerSkipReasonMetadataKey = modelpkg.SchedulerSkipReasonMetadataKey
 )

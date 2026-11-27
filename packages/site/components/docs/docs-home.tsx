@@ -21,7 +21,7 @@ const WIDE = "mx-auto w-full max-w-[1280px] px-5 md:px-10";
 /** The first three commands of the Quick Start page. */
 const FIRST_RUN = [
   "compozy daemon start",
-  'compozy workspace add "$PWD" --name current',
+  "compozy account login",
   "compozy session new --workspace current --agent general",
 ];
 

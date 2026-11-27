@@ -5,6 +5,8 @@ import { bridgeFilterChange, LOOP_AGGREGATE_KEY, loopsKeys, loopsPopulation } fr
 describe("loopsKeys", () => {
   it("Should scope every read key by workspace so a workspace switch never serves another cache", () => {
     expect(loopsKeys.catalog("ws_a")).toEqual([
+      "computer",
+      "local",
       "loops",
       "catalog",
       "ws_a",
@@ -16,15 +18,38 @@ describe("loopsKeys", () => {
       "",
       "",
     ]);
-    expect(loopsKeys.detail("ws_a", "delivery")).toEqual(["loops", "detail", "ws_a", "delivery"]);
-    expect(loopsKeys.config("ws_a", "delivery")).toEqual(["loops", "config", "ws_a", "delivery"]);
+    expect(loopsKeys.detail("ws_a", "delivery")).toEqual([
+      "computer",
+      "local",
+      "loops",
+      "detail",
+      "ws_a",
+      "delivery",
+    ]);
+    expect(loopsKeys.config("ws_a", "delivery")).toEqual([
+      "computer",
+      "local",
+      "loops",
+      "config",
+      "ws_a",
+      "delivery",
+    ]);
     expect(loopsKeys.annotations("ws_a", "delivery")).toEqual([
+      "computer",
+      "local",
       "loops",
       "annotations",
       "ws_a",
       "delivery",
     ]);
-    expect(loopsKeys.runDetail("ws_a", "run_1")).toEqual(["loops", "run-detail", "ws_a", "run_1"]);
+    expect(loopsKeys.runDetail("ws_a", "run_1")).toEqual([
+      "computer",
+      "local",
+      "loops",
+      "run-detail",
+      "ws_a",
+      "run_1",
+    ]);
 
     expect(loopsKeys.catalog("ws_a")).not.toEqual(loopsKeys.catalog("ws_b"));
   });
@@ -40,6 +65,8 @@ describe("loopsKeys", () => {
         status: "running",
       })
     ).toEqual([
+      "computer",
+      "local",
       "loops",
       "catalog",
       "ws_a",
@@ -54,19 +81,25 @@ describe("loopsKeys", () => {
   });
 
   it("Should nest each key under its root so invalidation can target a scope or everything", () => {
-    expect(loopsKeys.detail("ws_a", "delivery").slice(0, 2)).toEqual(loopsKeys.details());
-    expect(loopsKeys.runDetail("ws_a", "run_1").slice(0, 2)).toEqual(loopsKeys.runDetails());
-    expect(loopsKeys.runs("ws_a").slice(0, 2)).toEqual(loopsKeys.runsRoot());
-    expect(loopsKeys.catalog("ws_a")[0]).toBe(loopsKeys.all[0]);
+    expect(loopsKeys.detail("ws_a", "delivery").slice(0, 4)).toEqual(loopsKeys.details());
+    expect(loopsKeys.runDetail("ws_a", "run_1").slice(0, 4)).toEqual(loopsKeys.runDetails());
+    expect(loopsKeys.runs("ws_a").slice(0, 4)).toEqual(loopsKeys.runsRoot());
+    expect(loopsKeys.catalog("ws_a").slice(0, 3)).toEqual(loopsKeys.all);
   });
 
   it("Should scope runs invalidation to one workspace across every filter permutation", () => {
-    expect(loopsKeys.runsByWorkspace("ws_a")).toEqual(["loops", "runs", "ws_a"]);
+    expect(loopsKeys.runsByWorkspace("ws_a")).toEqual([
+      "computer",
+      "local",
+      "loops",
+      "runs",
+      "ws_a",
+    ]);
     // The per-workspace key is a prefix of every filtered runs key for that workspace...
     const filtered = loopsKeys.runs("ws_a", { loop: "delivery", status: "running", limit: 5 });
-    expect(filtered.slice(0, 3)).toEqual(loopsKeys.runsByWorkspace("ws_a"));
+    expect(filtered.slice(0, 5)).toEqual(loopsKeys.runsByWorkspace("ws_a"));
     // ...but never a prefix of another workspace's runs.
-    expect(loopsKeys.runs("ws_b").slice(0, 3)).not.toEqual(loopsKeys.runsByWorkspace("ws_a"));
+    expect(loopsKeys.runs("ws_b").slice(0, 5)).not.toEqual(loopsKeys.runsByWorkspace("ws_a"));
   });
 
   it("Should fold every runs filter dimension into a stable, order-independent key", () => {
@@ -81,6 +114,8 @@ describe("loopsKeys", () => {
         profile: "marketing",
       })
     ).toEqual([
+      "computer",
+      "local",
       "loops",
       "runs",
       "ws_a",
@@ -92,7 +127,20 @@ describe("loopsKeys", () => {
       "20",
       "marketing",
     ]);
-    expect(loopsKeys.runs("ws_a")).toEqual(["loops", "runs", "ws_a", "", "", "", "", "", "", ""]);
+    expect(loopsKeys.runs("ws_a")).toEqual([
+      "computer",
+      "local",
+      "loops",
+      "runs",
+      "ws_a",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
     expect(loopsKeys.runs("ws_a", { loop: "delivery" })).not.toEqual(
       loopsKeys.runs("ws_a", { loop: "watch" })
     );
@@ -110,17 +158,29 @@ describe("loopsKeys", () => {
 
   it("Should encode the stream resume seed distinctly per run and after_sequence", () => {
     expect(loopsKeys.stream("ws_a", "run_1", { after_sequence: "14" })).toEqual([
+      "computer",
+      "local",
       "loops",
       "stream",
       "ws_a",
       "run_1",
       "14",
     ]);
-    expect(loopsKeys.stream("ws_a", "run_1")).toEqual(["loops", "stream", "ws_a", "run_1", ""]);
+    expect(loopsKeys.stream("ws_a", "run_1")).toEqual([
+      "computer",
+      "local",
+      "loops",
+      "stream",
+      "ws_a",
+      "run_1",
+      "",
+    ]);
   });
 
   it("Should key the request inventory by state and run while keeping cursor out of the key", () => {
     expect(loopsKeys.requests("ws_a", { state: "pending", run_id: "run_1", limit: 50 })).toEqual([
+      "computer",
+      "local",
       "loops",
       "requests",
       "ws_a",
@@ -132,7 +192,7 @@ describe("loopsKeys", () => {
     expect(loopsKeys.requests("ws_a", { state: "pending" })).not.toEqual(
       loopsKeys.requests("ws_a", { state: "resolved" })
     );
-    expect(loopsKeys.requests("ws_a").slice(0, 3)).toEqual(loopsKeys.requestsByWorkspace("ws_a"));
+    expect(loopsKeys.requests("ws_a").slice(0, 5)).toEqual(loopsKeys.requestsByWorkspace("ws_a"));
     expect(loopsKeys.requestsByWorkspace("ws_a")).not.toEqual(
       loopsKeys.requestsByWorkspace("ws_b")
     );
@@ -140,6 +200,8 @@ describe("loopsKeys", () => {
 
   it("Should address one request by run, node, and fan-out lane", () => {
     expect(loopsKeys.requestDetail("ws_a", "run_1", 3, "confirm-rollout", 2)).toEqual([
+      "computer",
+      "local",
       "loops",
       "requests",
       "detail",
@@ -151,6 +213,8 @@ describe("loopsKeys", () => {
     ]);
 
     expect(loopsKeys.requestDetail("ws_a", "run_1", 3, "confirm-rollout")).toEqual([
+      "computer",
+      "local",
       "loops",
       "requests",
       "detail",
@@ -166,11 +230,20 @@ describe("loopsKeys", () => {
   });
 
   it("Should isolate normal attention projections from the paged request cache", () => {
-    expect(loopsKeys.requestAttention("ws_a")).toEqual(["loops", "requests", "ws_a", "attention"]);
+    expect(loopsKeys.requestAttention("ws_a")).toEqual([
+      "computer",
+      "local",
+      "loops",
+      "requests",
+      "ws_a",
+      "attention",
+    ]);
   });
 
   it("Should make every compared diff pair its own key, never one filtered read", () => {
     expect(loopsKeys.runDiff("ws_a", "run_1", { generation: 2, against_generation: 3 })).toEqual([
+      "computer",
+      "local",
       "loops",
       "run-diff",
       "ws_a",
@@ -180,6 +253,8 @@ describe("loopsKeys", () => {
       "",
     ]);
     expect(loopsKeys.runDiff("ws_a", "run_1", { against_run: "run_2" })).toEqual([
+      "computer",
+      "local",
       "loops",
       "run-diff",
       "ws_a",
@@ -191,26 +266,30 @@ describe("loopsKeys", () => {
     expect(loopsKeys.runDiff("ws_a", "run_1", { against_generation: 2 })).not.toEqual(
       loopsKeys.runDiff("ws_a", "run_1", { against_generation: 3 })
     );
-    expect(loopsKeys.runDiff("ws_a", "run_1").slice(0, 2)).toEqual(loopsKeys.runDiffRoot());
+    expect(loopsKeys.runDiff("ws_a", "run_1").slice(0, 4)).toEqual(loopsKeys.runDiffRoot());
   });
   // ADR-005: three projections of one source. They share a root so a node verb
   // or a stream reconnect invalidates all three together, and each carries the
   // filters that make it a distinct population rather than a filtered copy.
   it("Should root the three run reads together and key each by its own population", () => {
     expect(loopsKeys.runBriefing("ws_a", "run_1")).toEqual([
+      "computer",
+      "local",
       "loops",
       "run-reads",
       "ws_a",
       "run_1",
       "briefing",
     ]);
-    expect(loopsKeys.runBriefing("ws_a", "run_1").slice(0, 4)).toEqual(
+    expect(loopsKeys.runBriefing("ws_a", "run_1").slice(0, 6)).toEqual(
       loopsKeys.runReads("ws_a", "run_1")
     );
-    expect(loopsKeys.runReads("ws_a", "run_1").slice(0, 2)).toEqual(loopsKeys.runReadsRoot());
+    expect(loopsKeys.runReads("ws_a", "run_1").slice(0, 4)).toEqual(loopsKeys.runReadsRoot());
     expect(loopsKeys.runReads("ws_a", "run_1")).not.toEqual(loopsKeys.runReads("ws_b", "run_1"));
 
     expect(loopsKeys.runRoster("ws_a", "run_1", { state: "failed", generation: 2 })).toEqual([
+      "computer",
+      "local",
       "loops",
       "run-reads",
       "ws_a",
@@ -230,6 +309,8 @@ describe("loopsKeys", () => {
 
     // `notable` and `all` are two fenced histories, never one list filtered down.
     expect(loopsKeys.runTimeline("ws_a", "run_1", { view: "all", limit: 50 })).toEqual([
+      "computer",
+      "local",
       "loops",
       "run-reads",
       "ws_a",

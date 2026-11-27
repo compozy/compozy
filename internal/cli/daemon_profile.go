@@ -104,7 +104,7 @@ func writeDaemonProfile(
 }
 
 func (c *daemonClient) CaptureDaemonProfile(ctx context.Context, kind string, seconds int, dst io.Writer) (err error) {
-	if c.target.kind != clientTargetLocal {
+	if c.target.kind != clientTargetLocal || c.target.computerID != "" {
 		return errors.New("cli: profiling requires a local Unix socket connection")
 	}
 	if err := profiling.Validate(kind, seconds); err != nil {

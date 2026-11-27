@@ -1,0 +1,205 @@
+<!-- SPDX-License-Identifier: FSL-1.1-MIT -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ .Title }} · Compozy Cloud admin</title>
+    <link rel="stylesheet" href="/auth-assets/sign-in.css" />
+    <link rel="stylesheet" href="/admin/console.css" />
+    <script defer src="/admin/console.js"></script>
+  </head>
+  <body>
+    <main class="console">
+      <nav aria-label="Cloud admin">
+        <a href="/admin">Compozy Cloud admin</a>
+        <form action="/admin/search" method="get" role="search">
+          <label for="account-search">Email, account ID, Stripe customer or hostname</label>
+          <div class="search-controls">
+            <input
+              type="text"
+              id="account-search"
+              name="q"
+              maxlength="254"
+              value="{{ .Query }}"
+              required
+            />
+            <button type="submit">Search</button>
+          </div>
+        </form>
+      </nav>
+
+      <h1>{{ .Title }}</h1>
+      {{ if .Error }}
+      <p role="alert">{{ .Error }}</p>
+      {{ end }} {{ with .Overview }}
+      <section aria-labelledby="totals">
+        <h2 id="totals">Account activity</h2>
+        <dl class="stats">
+          {{ range .Totals }}
+          <div>
+            <dt>{{ .Label }}</dt>
+            <dd>{{ .Value }}</dd>
+          </div>
+          {{ end }}
+        </dl>
+      </section>
+      <section aria-labelledby="conversion">
+        <h2 id="conversion">Conversion counters on this replica</h2>
+        {{ if .Conversions }}
+        <dl class="stats">
+          {{ range .Conversions }}
+          <div>
+            <dt>{{ .Label }}</dt>
+            <dd>{{ .Value }}</dd>
+          </div>
+          {{ end }}
+        </dl>
+        {{ else }}
+        <p>No conversion events since this replica started.</p>
+        {{ end }} {{ if .Activation }}
+        <dl class="stats">
+          {{ range .Activation }}
+          <div>
+            <dt>{{ .Label }}</dt>
+            <dd>{{ .Value }}</dd>
+          </div>
+          {{ end }}
+        </dl>
+        {{ end }}
+      </section>
+      <section aria-labelledby="gate">
+        <h2 id="gate">Gate policy</h2>
+        <p>
+          <strong>{{ .Gate.Mode }}</strong>{{ with .Gate.Until }} · {{ optionalTime . }}{{ end }}
+        </p>
+        {{ with .Gate.Message }}
+        <p>{{ . }}</p>
+        {{ end }}
+        <a href="/admin/confirm/gate-policy">Change gate policy</a>
+      </section>
+      <section aria-labelledby="contacts">
+        <h2 id="contacts">Contacts</h2>
+        <form method="post" action="/admin/contacts.csv" data-download="compozy-contacts.csv">
+          <button type="submit">Export opted-in contacts CSV</button>
+          <p role="status"></p>
+        </form>
+      </section>
+      {{ end }} {{ if .Query }} {{ with .Tunnel }}
+      <section aria-labelledby="matched-tunnel">
+        <h2 id="matched-tunnel">Hosted route</h2>
+        <p>
+          <strong>{{ .Hostname }}</strong> · {{ .State }} ·
+          <a href="/admin/accounts/{{ .AccountID }}">{{ .Email }}</a>
+        </p>
+        <a href="/admin/confirm/delete-tunnel?target={{ .Hostname }}">Delete tunnel</a>
+      </section>
+      {{ end }} {{ if .Lookup }}
+      <section aria-labelledby="matched-accounts">
+        <h2 id="matched-accounts">Accounts</h2>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Email</th>
+                <th scope="col">Name</th>
+                <th scope="col">ID</th>
+                <th scope="col">State</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{ range .Lookup }}
+              <tr>
+                <td><a href="/admin/accounts/{{ .ID }}">{{ .Email }}</a></td>
+                <td>{{ .Name }}</td>
+                <td><code>{{ .ID }}</code></td>
+                <td>{{ .State }}</td>
+              </tr>
+              {{ end }}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {{ else if not .Tunnel }}
+      <p>No results.</p>
+      {{ end }} {{ end }} {{ with .Account }}{{ template "account" . }}{{ end }} {{ with .Confirm
+      }}{{ template "confirm" . }}{{ end }} {{ with .Event }}{{ template "event" . }}{{ end }} {{
+      with .Back }}
+      <p><a href="{{ . }}">Back</a></p>
+      {{ end }}
+    </main>
+  </body>
+</html>
+
+{{ define "confirm" }}
+<p>{{ .Consequence }}</p>
+<form class="confirm" method="post" action="/admin/actions/{{ .Kind }}">
+  <input type="hidden" name="account_id" value="{{ .AccountID }}" />
+  {{ if .Target }}<input type="hidden" name="target" value="{{ .Target }}" />{{ end }} {{ if
+  .Provider }}<input type="hidden" name="provider" value="{{ .Provider }}" />{{ end }} {{ if
+  .Hostname }}
+  <input type="hidden" name="hostname" value="{{ .Hostname }}" />
+  <input type="hidden" name="generation" value="{{ .Generation }}" />
+  {{ end }} {{ if eq .Kind "hosted-route-cap" }}
+  <label for="cap">Maximum hosted routes</label>
+  <input
+    id="cap"
+    name="cap"
+    type="number"
+    value="{{ .Cap }}"
+    min="{{ .Cap }}"
+    max="2147483647"
+    required
+  />
+  {{ else if eq .Kind "complimentary-pro" }}
+  <label for="ends-at">Ends at (UTC)</label>
+  <input id="ends-at" name="ends_at" type="datetime-local" required />
+  {{ else if eq .Kind "detach-identity" }}
+  <label for="written-request">Person’s written request</label>
+  <textarea
+    id="written-request"
+    name="written_request"
+    rows="6"
+    maxlength="4096"
+    required
+  ></textarea>
+  {{ else if eq .Kind "gate-policy" }}
+  <label for="mode">Mode</label>
+  <select id="mode" name="mode">
+    {{ if eq .Policy.Mode "grace" }}
+    <option value="enforce">Enforce</option>
+    <option value="grace" selected>Grace</option>
+    {{ else }}
+    <option value="enforce" selected>Enforce</option>
+    <option value="grace">Grace</option>
+    {{ end }}
+  </select>
+  <label for="until">Grace ends at (UTC)</label>
+  <input id="until" name="until" type="datetime-local" value="{{ .GraceUntil }}" />
+  <label for="message">Banner message</label>
+  <textarea id="message" name="message" rows="3" maxlength="2048">{{ .Policy.Message }}</textarea>
+  {{ end }}
+  <button class="primary" type="submit" name="confirm" value="yes">Confirm {{ .Label }}</button>
+</form>
+{{ end }} {{ define "event" }}
+<dl class="stats">
+  <div>
+    <dt>ID</dt>
+    <dd>{{ .ID }}</dd>
+  </div>
+  <div>
+    <dt>Event</dt>
+    <dd><code>{{ .Type }}</code></dd>
+  </div>
+  <div>
+    <dt>Actor</dt>
+    <dd>{{ .Actor }}</dd>
+  </div>
+  <div>
+    <dt>Time</dt>
+    <dd>{{ timestamp .At }}</dd>
+  </div>
+</dl>
+{{ if .Details }}
+<pre>{{ printf "%s" .Details }}</pre>
+{{ end }} {{ end }}

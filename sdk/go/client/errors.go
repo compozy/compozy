@@ -16,6 +16,17 @@ type APIError struct {
 	CurrentTurnID string
 	ConfigPath    string
 	UnknownKeys   []string
+	// Dependents lists the installed dependents of an extension_dependency_in_use refusal. Experimental.
+	Dependents []ExtensionDependent
+	// DependenciesInstalled lists the dependencies a failed consented install already installed. Experimental.
+	DependenciesInstalled []string
+}
+
+// ExtensionDependent names an installed extension that still needs a dependency. Experimental.
+type ExtensionDependent struct {
+	Name        string `json:"name"`
+	WorkspaceID string `json:"workspace_id"`
+	Profile     string `json:"profile"`
 }
 
 // Error returns the daemon's status and error message.
@@ -52,10 +63,14 @@ func responseError(response *http.Response) error {
 		CurrentTurnID string         `json:"current_turn_id"`
 		ConfigPath    string         `json:"config_path"`
 		UnknownKeys   []string       `json:"unknown_keys"`
+
+		Dependents            []ExtensionDependent `json:"dependents"`
+		DependenciesInstalled []string             `json:"dependencies_installed"`
 	}
 	if err := json.Unmarshal(data, &body); err == nil {
 		result.Code, result.Details, result.CurrentTurnID = body.Code, body.Details, body.CurrentTurnID
 		result.ConfigPath, result.UnknownKeys = body.ConfigPath, body.UnknownKeys
+		result.Dependents, result.DependenciesInstalled = body.Dependents, body.DependenciesInstalled
 		if body.Error != "" {
 			result.Message = body.Error
 		} else if body.Message != "" {

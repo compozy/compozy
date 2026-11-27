@@ -15,6 +15,7 @@ export function settingsSectionPath(slug: SettingsSectionSlug): string {
  */
 const RETIRED_SETTINGS_SECTION_SLUGS: Readonly<Record<string, SettingsSectionSlug>> = {
   defaults: "general",
+  gateway: "computers",
 };
 
 /** The live section a retired slug now lives in, or null for any other slug. */

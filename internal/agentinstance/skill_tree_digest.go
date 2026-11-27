@@ -53,7 +53,7 @@ type skillTreeFile struct {
 }
 
 func skillTreeDigest(root *os.Root) (string, error) {
-	files, err := skillTreeFiles(root)
+	files, err := skillTreeFiles(root, 0)
 	if err != nil {
 		return "", err
 	}
@@ -86,7 +86,7 @@ func skillManifestLine(path string, perm fs.FileMode, size int64, sum string) st
 }
 
 // skillTreeFiles lists the regular files of root sorted by path bytes, refusing any other entry type.
-func skillTreeFiles(root *os.Root) ([]skillTreeFile, error) {
+func skillTreeFiles(root *os.Root, limit int) ([]skillTreeFile, error) {
 	var files []skillTreeFile
 	err := fs.WalkDir(root.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -97,6 +97,9 @@ func skillTreeFiles(root *os.Root) ([]skillTreeFile, error) {
 		}
 		if !entry.Type().IsRegular() {
 			return fmt.Errorf("%w: %s", ErrSkillTreeUnsupported, path)
+		}
+		if limit > 0 && len(files) == limit {
+			return fmt.Errorf("%w: more than %d files", ErrSkillReviewBaseUnsupported, limit)
 		}
 		info, err := entry.Info()
 		if err != nil {
@@ -170,7 +173,7 @@ func copySkillTree(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	files, err := skillTreeFiles(root)
+	files, err := skillTreeFiles(root, 0)
 	if err == nil {
 		err = os.Mkdir(dst, 0o700)
 	}

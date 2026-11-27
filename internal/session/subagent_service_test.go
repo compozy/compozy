@@ -57,6 +57,43 @@ func TestSubagentRequest(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	for _, tc := range []struct {
+		name  string
+		files []string
+		want  string
+	}{
+		{
+			name:  "Should accept handoff files at both limits",
+			files: slices.Repeat([]string{strings.Repeat("界", 1024)}, 64),
+		},
+		{
+			name:  "Should reject too many handoff files",
+			files: slices.Repeat([]string{"file.go"}, 65),
+			want:  "handoff.files exceeds 64 items.",
+		},
+		{
+			name:  "Should reject an oversized handoff file",
+			files: []string{strings.Repeat("界", 1025)},
+			want:  "handoff.files item exceeds 1024 characters.",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req := subagentTestRequest()
+			req.Handoff = &SubagentHandoff{Files: tc.files}
+			_, err := normalizeSubagentRequest(req)
+			if tc.want == "" {
+				if err != nil {
+					t.Fatalf("handoff at the limits was rejected: %v", err)
+				}
+				return
+			}
+			detail, ok := errors.AsType[*SubagentError](err)
+			if !ok || !errors.Is(err, ErrSubagentInvalidRequest) || detail.Message != tc.want {
+				t.Fatalf("error = %v, want invalid_request: %s", err, tc.want)
+			}
+		})
+	}
 	t.Run("Should prefix only non-general roles UT-009", func(t *testing.T) {
 		t.Parallel()
 		if subagentPrompt("review", "task") != "Act as the review subagent for this task.\n\ntask" ||
@@ -279,6 +316,110 @@ func TestSubagentDelegate(t *testing.T) {
 		row := requireSubagent(t, s, subagentTestRequest())
 		if row.Status != "failed" || row.Error == nil || len(db.rows) != 1 {
 			t.Fatal(row)
+		}
+	})
+	t.Run("Should format prompt with structured handoff and prior subagent context", func(t *testing.T) {
+		t.Parallel()
+		s, _, runtime := newSubagentTestService(t)
+		prior := requireSubagent(t, s, subagentTestRequest())
+
+		followUp := subagentTestRequest()
+		followUp.IdempotencyKey = "follow-up-call"
+		followUp.PriorSubagentID = prior.ID
+		followUp.Handoff = &SubagentHandoff{
+			Objections: "Unit tests failed on empty inputs",
+			Findings:   "The parser works for normal cases",
+			Files:      []string{"src/parser.ts"},
+		}
+		followUp.Task = "Fix the edge cases"
+
+		second := requireSubagent(t, s, followUp)
+		if second.ID == prior.ID {
+			t.Fatal("expected different subagent id")
+		}
+		prompt := runtime.admitted[second.ID]
+		if !strings.Contains(prompt, prior.ID) ||
+			!strings.Contains(prompt, "Unit tests failed on empty inputs") ||
+			!strings.Contains(prompt, "The parser works for normal cases") ||
+			!strings.Contains(prompt, "src/parser.ts") ||
+			!strings.Contains(prompt, "Fix the edge cases") {
+			t.Fatalf("unexpected prompt: %s", prompt)
+		}
+	})
+	t.Run("Should reject non-existent prior_subagent_id", func(t *testing.T) {
+		t.Parallel()
+		s, _, _ := newSubagentTestService(t)
+		req := subagentTestRequest()
+		req.PriorSubagentID = "sub-nonexistent"
+		_, err := s.Delegate(t.Context(), req)
+		if !errors.Is(err, ErrSubagentInvalidRequest) || !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("expected not found error, got: %v", err)
+		}
+	})
+	t.Run("Should reject prior_subagent_id from different session", func(t *testing.T) {
+		t.Parallel()
+		s, db, _ := newSubagentTestService(t)
+		db.rows["sub-other"] = store.SessionSubagent{
+			ID:              "sub-other",
+			WorkspaceID:     "ws",
+			ParentSessionID: "other-parent",
+			Status:          "completed",
+		}
+		req := subagentTestRequest()
+		req.PriorSubagentID = "sub-other"
+		_, err := s.Delegate(t.Context(), req)
+		if !errors.Is(err, ErrSubagentInvalidRequest) || !strings.Contains(err.Error(), "different session") {
+			t.Fatalf("expected different session error, got: %v", err)
+		}
+	})
+	t.Run("Should inherit worktree branch from prior subagent", func(t *testing.T) {
+		t.Parallel()
+		wt := &subagentWorktreeStub{
+			worktree: SubagentWorktree{
+				ID:     "wt-follow-up",
+				Name:   "follow-up",
+				Branch: "worktree/follow-up",
+			},
+		}
+		s, db, _ := newSubagentTestService(t)
+		s.worktrees = wt
+		db.rows["sub-wt-prior"] = store.SessionSubagent{
+			ID:              "sub-wt-prior",
+			WorkspaceID:     "ws",
+			ParentSessionID: "parent",
+			Status:          "completed",
+			Isolation:       SubagentIsolationWorktree,
+			Worktree: &store.SubagentWorktreeState{
+				Branch: "worktree/sub-wt-prior",
+			},
+		}
+		req := subagentTestRequest()
+		req.IdempotencyKey = "follow-up-wt"
+		req.PriorSubagentID = "sub-wt-prior"
+		req.Isolation = SubagentIsolationWorktree
+		requireSubagent(t, s, req)
+		if len(wt.requests) == 0 || wt.requests[len(wt.requests)-1].BaseRef != "worktree/sub-wt-prior" {
+			t.Fatalf("expected BaseRef to be worktree/sub-wt-prior, got: %+v", wt.requests)
+		}
+	})
+	t.Run("Should reject prior worktree subagent when worktree branch is missing", func(t *testing.T) {
+		t.Parallel()
+		s, db, _ := newSubagentTestService(t)
+		db.rows["sub-wt-pending"] = store.SessionSubagent{
+			ID:              "sub-wt-pending",
+			WorkspaceID:     "ws",
+			ParentSessionID: "parent",
+			Status:          "running",
+			Isolation:       SubagentIsolationWorktree,
+		}
+		req := subagentTestRequest()
+		req.IdempotencyKey = "follow-up-pending-wt"
+		req.PriorSubagentID = "sub-wt-pending"
+		req.Isolation = SubagentIsolationWorktree
+		_, err := s.Delegate(t.Context(), req)
+		if !errors.Is(err, ErrSubagentInvalidRequest) ||
+			!strings.Contains(err.Error(), "no associated worktree branch yet") {
+			t.Fatalf("expected branch not ready error, got: %v", err)
 		}
 	})
 	t.Run("Should stop child after failed first admission UT-059", func(t *testing.T) {

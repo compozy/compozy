@@ -47,7 +47,10 @@ export class BootstrapRunner {
     this.#appVersion = options.appVersion;
     this.#channel = options.channel;
     this.#bootId = options.bootId;
-    this.#environment = options.environment ?? process.env;
+    const { COMPOZY_ACCOUNT_TOKEN: accountToken, ...environment } =
+      options.environment ?? process.env;
+    if (accountToken !== undefined) environment.COMPOZY_INTERNAL_ACCOUNT_TOKEN = accountToken;
+    this.#environment = environment;
   }
 
   /** Observes one bootstrap attempt; aborting stops the observer without stopping its detached daemon. */

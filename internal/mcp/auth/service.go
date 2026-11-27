@@ -365,6 +365,7 @@ func (s *Service) tokenRecordFromResponse(
 		Issuer:                strings.TrimSpace(metadata.Issuer),
 		ClientID:              strings.TrimSpace(cfg.ClientID),
 		Scopes:                scopes,
+		RequestedScopes:       requestedTokenScopes(cfg, current),
 		AccessToken:           strings.TrimSpace(resp.AccessToken),
 		RefreshToken:          refreshToken,
 		TokenType:             tokenType,

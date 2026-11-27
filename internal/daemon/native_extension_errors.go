@@ -87,13 +87,20 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 			toolspkg.ReasonExtensionValidationFailed,
 		)
+	case errors.Is(err, extensionpkg.ErrExtensionKindRemoved):
+		return toolspkg.NewToolError(
+			"extension_kind_removed",
+			id,
+			err.Error(),
+			err,
+			toolspkg.ReasonExtensionValidationFailed,
+		)
 	case isExtensionValidationError(err):
 		return nativeExtensionValidationError(id, err)
 	case errors.Is(err, extensionmcp.ErrNameTaken):
 		return toolspkg.NewToolError("mcp_server_name_taken", id, err.Error(),
 			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err), toolspkg.ReasonExtensionValidationFailed)
-	case errors.Is(err, extensionpkg.ErrExtensionGatewayConfirmationRequired),
-		errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
+	case errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
 		return nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
 	case errors.Is(err, extensionpkg.ErrExtensionEnvBindingInvalid),
 		errors.Is(err, extensionpkg.ErrExtensionEnvBindingUndeclared),
@@ -155,13 +162,25 @@ func nativeExtensionGitDependencyError(id toolspkg.ToolID, err error) error {
 }
 
 func nativeExtensionValidationError(id toolspkg.ToolID, err error) error {
-	return toolspkg.NewToolError(
+	result := toolspkg.NewToolError(
 		toolspkg.ErrorCodeInvalidInput,
 		id,
 		"extension validation failed",
 		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 		toolspkg.ReasonExtensionValidationFailed,
 	)
+	if !errors.Is(err, extensionpkg.ErrManifestInvalid) {
+		return result
+	}
+	// A manifest failure carries the HTTP validation payload: its field issue and the dependency it belongs to.
+	payload := core.ExtensionValidationErrorPayload(
+		core.ErrorPayloadForStatus(http.StatusBadRequest, err, false), err,
+	)
+	partial, encodeErr := structuredResult(payload, payload.Error)
+	if encodeErr != nil {
+		return errors.Join(result, encodeErr)
+	}
+	return result.WithPartialResult(partial)
 }
 
 func nativeExtensionSourceError(id toolspkg.ToolID, err error) error {
@@ -217,8 +236,11 @@ func nativeExtensionAcquisitionError(
 	payload contract.ExtensionOperationErrorPayload,
 ) error {
 	cause := toolspkg.ErrToolInvalidInput
-	if core.ExtensionStatusCode(err) == http.StatusConflict {
+	switch core.ExtensionStatusCode(err) {
+	case http.StatusConflict:
 		cause = toolspkg.ErrToolConflict
+	case http.StatusForbidden:
+		cause = toolspkg.ErrToolDenied
 	}
 	result := toolspkg.NewToolError(toolspkg.ErrorCode(payload.Code), id, payload.Error,
 		fmt.Errorf("%w: %w", cause, err), toolspkg.ReasonExtensionValidationFailed)

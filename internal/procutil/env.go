@@ -11,6 +11,8 @@ import (
 // CompozyOS process and the specific process it launches. They must never reach ordinary children.
 const InternalHandoffEnvPrefix = "COMPOZY_INTERNAL_"
 
+const InternalAccountTokenEnv = "COMPOZY_INTERNAL_ACCOUNT_TOKEN"
+
 // caTrustEnvKeys name the CA bundles that let children trust a TLS-inspecting network (Netskope,
 // Zscaler, corporate proxies). They hold public file paths, never sensitive values.
 var caTrustEnvKeys = []string{"NODE_EXTRA_CA_CERTS", "REQUESTS_CA_BUNDLE", "SSL_CERT_DIR", "SSL_CERT_FILE"}
@@ -68,7 +70,9 @@ func filterDaemonEnv(base []string, keepInternalHandoff bool) []string {
 		if len(parts) != 2 {
 			continue
 		}
-		if SensitiveEnvName(parts[0]) || (!keepInternalHandoff && InternalHandoffEnvName(parts[0])) {
+		explicitAccountHandoff := keepInternalHandoff && parts[0] == InternalAccountTokenEnv
+		if !explicitAccountHandoff && (SensitiveEnvName(parts[0]) ||
+			(!keepInternalHandoff && InternalHandoffEnvName(parts[0]))) {
 			continue
 		}
 		if appImage != "" {

@@ -26,16 +26,11 @@ func newOpenCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if deps.reportClientTarget != nil {
-				if err := deps.reportClientTarget(runtimeContext.Target); err != nil {
-					return err
-				}
-			}
 			status, err := client.DaemonStatus(ctx)
 			if err != nil {
-				return openDaemonStatusError(runtimeContext.Target, err)
+				return fmt.Errorf("open: daemon is not running: %w", err)
 			}
-			webURL, err := webUIURL(runtimeContext.Target, status)
+			webURL, err := webUIURL(status)
 			if err != nil {
 				return err
 			}
@@ -44,17 +39,7 @@ func newOpenCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
-func openDaemonStatusError(target ClientTarget, err error) error {
-	if target.isRemoteGateway() {
-		return err
-	}
-	return fmt.Errorf("open: daemon is not running: %w", err)
-}
-
-func webUIURL(target ClientTarget, status DaemonStatus) (string, error) {
-	if target.isRemoteGateway() {
-		return target.requestBaseURL(), nil
-	}
+func webUIURL(status DaemonStatus) (string, error) {
 	if status.HTTPHost == "" || status.HTTPPort == 0 {
 		return "", errors.New("open: daemon did not report a valid HTTP address")
 	}

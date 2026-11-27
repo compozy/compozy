@@ -1,0 +1,46 @@
+---
+title: "compozy remote"
+description: "Manage access to this computer"
+---
+
+## compozy remote
+
+Manage access to this computer
+
+### Options
+
+```
+  -h, --help   help for remote
+```
+
+### Options inherited from parent commands
+
+```
+      --computer string   Target a computer by name or ID
+      --json              Emit JSON output
+  -o, --output string     Output format: human, json, jsonl, or toon (default "human")
+      --profile string    Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                    | Description                               |
+| ---------------------------------------------------------- | ----------------------------------------- |
+| [compozy remote cloud-route](/docs/cli/remote/cloud-route) | Manage the hosted route for this computer |
+| [compozy remote devices](/docs/cli/remote/devices)         | Manage devices allowed on this computer   |
+| [compozy remote disable](/docs/cli/remote/disable)         | Turn off remote access                    |
+| [compozy remote enable](/docs/cli/remote/enable)           | Turn on remote access                     |
+| [compozy remote link](/docs/cli/remote/link)               | Link this computer to your account        |
+| [compozy remote status](/docs/cli/remote/status)           | Show remote access status                 |
+| [compozy remote unlink](/docs/cli/remote/unlink)           | Unlink this computer from the account     |

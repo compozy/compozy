@@ -52,37 +52,14 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 			return nil
 		}},
 		{name: "prepareServerDependencies", run: func() error { return d.prepareServerDependencies(ctx, state) }},
-		{name: "bootGateway", run: func() error { return d.bootGateway(ctx, state, cleanup) }},
+		{name: "bootAppAccess", run: func() error { return d.bootAppAccess(ctx, state) }},
 		{name: "bootServers", run: func() error { return d.bootServers(ctx, state, cleanup) }},
 		{name: "bootTelemetry", run: func() error { return d.bootTelemetry(ctx, state, cleanup) }},
 		{name: "bootProviderAuthStartup",
 			run: func() error { return d.bootProviderAuthStartup(ctx, state, cleanup) },
 		},
-		// Everything below runs in the serving phase: the read model is reachable, and only now may
-		// recovery start providers, whose hosted MCP proxies need the listeners.
-		{name: "enterServingPhase", run: func() error { return d.enterServingPhase(ctx, state, bootStarted) }},
-		{name: "prepareBootSessionWorkSources", run: func() error {
-			return d.prepareBootSessionWorkSources(ctx, state)
-		}},
-		{name: "reconcileBootDailyBudgetReceipts", run: func() error {
-			return reconcileBootDailyBudgetReceipts(ctx, state)
-		}},
-		{name: "reconcileBootInstances", run: func() error { return reconcileBootInstances(ctx, state) }},
-		{name: "recoverBootDelegatedSessions", run: func() error { return recoverBootDelegatedSessions(ctx, state) }},
-		{name: "resumeBootInterruptedSessions",
-			run: func() error { return resumeBootInterruptedSessions(ctx, state.sessions) },
-		},
-		{name: "recoverBootMonitors", run: func() error { return recoverBootMonitors(ctx, state) }},
-		{name: "recoverBootReplyWatches", run: func() error { return recoverBootReplyWatches(ctx, state) }},
-		{name: "bootFinalize", run: func() error { return d.bootFinalize(ctx, state) }},
-		{name: "bootTaskRoles", run: func() error { return d.bootTaskRoles(ctx, state) }},
-		{name: "startBootLoopCoordinators", run: func() error { return startBootLoopCoordinators(ctx, state) }},
-		{name: "bootScheduler", run: func() error { return d.bootScheduler(ctx, state, cleanup) }},
-		{name: "bootSessionSupervision", run: func() error { return d.bootSessionSupervision(ctx, state, cleanup) }},
-		{name: "bootSessionLaterReturns",
-			run: func() error { return d.bootSessionLaterReturns(ctx, state, cleanup) },
-		},
 	}
+	steps = append(steps, d.servingBootSteps(ctx, state, cleanup, bootStarted)...)
 	for _, step := range steps {
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("daemon: boot canceled: %w", err)
@@ -97,7 +74,58 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 			return err
 		}
 	}
+	state.startDeferredSignInWork(ctx, cleanup)
 	return nil
+}
+
+func (d *Daemon) servingBootSteps(
+	ctx context.Context, state *bootState, cleanup *bootCleanup, bootStarted time.Time,
+) []bootStep {
+	return []bootStep{
+		// Everything below runs in the serving phase: the read model is reachable, and only now may
+		// recovery start providers, whose hosted MCP proxies need the listeners.
+		{name: "enterServingPhase", run: func() error { return d.enterServingPhase(ctx, state, bootStarted) }},
+		{name: "prepareBootSessionWorkSources", run: func() error {
+			return d.prepareBootSessionWorkSources(ctx, state)
+		}},
+		{name: "reconcileBootDailyBudgetReceipts", run: func() error {
+			return reconcileBootDailyBudgetReceipts(ctx, state)
+		}},
+		{name: "reconcileBootInstances", run: func() error {
+			return state.admitBootWork(
+				ctx,
+				func(ctx context.Context) error { return reconcileBootInstances(ctx, state) },
+			)
+		}},
+		{name: "recoverBootDelegatedSessions", run: func() error {
+			return state.admitBootWork(
+				ctx,
+				func(ctx context.Context) error { return recoverBootDelegatedSessions(ctx, state) },
+			)
+		}},
+		{name: "resumeBootInterruptedSessions",
+			run: func() error {
+				return state.admitBootWork(ctx, func(ctx context.Context) error {
+					return resumeBootInterruptedSessions(ctx, state.sessions)
+				})
+			},
+		},
+		{name: "recoverBootMonitors", run: func() error { return recoverBootMonitors(ctx, state) }},
+		{name: "recoverBootReplyWatches", run: func() error { return recoverBootReplyWatches(ctx, state) }},
+		{name: "bootFinalize", run: func() error { return d.bootFinalize(ctx, state) }},
+		{name: "bootTaskRoles", run: func() error { return d.bootTaskRoles(ctx, state) }},
+		{name: "startBootLoopCoordinators", run: func() error {
+			return state.admitBootWork(
+				ctx,
+				func(ctx context.Context) error { return startBootLoopCoordinators(ctx, state) },
+			)
+		}},
+		{name: "bootScheduler", run: func() error { return d.bootScheduler(ctx, state, cleanup) }},
+		{name: "bootSessionSupervision", run: func() error { return d.bootSessionSupervision(ctx, state, cleanup) }},
+		{name: "bootSessionLaterReturns",
+			run: func() error { return d.bootSessionLaterReturns(ctx, state, cleanup) },
+		},
+	}
 }
 
 func reconcileBootDailyBudgetReceipts(ctx context.Context, state *bootState) error {

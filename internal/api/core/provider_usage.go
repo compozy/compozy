@@ -12,9 +12,9 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	config "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/gateway"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/providerusage"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/gin-gonic/gin"
 )
 
@@ -109,7 +109,7 @@ func providerUsageIntent(c *gin.Context, requested providerusage.Intent) provide
 	if hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
 		return providerusage.IntentBackground
 	}
-	if _, ok := gateway.DeviceFromContext(c.Request.Context()); ok {
+	if _, ok := remotehost.PrincipalFromContext(c.Request.Context()); ok {
 		return providerusage.IntentBackground
 	}
 	if _, ok := AppTokenFromContext(c.Request.Context()); ok {

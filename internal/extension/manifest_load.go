@@ -272,7 +272,7 @@ func rejectUnsupportedManifestTOML(keys []toml.Key) error {
 			key[0] == legacyManifestNetworkParticipationKey {
 			return legacyManifestSectionError(key[0])
 		}
-		if key[0] == manifestResourcesKey {
+		if key[0] == manifestResourcesKey || key[0] == manifestRequiresKey {
 			return unknownManifestFieldError(key.String())
 		}
 	}
@@ -348,7 +348,7 @@ func legacyManifestSectionError(section string) error {
 	if section == legacyManifestNetworkParticipationKey {
 		return &ManifestValidationError{
 			Field:   section,
-			Message: "[network_participation] was removed; rebuild with [gateway] and confirm its requirement digest",
+			Message: "[network_participation] was removed; see https://compozy.com/docs/computers",
 		}
 	}
 	return &ManifestValidationError{

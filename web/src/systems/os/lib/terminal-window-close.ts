@@ -1,6 +1,7 @@
 import { createAtom } from "@xstate/store";
 import { toast } from "@compozy/ui";
 import type { QueryClient } from "@tanstack/react-query";
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import type { TerminalInfo } from "@/systems/terminal";
 import {
   GLOBAL_DESKTOP_WORKSPACE_ID,
@@ -58,7 +59,10 @@ export class TerminalWindowClose {
         ) {
           throw new Error("The terminal is still opening. Try closing it again when it is ready.");
         }
-        const scopes = new Map<string, Set<string>>();
+        const scopes = new Map<
+          string,
+          { computerId: ComputerId; workspaceId: string; ids: Set<string> }
+        >();
         for (const window of windows) {
           if (!window.instanceKey) continue;
           const target = focusedWorkspaceSelector(
@@ -71,9 +75,18 @@ export class TerminalWindowClose {
             if (workspaceId === GLOBAL_DESKTOP_WORKSPACE_ID) continue;
             throw new Error("Select the terminal's workspace before closing it.");
           }
-          const ids = scopes.get(target) ?? new Set<string>();
-          ids.add(window.instanceKey);
-          scopes.set(target, ids);
+          const rawComputer = window.route.search.computer;
+          const computerId = normalizeComputerId(
+            typeof rawComputer === "string" ? rawComputer : undefined
+          );
+          const scopeKey = `${computerId}\0${target}`;
+          const entry = scopes.get(scopeKey) ?? {
+            computerId,
+            workspaceId: target,
+            ids: new Set<string>(),
+          };
+          entry.ids.add(window.instanceKey);
+          scopes.set(scopeKey, entry);
         }
         if (scopes.size === 0) return true;
         // Keep the terminal bundle lazy until an operator actually closes one.
@@ -81,15 +94,22 @@ export class TerminalWindowClose {
         const readTargets = async () =>
           (
             await Promise.all(
-              [...scopes].map(async ([target, ids]) =>
+              [...scopes.values()].map(async ({ computerId, workspaceId: target, ids }) =>
                 (
-                  await api.fetchTerminals(
-                    target,
-                    { all_profiles: true },
-                    AbortSignal.timeout(15000)
-                  )
+                  await (isRemoteComputerId(computerId)
+                    ? api.fetchTerminals(
+                        target,
+                        { all_profiles: true },
+                        AbortSignal.timeout(15000),
+                        computerId
+                      )
+                    : api.fetchTerminals(
+                        target,
+                        { all_profiles: true },
+                        AbortSignal.timeout(15000)
+                      ))
                 ).flatMap(terminal =>
-                  ids.has(terminal.id) ? [{ workspaceId: target, terminal }] : []
+                  ids.has(terminal.id) ? [{ computerId, workspaceId: target, terminal }] : []
                 )
               )
             )
@@ -117,9 +137,10 @@ export class TerminalWindowClose {
         // Validate the complete batch before starting any destructive request.
         if (
           toClose.some(
-            ({ terminal, workspaceId: target }) =>
+            ({ computerId, terminal, workspaceId: target }) =>
               !running.some(
                 item =>
+                  item.computerId === computerId &&
                   item.terminal.id === terminal.id &&
                   item.terminal.profile_name === terminal.profile_name &&
                   item.workspaceId === target
@@ -131,15 +152,24 @@ export class TerminalWindowClose {
         // Keep close admission locked until every independent request settles,
         // including after a partial failure, so a retry cannot overlap this batch.
         const results = await Promise.allSettled(
-          toClose.map(async ({ terminal, workspaceId: target }) => {
+          toClose.map(async ({ computerId, terminal, workspaceId: target }) => {
             try {
-              const exit = await api.closeTerminal(
-                target,
-                terminal.id,
-                { profile: terminal.profile_name },
-                "HUP",
-                AbortSignal.timeout(15000)
-              );
+              const exit = await (isRemoteComputerId(computerId)
+                ? api.closeTerminal(
+                    target,
+                    terminal.id,
+                    { profile: terminal.profile_name },
+                    "HUP",
+                    AbortSignal.timeout(15000),
+                    computerId
+                  )
+                : api.closeTerminal(
+                    target,
+                    terminal.id,
+                    { profile: terminal.profile_name },
+                    "HUP",
+                    AbortSignal.timeout(15000)
+                  ));
               if (exit === null)
                 throw new Error("Terminal termination was not confirmed. Try again.");
             } catch (error) {
@@ -153,10 +183,12 @@ export class TerminalWindowClose {
             }
           })
         );
+        const workspaceTargets = new Set([...scopes.values()].map(entry => entry.workspaceId));
         await queryClient.invalidateQueries({
           predicate: query =>
-            query.queryKey[0] === "terminal" &&
-            (query.queryKey[1] === "aggregate" || scopes.has(String(query.queryKey[2]))),
+            query.queryKey[0] === "computer" &&
+            query.queryKey[2] === "terminal" &&
+            (query.queryKey[3] === "aggregate" || workspaceTargets.has(String(query.queryKey[4]))),
         });
         const failure = results.find(result => result.status === "rejected");
         if (failure) throw failure.reason;

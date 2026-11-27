@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import {
   Button,
+  cn,
   Eyebrow,
   Item,
   Popover,
@@ -42,15 +43,19 @@ function summary(instances: readonly AgentInstancePayload[]) {
 
 function CrewRow({
   instance,
+  current,
   onOpen,
 }: {
   instance: AgentInstancePayload;
+  current: boolean;
   onOpen: (instance: AgentInstancePayload) => void;
 }) {
   return (
     <Item
+      aria-current={current ? "page" : undefined}
       as="button"
-      className="w-full gap-3 px-2 py-1.5 text-left"
+      // Navigation, not a toggle: aria-current and the selected plate, without Item's aria-pressed.
+      className={cn("w-full gap-3 px-2 py-1.5 text-left", current && "bg-selected")}
       onClick={() => onOpen(instance)}
     >
       <AgentMark
@@ -76,6 +81,8 @@ function CrewRow({
 export function AlwaysOnCrewPopover({
   instances,
   hidden,
+  currentId,
+  currentInside,
   scopeName,
   onOpen,
 }: {
@@ -83,6 +90,10 @@ export function AlwaysOnCrewPopover({
   instances: readonly AgentInstancePayload[];
   /** How many the row couldn't fit, for the trigger's `+N`. */
   hidden: number;
+  /** The agent whose session is open, marked in the crew. */
+  currentId?: string;
+  /** The open agent sits past the row's seats, so `+N` stands in for its seat. */
+  currentInside?: boolean;
   scopeName: string;
   onOpen: (instance: AgentInstancePayload) => void;
 }) {
@@ -96,7 +107,11 @@ export function AlwaysOnCrewPopover({
     <Popover>
       <PopoverTrigger
         aria-label={`Show all ${instances.length} agents in ${scopeName}`}
-        className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-2 text-small-body font-medium text-muted-foreground tabular-nums outline-none hover:bg-hover hover:text-fg focus-visible:shadow-focus-ring"
+        className={cn(
+          "grid size-9 shrink-0 place-items-center rounded-full bg-surface-2 text-small-body font-medium text-muted-foreground tabular-nums outline-none hover:bg-hover hover:text-fg focus-visible:shadow-focus-ring",
+          currentInside && "bg-selected text-fg hover:bg-selected"
+        )}
+        data-current={currentInside ? "true" : undefined}
         data-testid="always-on-crew"
       >
         +{hidden}
@@ -145,7 +160,12 @@ export function AlwaysOnCrewPopover({
               <div className="flex flex-col gap-0.5" key={band.label}>
                 <Eyebrow className="px-2 pb-1 text-subtle">{band.label}</Eyebrow>
                 {members.map(instance => (
-                  <CrewRow instance={instance} key={instance.id} onOpen={onOpen} />
+                  <CrewRow
+                    current={instance.id === currentId}
+                    instance={instance}
+                    key={instance.id}
+                    onOpen={onOpen}
+                  />
                 ))}
               </div>
             );

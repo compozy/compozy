@@ -120,7 +120,8 @@ const (
 	// SchedulerSkipReasonGraceExceeded reports a missed fire outside its grace window.
 	SchedulerSkipReasonGraceExceeded SchedulerSkipReason = "misfire_grace_exceeded"
 	// SchedulerSkipReasonSelfOverlap reports that the same job still has an active prior run.
-	SchedulerSkipReasonSelfOverlap SchedulerSkipReason = "self_overlap"
+	SchedulerSkipReasonSelfOverlap    SchedulerSkipReason = "self_overlap"
+	SchedulerSkipReasonSignInRequired SchedulerSkipReason = "sign_in_required"
 	// SchedulerSkipReasonMetadataKey is the automation-run metadata key for durable skip evidence.
 	SchedulerSkipReasonMetadataKey = "reason"
 )
@@ -155,6 +156,10 @@ type LoopTarget struct {
 	Inputs map[string]any `json:"inputs,omitempty" toml:"inputs,omitempty"`
 
 	InputMapping map[string]string `json:"input_mapping,omitempty" toml:"input_mapping,omitempty"`
+
+	// InputCommand resolves Loop inputs at each fire instead of only using the static Inputs.
+	// The daemon runs it in the target workspace and parses key=value lines from stdout.
+	InputCommand string `json:"input_command,omitempty" toml:"input_command,omitempty"`
 }
 
 // Job is the canonical scheduled automation definition used by runtime and storage layers.
@@ -263,6 +268,7 @@ type ActivationEnvelope struct {
 
 // SchedulerState stores the durable scheduling cursor for one automation job.
 type SchedulerState struct {
+	HeldForSignIn             bool                   `json:"-"`
 	DeferredUntil             *time.Time             `json:"deferred_until,omitempty"`
 	JobID                     string                 `json:"job_id"`
 	NextRunAt                 *time.Time             `json:"next_run_at,omitempty"`

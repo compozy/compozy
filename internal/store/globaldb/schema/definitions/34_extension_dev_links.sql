@@ -6,9 +6,6 @@ CREATE TABLE extension_dev_links (
 		linked_at TIMESTAMP NOT NULL,
 		format TEXT NOT NULL DEFAULT 'compozy',
 		ingest_diagnostics_json TEXT NOT NULL DEFAULT '[]',
-		gateway_requirement_digest TEXT NOT NULL DEFAULT '',
-		gateway_confirmed_by TEXT,
-		gateway_confirmed_at TEXT,
 		UNIQUE (extension_name, workspace_id)
 	);
 

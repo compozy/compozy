@@ -4,7 +4,7 @@ area: ET
 title: Keep retired products absent across public surfaces
 persona: Ada
 journey: J-validate-compozy-hard-cut
-expected: Network, Bridges, Sandbox, agent memory, Dream, the Knowledge app, and CompozyOS-side session compaction have no active command, route, native tool, toolset, config key, hook event, trigger event, settings section, app entry, docs navigation, or example, while Tasks, sessions, Loops, Goal, gateway, ACP, SOUL.md, and HEARTBEAT.md remain usable; a home upgraded from a memory-enabled release archives or ignores the retired memory state without blocking start.
+expected: Network, Bridges, Sandbox, agent memory, Dream, the Knowledge app, and CompozyOS-side session compaction, and Remote Gateway have no active command, route, native tool, toolset, config key, hook event, trigger event, settings section, app entry, docs navigation, or example, while Tasks, sessions, Loops, Goal, Remote Computers, ACP, SOUL.md, and HEARTBEAT.md remain usable; a home upgraded from a memory-enabled release archives or ignores the retired memory state without blocking start.
 entry_points: CLI help and command catalog; HTTP and UDS route catalogs; native tool catalog; hooks introspection; settings; Web dock and palette; public docs and Marketplace; compozy status -o json; compozy config set; Web /knowledge and /settings/memory
 qa_status: untested
 bug_ids:
@@ -13,14 +13,13 @@ retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-09-27-pkgs-cleanup-real-runtime; /Users/pedronauck/dev/qa-labs/compozy-pkgs-cleanup-hardcut-20260927-223700-515958-lab/qa-artifacts/qa/journey-log.jsonl
 last_report: docs/qa/reports/2026-09-27-pkgs-cleanup-real-runtime.md
-overlaps: ET-web-catalog-navigation; RT-authored-context-lifecycle; RT-observe-overview-cli; MS-037; RT-gateway-public-ingress-bindings; RT-upgrade-memory-removal-home; RT-pressure-context-compaction
+overlaps: ET-web-catalog-navigation; RT-authored-context-lifecycle; RT-observe-overview-cli; MS-037; RT-computers-webhook-ingress; RT-computers-upgrade; RT-upgrade-memory-removal-home; RT-pressure-context-compaction
 ---
 
 In an isolated fresh home, inspect the public catalogs and attempt representative retired commands,
 routes, tool ids, and settings mutations. Refusal must occur before mutation, with no alias, hidden
 activation, or stale navigation entry. Extension manifests with `network_participation` must be
-refused in both TOML and JSON with guidance to rebuild using `[gateway]` and confirm the new
-requirement digest; old stored consent must not authorize the changed declaration. Repeat after
+refused in both TOML and JSON with Remote Computers migration guidance. Repeat after
 restarting the daemon and reloading the Web.
 
 Upgrade a disposable copy of state containing retired tables, config, and persisted windows. Verify
@@ -119,3 +118,14 @@ upgrade; nothing in CompozyOS reads them. A text match alone is not a product-re
 QA impact 2026-10-07 (memory removal): the canary now also covers the memory, Dream, Knowledge, and compaction
 retirement; stale skipped verdict reset to untested so the next cycle walks the added legs. The 2026-09-27 and
 PR 681 receipts above still cover the Network, Bridges, and Sandbox legs.
+
+## Remote Gateway removal (v0.8.0)
+
+Confirm CLI help omits Gateway, Pair, Device, Connect, and `--confirm-gateway-requirement`. During
+0.8.0 each invocation exits 2 with the Computers replacement, including before sign-in. The old
+`/api/gateway/*` routes return the unknown-route response on HTTP and UDS, and the native tool
+catalog no longer exposes `compozy__gateway`. Extension manifests declaring
+`connectivity.provider` fail with `extension_kind_removed` and the scaffolds are absent. The
+bundled Tailscale extension is no longer enrolled. Open the old `/settings/gateway` URL and check
+that it resolves to Computers. See `RT-computers-upgrade` for persisted state and `RT-computers-webhook-ingress`
+for delivery.

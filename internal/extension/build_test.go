@@ -17,6 +17,7 @@ import (
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	compozysdk "github.com/compozy/compozy/sdk/go"
@@ -129,9 +130,6 @@ name = "resource-only"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[gateway]
-permissions = ["gateway.private"]
-
 [[resources.skills]]
 path = "skills"
 `)
@@ -147,13 +145,6 @@ path = "skills"
 		}
 		if !strings.Contains(string(copied), "# Writer") {
 			t.Fatalf("copied skill = %q, want Writer content", copied)
-		}
-		if result.Manifest.Gateway == nil ||
-			!reflect.DeepEqual(result.Manifest.Gateway.Permissions, []string{"gateway.private"}) {
-			t.Fatalf(
-				"generated Gateway = %#v, want gateway.private permission",
-				result.Manifest.Gateway,
-			)
 		}
 		if len(runner.Commands()) != 0 {
 			t.Fatalf("commands = %#v, want none", runner.Commands())
@@ -185,31 +176,6 @@ description: Edit clear release notes.
 		}
 		if len(runner.Commands()) != 0 {
 			t.Fatalf("commands after rebuild = %#v, want none", runner.Commands())
-		}
-		writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
-name = "resource-only"
-version = "0.1.0"
-min_compozy_version = "0.0.0"
-
-[gateway]
-permissions = ["gateway.public"]
-
-[[resources.skills]]
-path = "skills"
-`)
-		gatewayChanged, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
-		if err != nil {
-			t.Fatalf("buildBundle(gateway changed) error = %v", err)
-		}
-		if gatewayChanged.GenerationHash == changed.GenerationHash {
-			t.Fatalf("gateway-changed generation hash = %q, want a new hash", gatewayChanged.GenerationHash)
-		}
-		if gatewayChanged.Manifest.Gateway == nil ||
-			!reflect.DeepEqual(gatewayChanged.Manifest.Gateway.Permissions, []string{"gateway.public"}) {
-			t.Fatalf(
-				"gateway-changed permissions = %#v, want gateway.public permission",
-				gatewayChanged.Manifest.Gateway,
-			)
 		}
 	})
 
@@ -844,30 +810,136 @@ func TestManifestFromDescribeResources(t *testing.T) {
 			t.Fatalf("manifest.Resources.Hooks[0].Profile = %q, want finance", got)
 		}
 	})
+}
 
-	t.Run("Should preserve normalized gateway permissions", func(t *testing.T) {
+func TestManifestFromDescribeInputs(t *testing.T) {
+	// Serial: the suite stamps daemon 0.6.0, below the floor described inputs must declare.
+	withDaemonVersion(t, subprocessInputsFloor)
+
+	describedInputsPayload := func() extensioncontract.DescribePayload {
+		payload := validDescribePayload()
+		payload.RequiresEnv = []string{"ACME_TOKEN", "ACME_REGION"}
+		payload.SDK.MinCompozyVersion = subprocessInputsFloor
+		payload.Inputs = []extensioncontract.DescribeInput{
+			{
+				ID: " api_token ", Prompt: " API token for Acme ", Type: "secret", Required: true,
+				Binding: extensioncontract.DescribeInputBinding{Type: "env", Name: " ACME_TOKEN "},
+			},
+			{
+				ID: "region", Prompt: "Acme region", Type: "identifier",
+				Binding: extensioncontract.DescribeInputBinding{Type: "env", Name: "ACME_REGION"},
+				Default: json.RawMessage(`"us_east"`),
+			},
+		}
+		return payload
+	}
+
+	t.Run("Should carry described inputs into the manifest and its generated TOML", func(t *testing.T) {
+		t.Parallel()
+
+		payload := describedInputsPayload()
+		data, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		decoded, err := decodeDescribePayload(data)
+		if err != nil {
+			t.Fatalf("decodeDescribePayload() error = %v", err)
+		}
+		manifest, err := manifestFromDescribe(&decoded)
+		if err != nil {
+			t.Fatalf("manifestFromDescribe() error = %v", err)
+		}
+		want := []ManifestInput{
+			{
+				ID: "api_token", Prompt: "API token for Acme", Type: "secret", Required: true,
+				Binding: marketplace.InputBinding{Type: "env", Name: "ACME_TOKEN"},
+			},
+			{
+				ID: "region", Prompt: "Acme region", Type: "identifier",
+				Binding: marketplace.InputBinding{Type: "env", Name: "ACME_REGION"},
+				Default: json.RawMessage(`"us_east"`),
+			},
+		}
+		if !reflect.DeepEqual(manifest.Inputs, want) {
+			t.Fatalf("manifest.Inputs = %#v, want %#v", manifest.Inputs, want)
+		}
+		if got := manifest.SubprocessInputs(); len(got) != 2 {
+			t.Fatalf("SubprocessInputs() = %#v, want both described inputs", got)
+		}
+
+		encoded, err := encodeManifestTOML(manifest)
+		if err != nil {
+			t.Fatalf("encodeManifestTOML() error = %v", err)
+		}
+		reloaded, err := loadManifestTOMLContent(manifestTOMLFileName, encoded)
+		if err != nil {
+			t.Fatalf("loadManifestTOMLContent() error = %v\n%s", err, encoded)
+		}
+		if !reflect.DeepEqual(reloaded.Inputs, want) {
+			t.Fatalf("reloaded Inputs = %#v, want %#v", reloaded.Inputs, want)
+		}
+	})
+
+	t.Run("Should leave a payload without inputs unchanged", func(t *testing.T) {
 		t.Parallel()
 
 		payload := validDescribePayload()
-		payload.Gateway = &extensioncontract.DescribeGatewayRequirement{
-			Permissions: []string{
-				" gateway.public ",
-				"gateway.private",
-				"gateway.public",
-			},
-		}
+		payload.RequiresEnv = []string{"ACME_TOKEN"}
 		manifest, err := manifestFromDescribe(&payload)
 		if err != nil {
 			t.Fatalf("manifestFromDescribe() error = %v", err)
 		}
-		if manifest.Gateway == nil ||
-			!slices.Equal(
-				manifest.Gateway.Permissions,
-				[]string{"gateway.private", "gateway.public"},
-			) {
-			t.Fatalf("Gateway = %#v, want normalized gateway permissions", manifest.Gateway)
+		if manifest.Inputs != nil || !slices.Equal(manifest.RequiresEnv, []string{"ACME_TOKEN"}) {
+			t.Fatalf("manifest = Inputs %#v RequiresEnv %#v, want no inputs", manifest.Inputs, manifest.RequiresEnv)
+		}
+		encoded, err := encodeManifestTOML(manifest)
+		if err != nil {
+			t.Fatalf("encodeManifestTOML() error = %v", err)
+		}
+		if strings.Contains(string(encoded), "[[inputs]]") {
+			t.Fatalf("generated manifest declares inputs:\n%s", encoded)
 		}
 	})
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(*extensioncontract.DescribePayload)
+		want   string
+	}{
+		{
+			name: "Should reject a secret input with a default",
+			mutate: func(payload *extensioncontract.DescribePayload) {
+				payload.Inputs[0].Default = json.RawMessage(`"leaked"`)
+			},
+			want: "default must not be set for secret inputs",
+		},
+		{
+			name: "Should reject an input bound to an undeclared env name",
+			mutate: func(payload *extensioncontract.DescribePayload) {
+				payload.Inputs[0].Binding.Name = "OTHER_TOKEN"
+			},
+			want: "input is not bound to any declared MCP server or requires_env entry",
+		},
+		{
+			name: "Should reject inputs below the subprocess input floor",
+			mutate: func(payload *extensioncontract.DescribePayload) {
+				payload.SDK.MinCompozyVersion = "0.3.0-beta.1"
+			},
+			want: "subprocess-bound inputs require min_compozy_version " + subprocessInputsFloor,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := describedInputsPayload()
+			tc.mutate(&payload)
+			_, err := manifestFromDescribe(&payload)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("manifestFromDescribe() error = %v, want %q", err, tc.want)
+			}
+		})
+	}
 }
 
 func TestValidateBundle(t *testing.T) {
@@ -1047,8 +1119,7 @@ func TestScaffoldExtension(t *testing.T) {
 	})
 
 	expectedTemplates := []ScaffoldTemplate{
-		ScaffoldTemplateConnectivityProviderGo,
-		ScaffoldTemplateConnectivityProviderTS,
+
 		ScaffoldTemplateHeartbeatSourceGo,
 		ScaffoldTemplateLoopWatchSourceGo,
 		ScaffoldTemplateToolProviderGo,

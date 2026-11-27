@@ -109,7 +109,7 @@ func (q *Queries) DeleteVaultSecret(ctx context.Context, ref string) (int64, err
 const getMCPAuthToken = `-- name: GetMCPAuthToken :one
 SELECT scope, workspace_id, owner, server_name, definition_fingerprint, issuer, client_id, scopes_json,
        access_token_ref, refresh_token_ref,
-       token_type, expires_at, obtained_at, updated_at
+       token_type, expires_at, obtained_at, updated_at, requested_scopes_json
 FROM mcp_auth_tokens
 WHERE scope = ?1
   AND workspace_id = ?2
@@ -147,6 +147,7 @@ func (q *Queries) GetMCPAuthToken(ctx context.Context, arg GetMCPAuthTokenParams
 		&i.ExpiresAt,
 		&i.ObtainedAt,
 		&i.UpdatedAt,
+		&i.RequestedScopesJson,
 	)
 	return i, err
 }
@@ -379,7 +380,7 @@ func (q *Queries) ListMCPAuthTokenRefsByWorkspace(ctx context.Context, workspace
 const listMCPAuthTokens = `-- name: ListMCPAuthTokens :many
 SELECT scope, workspace_id, owner, server_name, definition_fingerprint, issuer, client_id, scopes_json,
        access_token_ref, refresh_token_ref,
-       token_type, expires_at, obtained_at, updated_at
+       token_type, expires_at, obtained_at, updated_at, requested_scopes_json
 FROM mcp_auth_tokens ORDER BY scope ASC, workspace_id ASC, owner ASC, server_name ASC
 `
 
@@ -407,6 +408,7 @@ func (q *Queries) ListMCPAuthTokens(ctx context.Context) ([]McpAuthToken, error)
 			&i.ExpiresAt,
 			&i.ObtainedAt,
 			&i.UpdatedAt,
+			&i.RequestedScopesJson,
 		); err != nil {
 			return nil, err
 		}
@@ -461,19 +463,20 @@ const upsertMCPAuthToken = `-- name: UpsertMCPAuthToken :exec
 INSERT INTO mcp_auth_tokens (
   scope, workspace_id, owner, server_name, definition_fingerprint, issuer, client_id, scopes_json,
   access_token_ref, refresh_token_ref,
-  token_type, expires_at, obtained_at, updated_at
+  token_type, expires_at, obtained_at, updated_at, requested_scopes_json
 ) VALUES (
   ?1, ?2, ?3, ?4, ?5,
   ?6, ?7, ?8,
   ?9, ?10, ?11,
-  ?12, ?13, ?14
+  ?12, ?13, ?14, ?15
 )
 ON CONFLICT(scope, workspace_id, owner, server_name) DO UPDATE SET
   definition_fingerprint = excluded.definition_fingerprint, issuer = excluded.issuer,
   client_id = excluded.client_id, scopes_json = excluded.scopes_json,
   access_token_ref = excluded.access_token_ref, refresh_token_ref = excluded.refresh_token_ref,
   token_type = excluded.token_type, expires_at = excluded.expires_at,
-  obtained_at = excluded.obtained_at, updated_at = excluded.updated_at
+  obtained_at = excluded.obtained_at, updated_at = excluded.updated_at,
+  requested_scopes_json = excluded.requested_scopes_json
 `
 
 type UpsertMCPAuthTokenParams struct {
@@ -491,6 +494,7 @@ type UpsertMCPAuthTokenParams struct {
 	ExpiresAt             sql.NullString `json:"expires_at"`
 	ObtainedAt            string         `json:"obtained_at"`
 	UpdatedAt             string         `json:"updated_at"`
+	RequestedScopesJson   string         `json:"requested_scopes_json"`
 }
 
 func (q *Queries) UpsertMCPAuthToken(ctx context.Context, arg UpsertMCPAuthTokenParams) error {
@@ -509,6 +513,7 @@ func (q *Queries) UpsertMCPAuthToken(ctx context.Context, arg UpsertMCPAuthToken
 		arg.ExpiresAt,
 		arg.ObtainedAt,
 		arg.UpdatedAt,
+		arg.RequestedScopesJson,
 	)
 	return err
 }

@@ -7,7 +7,7 @@ import { CheckIcon, GitPullRequestIcon, XIcon } from "@compozy/ui/icons";
 
 import { Button, Card, CardContent, Eyebrow, Pill } from "@compozy/ui";
 
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@protohq/cli";
 
 export const meta = definePrototype({
   title: "Review digest",

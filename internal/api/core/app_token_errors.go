@@ -4,7 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/apptoken"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,33 +18,31 @@ func RespondAppTokenError(c *gin.Context, err error, authentication bool) {
 
 func AppTokenErrorStatus(err error, authentication bool) (int, string) {
 	switch {
-	case errors.Is(err, gateway.ErrAppTokenNameInvalid):
+	case errors.Is(err, apptoken.ErrNameInvalid):
 		return http.StatusBadRequest, "app_token_name_invalid"
-	case errors.Is(err, gateway.ErrAppTokenOriginInvalid):
+	case errors.Is(err, apptoken.ErrOriginInvalid):
 		return http.StatusBadRequest, "app_token_origin_invalid"
-	case errors.Is(err, gateway.ErrAppTokenOriginLimit):
+	case errors.Is(err, apptoken.ErrOriginLimit):
 		return http.StatusBadRequest, "app_token_origin_limit"
-	case errors.Is(err, gateway.ErrAppTokenStateInvalid):
+	case errors.Is(err, apptoken.ErrStateInvalid):
 		return http.StatusBadRequest, "app_token_state_invalid"
-	case errors.Is(err, gateway.ErrAppTokenLimit):
+	case errors.Is(err, apptoken.ErrLimit):
 		return http.StatusConflict, "app_token_limit"
-	case errors.Is(err, gateway.ErrAppTokenNotFound):
+	case errors.Is(err, apptoken.ErrNotFound):
 		return http.StatusNotFound, "app_token_not_found"
-	case errors.Is(err, gateway.ErrAppTokenUnauthenticated):
+	case errors.Is(err, apptoken.ErrUnauthenticated):
 		return http.StatusUnauthorized, "app_token_unauthenticated"
-	case errors.Is(err, gateway.ErrDeviceUnauthenticated):
-		return http.StatusUnauthorized, "app_token_unauthenticated"
-	case errors.Is(err, gateway.ErrAppTokenRequired):
+	case errors.Is(err, apptoken.ErrRequired):
 		return http.StatusUnauthorized, "app_token_required"
-	case errors.Is(err, gateway.ErrAppTokenRateLimited):
+	case errors.Is(err, apptoken.ErrRateLimited):
 		return http.StatusTooManyRequests, "app_token_rate_limited"
-	case errors.Is(err, gateway.ErrAppOriginNotAllowed):
+	case errors.Is(err, apptoken.ErrOriginNotAllowed):
 		return http.StatusForbidden, "app_origin_not_allowed"
-	case errors.Is(err, gateway.ErrAppTokenRouteForbidden):
+	case errors.Is(err, apptoken.ErrRouteForbidden):
 		return http.StatusForbidden, "app_token_route_forbidden"
-	case errors.Is(err, gateway.ErrAppTokenLocalOnly):
-		return http.StatusForbidden, "gateway_app_token_local_only"
-	case errors.Is(err, gateway.ErrAppTokenRevoked), errors.Is(err, gateway.ErrDeviceRevoked):
+	case errors.Is(err, apptoken.ErrLocalOnly):
+		return http.StatusForbidden, "app_token_local_only"
+	case errors.Is(err, apptoken.ErrRevoked), errors.Is(err, remotehost.ErrDeviceRevoked):
 		if authentication {
 			return http.StatusUnauthorized, "app_token_revoked"
 		}

@@ -37,7 +37,6 @@ type nativeToolAvailabilitySet struct {
 	vault                *toolspkg.NativeAvailabilityGroup
 	tasks                *toolspkg.NativeAvailabilityGroup
 	observe              *toolspkg.NativeAvailabilityGroup
-	gateway              *toolspkg.NativeAvailabilityGroup
 	config               *toolspkg.NativeAvailabilityGroup
 	hookRead             *toolspkg.NativeAvailabilityGroup
 	hookMutation         *toolspkg.NativeAvailabilityGroup
@@ -175,7 +174,6 @@ func (n *daemonNativeTools) applyServiceNativeToolAvailability(availability *nat
 		return strings.TrimSpace(n.deps.HomePaths.ConfigFile) != ""
 	}
 	availability.observe = n.dependencyAvailability(func() bool { return n.deps.Observer != nil })
-	availability.gateway = n.dependencyAvailability(func() bool { return n.deps.gatewayService() != nil })
 	availability.config = n.dependencyAvailability(configReady)
 	availability.hookRead = n.dependencyAvailability(func() bool { return n.deps.Observer != nil })
 	availability.hookMutation = n.dependencyAvailability(func() bool {

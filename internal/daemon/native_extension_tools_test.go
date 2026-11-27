@@ -416,6 +416,213 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 	})
 
+	// Invariant: a dependency validation failure keeps the HTTP validation payload, field and dependency (rule 13).
+	// Owner: native extension boundary. Canonical suite: daemon native extension tools.
+	t.Run("Should report a dependency validation failure with its field like HTTP", func(t *testing.T) {
+		t.Parallel()
+		for _, field := range []string{"requires.extensions.ref", "expected_digest"} {
+			cause := &extensionpkg.DependencyGateError{
+				Dependency: "dep-core",
+				Err: &extensionpkg.ManifestValidationError{
+					Field: field, Message: "invalid dependency consent",
+				},
+			}
+			err := nativeExtensionToolError(toolspkg.ToolIDExtensionsInstall, cause)
+			toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || toolErr.Code != toolspkg.ErrorCodeInvalidInput || !errors.Is(err, toolspkg.ErrToolInvalidInput) ||
+				toolErr.PartialResult == nil {
+				t.Fatalf("native dependency validation (%s) = %#v, want invalid input with a payload", field, err)
+			}
+			var payload contract.ExtensionValidationErrorPayload
+			if err := json.Unmarshal(toolErr.PartialResult.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Dependency != "dep-core" || len(payload.Issues) != 1 || payload.Issues[0].Field != field {
+				t.Fatalf("native dependency validation payload = %#v, want field %s for dep-core", payload, field)
+			}
+		}
+	})
+
+	// Invariant: a failure after completed dependency installs keeps its code and reports dependencies_installed
+	// in the structured partial result, like HTTP (rule 13). Owner: native extension boundary.
+	t.Run("Should report installed dependencies in a native install failure", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name  string
+			cause error
+			code  string
+		}{
+			{
+				name:  "dependent gate",
+				cause: &extensionpkg.InputsRequiredError{MissingInputs: []string{"token"}},
+				code:  "extension_inputs_required",
+			},
+			{
+				name: "dependency gate",
+				cause: &extensionpkg.DependencyGateError{
+					Dependency: "dep-next", Err: extensionpkg.ErrExtensionChecksumUnverified,
+				},
+				code: "extension_checksum_unverified",
+			},
+		}
+		for _, tc := range cases {
+			cause := &extensionpkg.DependenciesInstalledError{Installed: []string{"dep-core"}, Err: tc.cause}
+			err := nativeExtensionToolError(toolspkg.ToolIDExtensionsInstall, cause)
+			toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || string(toolErr.Code) != tc.code || toolErr.PartialResult == nil {
+				t.Fatalf("native install failure (%s) = %#v, want %s with a payload", tc.name, err, tc.code)
+			}
+			var payload contract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(toolErr.PartialResult.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(payload.DependenciesInstalled, []string{"dep-core"}) {
+				t.Fatalf(
+					"native install failure (%s) dependencies_installed = %v",
+					tc.name,
+					payload.DependenciesInstalled,
+				)
+			}
+		}
+	})
+
+	// Invariant: per-dependency consent is a closed object forwarded to the dependency's own gate [T-17].
+	// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
+	t.Run("Should reject unknown per-dependency consent keys", func(t *testing.T) {
+		t.Parallel()
+		deps, _, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input: json.RawMessage(`{"source":"curated","ref":"acme/tool","with_dependencies":true,` +
+				`"dependencies":{"acme-core":{"allow_unverified":true,"allow_all":true}}}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Err == nil || !strings.Contains(toolErr.Err.Error(), `unknown field "allow_all"`) {
+			t.Fatalf("Registry.Call(unknown consent key) error = %+v, want unknown allow_all field", err)
+		}
+	})
+
+	t.Run("Should forward per-dependency consent to the dependency gate", func(t *testing.T) {
+		t.Parallel()
+		deps, extRegistry, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		dependencyDir := writeNativeLocalExtensionFixture(t, "dep-core", "1.0.0")
+		rootDir := writeNativeLocalExtensionFixture(t, "dep-root", "1.0.0")
+		if err := os.Rename(dependencyDir, filepath.Join(rootDir, "dep-core")); err != nil {
+			t.Fatal(err)
+		}
+		manifestPath := filepath.Join(rootDir, "extension.toml")
+		content, err := os.ReadFile(manifestPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content = bytes.Replace(content, []byte(`"0.5.0"`), []byte(`"0.7.9"`), 1)
+		content = append(content, "\n[[requires.extensions]]\nname = \"dep-core\"\n"+
+			"source = \"local_path\"\nref = \"dep-core\"\n"...)
+		if err := os.WriteFile(manifestPath, content, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		mismatched := strings.Repeat("a", 64)
+
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input: json.RawMessage(fmt.Sprintf(`{"source":"local_path","ref":%q,"allow_unverified":true,`+
+				`"with_dependencies":true,"dependencies":{"dep-core":{"allow_unverified":true,"expected_digest":%q}}}`,
+				rootDir, mismatched)),
+		})
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != "extension_source_changed" || toolErr.PartialResult == nil {
+			t.Fatalf("Registry.Call(dependency digest) error = %#v", err)
+		}
+		var payload contract.ExtensionOperationErrorPayload
+		if err := json.Unmarshal(toolErr.PartialResult.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Dependency != "dep-core" || payload.ListedDigest != mismatched {
+			t.Fatalf("dependency gate payload = %#v", payload)
+		}
+		for _, name := range []string{"dep-root", "dep-core"} {
+			if _, err := extRegistry.Get(name); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+				t.Fatalf("%s installed after refusal: %v", name, err)
+			}
+		}
+	})
+
+	// Invariant: remove and disable forward the experimental force flag to the dependency guard, and the compact
+	// results carry dependencies_installed and unmet_dependencies [T-17, T-18].
+	// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
+	t.Run("Should forward force and report dependency status in compact results", func(t *testing.T) {
+		t.Parallel()
+		deps, extRegistry, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		dependencyDir := writeNativeLocalExtensionFixture(t, "dep-core", "1.0.0")
+		rootDir := writeNativeLocalExtensionFixture(t, "dep-root", "1.0.0")
+		if err := os.Rename(dependencyDir, filepath.Join(rootDir, "dep-core")); err != nil {
+			t.Fatal(err)
+		}
+		manifestPath := filepath.Join(rootDir, "extension.toml")
+		content, err := os.ReadFile(manifestPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content = bytes.Replace(content, []byte(`"0.5.0"`), []byte(`"0.7.9"`), 1)
+		content = append(content, "\n[[requires.extensions]]\nname = \"dep-core\"\n"+
+			"source = \"local_path\"\nref = \"dep-core\"\n"...)
+		if err := os.WriteFile(manifestPath, content, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		call := func(id toolspkg.ToolID, input string) (toolspkg.ToolResult, error) {
+			return registry.Call(t.Context(), toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(input)})
+		}
+		requireInUse := func(id toolspkg.ToolID, input string) {
+			t.Helper()
+			_, err := call(id, input)
+			toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || toolErr.Code != "extension_dependency_in_use" {
+				t.Fatalf("%s without force error = %#v, want extension_dependency_in_use", id, err)
+			}
+		}
+		requireUnmet := func(state string) {
+			t.Helper()
+			result, err := call(toolspkg.ToolIDExtensionsInfo, `{"name":"dep-root"}`)
+			if err != nil {
+				t.Fatalf("extensions_info(dep-root) error = %v", err)
+			}
+			requireNativeStructuredContains(t, result,
+				[]byte(`"unmet_dependencies":[{"name":"dep-core","state":"`+state+`"`))
+		}
+
+		installed, err := call(toolspkg.ToolIDExtensionsInstall, fmt.Sprintf(`{"source":"local_path","ref":%q,`+
+			`"allow_unverified":true,"with_dependencies":true,"dependencies":{"dep-core":{"allow_unverified":true}}}`,
+			rootDir))
+		if err != nil {
+			t.Fatalf("extensions_install(dep-root) error = %v", err)
+		}
+		requireNativeStructuredContains(t, installed, []byte(`"dependencies_installed":["dep-core"]`))
+
+		requireInUse(toolspkg.ToolIDExtensionsDisable, `{"name":"dep-core"}`)
+		enabled, err := extRegistry.IsEnabledForProfile("dep-core", extensionDefaultProfileLens().ID)
+		if err != nil || !enabled {
+			t.Fatalf("dep-core enabled after refused disable = %t, %v; want true", enabled, err)
+		}
+		if _, err := call(toolspkg.ToolIDExtensionsDisable, `{"name":"dep-core","force":true}`); err != nil {
+			t.Fatalf("forced extensions_disable error = %v", err)
+		}
+		requireUnmet(dependencyStateDisabled)
+
+		requireInUse(toolspkg.ToolIDExtensionsRemove, `{"name":"dep-core"}`)
+		if _, err := call(toolspkg.ToolIDExtensionsRemove, `{"name":"dep-core","force":true}`); err != nil {
+			t.Fatalf("forced extensions_remove error = %v", err)
+		}
+		if _, err := extRegistry.Get("dep-core"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("dep-core after forced remove: %v", err)
+		}
+		requireUnmet(dependencyStateMissing)
+	})
+
 	// Invariant: native acquisition failures retain recovery metadata, including after partial batch progress.
 	// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
 	t.Run("Should retain missing candidate fields after a partial native update", func(t *testing.T) {
@@ -1226,15 +1433,14 @@ func nativeExtensionDownloadResult(t *testing.T, version string) *registrypkg.Do
 	}
 }
 
-func nativeExtensionTarGz(t *testing.T, version string) []byte {
-	t.Helper()
-	return nativeExtensionTarGzWithGateway(t, version, "")
+func nativeExtensionTarGz(t *testing.T, version string, manifestSections ...string) []byte {
+	return nativeExtensionArchive(t, version, false, manifestSections...)
 }
 
-func nativeExtensionTarGzWithGateway(
+func nativeExtensionArchive(
 	t *testing.T,
 	version string,
-	permission string,
+	withSkill bool,
 	manifestSections ...string,
 ) []byte {
 	t.Helper()
@@ -1242,16 +1448,13 @@ func nativeExtensionTarGzWithGateway(
 	integrationManifestSections := ""
 	runtimeCapabilities := `provides = []`
 	runtimePermissions := `requires = ["sessions/list"]`
-	if strings.TrimSpace(permission) != "" {
+	if withSkill {
 		runtimeCapabilities = "provides = []"
 		runtimePermissions = "requires = []"
-		integrationManifestSections = fmt.Sprintf(`
+		integrationManifestSections = `
 [[resources.skills]]
 path = "skills/"
-
-[gateway]
-permissions = [%q]
-`, permission)
+`
 	}
 
 	integrationManifestSections += "\n" + strings.Join(manifestSections, "\n")
@@ -1270,7 +1473,7 @@ min_compozy_version = "0.5.0"
 %s`, version, runtimeCapabilities, runtimePermissions, integrationManifestSections),
 		filepath.Join("tool-ext", "VERSION.txt"): version + "\n",
 	}
-	if strings.TrimSpace(permission) != "" {
+	if withSkill {
 		files[filepath.Join("tool-ext", "skills", "native-tool", "SKILL.md")] = `---
 name: native-tool
 description: Native tool integration skill

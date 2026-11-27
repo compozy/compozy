@@ -4,11 +4,126 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// BlockTask Create one typed task block
+func (c *Client) BlockTask(ctx context.Context, params BlockTaskParams, body CreateTaskBlockRequest) (*TaskBlockResponse, error) {
+	path := "/api/tasks/{id}/blocks"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskBlockResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// BrowseDirectoryParams carries the path, query, and header parameters.
+type BrowseDirectoryParams struct {
+	Path       *string `url:"path"`
+	ShowHidden *bool   `url:"show_hidden"`
+	DirsOnly   *bool   `url:"dirs_only"`
+}
+
+// BrowseDirectory List directory entries and filesystem roots for the workspace folder picker
+func (c *Client) BrowseDirectory(ctx context.Context, params BrowseDirectoryParams) (*FSBrowseResponse, error) {
+	path := "/api/fs/browse"
+	query := url.Values{}
+	if params.Path != nil {
+		query.Set("path", *params.Path)
+	}
+	if params.ShowHidden != nil {
+		query.Set("show_hidden", strconv.FormatBool(*params.ShowHidden))
+	}
+	if params.DirsOnly != nil {
+		query.Set("dirs_only", strconv.FormatBool(*params.DirsOnly))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FSBrowseResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// BulkForceFailTaskRunsParams carries the path, query, and header parameters.
+type BulkForceFailTaskRunsParams struct {
+	Profile *string `url:"profile"`
+}
+
+// BulkForceFailTaskRuns Force fail a bounded set of queued or claimed task runs
+func (c *Client) BulkForceFailTaskRuns(ctx context.Context, params BulkForceFailTaskRunsParams, body BulkForceTaskRunRequest) (*BulkForceTaskRunResponse, error) {
+	path := "/api/runs/bulk/fail"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out BulkForceTaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// BulkForceReleaseTaskRunsParams carries the path, query, and header parameters.
+type BulkForceReleaseTaskRunsParams struct {
+	Profile *string `url:"profile"`
+}
+
+// BulkForceReleaseTaskRuns Force release a bounded set of claimed task runs
+func (c *Client) BulkForceReleaseTaskRuns(ctx context.Context, params BulkForceReleaseTaskRunsParams, body BulkForceTaskRunRequest) (*BulkForceTaskRunResponse, error) {
+	path := "/api/runs/bulk/release"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out BulkForceTaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CancelAccountLoginParams carries the path, query, and header parameters.
+type CancelAccountLoginParams struct {
+	AttemptID *string `url:"attempt_id"`
+}
+
+// CancelAccountLogin Cancel account sign-in
+func (c *Client) CancelAccountLogin(ctx context.Context, params CancelAccountLoginParams) error {
+	path := "/api/account/login"
+	query := url.Values{}
+	if params.AttemptID != nil {
+		query.Set("attempt_id", *params.AttemptID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// CancelAutomationRunParams carries the path, query, and header parameters.
+type CancelAutomationRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
 
 // CancelAutomationRun Cancel an orphaned automation run
 func (c *Client) CancelAutomationRun(ctx context.Context, params CancelAutomationRunParams) (*RunResponse, error) {
@@ -23,6 +138,22 @@ func (c *Client) CancelAutomationRun(ctx context.Context, params CancelAutomatio
 	}
 	var out RunResponse
 	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CancelComputerSetupParams carries the path, query, and header parameters.
+type CancelComputerSetupParams struct {
+	SetupID string `url:"setup_id"`
+}
+
+// CancelComputerSetup Cancel an unlinked SSH setup
+func (c *Client) CancelComputerSetup(ctx context.Context, params CancelComputerSetupParams) (*ComputerSetupCanceled, error) {
+	path := "/api/computers/setups/{setup_id}"
+	path = strings.ReplaceAll(path, "{setup_id}", url.PathEscape(params.SetupID))
+	var out ComputerSetupCanceled
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -304,141 +435,4 @@ func (c *Client) CancelWorktreeExitAction(ctx context.Context, params CancelWork
 type CaptureDaemonProfileParams struct {
 	Kind    string `url:"kind"`
 	Seconds *int   `url:"seconds"`
-}
-
-// CaptureDaemonProfile Capture a runtime profile over the local socket Experimental: pin the exact SDK version.
-func (c *Client) CaptureDaemonProfile(ctx context.Context, params CaptureDaemonProfileParams) (*[]byte, error) {
-	path := "/api/daemon/profile/{kind}"
-	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
-	query := url.Values{}
-	if params.Seconds != nil {
-		query.Set("seconds", strconv.Itoa(*params.Seconds))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out []byte
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "application/octet-stream"); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CheckAgentInstanceParams carries the path, query, and header parameters.
-type CheckAgentInstanceParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// CheckAgentInstance Check an agent instance
-func (c *Client) CheckAgentInstance(ctx context.Context, params CheckAgentInstanceParams, body AgentInstanceCheckRequest) (*AgentInstanceCheckResponse, error) {
-	path := "/api/agent-instances/{id}/check"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceCheckResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CheckSessionMCPParams carries the path, query, and header parameters.
-type CheckSessionMCPParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Name        string  `url:"name"`
-	Owner       *string `url:"owner"`
-	Profile     *string `url:"profile"`
-}
-
-// CheckSessionMCP Retry discovery for one session MCP server without restarting the runtime
-func (c *Client) CheckSessionMCP(ctx context.Context, params CheckSessionMCPParams) (*MCP, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Owner != nil {
-		query.Set("owner", *params.Owner)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MCP
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CheckSettingsMCPServerParams carries the path, query, and header parameters.
-type CheckSettingsMCPServerParams struct {
-	Name        string  `url:"name"`
-	Scope       string  `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
-}
-
-// CheckSettingsMCPServer Retry one scoped MCP server runtime probe
-func (c *Client) CheckSettingsMCPServer(ctx context.Context, params CheckSettingsMCPServerParams) (*SettingsMCPServerItemPayload, error) {
-	path := "/api/settings/mcp-servers/{name}/check"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("scope", params.Scope)
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Owner != nil {
-		query.Set("owner", *params.Owner)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsMCPServerItemPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CheckSettingsUpdate Refresh update discovery, limited to one upstream check per minute
-func (c *Client) CheckSettingsUpdate(ctx context.Context) (*SettingsUpdateResponse, error) {
-	path := "/api/settings/update/check"
-	var out SettingsUpdateResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ClaimNextAgentTaskParams carries the path, query, and header parameters.
-type ClaimNextAgentTaskParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-}
-
-// ClaimNextAgentTask Atomically claim the next matching task run for the calling agent
-func (c *Client) ClaimNextAgentTask(ctx context.Context, params ClaimNextAgentTaskParams, body AgentTaskClaimNextRequest) (*AgentTaskClaimResponse, error) {
-	path := "/api/agent/tasks/claim-next"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentTaskClaimResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

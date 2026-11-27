@@ -220,7 +220,9 @@ describe("Side chat opening", () => {
       {
         message: "why does the refactor touch config?",
         idempotency_key: expect.stringMatching(/^web-side-/),
-      }
+      },
+      undefined,
+      "local"
     );
     expect(await screen.findByTestId("side-thread-stub")).toHaveAttribute(
       "data-session",
@@ -662,7 +664,9 @@ describe("Side chat close", () => {
         sideChatAnsweringFixture.id,
         sideChatMainSessionFixture.profile_name,
         undefined,
-        true
+        true,
+        undefined,
+        "local"
       )
     );
     // The panel moves on to the next most recent side chat.

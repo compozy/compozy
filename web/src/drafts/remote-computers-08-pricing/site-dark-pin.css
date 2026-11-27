@@ -1,0 +1,64 @@
+/*
+ * compozy.com is dark-first (`#0a0a0a`, screen-blended brand plates, translucent `--light-*` hairlines).
+ * When the prototype gallery switches `<html data-theme="light">`, re-declare the dark semantic tokens
+ * inside `.rc-site-dark` so text, borders, and embedded product components stay crisp and high-contrast.
+ */
+[data-theme="light"] .rc-site-dark {
+  color-scheme: dark;
+  --color-rail: #0a0a0a;
+  --color-rail-hover: #232323;
+  --color-rail-selected: #262626;
+  --color-desk: #131313;
+  --color-canvas: #131313;
+  --color-canvas-soft: #1a1a1a;
+  --color-sunken: #0a0a0a;
+  --color-surface-2: #232323;
+  --color-selected: #262626;
+  --color-code-bg: #1a1a1a;
+  --color-sidebar: var(--color-sunken);
+  --color-elevated: #1b1b1b;
+  --color-hover: var(--color-surface-2);
+  --color-disabled: #5e5e5e;
+  --color-line: #262626;
+  --color-line-soft: #202020;
+  --color-line-strong: #383838;
+  --color-line-focus: #3df2e0;
+  --color-fg: #ececec;
+  --color-fg-strong: #ffffff;
+  --color-fg-2: #bababa;
+  --color-fg-3: #d3d3d3;
+  --color-muted-foreground: #989898;
+  --color-subtle: #8e8e8e;
+  --color-faint: #8d8d8d;
+  --color-primary: #f5f5f5;
+  --color-primary-hover: #ffffff;
+  --color-primary-foreground: #0a0a0a;
+  --color-brand: #1f87fc;
+  --color-brand-hover: #3d95ff;
+  --color-brand-strong: #4a9dff;
+  --color-brand-ink: #0a0a0a;
+  --color-brand-tint: rgba(31, 135, 252, 0.1);
+  --color-brand-tint-strong: rgba(31, 135, 252, 0.16);
+  --color-brand-dim: rgba(31, 135, 252, 0.24);
+  --color-success: #34d399;
+  --color-success-tint: rgba(52, 211, 153, 0.1);
+  --color-warning: #f5b14c;
+  --color-warning-tint: rgba(245, 177, 76, 0.1);
+  --color-destructive: #f87171;
+  --color-destructive-tint: rgba(248, 113, 113, 0.1);
+  --color-info: #8e8eb5;
+  --color-info-tint: rgba(142, 142, 181, 0.12);
+  --color-neutral: #7a7a80;
+  --color-neutral-ink: #8a8a90;
+  --color-neutral-tint: rgba(150, 150, 155, 0.06);
+  --color-background: var(--color-canvas);
+  --color-foreground: var(--color-fg);
+  --color-card: var(--color-canvas-soft);
+  --color-card-foreground: var(--color-fg);
+  --color-popover: var(--color-elevated);
+  --color-popover-foreground: var(--color-fg);
+  --color-border: var(--color-line);
+  --color-input: var(--color-line);
+  --color-ring: #3df2e0;
+  --color-bar-fill: rgba(255, 255, 255, 0.085);
+}

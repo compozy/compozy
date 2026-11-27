@@ -96,6 +96,19 @@ E2E-008, which use acpmock.
     observe-only settled hook must not block parent status reads, acknowledgement, or wake delivery.
 14. **Scale.** From one turn, delegate 10 and then 20 subagents concurrently; record delegate latency
     per call (spawn runs under the global spawn lock) in the QA report.
+15. **Corrective handoff.** After reading a settled result, delegate a new task with that
+    `prior_subagent_id` and distinct text in `handoff.objections`, `handoff.findings`, and
+    `handoff.files`. Read the new child's first prompt and confirm it includes the prior ID,
+    each handoff field, and the new task. Confirm a new child session and the usual result wake.
+    Repeat with an unknown ID, an ID from another parent in the same workspace, and an ID from
+    another workspace. Each returns `invalid_request` before creating a child. Repeat with 65
+    paths or a path of 1,025 characters and confirm each request is rejected.
+16. **Tool choice from an operator prompt (#2013, post-release).** Start a Claude session on a
+    released daemon with native tools enabled. Prompt `Use subagents to review these three files in
+    parallel` and supply three workspace files. Confirm the parent calls
+    `compozy__subagent_capabilities` to choose a target and `compozy__subagent_delegate` for the
+    reviews, with no Claude `Task` or `Agent` calls. Confirm the resulting managed children appear in
+    `compozy__subagent_status` and the session tree. Record the daemon version and tool calls.
 
 QA impact 2026-10-08 (subagents): new in this change; no prior verdict.
 

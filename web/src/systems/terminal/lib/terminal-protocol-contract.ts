@@ -7,6 +7,8 @@
  * satisfies it.
  */
 
+import type { ComputerId } from "@/lib/computer-scope";
+
 import type { TerminalSocketFactory } from "../adapters/terminal-socket";
 import type {
   TerminalAttachedFrame,
@@ -64,6 +66,7 @@ export interface TerminalStreamHandlers {
 export interface TerminalProtocolClientOptions {
   workspaceId: string;
   terminalId: string;
+  computerId?: ComputerId;
   scope: TerminalProfileScopeParams;
   mode: TerminalAttachMode;
   viewer?: TerminalViewerIdentity | null;

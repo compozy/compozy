@@ -241,21 +241,27 @@ func TestSkillEditProposals(t *testing.T) {
 			name   string
 			mutate func(*SkillProposalInput)
 		}{
-			{"case-only collision", func(input *SkillProposalInput) {
+			{"Should refuse a case-only collision", func(input *SkillProposalInput) {
 				input.Files = []SkillDraftFile{{Path: "Scripts/check.sh", Content: "echo other\n"}}
 			}},
-			{"file over a base directory", func(input *SkillProposalInput) {
+			{"Should refuse a file over a base directory", func(input *SkillProposalInput) {
 				input.Files = []SkillDraftFile{{Path: "scripts", Content: "not a directory\n"}}
 			}},
-			{"unknown mode", func(input *SkillProposalInput) { input.Mode = "replace" }},
+			{"Should refuse a file over a base directory with different case", func(input *SkillProposalInput) {
+				input.Files = []SkillDraftFile{{Path: "Scripts", Content: "not a directory\n"}}
+			}},
+			{"Should refuse an unknown mode", func(input *SkillProposalInput) { input.Mode = "replace" }},
 		} {
-			f := newSkillTxFixture(t)
-			f.install(t, skillEditName, skillEditBase...)
-			svc := f.service(t, "home-a", nil)
-			if _, err := f.proposeEdit(t, svc, "Changed.\n", tc.mutate); !errors.Is(err, ErrSkillReviewInvalid) {
-				t.Fatalf("%s: Propose() = %v, want skill_review_invalid", tc.name, err)
-			}
-			requireNoReviews(t, svc)
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newSkillTxFixture(t)
+				f.install(t, skillEditName, skillEditBase...)
+				svc := f.service(t, "home-a", nil)
+				if _, err := f.proposeEdit(t, svc, "Changed.\n", tc.mutate); !errors.Is(err, ErrSkillReviewInvalid) {
+					t.Fatalf("Propose() = %v, want skill_review_invalid", err)
+				}
+				requireNoReviews(t, svc)
+			})
 		}
 	})
 

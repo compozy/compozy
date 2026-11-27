@@ -31,6 +31,163 @@ export type ACPOptionSelection = {
   value_id?: string;
 };
 
+export type AccountApproval = {
+  applied_result: string | null;
+  can_decide: boolean;
+  computer_id: string;
+  created_at: string;
+  device_name: string;
+  id: string;
+  key_fingerprint: string;
+  state: string;
+};
+
+export type AccountApprovalDecisionRequest = {
+  approve: boolean | null;
+};
+
+export type AccountApprovalsResponse = {
+  approvals: Array<AccountApproval>;
+};
+
+export type AccountBillingResponse = {
+  url: string;
+};
+
+export type AccountCheckoutRequest = {
+  interval: string;
+};
+
+export type AccountDeleteRequest = {
+  confirm_email: string;
+};
+
+export type AccountDeleteResponse = {
+  refund: string;
+  state: string;
+  subscription_cancelled: boolean;
+};
+
+export type AccountDevice = {
+  admin: boolean;
+  id: string;
+  kind: string;
+  last_seen_at: string;
+  name: string;
+  this_device: boolean;
+};
+
+export type AccountDevicePatch = {
+  admin?: boolean | null;
+  name?: string | null;
+  scopes?: {
+    [key: string]: Array<string>;
+  };
+};
+
+export type AccountDeviceSummary = {
+  admin: boolean;
+  id: string;
+  name: string;
+};
+
+export type AccountDevicesResponse = {
+  devices: Array<AccountDevice>;
+};
+
+export type AccountEmailPatchRequest = {
+  marketing_opt_in: boolean | null;
+  source?: string;
+};
+
+export type AccountGrace = {
+  message: string;
+  source: string;
+  until: string;
+};
+
+export type AccountLoginRequest = {
+  marketing_opt_in: boolean;
+  provider: string | null;
+};
+
+export type AccountLoginResponse = {
+  attempt_id: string;
+  expires_at: string;
+  user_code: string;
+  verification_uri: string;
+  verification_uri_complete: string;
+};
+
+export type AccountLogoutRequest = {
+  unlink: boolean;
+};
+
+export type AccountLogoutResponse = {
+  state: string;
+};
+
+export type AccountSignInNotice = {
+  at: string;
+  device_id: string;
+  kind: string;
+  location: string;
+  name: string;
+};
+
+export type AccountStatusResponse = {
+  cloud_routes_limit: number;
+  cloud_routes_used: number;
+  device: AccountDeviceSummary | null;
+  email?: string;
+  gate: string;
+  grace: AccountGrace | null;
+  installation_linked: boolean;
+  marketing_opt_in: boolean;
+  name?: string;
+  payment_issue: boolean;
+  plan: string;
+  pre_account_install: boolean;
+  provider?: string;
+  recent_sign_ins: Array<AccountSignInNotice>;
+  remote_computers_limit: number | null;
+  remote_computers_used: number;
+  signed_in: boolean;
+  signed_out_reason: string | null;
+  source: string | null;
+  state: string;
+  subscription: AccountSubscription | null;
+  token_name: string | null;
+};
+
+export type AccountSubscription = {
+  cancel_at_period_end: boolean;
+  current_period_end: string | null;
+  interval: string | null;
+  refund_eligible_until: string | null;
+  source: string;
+};
+
+export type AccountToken = {
+  id: string;
+  last_used_at: string | null;
+  name: string;
+};
+
+export type AccountTokenCreate = {
+  name: string;
+};
+
+export type AccountTokenCreated = {
+  id: string;
+  name: string;
+  token: string;
+};
+
+export type AccountTokenList = {
+  tokens: Array<AccountToken>;
+};
+
 export type AcknowledgeAttentionRequest = {
   id?: string;
   snapshot: string;
@@ -78,6 +235,16 @@ export type ActivityHour = {
 export type ActorIdentity = {
   kind: "human" | "agent_session" | "automation" | "extension" | "daemon";
   ref: string;
+};
+
+export type AddComputerRequest = {
+  computer_id?: string;
+  host?: string;
+  kind: string;
+  name?: string;
+  port?: number;
+  trust_host_fingerprint?: string;
+  user?: string;
 };
 
 export type AddMarketplaceSourceRequest = {
@@ -1062,6 +1229,22 @@ export type AppTokensResponse = {
   app_tokens: Array<AppTokenPayload>;
 };
 
+export type Approval = {
+  created_at: string;
+  decided_at: string | null;
+  device_id: string;
+  expires_at: string;
+  id: string;
+  jkt: string;
+  name: string;
+  state: string;
+};
+
+export type ApprovalDelivery = {
+  approval_id: string;
+  state: string;
+};
+
 export type ApproveLoopRunRequest = {
   decision: "approve" | "request_changes" | "reject";
   gate_id: string;
@@ -1245,6 +1428,17 @@ export type AutonomyMatcher = {
   workflow_id?: string;
 };
 
+export type AvailableComputer = {
+  added: boolean;
+  id: string;
+  name: string;
+  online: boolean;
+};
+
+export type AvailableComputersResponse = {
+  computers: Array<AvailableComputer>;
+};
+
 export type BindSessionWorktreeRequest = {
   expected_worktree_id?: string | null;
   worktree: string;
@@ -1290,6 +1484,40 @@ export type Briefing = {
   status: string;
   tone: string;
   usage: RunUsage;
+};
+
+export type BrowserApprovalStatus = {
+  approval_id: string;
+  expires_at: string;
+  state: string;
+};
+
+export type BrowserPeersResponse = {
+  peers: Array<HostedPeer>;
+};
+
+export type BrowserSessionRequest = {
+  code: string;
+  code_verifier: string;
+};
+
+export type BrowserSessionResponse = {
+  expires_at: number;
+  scopes: Array<string>;
+  session_id: string;
+};
+
+export type BrowserStatus = {
+  state: string;
+};
+
+export type BrowserStreamTicketRequest = {
+  path: string;
+};
+
+export type BrowserStreamTicketResponse = {
+  expires_at: string;
+  ticket: string;
 };
 
 export type Budget = {
@@ -1637,6 +1865,111 @@ export type CompleteTaskRunRequest = {
   result?: unknown;
 };
 
+export type Computer = {
+  account_id: string;
+  added_at: string;
+  diagnosis: ComputerDiagnosis | null;
+  enabled: boolean;
+  id: string;
+  last_connected_at: string | null;
+  load_balancing_weight: number;
+  name: string;
+  plan_state: string;
+  platform: string;
+  protocol: ProtocolRange | null;
+  route_in_use: ComputerRouteInUse | null;
+  routes: Array<ComputerRoute>;
+  scopes: Array<string>;
+  status: string;
+  version: string;
+};
+
+export type ComputerDiagnosis = {
+  at: string;
+  code: string;
+  message: string;
+  step: string;
+};
+
+export type ComputerListResponse = {
+  computers: Array<Computer>;
+  local: LocalComputer;
+};
+
+export type ComputerPlacementRequest = {
+  project_computer_id?: string;
+  workspace: string;
+};
+
+export type ComputerPlacementResponse = {
+  computer_id: string;
+  name: string;
+  workspace_id: string;
+};
+
+export type ComputerRoute = {
+  address: string;
+  id: string;
+  in_use: boolean;
+  kind: string;
+  last_error: string | null;
+  learned: boolean;
+};
+
+export type ComputerRouteInUse = {
+  id: string;
+  kind: string;
+  label: string;
+};
+
+export type ComputerSSHHost = {
+  alias: string;
+  hostname: string;
+  port: number;
+  source: string;
+  user: string;
+};
+
+export type ComputerSSHHostsResponse = {
+  hosts: Array<ComputerSSHHost>;
+};
+
+export type ComputerSetupAnswer = {
+  accept?: boolean | null;
+  kind: string;
+  value?: string;
+};
+
+export type ComputerSetupCanceled = {
+  setup_id: string;
+  state: string;
+};
+
+export type ComputerSetupPrompt = {
+  fingerprint?: string;
+  host?: string;
+  kind: string;
+};
+
+export type ComputerSetupStarted = {
+  computer_id: string | null;
+  setup_id: string;
+};
+
+export type ComputerSetupStatus = {
+  computer_id: string | null;
+  error: ErrorPayload | null;
+  prompt: ComputerSetupPrompt | null;
+  prompt_kind?: string;
+  setup_id: string;
+  state: string;
+  step: string;
+};
+
+export type ComputerUpdateStarted = {
+  setup_id: string;
+};
+
 export type ConfigApplyRecordPayload = {
   active_config_hash: string;
   actor: string;
@@ -1737,6 +2070,28 @@ export type Contract = {
   on_exhausted?: Array<EffectSpec>;
   on_failed?: Array<EffectSpec>;
   on_noop?: Array<EffectSpec>;
+  on_result?: {
+    [key: string]:
+      | "continue"
+      | "done"
+      | "next_generation"
+      | "halt"
+      | "escalate"
+      | {
+          action: "continue" | "done" | "next_generation" | "escalate";
+        }
+      | {
+          action: "halt";
+          terminal_status?:
+            | "done"
+            | "no-op"
+            | "blocked"
+            | "failed"
+            | "exhausted"
+            | "stalled"
+            | "canceled";
+        };
+  };
   on_stalled?: Array<EffectSpec>;
   runtime_defaults?: RuntimeDefaults | null;
   runtime_rules?: Array<RuntimeRule>;
@@ -2046,11 +2401,13 @@ export type CreateSessionFolderRequest = {
 
 export type CreateSessionRequest = {
   agent_name?: string;
+  computer?: string;
   folder_id?: string;
   lineage_kind?: string;
   name?: string;
   new_worktree?: NewSessionWorktreeRequest | null;
   parent_session_id?: string;
+  project_computer_id?: string;
   scope?: string;
   workspace?: string;
   workspace_path?: string;
@@ -2168,7 +2525,6 @@ export type DaemonReadinessPayload = {
 
 export type DaemonStatusPayload = {
   active_sessions: number;
-  gateway?: GatewayStatusPayload | null;
   http_host: string;
   http_port: number;
   min_app_version: string;
@@ -2228,7 +2584,6 @@ export type DetailBody = {
 };
 
 export type DevLinkExtensionRequest = {
-  confirm_gateway_digest?: string;
   generation_hash: string;
   origin_path: string;
 };
@@ -2252,6 +2607,11 @@ export type DiagnosticItem = {
   severity: string;
   suggested_command?: string;
   title: string;
+};
+
+export type DirectStatus = {
+  addresses?: Array<string>;
+  enabled: boolean;
 };
 
 export type DiscoveredWorktreePayload = {
@@ -2387,6 +2747,11 @@ export type EnqueueTaskRunRequest = {
   metadata?: unknown;
 };
 
+export type EntitlementStatus = {
+  plan: string;
+  valid_until: string;
+};
+
 export type Entry = {
   message: UIMessage;
   sequence: number;
@@ -2469,6 +2834,39 @@ export type ExtensionDeclaredProfilePayload = {
   needs_setup: boolean;
 };
 
+export type ExtensionDependencyConsent = {
+  allow_unverified?: boolean;
+  expected_digest?: string;
+};
+
+export type ExtensionDependencyParentPayload = {
+  name: string;
+  ref: string;
+  source: string;
+};
+
+export type ExtensionDependencyPayload = {
+  consent_required?: boolean;
+  depth: number;
+  digest_sha256?: string;
+  installed_version?: string;
+  min_version?: string;
+  name: string;
+  ref: string;
+  registry_tier?: string;
+  required_by: Array<string>;
+  retry_command?: string;
+  source: string;
+  state: string;
+  version?: string;
+};
+
+export type ExtensionDependentPayload = {
+  name: string;
+  profile: string;
+  workspace_id: string;
+};
+
 export type ExtensionEnableError = {
   code: string;
   error: string;
@@ -2479,8 +2877,6 @@ export type ExtensionEnablePreviewPayload = {
   automation_starting: Array<string>;
   changes: Array<ExtensionKitChangePayload>;
   extension: string;
-  gateway_confirmation_required: boolean;
-  gateway_requirement_digest: string;
   missing_env: Array<string>;
   missing_inputs: Array<string>;
 };
@@ -2494,7 +2890,34 @@ export type ExtensionInputStatePayload = {
   active: boolean;
   id: string;
   set: boolean;
+  state?: string;
   type: string;
+};
+
+export type ExtensionInputStatusPayload = {
+  binding: MarketplaceInputBindingPayload;
+  default?: unknown;
+  id: string;
+  prompt: string;
+  required: boolean;
+  state: string;
+  targets: Array<string>;
+  type: string;
+};
+
+export type ExtensionInputsPayload = {
+  changed?: Array<string>;
+  daemon_env: Array<string>;
+  enabled: boolean;
+  extension: string;
+  inputs: Array<ExtensionInputStatusPayload>;
+  invalid: Array<string>;
+  mcp_auth_servers: Array<string>;
+  missing: Array<string>;
+  missing_env: Array<string>;
+  profile: string;
+  reloaded?: boolean;
+  workspace_id: string;
 };
 
 export type ExtensionInstallDeclaredProfilePayload = {
@@ -2505,8 +2928,8 @@ export type ExtensionInstallDeclaredProfilePayload = {
 
 export type ExtensionInstallPreviewPayload = {
   declared_profiles: Array<ExtensionInstallDeclaredProfilePayload>;
+  dependencies?: Array<ExtensionDependencyPayload>;
   digest_sha256?: string;
-  gateway_requirement_digest?: string;
   inputs: Array<MarketplaceInputPayload>;
   name: string;
   placements: Array<ExtensionPlacementPayload>;
@@ -2550,18 +2973,27 @@ export type ExtensionLogsResponse = {
 export type ExtensionOperationErrorPayload = {
   agents?: Array<string>;
   code: string;
-  current_digest?: string;
   declared_env?: Array<string>;
+  dependencies?: Array<ExtensionDependencyPayload>;
+  dependencies_installed?: Array<string>;
+  dependency?: string;
+  dependents?: Array<ExtensionDependentPayload>;
   diagnostic?: DiagnosticItem | null;
   env_name?: string;
   error: string;
   fetched_digest?: string;
   input_definitions?: Array<MarketplaceInputPayload>;
   input_id?: string;
+  input_ids?: Array<string>;
   inputs?: Array<string>;
   installed_origin?: MarketplaceOriginPayload | null;
+  invalid?: Array<string>;
   listed_digest?: string;
   missing_env?: Array<string>;
+  parents?: Array<ExtensionDependencyParentPayload>;
+  path?: Array<string>;
+  reason?: string;
+  retry_command?: string;
 };
 
 export type ExtensionPayload = {
@@ -2579,8 +3011,6 @@ export type ExtensionPayload = {
   enabled: boolean;
   failure_code?: string;
   format: string;
-  gateway_confirmation_required: boolean;
-  gateway_requirement_digest?: string;
   generation_hash?: string;
   health?: string;
   health_message?: string;
@@ -2608,6 +3038,7 @@ export type ExtensionPayload = {
   state: string;
   trust?: ExtensionTrustReportPayload | null;
   type: string;
+  unmet_dependencies?: Array<ExtensionDependencyPayload>;
   update_available: boolean;
   uptime_seconds?: number;
   version: string;
@@ -2714,6 +3145,8 @@ export type ExtensionUpdateResponse = {
 };
 
 export type ExtensionValidationErrorPayload = {
+  dependencies_installed?: Array<string>;
+  dependency?: string;
   diagnostic?: DiagnosticItem | null;
   error: string;
   issues: Array<ValidationIssue>;
@@ -2965,186 +3398,11 @@ export type GateCriterion = {
   type: string;
 };
 
-export type GatewayAddressPayload = {
-  address: string;
-  live: boolean;
-  tier: string;
-};
-
-export type GatewayAuditAuthPayload = {
-  active_device_count: number;
-  mode: string;
-  required_remotely: boolean;
-};
-
-export type GatewayAuditFindingPayload = {
-  id: string;
-  remediation: string;
-  resource?: string;
-  severity: string;
-  summary: string;
-  tier?: string;
-};
-
-export type GatewayAuditPayload = {
-  auth: GatewayAuditAuthPayload;
-  device_highlights: GatewayDeviceHighlights;
-  findings: Array<GatewayAuditFindingPayload>;
-  local_only: boolean;
-  no_findings: boolean;
-  ran: boolean;
-  status: GatewayStatusPayload;
-};
-
-export type GatewayDeviceHighlights = {
-  active: number;
-  recently_paired: number;
-  revoked: number;
-  stale: number;
-  stale_device_ids: Array<string>;
-};
-
-export type GatewayDevicePayload = {
-  actor_kind: string;
-  created_at: string;
-  id: string;
-  last_seen_at?: string | null;
-  name: string;
-  pairing_origin: string;
-  revoke_epoch: number;
-  revoked_at?: string | null;
-};
-
-export type GatewayDeviceRenameRequest = {
-  name: string;
-};
-
-export type GatewayDevicesResponse = {
-  devices: Array<GatewayDevicePayload>;
-};
-
-export type GatewayIngressBindRequest = {
-  confirmed: boolean;
-  subject_id: string;
-  subject_kind: string;
-};
-
-export type GatewayIngressBindingResponse = {
-  binding: GatewayIngressPayload;
-  changed: boolean;
-};
-
-export type GatewayIngressPayload = {
-  confirmed_at?: string | null;
-  confirmed_endpoint_generation?: number;
-  enable_path?: string;
-  endpoint_generation: number;
-  reachability: string;
-  scope_kind: string;
-  subject_id: string;
-  subject_kind: string;
-  url?: string;
-  workspace_id?: string;
-};
-
-export type GatewayIngressUnbindResponse = {
-  changed: boolean;
-  subject_id: string;
-  subject_kind: string;
-};
-
-export type GatewayIssuedCredentialPayload = {
-  credential?: string;
-  device: GatewayDevicePayload;
-};
-
-export type GatewayPairingArtifactPayload = {
-  artifact: string;
-  expires_at: string;
-  manual_code: string;
-};
-
-export type GatewayPairingRedeemRequest = {
-  actor_kind: string;
-  artifact?: string;
-  credential?: string;
-  manual_code?: string;
-  name: string;
-};
-
-export type GatewayProviderEnableRequest = {
-  digest_confirmed?: string;
-  expected_generation: number;
-  install_source: string;
-  tier: string;
-};
-
-export type GatewayProviderPayload = {
-  cause?: string;
-  desired: string;
-  generation: number;
-  health: string;
-  name: string;
-  observed: string;
-  tier: string;
-};
-
-export type GatewayRefusalPayload = {
-  cause: string;
-  fix: string;
-};
-
-export type GatewayRemovedDevicePayload = {
-  canceled: number;
-  device: GatewayDevicePayload;
-  revoked: boolean;
-};
-
-export type GatewayRevokePayload = {
-  canceled: number;
-  changed: boolean;
-  device: GatewayDevicePayload;
-};
-
-export type GatewayStatusPayload = {
-  addresses: Array<GatewayAddressPayload>;
-  bindings: Array<GatewayIngressPayload>;
-  changed: boolean;
-  devices: Array<GatewayDevicePayload>;
-  enabled: boolean;
-  providers: Array<GatewayProviderPayload>;
-  refusal?: GatewayRefusalPayload | null;
-  surfaces: Array<GatewaySurfacePayload>;
-  tiers: Array<GatewayTierPayload>;
-};
-
-export type GatewayStreamTicketPayload = {
-  expires_at: string;
-  ticket: string;
-};
-
-export type GatewaySurfacePayload = {
-  desired: string;
-  generation: number;
-  observed: string;
-  surface: string;
-  tier: string;
-};
-
-export type GatewaySurfaceRequest = {
-  consent: boolean;
-  desired: string;
-  expected_generation: number;
-  surface: string;
-  tier: string;
-};
-
-export type GatewayTierPayload = {
-  advertised: boolean;
-  desired: string;
-  listener_address?: string;
-  observed: string;
-  tier: string;
+export type GatewayRemovalNoticePayload = {
+  bindings_needing_confirmation: number;
+  connection_profiles: number;
+  devices: number;
+  providers: number;
 };
 
 export type GlobalShortcut = {
@@ -3598,7 +3856,29 @@ export type Graph = {
         }
     >;
     on_result?: {
-      [key: string]: unknown;
+      [key: string]:
+        | "continue"
+        | "revise"
+        | "next_generation"
+        | "halt"
+        | "escalate"
+        | {
+            route: string;
+          }
+        | {
+            action: "continue" | "revise" | "next_generation" | "escalate";
+          }
+        | {
+            action: "halt";
+            terminal_status?:
+              | "done"
+              | "no-op"
+              | "blocked"
+              | "failed"
+              | "exhausted"
+              | "stalled"
+              | "canceled";
+          };
     };
     on_retry?: Array<
       | {
@@ -4240,10 +4520,55 @@ export type HookRunsResponse = {
   runs: Array<HookRunPayload>;
 };
 
+export type HostResourcesResponse = {
+  cpu_count: number;
+  cpu_util: number | null;
+  mem_available: number | null;
+  mem_total: number | null;
+  sampled_at: string;
+};
+
+export type HostedPeer = {
+  computer_id: string;
+  hosted_url: string;
+  name: string;
+};
+
+export type HostedStatus = {
+  diagnosis?: string;
+  enabled: boolean;
+  hostname: string | null;
+  state: string;
+};
+
 export type Image = {
   emoji?: string;
   token?: string;
   url?: string;
+};
+
+export type IngressBindRequest = {
+  confirmed: boolean;
+  subject_id: string;
+  subject_kind: string;
+};
+
+export type IngressBindingResponse = {
+  binding: IngressPayload;
+  changed: boolean;
+};
+
+export type IngressPayload = {
+  confirmed_at?: string | null;
+  confirmed_endpoint_generation?: number;
+  enable_path?: string;
+  endpoint_generation: number;
+  reachability: string;
+  scope_kind: string;
+  subject_id: string;
+  subject_kind: string;
+  url?: string;
+  workspace_id?: string;
 };
 
 export type Input = {
@@ -4262,7 +4587,12 @@ export type InputRef = {
 export type InstallExtensionRequest = {
   allow_unverified?: boolean;
   asset?: string;
-  confirm_gateway_digest?: string;
+  /**
+   * Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies.
+   */
+  dependencies?: {
+    [key: string]: ExtensionDependencyConsent;
+  };
   /**
    * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
    */
@@ -4290,12 +4620,17 @@ export type InstallExtensionRequest = {
   source: "curated" | "marketplace" | "github" | "git" | "local_path";
   version?: string;
   /**
+   * Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse.
+   */
+  with_dependencies?: boolean;
+  /**
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
   workspace_id?: string;
 };
 
 export type InstallExtensionResponse = {
+  dependencies_installed?: Array<string>;
   enable_error?: ExtensionEnableError | null;
   extension: ExtensionPayload;
 };
@@ -4352,6 +4687,12 @@ export type KindDescriptor = {
   kind: string;
   params_schema?: unknown;
   title: string;
+};
+
+export type LocalComputer = {
+  load_balancing: boolean;
+  load_balancing_weight: number;
+  run_agents: boolean;
 };
 
 export type LogEventPayload = {
@@ -4551,6 +4892,28 @@ export type LoopContract = {
   on_exhausted?: Array<LoopEffectSpec>;
   on_failed?: Array<LoopEffectSpec>;
   on_noop?: Array<LoopEffectSpec>;
+  on_result?: {
+    [key: string]:
+      | "continue"
+      | "done"
+      | "next_generation"
+      | "halt"
+      | "escalate"
+      | {
+          action: "continue" | "done" | "next_generation" | "escalate";
+        }
+      | {
+          action: "halt";
+          terminal_status?:
+            | "done"
+            | "no-op"
+            | "blocked"
+            | "failed"
+            | "exhausted"
+            | "stalled"
+            | "canceled";
+        };
+  };
   on_stalled?: Array<LoopEffectSpec>;
   runtime_defaults?: LoopRuntimeDefaults | null;
   runtime_rules?: Array<LoopRuntimeRule>;
@@ -5163,6 +5526,7 @@ export type LoopRunPayload = {
     | "exhausted"
     | "stalled"
     | "canceled";
+  terminal?: LoopRunTerminal | null;
   tokens_used: number;
   workspace_id: string;
 };
@@ -5184,6 +5548,16 @@ export type LoopRunResponse = {
   run: LoopRunPayload;
   waits: Array<LoopNodeWaitPayload>;
   watch_events?: LoopWatchEventsState | null;
+};
+
+export type LoopRunTerminal = {
+  at?: string;
+  cause?: string;
+  gate_id?: string;
+  message?: string;
+  node_id?: string;
+  reason_code?: string;
+  status: "done" | "no-op" | "blocked" | "failed" | "exhausted" | "stalled" | "canceled";
 };
 
 export type LoopRunsAggregatePayload = {
@@ -5253,6 +5627,7 @@ export type LoopStartBinding = {
 };
 
 export type LoopTarget = {
+  input_command?: string;
   input_mapping?: {
     [key: string]: string;
   };
@@ -5610,6 +5985,16 @@ export type MetaField = {
 export type MetricSpec = {
   direction: "maximize" | "minimize";
   min_delta?: number | null;
+};
+
+export type MigrationNoticePayload = {
+  created_at: string;
+  key: string;
+  payload: GatewayRemovalNoticePayload;
+};
+
+export type MigrationNoticesResponse = {
+  notices: Array<MigrationNoticePayload>;
 };
 
 /**
@@ -6013,6 +6398,18 @@ export type ParticipantPolicy = {
   required_capabilities?: Array<string>;
 };
 
+export type PatchComputerRequest = {
+  enabled?: boolean | null;
+  load_balancing_weight?: number | null;
+  name?: string | null;
+};
+
+export type PatchLocalComputerRequest = {
+  load_balancing?: boolean | null;
+  load_balancing_weight?: number | null;
+  run_agents?: boolean | null;
+};
+
 export type PatchLoopRequest = {
   definition: LoopDefinitionDocument;
   expected_version?: number | null;
@@ -6231,6 +6628,11 @@ export type PromptRuntimeSelectionPayload = {
   provider: string;
   reasoning_effort?: string;
   speed?: "normal" | "fast";
+};
+
+export type ProtocolRange = {
+  max: number;
+  min: number;
 };
 
 export type ProvenancePayload = {
@@ -6694,8 +7096,65 @@ export type Reference = {
 };
 
 export type ReloadExtensionRequest = {
-  confirm_gateway_digest?: string;
   generation_hash: string;
+};
+
+export type RemoteDevicePatchRequest = {
+  approval_id?: string;
+  approved?: boolean | null;
+  scopes?: Array<string> | null;
+};
+
+export type RemoteDeviceResponse = {
+  admin: boolean;
+  approvals?: Array<Approval>;
+  id: string;
+  last_seen_at: string | null;
+  name: string;
+  pending_approval: boolean;
+  scopes: Array<string>;
+};
+
+export type RemoteDevicesResponse = {
+  devices: Array<RemoteDeviceResponse>;
+};
+
+export type RemoteLinkRequest = {
+  link_token?: string;
+};
+
+export type RemoteLinkResponse = {
+  attempt_id?: string;
+  computer_id?: string;
+  enabled?: boolean;
+  expires_at?: string;
+  name?: string;
+  user_code?: string;
+  verification_uri?: string;
+  verification_uri_complete?: string;
+};
+
+export type RemotePatchRequest = {
+  cloud_route?: boolean | null;
+  direct?: boolean | null;
+  enabled?: boolean | null;
+  require_device_approval?: boolean | null;
+};
+
+export type RemoteStatusResponse = {
+  cloud_route: HostedStatus;
+  computer_id: string;
+  control_link: string;
+  direct: DirectStatus;
+  enabled: boolean;
+  entitlement: EntitlementStatus | null;
+  listener: string;
+  require_device_approval: boolean;
+};
+
+export type RemoveComputerResponse = {
+  removed: boolean;
+  uninstall: string;
 };
 
 export type RemoveDiscoveredWorktreeRequest = {
@@ -7525,6 +7984,50 @@ export type SessionApprovalResponse = {
   resolved_decision?: string;
 };
 
+export type SessionArchiveStoppedFailure = {
+  code: string;
+  message: string;
+  root_id: string;
+  title: string;
+  workspace_id: string;
+};
+
+export type SessionArchiveStoppedRequest = {
+  all_workspaces?: boolean;
+  dry_run?: boolean;
+  workspace_id?: string;
+};
+
+export type SessionArchiveStoppedResponse = {
+  archived: Array<SessionArchiveStoppedThread>;
+  archived_session_count: number;
+  archived_thread_count: number;
+  dry_run: boolean;
+  failure_count: number;
+  failures: Array<SessionArchiveStoppedFailure>;
+  failures_truncated: boolean;
+  skip_counts: {
+    [key: string]: number;
+  };
+  skipped: Array<SessionArchiveStoppedSkip>;
+  skipped_truncated: boolean;
+};
+
+export type SessionArchiveStoppedSkip = {
+  reason: string;
+  root_id: string;
+  title: string;
+  workspace_id: string;
+};
+
+export type SessionArchiveStoppedThread = {
+  restore_ids: Array<string>;
+  root_id: string;
+  session_ids: Array<string>;
+  title: string;
+  workspace_id: string;
+};
+
 export type SessionAttachPayload = {
   attach_expires_at: string;
   attached_at: string;
@@ -7589,8 +8092,10 @@ export type SessionCatalogFacetsResponse = {
 export type SessionCatalogPagePayload = {
   has_more: boolean;
   limit: number;
+  needs_you?: number | null;
   next_cursor?: string;
   total?: number | null;
+  working?: number | null;
 };
 
 export type SessionCatalogResponse = {
@@ -8569,6 +9074,7 @@ export type SessionRepairResponse = {
 };
 
 export type SessionResponse = {
+  computer_id?: string;
   session: SessionPayload;
 };
 
@@ -8790,7 +9296,14 @@ export type SessionsResponse = {
 
 export type SetExtensionEnablementRequest = {
   enabled: boolean;
+  force?: boolean;
   profile: string;
+};
+
+export type SetExtensionInputsRequest = {
+  inputs: {
+    [key: string]: Value;
+  };
 };
 
 export type SetExtensionSecretsRequest = {
@@ -12522,6 +13035,7 @@ export type ToolCallEventPayload = {
     | "input_request_superseded"
     | "invalid_cwd"
     | "journal_unavailable"
+    | "local_execution_disabled"
     | "message_hop_limit"
     | "message_rate_limited"
     | "model_not_found"
@@ -12534,6 +13048,8 @@ export type ToolCallEventPayload = {
     | "recording_already_started"
     | "recording_not_active"
     | "recording_unavailable"
+    | "remote_scope_denied"
+    | "secret_answer_operator_only"
     | "session_archive_stop_failed"
     | "session_busy"
     | "session_in_later"
@@ -12557,7 +13073,9 @@ export type ToolCallEventPayload = {
     | "tool_canceled"
     | "tool_conflict"
     | "tool_denied"
+    | "tool_forward_denied"
     | "tool_invalid_input"
+    | "tool_not_forwardable"
     | "tool_not_found"
     | "tool_result_persistence_failed"
     | "tool_result_too_large"
@@ -12707,6 +13225,7 @@ export type ToolDescriptorPayload = {
   output_views?: ResultViews | null;
   preview?: string;
   read_only: boolean;
+  remote_scope?: string;
   requires_interaction: boolean;
   risk: "read" | "mutating" | "open_world" | "destructive";
   search_hints?: Array<string>;
@@ -12734,6 +13253,7 @@ export type ToolErrorPayload = {
     | "input_request_superseded"
     | "invalid_cwd"
     | "journal_unavailable"
+    | "local_execution_disabled"
     | "message_hop_limit"
     | "message_rate_limited"
     | "model_not_found"
@@ -12746,6 +13266,8 @@ export type ToolErrorPayload = {
     | "recording_already_started"
     | "recording_not_active"
     | "recording_unavailable"
+    | "remote_scope_denied"
+    | "secret_answer_operator_only"
     | "session_archive_stop_failed"
     | "session_busy"
     | "session_in_later"
@@ -12769,7 +13291,9 @@ export type ToolErrorPayload = {
     | "tool_canceled"
     | "tool_conflict"
     | "tool_denied"
+    | "tool_forward_denied"
     | "tool_invalid_input"
+    | "tool_not_forwardable"
     | "tool_not_found"
     | "tool_result_persistence_failed"
     | "tool_result_too_large"
@@ -12884,6 +13408,10 @@ export type ToolErrorResponse = {
   error: ToolErrorPayload;
 };
 
+export type ToolInvokeMetadata = {
+  computer_id: string;
+};
+
 export type ToolInvokeRequest = {
   agent_name?: string;
   approval_token?: string;
@@ -12897,6 +13425,7 @@ export type ToolInvokeRequest = {
 };
 
 export type ToolInvokeResponse = {
+  _meta?: ToolInvokeMetadata | null;
   duration_ms: number;
   events: Array<ToolCallEventPayload>;
   result: ToolResult;
@@ -13182,7 +13711,7 @@ export type TriggerPayload = {
   };
   fire_limit: FireLimitConfig;
   id: string;
-  ingress?: GatewayIngressPayload | null;
+  ingress?: IngressPayload | null;
   last_run?: AutomationLastRunPayload | null;
   loop_target?: LoopTarget | null;
   name: string;
@@ -13263,7 +13792,6 @@ export type UpdateAppTokenRequest = {
 export type UpdateExtensionRequest = {
   allow_unverified?: boolean;
   check_only?: boolean;
-  confirm_gateway_digest?: string;
   inputs?: {
     [key: string]: Value;
   };
@@ -13302,6 +13830,7 @@ export type UpdateExtensionsRequest = {
 export type UpdateJobRequest = {
   enabled?: boolean | null;
   fire_limit?: FireLimitConfig | null;
+  loop_input_command?: string | null;
   loop_target?: LoopTarget | null;
   name?: string | null;
   prompt?: string | null;
@@ -13786,6 +14315,7 @@ export type WorkspacePayload = {
   default_agent?: string;
   id: string;
   name: string;
+  repository_key?: string;
   root_dir: string;
   root_missing?: boolean;
   updated_at: string;
@@ -14102,7 +14632,12 @@ export type CreateAgentRequestWritable = {
 export type InstallExtensionRequestWritable = {
   allow_unverified?: boolean;
   asset?: string;
-  confirm_gateway_digest?: string;
+  /**
+   * Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies.
+   */
+  dependencies?: {
+    [key: string]: ExtensionDependencyConsent;
+  };
   /**
    * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
    */
@@ -14130,9 +14665,19 @@ export type InstallExtensionRequestWritable = {
   source: "curated" | "marketplace" | "github" | "git" | "local_path";
   version?: string;
   /**
+   * Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse.
+   */
+  with_dependencies?: boolean;
+  /**
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
   workspace_id?: string;
+};
+
+export type SetExtensionInputsRequestWritable = {
+  inputs: {
+    [key: string]: ValueWritable;
+  };
 };
 
 export type UpdateAgentRequestWritable = {
@@ -14144,7 +14689,6 @@ export type UpdateAgentRequestWritable = {
 export type UpdateExtensionRequestWritable = {
   allow_unverified?: boolean;
   check_only?: boolean;
-  confirm_gateway_digest?: string;
   inputs?: {
     [key: string]: ValueWritable;
   };
@@ -14190,6 +14734,965 @@ export type ValueWritable =
   | {
       vault_ref: string;
     };
+
+export type DeleteAccountData = {
+  /**
+   * JSON request body
+   */
+  body: AccountDeleteRequest;
+  path?: never;
+  query?: never;
+  url: "/api/account";
+};
+
+export type DeleteAccountErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type DeleteAccountError = DeleteAccountErrors[keyof DeleteAccountErrors];
+
+export type DeleteAccountResponses = {
+  /**
+   * Deletion started
+   */
+  202: AccountDeleteResponse;
+};
+
+export type DeleteAccountResponse = DeleteAccountResponses[keyof DeleteAccountResponses];
+
+export type GetAccountData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Refresh account details from Compozy Cloud
+     */
+    refresh?: boolean;
+  };
+  url: "/api/account";
+};
+
+export type GetAccountErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetAccountError = GetAccountErrors[keyof GetAccountErrors];
+
+export type GetAccountResponses = {
+  /**
+   * Installation account status
+   */
+  200: AccountStatusResponse;
+};
+
+export type GetAccountResponse = GetAccountResponses[keyof GetAccountResponses];
+
+export type PatchAccountEmailData = {
+  /**
+   * JSON request body
+   */
+  body: AccountEmailPatchRequest;
+  path?: never;
+  query?: never;
+  url: "/api/account";
+};
+
+export type PatchAccountEmailErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PatchAccountEmailError = PatchAccountEmailErrors[keyof PatchAccountEmailErrors];
+
+export type PatchAccountEmailResponses = {
+  /**
+   * Updated installation account
+   */
+  200: AccountStatusResponse;
+};
+
+export type PatchAccountEmailResponse =
+  PatchAccountEmailResponses[keyof PatchAccountEmailResponses];
+
+export type ListAccountApprovalsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account/approvals";
+};
+
+export type ListAccountApprovalsErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListAccountApprovalsError =
+  ListAccountApprovalsErrors[keyof ListAccountApprovalsErrors];
+
+export type ListAccountApprovalsResponses = {
+  /**
+   * Account approvals
+   */
+  200: AccountApprovalsResponse;
+};
+
+export type ListAccountApprovalsResponse =
+  ListAccountApprovalsResponses[keyof ListAccountApprovalsResponses];
+
+export type GetAccountApprovalData = {
+  body?: never;
+  path: {
+    /**
+     * Account resource ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/account/approvals/{id}";
+};
+
+export type GetAccountApprovalErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetAccountApprovalError = GetAccountApprovalErrors[keyof GetAccountApprovalErrors];
+
+export type GetAccountApprovalResponses = {
+  /**
+   * Device approval
+   */
+  200: AccountApproval;
+};
+
+export type GetAccountApprovalResponse =
+  GetAccountApprovalResponses[keyof GetAccountApprovalResponses];
+
+export type DecideAccountApprovalData = {
+  /**
+   * JSON request body
+   */
+  body: AccountApprovalDecisionRequest;
+  path: {
+    /**
+     * Account resource ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/account/approvals/{id}/decision";
+};
+
+export type DecideAccountApprovalErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type DecideAccountApprovalError =
+  DecideAccountApprovalErrors[keyof DecideAccountApprovalErrors];
+
+export type DecideAccountApprovalResponses = {
+  /**
+   * Decision queued for the computer
+   */
+  202: ApprovalDelivery;
+};
+
+export type DecideAccountApprovalResponse =
+  DecideAccountApprovalResponses[keyof DecideAccountApprovalResponses];
+
+export type AccountBillingPortalData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account/billing-portal";
+};
+
+export type AccountBillingPortalErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type AccountBillingPortalError =
+  AccountBillingPortalErrors[keyof AccountBillingPortalErrors];
+
+export type AccountBillingPortalResponses = {
+  /**
+   * Billing portal URL
+   */
+  200: AccountBillingResponse;
+};
+
+export type AccountBillingPortalResponse =
+  AccountBillingPortalResponses[keyof AccountBillingPortalResponses];
+
+export type CheckoutAccountData = {
+  /**
+   * JSON request body
+   */
+  body: AccountCheckoutRequest;
+  path?: never;
+  query?: never;
+  url: "/api/account/checkout";
+};
+
+export type CheckoutAccountErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CheckoutAccountError = CheckoutAccountErrors[keyof CheckoutAccountErrors];
+
+export type CheckoutAccountResponses = {
+  /**
+   * Checkout URL
+   */
+  200: AccountBillingResponse;
+};
+
+export type CheckoutAccountResponse = CheckoutAccountResponses[keyof CheckoutAccountResponses];
+
+export type ListAccountDevicesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account/devices";
+};
+
+export type ListAccountDevicesErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListAccountDevicesError = ListAccountDevicesErrors[keyof ListAccountDevicesErrors];
+
+export type ListAccountDevicesResponses = {
+  /**
+   * Account devices
+   */
+  200: AccountDevicesResponse;
+};
+
+export type ListAccountDevicesResponse =
+  ListAccountDevicesResponses[keyof ListAccountDevicesResponses];
+
+export type RevokeAccountDeviceData = {
+  body?: never;
+  path: {
+    /**
+     * Account resource ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/account/devices/{id}";
+};
+
+export type RevokeAccountDeviceErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RevokeAccountDeviceError = RevokeAccountDeviceErrors[keyof RevokeAccountDeviceErrors];
+
+export type RevokeAccountDeviceResponses = {
+  /**
+   * Device revoked
+   */
+  204: void;
+};
+
+export type RevokeAccountDeviceResponse =
+  RevokeAccountDeviceResponses[keyof RevokeAccountDeviceResponses];
+
+export type PatchAccountDeviceData = {
+  /**
+   * JSON request body
+   */
+  body: AccountDevicePatch;
+  path: {
+    /**
+     * Account resource ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/account/devices/{id}";
+};
+
+export type PatchAccountDeviceErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PatchAccountDeviceError = PatchAccountDeviceErrors[keyof PatchAccountDeviceErrors];
+
+export type PatchAccountDeviceResponses = {
+  /**
+   * Updated device
+   */
+  200: AccountDevice;
+};
+
+export type PatchAccountDeviceResponse =
+  PatchAccountDeviceResponses[keyof PatchAccountDeviceResponses];
+
+export type CancelAccountLoginData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Cancel only the named sign-in attempt
+     */
+    attempt_id?: string;
+  };
+  url: "/api/account/login";
+};
+
+export type CancelAccountLoginErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CancelAccountLoginError = CancelAccountLoginErrors[keyof CancelAccountLoginErrors];
+
+export type CancelAccountLoginResponses = {
+  /**
+   * Sign-in attempt ended
+   */
+  204: void;
+};
+
+export type CancelAccountLoginResponse =
+  CancelAccountLoginResponses[keyof CancelAccountLoginResponses];
+
+export type StartAccountLoginData = {
+  /**
+   * JSON request body
+   */
+  body?: AccountLoginRequest;
+  path?: never;
+  query?: never;
+  url: "/api/account/login";
+};
+
+export type StartAccountLoginErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type StartAccountLoginError = StartAccountLoginErrors[keyof StartAccountLoginErrors];
+
+export type StartAccountLoginResponses = {
+  /**
+   * Device activation
+   */
+  200: AccountLoginResponse;
+};
+
+export type StartAccountLoginResponse =
+  StartAccountLoginResponses[keyof StartAccountLoginResponses];
+
+export type LogoutAccountData = {
+  /**
+   * JSON request body
+   */
+  body?: AccountLogoutRequest;
+  path?: never;
+  query?: never;
+  url: "/api/account/logout";
+};
+
+export type LogoutAccountErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type LogoutAccountError = LogoutAccountErrors[keyof LogoutAccountErrors];
+
+export type LogoutAccountResponses = {
+  /**
+   * Signed out
+   */
+  200: AccountLogoutResponse;
+};
+
+export type LogoutAccountResponse = LogoutAccountResponses[keyof LogoutAccountResponses];
+
+export type DismissAccountSignInNoticesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account/sign-in-notices/dismiss";
+};
+
+export type DismissAccountSignInNoticesErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type DismissAccountSignInNoticesError =
+  DismissAccountSignInNoticesErrors[keyof DismissAccountSignInNoticesErrors];
+
+export type DismissAccountSignInNoticesResponses = {
+  /**
+   * Notices dismissed
+   */
+  204: void;
+};
+
+export type DismissAccountSignInNoticesResponse =
+  DismissAccountSignInNoticesResponses[keyof DismissAccountSignInNoticesResponses];
+
+export type ListAccountTokensData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account/tokens";
+};
+
+export type ListAccountTokensErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListAccountTokensError = ListAccountTokensErrors[keyof ListAccountTokensErrors];
+
+export type ListAccountTokensResponses = {
+  /**
+   * Account tokens
+   */
+  200: AccountTokenList;
+};
+
+export type ListAccountTokensResponse =
+  ListAccountTokensResponses[keyof ListAccountTokensResponses];
+
+export type CreateAccountTokenData = {
+  /**
+   * JSON request body
+   */
+  body: AccountTokenCreate;
+  path?: never;
+  query?: never;
+  url: "/api/account/tokens";
+};
+
+export type CreateAccountTokenErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CreateAccountTokenError = CreateAccountTokenErrors[keyof CreateAccountTokenErrors];
+
+export type CreateAccountTokenResponses = {
+  /**
+   * One-time account token
+   */
+  201: AccountTokenCreated;
+};
+
+export type CreateAccountTokenResponse =
+  CreateAccountTokenResponses[keyof CreateAccountTokenResponses];
+
+export type RevokeAccountTokenData = {
+  body?: never;
+  path: {
+    /**
+     * Account resource ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/account/tokens/{id}";
+};
+
+export type RevokeAccountTokenErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RevokeAccountTokenError = RevokeAccountTokenErrors[keyof RevokeAccountTokenErrors];
+
+export type RevokeAccountTokenResponses = {
+  /**
+   * Account token revoked
+   */
+  204: void;
+};
+
+export type RevokeAccountTokenResponse =
+  RevokeAccountTokenResponses[keyof RevokeAccountTokenResponses];
 
 export type ListAgentInstancesData = {
   body?: never;
@@ -20897,6 +22400,841 @@ export type OpenCmdPaletteViewSessionResponses = {
 export type OpenCmdPaletteViewSessionResponse =
   OpenCmdPaletteViewSessionResponses[keyof OpenCmdPaletteViewSessionResponses];
 
+export type ListComputersData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/computers";
+};
+
+export type ListComputersErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListComputersError = ListComputersErrors[keyof ListComputersErrors];
+
+export type ListComputersResponses = {
+  /**
+   * Computer registry
+   */
+  200: ComputerListResponse;
+};
+
+export type ListComputersResponse = ListComputersResponses[keyof ListComputersResponses];
+
+export type AddAccountComputerData = {
+  /**
+   * JSON request body
+   */
+  body: AddComputerRequest;
+  path?: never;
+  query?: never;
+  url: "/api/computers";
+};
+
+export type AddAccountComputerErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * SSH setup input failed
+   */
+  422: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type AddAccountComputerError = AddAccountComputerErrors[keyof AddAccountComputerErrors];
+
+export type AddAccountComputerResponses = {
+  /**
+   * Computer added
+   */
+  201: Computer;
+  /**
+   * SSH setup started
+   */
+  202: ComputerSetupStarted;
+};
+
+export type AddAccountComputerResponse =
+  AddAccountComputerResponses[keyof AddAccountComputerResponses];
+
+export type ListAvailableComputersData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/computers/available";
+};
+
+export type ListAvailableComputersErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListAvailableComputersError =
+  ListAvailableComputersErrors[keyof ListAvailableComputersErrors];
+
+export type ListAvailableComputersResponses = {
+  /**
+   * Available account computers
+   */
+  200: AvailableComputersResponse;
+};
+
+export type ListAvailableComputersResponse =
+  ListAvailableComputersResponses[keyof ListAvailableComputersResponses];
+
+export type PatchLocalComputerData = {
+  /**
+   * JSON request body
+   */
+  body: PatchLocalComputerRequest;
+  path?: never;
+  query?: never;
+  url: "/api/computers/local";
+};
+
+export type PatchLocalComputerErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PatchLocalComputerError = PatchLocalComputerErrors[keyof PatchLocalComputerErrors];
+
+export type PatchLocalComputerResponses = {
+  /**
+   * Local computer settings
+   */
+  200: LocalComputer;
+};
+
+export type PatchLocalComputerResponse =
+  PatchLocalComputerResponses[keyof PatchLocalComputerResponses];
+
+export type PreviewComputerPlacementData = {
+  /**
+   * JSON request body
+   */
+  body: ComputerPlacementRequest;
+  path?: never;
+  query?: never;
+  url: "/api/computers/placement";
+};
+
+export type PreviewComputerPlacementErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PreviewComputerPlacementError =
+  PreviewComputerPlacementErrors[keyof PreviewComputerPlacementErrors];
+
+export type PreviewComputerPlacementResponses = {
+  /**
+   * Selected computer and workspace
+   */
+  200: ComputerPlacementResponse;
+};
+
+export type PreviewComputerPlacementResponse =
+  PreviewComputerPlacementResponses[keyof PreviewComputerPlacementResponses];
+
+export type CancelComputerSetupData = {
+  body?: never;
+  path: {
+    /**
+     * SSH setup ID
+     */
+    setup_id: string;
+  };
+  query?: never;
+  url: "/api/computers/setups/{setup_id}";
+};
+
+export type CancelComputerSetupErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CancelComputerSetupError = CancelComputerSetupErrors[keyof CancelComputerSetupErrors];
+
+export type CancelComputerSetupResponses = {
+  /**
+   * Setup stopped and slot released
+   */
+  200: ComputerSetupCanceled;
+};
+
+export type CancelComputerSetupResponse =
+  CancelComputerSetupResponses[keyof CancelComputerSetupResponses];
+
+export type GetComputerSetupData = {
+  body?: never;
+  path: {
+    /**
+     * SSH setup ID
+     */
+    setup_id: string;
+  };
+  query?: {
+    /**
+     * Wait for up to 30,000 ms
+     */
+    wait_ms?: number;
+  };
+  url: "/api/computers/setups/{setup_id}";
+};
+
+export type GetComputerSetupErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetComputerSetupError = GetComputerSetupErrors[keyof GetComputerSetupErrors];
+
+export type GetComputerSetupResponses = {
+  /**
+   * Current SSH setup status
+   */
+  200: ComputerSetupStatus;
+};
+
+export type GetComputerSetupResponse = GetComputerSetupResponses[keyof GetComputerSetupResponses];
+
+export type AnswerComputerSetupData = {
+  /**
+   * JSON request body
+   */
+  body: ComputerSetupAnswer;
+  path: {
+    /**
+     * SSH setup ID
+     */
+    setup_id: string;
+  };
+  query?: never;
+  url: "/api/computers/setups/{setup_id}/answer";
+};
+
+export type AnswerComputerSetupErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type AnswerComputerSetupError = AnswerComputerSetupErrors[keyof AnswerComputerSetupErrors];
+
+export type AnswerComputerSetupResponses = {
+  /**
+   * Answer accepted
+   */
+  204: void;
+};
+
+export type AnswerComputerSetupResponse =
+  AnswerComputerSetupResponses[keyof AnswerComputerSetupResponses];
+
+export type ListComputerSSHHostsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/computers/ssh-hosts";
+};
+
+export type ListComputerSSHHostsErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListComputerSSHHostsError =
+  ListComputerSSHHostsErrors[keyof ListComputerSSHHostsErrors];
+
+export type ListComputerSSHHostsResponses = {
+  /**
+   * SSH hosts
+   */
+  200: ComputerSSHHostsResponse;
+};
+
+export type ListComputerSSHHostsResponse =
+  ListComputerSSHHostsResponses[keyof ListComputerSSHHostsResponses];
+
+export type RemoveComputerData = {
+  body?: never;
+  path: {
+    /**
+     * Computer ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Also unlink the computer from the account
+     */
+    unlink?: boolean;
+    /**
+     * Also uninstall the managed SSH service
+     */
+    uninstall?: boolean;
+  };
+  url: "/api/computers/{id}";
+};
+
+export type RemoveComputerErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RemoveComputerError = RemoveComputerErrors[keyof RemoveComputerErrors];
+
+export type RemoveComputerResponses = {
+  /**
+   * Computer removed
+   */
+  200: RemoveComputerResponse;
+};
+
+export type RemoveComputerResponse2 = RemoveComputerResponses[keyof RemoveComputerResponses];
+
+export type GetComputerData = {
+  body?: never;
+  path: {
+    /**
+     * Computer ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/computers/{id}";
+};
+
+export type GetComputerErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetComputerError = GetComputerErrors[keyof GetComputerErrors];
+
+export type GetComputerResponses = {
+  /**
+   * Computer status
+   */
+  200: Computer;
+};
+
+export type GetComputerResponse = GetComputerResponses[keyof GetComputerResponses];
+
+export type PatchComputerData = {
+  /**
+   * JSON request body
+   */
+  body: PatchComputerRequest;
+  path: {
+    /**
+     * Computer ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/computers/{id}";
+};
+
+export type PatchComputerErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PatchComputerError = PatchComputerErrors[keyof PatchComputerErrors];
+
+export type PatchComputerResponses = {
+  /**
+   * Updated computer
+   */
+  200: Computer;
+};
+
+export type PatchComputerResponse = PatchComputerResponses[keyof PatchComputerResponses];
+
+export type RemoveComputerRouteData = {
+  body?: never;
+  path: {
+    /**
+     * Computer ID
+     */
+    id: string;
+    /**
+     * Learned route ID
+     */
+    route_id: string;
+  };
+  query?: never;
+  url: "/api/computers/{id}/routes/{route_id}";
+};
+
+export type RemoveComputerRouteErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RemoveComputerRouteError = RemoveComputerRouteErrors[keyof RemoveComputerRouteErrors];
+
+export type RemoveComputerRouteResponses = {
+  /**
+   * Route removed
+   */
+  204: void;
+};
+
+export type RemoveComputerRouteResponse =
+  RemoveComputerRouteResponses[keyof RemoveComputerRouteResponses];
+
+export type StartComputerUpdateData = {
+  body?: never;
+  path: {
+    /**
+     * Computer ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/computers/{id}/update";
+};
+
+export type StartComputerUpdateErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type StartComputerUpdateError = StartComputerUpdateErrors[keyof StartComputerUpdateErrors];
+
+export type StartComputerUpdateResponses = {
+  /**
+   * Update setup started
+   */
+  202: ComputerUpdateStarted;
+};
+
+export type StartComputerUpdateResponse =
+  StartComputerUpdateResponses[keyof StartComputerUpdateResponses];
+
 export type CaptureDaemonProfileData = {
   body?: never;
   path: {
@@ -21215,13 +23553,17 @@ export type PreviewExtensionInstallErrors = {
    */
   403: ErrorPayload;
   /**
+   * A marketplace dependency listing was not found
+   */
+  404: ExtensionOperationErrorPayload;
+  /**
    * The approved source digest changed
    */
   409: ExtensionOperationErrorPayload;
   /**
-   * Package validation failure
+   * Extension trust decision, dependency graph refusal, or package validation failure
    */
-  422: ExtensionValidationErrorPayload;
+  422: ErrorPayload | ExtensionOperationErrorPayload | ExtensionValidationErrorPayload;
   /**
    * Extension service is not configured
    */
@@ -21305,10 +23647,6 @@ export type UpdateExtensionsErrors = {
    */
   404: ErrorPayload;
   /**
-   * Gateway confirmation required
-   */
-  409: ExtensionOperationErrorPayload;
-  /**
    * Extension trust or input configuration is required
    */
   422: ErrorPayload | ExtensionOperationErrorPayload;
@@ -21351,6 +23689,10 @@ export type RemoveExtensionData = {
      */
     permanent?: boolean;
     /**
+     * Experimental. Remove even while an installed dependent still needs the extension; the dependent then reports unmet_dependencies. Removal never cascades.
+     */
+    force?: boolean;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -21372,9 +23714,9 @@ export type RemoveExtensionErrors = {
    */
   404: ErrorPayload;
   /**
-   * Extension is in use
+   * Extension is in use, or experimental: an installed dependent still needs it
    */
-  409: ErrorPayload;
+  409: ErrorPayload | ExtensionOperationErrorPayload;
   /**
    * Extension is not a built-in
    */
@@ -21485,10 +23827,6 @@ export type UpdateExtensionErrors = {
    */
   404: ErrorPayload;
   /**
-   * Gateway confirmation required
-   */
-  409: ExtensionOperationErrorPayload;
-  /**
    * Extension trust or input configuration is required
    */
   422: ErrorPayload | ExtensionOperationErrorPayload;
@@ -21592,7 +23930,11 @@ export type SetExtensionEnablementErrors = {
    */
   404: ErrorPayload;
   /**
-   * Extension inputs are required
+   * Experimental: an installed dependent still needs the extension (extension_dependency_in_use)
+   */
+  409: ExtensionOperationErrorPayload;
+  /**
+   * Extension inputs are required, or experimental: its dependencies are unmet
    */
   422: ExtensionOperationErrorPayload;
   /**
@@ -21613,6 +23955,113 @@ export type SetExtensionEnablementResponses = {
 
 export type SetExtensionEnablementResponse =
   SetExtensionEnablementResponses[keyof SetExtensionEnablementResponses];
+
+export type GetExtensionInputsData = {
+  body?: never;
+  path: {
+    /**
+     * Extension name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Installation scope: global or workspace
+     */
+    scope?: string;
+    /**
+     * Operator workspace reference; omit for the global instance
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/extensions/{name}/inputs";
+};
+
+export type GetExtensionInputsErrors = {
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Extension not found
+   */
+  404: ExtensionOperationErrorPayload;
+};
+
+export type GetExtensionInputsError = GetExtensionInputsErrors[keyof GetExtensionInputsErrors];
+
+export type GetExtensionInputsResponses = {
+  /**
+   * OK
+   */
+  200: ExtensionInputsPayload;
+};
+
+export type GetExtensionInputsResponse =
+  GetExtensionInputsResponses[keyof GetExtensionInputsResponses];
+
+export type SetExtensionInputsData = {
+  /**
+   * JSON request body
+   */
+  body: SetExtensionInputsRequestWritable;
+  path: {
+    /**
+     * Extension name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Installation scope: global or workspace
+     */
+    scope?: string;
+    /**
+     * Operator workspace reference; omit for the global instance
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/extensions/{name}/inputs";
+};
+
+export type SetExtensionInputsErrors = {
+  /**
+   * Invalid request
+   */
+  400: ExtensionOperationErrorPayload;
+  /**
+   * Forbidden, or an agent tried to overwrite inputs that are already set
+   */
+  403: ExtensionOperationErrorPayload;
+  /**
+   * Extension not found
+   */
+  404: ExtensionOperationErrorPayload;
+  /**
+   * Invalid input value
+   */
+  422: ExtensionOperationErrorPayload;
+};
+
+export type SetExtensionInputsError = SetExtensionInputsErrors[keyof SetExtensionInputsErrors];
+
+export type SetExtensionInputsResponses = {
+  /**
+   * OK
+   */
+  200: ExtensionInputsPayload;
+};
+
+export type SetExtensionInputsResponse =
+  SetExtensionInputsResponses[keyof SetExtensionInputsResponses];
 
 export type GetExtensionInventoryData = {
   body?: never;
@@ -21854,7 +24303,7 @@ export type ReloadDevExtensionErrors = {
    */
   403: ErrorPayload;
   /**
-   * Extension is not dev linked or needs gateway confirmation
+   * Extension is not dev linked
    */
   409: ExtensionOperationErrorPayload;
   /**
@@ -22128,547 +24577,6 @@ export type BrowseDirectoryResponses = {
 
 export type BrowseDirectoryResponse = BrowseDirectoryResponses[keyof BrowseDirectoryResponses];
 
-export type GetGatewayAuditData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/audit";
-};
-
-export type GetGatewayAuditErrors = {
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type GetGatewayAuditError = GetGatewayAuditErrors[keyof GetGatewayAuditErrors];
-
-export type GetGatewayAuditResponses = {
-  /**
-   * Completed gateway security audit
-   */
-  200: GatewayAuditPayload;
-};
-
-export type GetGatewayAuditResponse = GetGatewayAuditResponses[keyof GetGatewayAuditResponses];
-
-export type ListGatewayDevicesData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/devices";
-};
-
-export type ListGatewayDevicesErrors = {
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type ListGatewayDevicesError = ListGatewayDevicesErrors[keyof ListGatewayDevicesErrors];
-
-export type ListGatewayDevicesResponses = {
-  /**
-   * OK
-   */
-  200: GatewayDevicesResponse;
-};
-
-export type ListGatewayDevicesResponse =
-  ListGatewayDevicesResponses[keyof ListGatewayDevicesResponses];
-
-export type RevokeGatewayDeviceData = {
-  body?: never;
-  path: {
-    /**
-     * Gateway device id
-     */
-    id: string;
-  };
-  query?: never;
-  url: "/api/gateway/devices/{id}";
-};
-
-export type RevokeGatewayDeviceErrors = {
-  /**
-   * Gateway device not found
-   */
-  404: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type RevokeGatewayDeviceError = RevokeGatewayDeviceErrors[keyof RevokeGatewayDeviceErrors];
-
-export type RevokeGatewayDeviceResponses = {
-  /**
-   * Revoked
-   */
-  200: GatewayRevokePayload;
-};
-
-export type RevokeGatewayDeviceResponse =
-  RevokeGatewayDeviceResponses[keyof RevokeGatewayDeviceResponses];
-
-export type RenameGatewayDeviceData = {
-  /**
-   * JSON request body
-   */
-  body: GatewayDeviceRenameRequest;
-  path: {
-    /**
-     * Gateway device id
-     */
-    id: string;
-  };
-  query?: never;
-  url: "/api/gateway/devices/{id}";
-};
-
-export type RenameGatewayDeviceErrors = {
-  /**
-   * Invalid gateway device name
-   */
-  400: ErrorPayload;
-  /**
-   * Gateway device not found
-   */
-  404: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type RenameGatewayDeviceError = RenameGatewayDeviceErrors[keyof RenameGatewayDeviceErrors];
-
-export type RenameGatewayDeviceResponses = {
-  /**
-   * Renamed
-   */
-  200: GatewayDevicePayload;
-};
-
-export type RenameGatewayDeviceResponse =
-  RenameGatewayDeviceResponses[keyof RenameGatewayDeviceResponses];
-
-export type RemoveGatewayDeviceData = {
-  body?: never;
-  path: {
-    /**
-     * Gateway device id
-     */
-    id: string;
-  };
-  query?: never;
-  url: "/api/gateway/devices/{id}/record";
-};
-
-export type RemoveGatewayDeviceErrors = {
-  /**
-   * Gateway device not found
-   */
-  404: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type RemoveGatewayDeviceError = RemoveGatewayDeviceErrors[keyof RemoveGatewayDeviceErrors];
-
-export type RemoveGatewayDeviceResponses = {
-  /**
-   * Removed
-   */
-  200: GatewayRemovedDevicePayload;
-};
-
-export type RemoveGatewayDeviceResponse =
-  RemoveGatewayDeviceResponses[keyof RemoveGatewayDeviceResponses];
-
-export type BindGatewayIngressData = {
-  /**
-   * JSON request body
-   */
-  body: GatewayIngressBindRequest;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/ingress-bindings";
-};
-
-export type BindGatewayIngressErrors = {
-  /**
-   * Invalid ingress binding request
-   */
-  400: ErrorPayload;
-  /**
-   * Ingress subject is outside the caller workspace
-   */
-  403: ErrorPayload;
-  /**
-   * Ingress subject not found
-   */
-  404: ErrorPayload;
-  /**
-   * Public ingress is not reachable
-   */
-  409: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type BindGatewayIngressError = BindGatewayIngressErrors[keyof BindGatewayIngressErrors];
-
-export type BindGatewayIngressResponses = {
-  /**
-   * Already confirmed
-   */
-  200: GatewayIngressBindingResponse;
-  /**
-   * Created
-   */
-  201: GatewayIngressBindingResponse;
-};
-
-export type BindGatewayIngressResponse =
-  BindGatewayIngressResponses[keyof BindGatewayIngressResponses];
-
-export type UnbindGatewayIngressData = {
-  body?: never;
-  path: {
-    /**
-     * Ingress subject kind
-     */
-    subject_kind: string;
-    /**
-     * Ingress subject id
-     */
-    subject_id: string;
-  };
-  query?: never;
-  url: "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}";
-};
-
-export type UnbindGatewayIngressErrors = {
-  /**
-   * Invalid ingress subject
-   */
-  400: ErrorPayload;
-  /**
-   * Ingress subject is outside the caller workspace
-   */
-  403: ErrorPayload;
-  /**
-   * Ingress subject not found
-   */
-  404: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type UnbindGatewayIngressError =
-  UnbindGatewayIngressErrors[keyof UnbindGatewayIngressErrors];
-
-export type UnbindGatewayIngressResponses = {
-  /**
-   * Unbound
-   */
-  200: GatewayIngressUnbindResponse;
-};
-
-export type UnbindGatewayIngressResponse =
-  UnbindGatewayIngressResponses[keyof UnbindGatewayIngressResponses];
-
-export type MintGatewayPairingData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/pairings";
-};
-
-export type MintGatewayPairingErrors = {
-  /**
-   * Forbidden
-   */
-  403: ErrorPayload;
-  /**
-   * Rate limited
-   */
-  429: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type MintGatewayPairingError = MintGatewayPairingErrors[keyof MintGatewayPairingErrors];
-
-export type MintGatewayPairingResponses = {
-  /**
-   * Created
-   */
-  201: GatewayPairingArtifactPayload;
-};
-
-export type MintGatewayPairingResponse =
-  MintGatewayPairingResponses[keyof MintGatewayPairingResponses];
-
-export type RedeemGatewayPairingData = {
-  /**
-   * JSON request body
-   */
-  body: GatewayPairingRedeemRequest;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/pairings/redeem";
-};
-
-export type RedeemGatewayPairingErrors = {
-  /**
-   * Invalid pairing request
-   */
-  400: ErrorPayload;
-  /**
-   * Invalid pairing artifact
-   */
-  401: ErrorPayload;
-  /**
-   * Forbidden
-   */
-  403: ErrorPayload;
-  /**
-   * Pairing artifact already spent
-   */
-  409: ErrorPayload;
-  /**
-   * Pairing artifact expired
-   */
-  410: ErrorPayload;
-  /**
-   * Rate limited
-   */
-  429: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type RedeemGatewayPairingError =
-  RedeemGatewayPairingErrors[keyof RedeemGatewayPairingErrors];
-
-export type RedeemGatewayPairingResponses = {
-  /**
-   * Redeemed
-   */
-  200: GatewayIssuedCredentialPayload;
-};
-
-export type RedeemGatewayPairingResponse =
-  RedeemGatewayPairingResponses[keyof RedeemGatewayPairingResponses];
-
-export type DisableGatewayProviderData = {
-  body?: never;
-  path: {
-    /**
-     * Connectivity provider name
-     */
-    name: string;
-  };
-  query: {
-    /**
-     * Gateway tier
-     */
-    tier: string;
-  };
-  url: "/api/gateway/providers/{name}/disable";
-};
-
-export type DisableGatewayProviderErrors = {
-  /**
-   * Invalid gateway tier
-   */
-  400: ErrorPayload;
-  /**
-   * Gateway provider not found
-   */
-  404: ErrorPayload;
-  /**
-   * Gateway provider conflict
-   */
-  409: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type DisableGatewayProviderError =
-  DisableGatewayProviderErrors[keyof DisableGatewayProviderErrors];
-
-export type DisableGatewayProviderResponses = {
-  /**
-   * Disabled
-   */
-  200: GatewayStatusPayload;
-};
-
-export type DisableGatewayProviderResponse =
-  DisableGatewayProviderResponses[keyof DisableGatewayProviderResponses];
-
-export type EnableGatewayProviderData = {
-  /**
-   * JSON request body
-   */
-  body: GatewayProviderEnableRequest;
-  path: {
-    /**
-     * Connectivity provider name
-     */
-    name: string;
-  };
-  query?: never;
-  url: "/api/gateway/providers/{name}/enable";
-};
-
-export type EnableGatewayProviderErrors = {
-  /**
-   * Invalid provider request
-   */
-  400: ErrorPayload;
-  /**
-   * Gateway provider conflict
-   */
-  409: ErrorPayload;
-  /**
-   * Provider digest confirmation required
-   */
-  428: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type EnableGatewayProviderError =
-  EnableGatewayProviderErrors[keyof EnableGatewayProviderErrors];
-
-export type EnableGatewayProviderResponses = {
-  /**
-   * Enabled
-   */
-  200: GatewayStatusPayload;
-};
-
-export type EnableGatewayProviderResponse =
-  EnableGatewayProviderResponses[keyof EnableGatewayProviderResponses];
-
-export type GetGatewayStatusData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/status";
-};
-
-export type GetGatewayStatusErrors = {
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type GetGatewayStatusError = GetGatewayStatusErrors[keyof GetGatewayStatusErrors];
-
-export type GetGatewayStatusResponses = {
-  /**
-   * OK
-   */
-  200: GatewayStatusPayload;
-};
-
-export type GetGatewayStatusResponse = GetGatewayStatusResponses[keyof GetGatewayStatusResponses];
-
-export type MintGatewayStreamTicketData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/stream-tickets";
-};
-
-export type MintGatewayStreamTicketErrors = {
-  /**
-   * Gateway device authentication required
-   */
-  401: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type MintGatewayStreamTicketError =
-  MintGatewayStreamTicketErrors[keyof MintGatewayStreamTicketErrors];
-
-export type MintGatewayStreamTicketResponses = {
-  /**
-   * Created
-   */
-  201: GatewayStreamTicketPayload;
-};
-
-export type MintGatewayStreamTicketResponse =
-  MintGatewayStreamTicketResponses[keyof MintGatewayStreamTicketResponses];
-
-export type SetGatewaySurfaceData = {
-  /**
-   * JSON request body
-   */
-  body: GatewaySurfaceRequest;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/surfaces";
-};
-
-export type SetGatewaySurfaceErrors = {
-  /**
-   * Invalid gateway surface request
-   */
-  400: ErrorPayload;
-  /**
-   * Gateway exposure conflict
-   */
-  409: ErrorPayload;
-  /**
-   * Gateway consent required
-   */
-  428: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type SetGatewaySurfaceError = SetGatewaySurfaceErrors[keyof SetGatewaySurfaceErrors];
-
-export type SetGatewaySurfaceResponses = {
-  /**
-   * Updated
-   */
-  200: GatewayStatusPayload;
-};
-
-export type SetGatewaySurfaceResponse =
-  SetGatewaySurfaceResponses[keyof SetGatewaySurfaceResponses];
-
 export type GetHookCatalogData = {
   body?: never;
   path?: never;
@@ -22880,6 +24788,116 @@ export type GetHookEventsResponses = {
 };
 
 export type GetHookEventsResponse = GetHookEventsResponses[keyof GetHookEventsResponses];
+
+export type GetHostResourcesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/host/resources";
+};
+
+export type GetHostResourcesResponses = {
+  /**
+   * Host resource sample
+   */
+  200: HostResourcesResponse;
+};
+
+export type GetHostResourcesResponse = GetHostResourcesResponses[keyof GetHostResourcesResponses];
+
+export type BindIngressData = {
+  /**
+   * JSON request body
+   */
+  body: IngressBindRequest;
+  path?: never;
+  query?: never;
+  url: "/api/ingress/bindings";
+};
+
+export type BindIngressErrors = {
+  /**
+   * Invalid ingress binding request
+   */
+  400: ErrorPayload;
+  /**
+   * Ingress subject is outside the caller workspace
+   */
+  403: ErrorPayload;
+  /**
+   * Ingress subject not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Public ingress is not reachable
+   */
+  503: ErrorPayload;
+};
+
+export type BindIngressError = BindIngressErrors[keyof BindIngressErrors];
+
+export type BindIngressResponses = {
+  /**
+   * Already confirmed
+   */
+  200: IngressBindingResponse;
+  /**
+   * Created
+   */
+  201: IngressBindingResponse;
+};
+
+export type BindIngressResponse = BindIngressResponses[keyof BindIngressResponses];
+
+export type UnbindIngressData = {
+  body?: never;
+  path: {
+    /**
+     * Ingress subject kind
+     */
+    subject_kind: string;
+    /**
+     * Ingress subject id
+     */
+    subject_id: string;
+  };
+  query?: never;
+  url: "/api/ingress/bindings/{subject_kind}/{subject_id}";
+};
+
+export type UnbindIngressErrors = {
+  /**
+   * Invalid ingress subject
+   */
+  400: ErrorPayload;
+  /**
+   * Ingress subject is outside the caller workspace
+   */
+  403: ErrorPayload;
+  /**
+   * Ingress subject not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type UnbindIngressError = UnbindIngressErrors[keyof UnbindIngressErrors];
+
+export type UnbindIngressResponses = {
+  /**
+   * Unbound
+   */
+  204: void;
+};
+
+export type UnbindIngressResponse = UnbindIngressResponses[keyof UnbindIngressResponses];
 
 export type ListLogsData = {
   body?: never;
@@ -23796,6 +25814,81 @@ export type CompleteMCPAuthCallbackResponses = {
 
 export type CompleteMCPAuthCallbackResponse =
   CompleteMCPAuthCallbackResponses[keyof CompleteMCPAuthCallbackResponses];
+
+export type ListMigrationNoticesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/migration-notices";
+};
+
+export type ListMigrationNoticesErrors = {
+  /**
+   * Sign-in required
+   */
+  401: ErrorPayload;
+  /**
+   * Operator permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type ListMigrationNoticesError =
+  ListMigrationNoticesErrors[keyof ListMigrationNoticesErrors];
+
+export type ListMigrationNoticesResponses = {
+  /**
+   * Upgrade notices
+   */
+  200: MigrationNoticesResponse;
+};
+
+export type ListMigrationNoticesResponse =
+  ListMigrationNoticesResponses[keyof ListMigrationNoticesResponses];
+
+export type DismissMigrationNoticeData = {
+  body?: never;
+  path: {
+    /**
+     * Migration notice key
+     */
+    key: string;
+  };
+  query?: never;
+  url: "/api/migration-notices/{key}/dismiss";
+};
+
+export type DismissMigrationNoticeErrors = {
+  /**
+   * Sign-in required
+   */
+  401: ErrorPayload;
+  /**
+   * Operator permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type DismissMigrationNoticeError =
+  DismissMigrationNoticeErrors[keyof DismissMigrationNoticeErrors];
+
+export type DismissMigrationNoticeResponses = {
+  /**
+   * Notice dismissed
+   */
+  204: void;
+};
+
+export type DismissMigrationNoticeResponse =
+  DismissMigrationNoticeResponses[keyof DismissMigrationNoticeResponses];
 
 export type ListProviderModelsData = {
   body?: never;
@@ -25882,6 +27975,400 @@ export type ProbeProviderAuthResponses = {
 export type ProbeProviderAuthResponse =
   ProbeProviderAuthResponses[keyof ProbeProviderAuthResponses];
 
+export type GetRemoteStatusData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/remote";
+};
+
+export type GetRemoteStatusErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetRemoteStatusError = GetRemoteStatusErrors[keyof GetRemoteStatusErrors];
+
+export type GetRemoteStatusResponses = {
+  /**
+   * Remote access status
+   */
+  200: RemoteStatusResponse;
+};
+
+export type GetRemoteStatusResponse = GetRemoteStatusResponses[keyof GetRemoteStatusResponses];
+
+export type PatchRemoteStatusData = {
+  /**
+   * JSON request body
+   */
+  body: RemotePatchRequest;
+  path?: never;
+  query?: never;
+  url: "/api/remote";
+};
+
+export type PatchRemoteStatusErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PatchRemoteStatusError = PatchRemoteStatusErrors[keyof PatchRemoteStatusErrors];
+
+export type PatchRemoteStatusResponses = {
+  /**
+   * Updated remote access
+   */
+  200: RemoteStatusResponse;
+};
+
+export type PatchRemoteStatusResponse =
+  PatchRemoteStatusResponses[keyof PatchRemoteStatusResponses];
+
+export type ListRemoteDevicesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/remote/devices";
+};
+
+export type ListRemoteDevicesErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListRemoteDevicesError = ListRemoteDevicesErrors[keyof ListRemoteDevicesErrors];
+
+export type ListRemoteDevicesResponses = {
+  /**
+   * Remote devices and pending approvals
+   */
+  200: RemoteDevicesResponse;
+};
+
+export type ListRemoteDevicesResponse =
+  ListRemoteDevicesResponses[keyof ListRemoteDevicesResponses];
+
+export type RevokeRemoteDeviceData = {
+  body?: never;
+  path: {
+    /**
+     * Device ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/remote/devices/{id}";
+};
+
+export type RevokeRemoteDeviceErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RevokeRemoteDeviceError = RevokeRemoteDeviceErrors[keyof RevokeRemoteDeviceErrors];
+
+export type RevokeRemoteDeviceResponses = {
+  /**
+   * Device revoked
+   */
+  204: void;
+};
+
+export type RevokeRemoteDeviceResponse =
+  RevokeRemoteDeviceResponses[keyof RevokeRemoteDeviceResponses];
+
+export type PatchRemoteDeviceData = {
+  /**
+   * JSON request body
+   */
+  body: RemoteDevicePatchRequest;
+  path: {
+    /**
+     * Device ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/remote/devices/{id}";
+};
+
+export type PatchRemoteDeviceErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PatchRemoteDeviceError = PatchRemoteDeviceErrors[keyof PatchRemoteDeviceErrors];
+
+export type PatchRemoteDeviceResponses = {
+  /**
+   * Updated device
+   */
+  200: RemoteDeviceResponse;
+};
+
+export type PatchRemoteDeviceResponse =
+  PatchRemoteDeviceResponses[keyof PatchRemoteDeviceResponses];
+
+export type UnlinkRemoteData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/remote/link";
+};
+
+export type UnlinkRemoteErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type UnlinkRemoteError = UnlinkRemoteErrors[keyof UnlinkRemoteErrors];
+
+export type UnlinkRemoteResponses = {
+  /**
+   * Computer unlinked
+   */
+  204: void;
+};
+
+export type UnlinkRemoteResponse = UnlinkRemoteResponses[keyof UnlinkRemoteResponses];
+
+export type LinkRemoteData = {
+  /**
+   * JSON request body
+   */
+  body: RemoteLinkRequest;
+  path?: never;
+  query?: never;
+  url: "/api/remote/link";
+};
+
+export type LinkRemoteErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type LinkRemoteError = LinkRemoteErrors[keyof LinkRemoteErrors];
+
+export type LinkRemoteResponses = {
+  /**
+   * Computer link or device activation
+   */
+  200: RemoteLinkResponse;
+};
+
+export type LinkRemoteResponse = LinkRemoteResponses[keyof LinkRemoteResponses];
+
 export type ListResourcesData = {
   body?: never;
   path?: never;
@@ -27109,6 +29596,57 @@ export type CreateSessionResponses = {
 };
 
 export type CreateSessionResponse = CreateSessionResponses[keyof CreateSessionResponses];
+
+export type ArchiveStoppedSessionsData = {
+  /**
+   * JSON request body
+   */
+  body: SessionArchiveStoppedRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/sessions/archive-stopped";
+};
+
+export type ArchiveStoppedSessionsErrors = {
+  /**
+   * Choose exactly one of workspace_id and all_workspaces
+   */
+  400: ErrorPayload;
+  /**
+   * Agent identity is denied
+   */
+  403: ErrorPayload;
+  /**
+   * Workspace not found or archived
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type ArchiveStoppedSessionsError =
+  ArchiveStoppedSessionsErrors[keyof ArchiveStoppedSessionsErrors];
+
+export type ArchiveStoppedSessionsResponses = {
+  /**
+   * OK
+   */
+  200: SessionArchiveStoppedResponse;
+};
+
+export type ArchiveStoppedSessionsResponse =
+  ArchiveStoppedSessionsResponses[keyof ArchiveStoppedSessionsResponses];
 
 export type GetSessionAttentionSummaryData = {
   body?: never;
@@ -34310,13 +36848,13 @@ export type InvokeToolData = {
 
 export type InvokeToolErrors = {
   /**
-   * Invalid invocation request or profile selection
+   * Invalid request, remote_caller_override_forbidden or tool_not_forwardable
    */
-  400: ProfileErrorPayload | ToolErrorResponse;
+  400: ProfileErrorPayload | ToolErrorResponse | ErrorPayload;
   /**
-   * Invocation denied
+   * Invocation denied or remote_scope_denied
    */
-  403: ToolErrorResponse;
+  403: ToolErrorResponse | ErrorPayload;
   /**
    * Tool or profile not found
    */
@@ -35262,6 +37800,10 @@ export type ListWorkspacesData = {
      * List archived projects instead of active projects
      */
     archived?: boolean;
+    /**
+     * Include normalized Git repository identities
+     */
+    include_repository?: boolean;
   };
   url: "/api/workspaces";
 };
@@ -47693,3 +50235,367 @@ export type ListWorktreesAggregateResponses = {
 
 export type ListWorktreesAggregateResponse =
   ListWorktreesAggregateResponses[keyof ListWorktreesAggregateResponses];
+
+export type GetBrowserApprovalData = {
+  body?: never;
+  headers: {
+    /**
+     * Proof from the browser key
+     */
+    DPoP: string;
+  };
+  path: {
+    /**
+     * Approval ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/remote/v1/browser/approvals/{id}";
+};
+
+export type GetBrowserApprovalErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetBrowserApprovalError = GetBrowserApprovalErrors[keyof GetBrowserApprovalErrors];
+
+export type GetBrowserApprovalResponses = {
+  /**
+   * OK
+   */
+  200: BrowserApprovalStatus;
+};
+
+export type GetBrowserApprovalResponse =
+  GetBrowserApprovalResponses[keyof GetBrowserApprovalResponses];
+
+export type ListBrowserPeersData = {
+  body?: never;
+  headers: {
+    /**
+     * Proof from the browser key
+     */
+    DPoP: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/remote/v1/browser/peers";
+};
+
+export type ListBrowserPeersErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListBrowserPeersError = ListBrowserPeersErrors[keyof ListBrowserPeersErrors];
+
+export type ListBrowserPeersResponses = {
+  /**
+   * OK
+   */
+  200: BrowserPeersResponse;
+};
+
+export type ListBrowserPeersResponse = ListBrowserPeersResponses[keyof ListBrowserPeersResponses];
+
+export type EndBrowserSessionData = {
+  body?: never;
+  headers: {
+    /**
+     * Proof from the browser key
+     */
+    DPoP: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/remote/v1/browser/session";
+};
+
+export type EndBrowserSessionErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type EndBrowserSessionError = EndBrowserSessionErrors[keyof EndBrowserSessionErrors];
+
+export type EndBrowserSessionResponses = {
+  /**
+   * No Content
+   */
+  204: void;
+};
+
+export type EndBrowserSessionResponse =
+  EndBrowserSessionResponses[keyof EndBrowserSessionResponses];
+
+export type StartBrowserSessionData = {
+  /**
+   * JSON request body
+   */
+  body: BrowserSessionRequest;
+  headers: {
+    /**
+     * Proof from the browser key
+     */
+    DPoP: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/remote/v1/browser/session";
+};
+
+export type StartBrowserSessionErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type StartBrowserSessionError = StartBrowserSessionErrors[keyof StartBrowserSessionErrors];
+
+export type StartBrowserSessionResponses = {
+  /**
+   * Created
+   */
+  201: BrowserSessionResponse;
+};
+
+export type StartBrowserSessionResponse =
+  StartBrowserSessionResponses[keyof StartBrowserSessionResponses];
+
+export type GetBrowserStatusData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/remote/v1/browser/status";
+};
+
+export type GetBrowserStatusErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetBrowserStatusError = GetBrowserStatusErrors[keyof GetBrowserStatusErrors];
+
+export type GetBrowserStatusResponses = {
+  /**
+   * OK
+   */
+  200: BrowserStatus;
+};
+
+export type GetBrowserStatusResponse = GetBrowserStatusResponses[keyof GetBrowserStatusResponses];
+
+export type MintBrowserStreamTicketData = {
+  /**
+   * JSON request body
+   */
+  body: BrowserStreamTicketRequest;
+  headers: {
+    /**
+     * Proof from the browser key
+     */
+    DPoP: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/remote/v1/stream-tickets";
+};
+
+export type MintBrowserStreamTicketErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type MintBrowserStreamTicketError =
+  MintBrowserStreamTicketErrors[keyof MintBrowserStreamTicketErrors];
+
+export type MintBrowserStreamTicketResponses = {
+  /**
+   * Created
+   */
+  201: BrowserStreamTicketResponse;
+};
+
+export type MintBrowserStreamTicketResponse =
+  MintBrowserStreamTicketResponses[keyof MintBrowserStreamTicketResponses];

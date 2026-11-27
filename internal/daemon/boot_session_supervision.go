@@ -114,7 +114,7 @@ func (d *Daemon) bootInstanceMaintenance(
 	lastAuditSweep := time.Time{}
 	worker := retention.NewPeriodicWorker("instance maintenance", func(ctx context.Context) error {
 		var reconcileErr error
-		if state.agentInstances != nil {
+		if state.agentInstances != nil && d.admission.CheckSignIn() == nil {
 			reconcileErr = state.agentInstances.Service.Reconcile(ctx)
 		}
 		var retentionErr error

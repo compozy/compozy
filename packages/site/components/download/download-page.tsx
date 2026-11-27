@@ -30,7 +30,7 @@ export function DownloadPage({
         onArch={arch => setPicked({ ...choice, arch })}
       />
       <AllDownloads release={release} releaseDate={releaseDate} />
-      <FromTheTerminal tag={release.status === "ready" ? release.tag : null} />
+      <FromTheTerminal />
       <FirstRun platform={choice.platform} />
     </div>
   );

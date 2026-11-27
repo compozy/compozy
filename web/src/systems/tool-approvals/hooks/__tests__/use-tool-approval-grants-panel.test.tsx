@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMswFetch } from "@/test/msw-fetch";
 
 import { toolApprovalGrantFixtures } from "@/systems/tool-approvals/mocks/fixtures";
-import { useToolApprovalGrantsPanel } from "@/systems/tool-approvals";
+import { toolApprovalKeys, useToolApprovalGrantsPanel } from "@/systems/tool-approvals";
 
 const ACTIVE_WS = "ws_active";
 const OWNER_WS = "ws_owner";
@@ -99,11 +99,11 @@ describe("useToolApprovalGrantsPanel revoke workspace binding", () => {
 
     await waitFor(() =>
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["tool-approval-grants", "list", OWNER_WS],
+        queryKey: toolApprovalKeys.list(OWNER_WS),
       })
     );
     expect(invalidate).not.toHaveBeenCalledWith({
-      queryKey: ["tool-approval-grants", "list", ACTIVE_WS],
+      queryKey: toolApprovalKeys.list(ACTIVE_WS),
     });
   });
 
@@ -198,11 +198,11 @@ describe("useToolApprovalGrantsPanel revoke workspace binding", () => {
     });
     await waitFor(() =>
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["tool-approval-grants", "list", ACTIVE_WS],
+        queryKey: toolApprovalKeys.list(ACTIVE_WS),
       })
     );
     expect(invalidate).not.toHaveBeenCalledWith({
-      queryKey: ["tool-approval-grants", "list", OWNER_WS],
+      queryKey: toolApprovalKeys.list(OWNER_WS),
     });
   });
 });

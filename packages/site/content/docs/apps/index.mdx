@@ -93,7 +93,7 @@ TypeScript and Go samples for each operation from the same generated contract as
 For your own HTTP client, import `paths`, `operations`, and `components`, or helpers such as
 `OperationResponse<"listTasks", 200>`, from `@compozy/client`. The running daemon also serves its
 release's OpenAPI 3.0.3 document at `GET /api/openapi.json` on local HTTP and UDS; it supports ETag
-conditional requests and gzip and is not exposed on Gateway listeners.
+conditional requests and gzip and is available only on the local listener.
 
 ## Follow and resume a transcript
 

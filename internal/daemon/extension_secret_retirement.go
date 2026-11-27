@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/vault"
 )
@@ -15,6 +16,13 @@ import (
 type extensionSecretRetirement struct {
 	bindings             []extensionpkg.EnvBinding
 	ownedSecretSnapshots []extensionSecretSnapshot
+	inputRows            []retiredExtensionInputRows
+}
+
+// retiredExtensionInputRows holds the deletions applied to one instance's typed input rows.
+type retiredExtensionInputRows struct {
+	instance  extensioninput.Instance
+	deletions []extensioninput.Mutation
 }
 
 // Development and attached-instance removal retire credentials only in the selected workspace.
@@ -105,6 +113,9 @@ func (s *daemonExtensionService) retireExtensionBindingScopes(
 		}
 		retirement.ownedSecretSnapshots = append(retirement.ownedSecretSnapshots, snapshot)
 	}
+	if err := s.retireSubprocessInputRows(ctx, name, retirement); err != nil {
+		return nil, errors.Join(err, retirement.rollback(ctx, s))
+	}
 	for _, scope := range scopes {
 		if err := s.envBindings.DeleteEnvBindings(ctx, name, scope.ProfileID, scope.WorkspaceID); err != nil {
 			return nil, errors.Join(
@@ -161,7 +172,67 @@ func (r *extensionSecretRetirement) rollback(ctx context.Context, s *daemonExten
 			rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: restore retired extension binding: %w", err))
 		}
 	}
+	for _, retired := range r.inputRows {
+		restores := make([]extensioninput.Mutation, 0, len(retired.deletions))
+		for _, deletion := range retired.deletions {
+			restores = append(restores, extensioninput.Mutation{InputID: deletion.InputID, After: deletion.Before})
+		}
+		if err := s.inputs.Apply(rollbackCtx, retired.instance, restores); err != nil {
+			rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: restore retired extension inputs: %w", err))
+		}
+	}
+	r.inputRows = nil
 	return rollbackErr
+}
+
+// retireSubprocessInputRows deletes the typed rows that mirror retiring subprocess input bindings, so a
+// reinstall in the same cell starts from defaults instead of carrying a removed value forward into a
+// new binding (rule 3a). Rows of inputs without an active input binding keep their prior retention: an
+// inactive binding no longer mirrors its input, whose typed row may hold a later server-only value.
+func (s *daemonExtensionService) retireSubprocessInputRows(
+	ctx context.Context, name string, retirement *extensionSecretRetirement,
+) error {
+	if s.inputs == nil {
+		return nil
+	}
+	var instances []extensioninput.Instance
+	inputIDs := map[extensioninput.Instance][]string{}
+	for _, binding := range retirement.bindings {
+		if binding.InputID == "" || binding.MCPServer != "" || binding.Inactive {
+			continue
+		}
+		instance := extensioninput.Instance{
+			Extension:   name,
+			ProfileID:   binding.ProfileID,
+			WorkspaceID: binding.WorkspaceID,
+		}
+		if _, seen := inputIDs[instance]; !seen {
+			instances = append(instances, instance)
+		}
+		inputIDs[instance] = append(inputIDs[instance], binding.InputID)
+	}
+	for _, instance := range instances {
+		rows, err := s.inputs.List(ctx, instance)
+		if err != nil {
+			return fmt.Errorf("daemon: snapshot retiring extension inputs: %w", err)
+		}
+		var deletions []extensioninput.Mutation
+		for _, inputID := range slices.Compact(slices.Sorted(slices.Values(inputIDs[instance]))) {
+			if row, found := rows[inputID]; found {
+				deletions = append(deletions, extensioninput.Mutation{InputID: inputID, Before: &row})
+			}
+		}
+		if len(deletions) == 0 {
+			continue
+		}
+		if err := s.inputs.Apply(ctx, instance, deletions); err != nil {
+			return fmt.Errorf("daemon: retire extension inputs: %w", err)
+		}
+		retirement.inputRows = append(retirement.inputRows, retiredExtensionInputRows{
+			instance: instance, deletions: deletions,
+		})
+	}
+	return nil
 }
 
 // The caller holds withPackageMutation's exclusive name lock across every workspace.

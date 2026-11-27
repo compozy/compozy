@@ -12,6 +12,7 @@ import {
 import { useStore } from "@xstate/store-react";
 import { toast } from "@compozy/ui";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { SessionPromptDispatchPendingProvider } from "@/components/assistant-ui/session-prompt-dispatch-context";
 import {
   sessionPromptDispatchLogic,
@@ -27,6 +28,7 @@ import {
   sessionPromptRecovery,
   type RestoredSessionPromptDraft,
   type SessionPromptRecovery,
+  type SessionPromptRecoveryScope,
 } from "@/systems/session/lib/session-prompt-recovery";
 import { stageChosenSessionTerminalQuote } from "@/systems/session/lib/session-terminal-quote";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
@@ -56,13 +58,12 @@ async function restoreRejectedPromptDraft(
 
 function SessionPromptRecoveryBridge({
   recovery,
-  sessionId,
-  workspaceId,
+  scope,
 }: {
   recovery: SessionPromptRecovery;
-  sessionId: string;
-  workspaceId: string;
+  scope: SessionPromptRecoveryScope;
 }) {
+  const { computerId, sessionId, workspaceId } = scope;
   const aui = useAui();
   // A refused draft returns whole — its own text and files — into an empty composer, in
   // arrival order. While the operator holds another draft there, it waits instead of losing
@@ -78,14 +79,14 @@ function SessionPromptRecoveryBridge({
 
   useEffect(
     () =>
-      recovery.subscribe({ workspaceId, sessionId }, restored =>
+      recovery.subscribe({ computerId, workspaceId, sessionId }, restored =>
         setRestore(current =>
           current.queue.includes(restored)
             ? current
             : { ...current, queue: [...current.queue, restored] }
         )
       ),
-    [recovery, sessionId, workspaceId]
+    [computerId, recovery, sessionId, workspaceId]
   );
 
   useEffect(() => {
@@ -107,7 +108,7 @@ function SessionPromptRecoveryBridge({
         .finally(() => {
           // A composer torn down mid-restore leaves the draft with recovery for the next one.
           if (!active) return;
-          if (restored) recovery.settle({ workspaceId, sessionId }, draft);
+          if (restored) recovery.settle({ computerId, workspaceId, sessionId }, draft);
           setRestore(current => ({
             queue: restored
               ? current.queue.filter(candidate => candidate !== draft)
@@ -120,7 +121,7 @@ function SessionPromptRecoveryBridge({
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [aui, draft, recovery, sessionId, workspaceId]);
+  }, [aui, computerId, draft, recovery, sessionId, workspaceId]);
 
   return null;
 }
@@ -229,9 +230,10 @@ function SessionChatRuntimeBinding({
   promptRecovery: SessionPromptRecovery;
 }) {
   const resolvedWorkspaceId = requireWorkspaceId(workspaceId, readOnly);
+  const computerId = useCurrentComputerId();
+  const scope = { computerId, sessionId, workspaceId: resolvedWorkspaceId };
   const { runtime, sendDetachedPrompt } = useSessionChatRuntime({
-    sessionId,
-    workspaceId: resolvedWorkspaceId,
+    ...scope,
     promptDispatch,
     promptRecovery,
     readOnly,
@@ -244,11 +246,7 @@ function SessionChatRuntimeBinding({
   return (
     <AssistantRuntimeProvider runtime={runtime} aui={aui}>
       <SessionPromptDispatchPendingProvider store={promptDispatch}>
-        <SessionPromptRecoveryBridge
-          recovery={promptRecovery}
-          sessionId={sessionId}
-          workspaceId={resolvedWorkspaceId}
-        />
+        <SessionPromptRecoveryBridge recovery={promptRecovery} scope={scope} />
         <SessionRuntimeExtensions
           sendDetachedPrompt={sendDetachedPrompt}
           sessionId={sessionId}

@@ -23,9 +23,12 @@ func listWorkspacesOperationSpec() OperationSpec {
 		AppAccess:   AppAccessAllowed,
 		OperationID: "listWorkspaces",
 		Summary:     "List active or archived workspaces",
-		Parameters:  []ParameterSpec{boolQueryParam("archived", "List archived projects instead of active projects")},
-		Tags:        []string{specWorkspacesKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			boolQueryParam("archived", "List archived projects instead of active projects"),
+			boolQueryParam("include_repository", "Include normalized Git repository identities"),
+		},
+		Tags:       []string{specWorkspacesKey},
+		Transports: []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorkspacesResponse{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},

@@ -192,6 +192,26 @@ func TestClientRequests(t *testing.T) {
 			t.Fatalf("Error() = %q", apiErr.Error())
 		}
 	})
+	t.Run("Should preserve extension dependency fields on an API error", func(t *testing.T) {
+		t.Parallel()
+		c := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusConflict)
+			writeResponse(t, w, `{"error":"in use","code":"extension_dependency_in_use",`+
+				`"dependents":[{"name":"acme-tool","workspace_id":"ws1","profile":"default"}],`+
+				`"dependencies_installed":["acme-core"]}`)
+		})
+		err := c.Do(t.Context(), http.MethodDelete, "/api/extensions/acme-core", nil, nil)
+		apiErr, ok := errors.AsType[*APIError](err)
+		if !ok || apiErr.Status != 409 || apiErr.Code != "extension_dependency_in_use" || apiErr.Message != "in use" {
+			t.Fatalf("Do() error = %#v, want preserved API error", err)
+		}
+		want := []ExtensionDependent{{Name: "acme-tool", WorkspaceID: "ws1", Profile: "default"}}
+		if !slices.Equal(apiErr.Dependents, want) ||
+			!slices.Equal(apiErr.DependenciesInstalled, []string{"acme-core"}) {
+			t.Fatalf("APIError dependents = %#v, dependencies_installed = %v", apiErr.Dependents,
+				apiErr.DependenciesInstalled)
+		}
+	})
 	t.Run("Should preserve a non-JSON error response status", func(t *testing.T) {
 		t.Parallel()
 		c := testClient(t, func(w http.ResponseWriter, _ *http.Request) {

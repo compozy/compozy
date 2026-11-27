@@ -15,12 +15,11 @@ import (
 var generationHashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 type verifiedDevGeneration struct {
-	OriginPath               string
-	GenerationDir            string
-	GenerationHash           string
-	ManifestPath             string
-	Manifest                 *Manifest
-	GatewayRequirementDigest string
+	OriginPath     string
+	GenerationDir  string
+	GenerationHash string
+	ManifestPath   string
+	Manifest       *Manifest
 }
 
 // PrepareDevelopmentGeneration validates portable source or builds a native bundle.
@@ -150,22 +149,12 @@ func verifyDevGeneration(
 	if err != nil {
 		return nil, fmt.Errorf("%w: load generation %q manifest: %v", ErrExtensionGenerationInvalid, hash, err)
 	}
-	gatewayDigest, err := GatewayRequirementDigest(manifest.Gateway)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"%w: digest generation %q gateway requirement: %w",
-			ErrExtensionGenerationInvalid,
-			hash,
-			err,
-		)
-	}
 	return &verifiedDevGeneration{
-		OriginPath:               originPath,
-		GenerationDir:            canonicalDir,
-		GenerationHash:           hash,
-		ManifestPath:             extensionManifestPath(canonicalDir),
-		Manifest:                 manifest,
-		GatewayRequirementDigest: gatewayDigest,
+		OriginPath:     originPath,
+		GenerationDir:  canonicalDir,
+		GenerationHash: hash,
+		ManifestPath:   extensionManifestPath(canonicalDir),
+		Manifest:       manifest,
 	}, nil
 }
 
@@ -239,21 +228,11 @@ func verifyPortableDevGeneration(
 	if err != nil {
 		return nil, fmt.Errorf("%w: load portable generation %q manifest: %v", ErrExtensionGenerationInvalid, hash, err)
 	}
-	gatewayDigest, err := GatewayRequirementDigest(manifest.Gateway)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"%w: digest portable generation %q gateway requirement: %w",
-			ErrExtensionGenerationInvalid,
-			hash,
-			err,
-		)
-	}
 	return &verifiedDevGeneration{
-		OriginPath:               originPath,
-		GenerationDir:            originPath,
-		GenerationHash:           hash,
-		ManifestPath:             document.Path,
-		Manifest:                 manifest,
-		GatewayRequirementDigest: gatewayDigest,
+		OriginPath:     originPath,
+		GenerationDir:  originPath,
+		GenerationHash: hash,
+		ManifestPath:   document.Path,
+		Manifest:       manifest,
 	}, nil
 }

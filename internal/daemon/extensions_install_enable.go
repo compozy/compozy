@@ -21,9 +21,7 @@ func (s *daemonExtensionService) enableInstalledExtension(
 	case item.Enabled && len(item.MissingEnv) == 0 && len(item.MissingInputs) == 0:
 		result.Extension = *item
 	case prepared.target.profile.ID == extensionDefaultProfileLens().ID:
-		result, err = s.enableTargetUnlocked(ctx, prepared.name, contract.EnableExtensionRequest{
-			ConfirmGatewayDigest: req.ConfirmGatewayDigest,
-		}, actor, prepared.target)
+		result, err = s.enableTargetUnlocked(ctx, prepared.name, actor, prepared.target)
 	default:
 		preview, previewErr := s.previewExtensionTarget(ctx, prepared.name, prepared.target)
 		err = previewErr
@@ -49,6 +47,8 @@ func (s *daemonExtensionService) enableInstalledExtension(
 	if err == nil {
 		*item = result.Extension
 	} else {
+		// The install outcome carries a masked enable error, so the unmasked cause is logged here.
+		s.logger.Warn("extension install enable failed", "extension", prepared.name, "error", err)
 		item.Enabled = false
 		item.InstallEnableError = installEnableError(err)
 	}

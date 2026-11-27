@@ -46,6 +46,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState, cleanup *bootC
 	}
 	installSupervisedWorkRecovery(state, manager)
 	coordinatorBackstop := newLoopCoordinatorBootGate(schedulerTaskSource{manager: manager, store: store})
+	coordinatorBackstop.signIn = d.admission.CheckSignIn
 	if err := installLoopTaskObservers(ctx, state, manager, store, coordinatorBackstop, d.now); err != nil {
 		return err
 	}

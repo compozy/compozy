@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -17,7 +18,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
-	"github.com/compozy/compozy/internal/gateway"
 	looppkg "github.com/compozy/compozy/internal/loop"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -74,9 +74,20 @@ var ErrRequestBodyTooLarge = errors.New("request body too large")
 
 // RespondError writes a transport error response, optionally masking internal error details.
 func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool) {
+	if c.Request != nil {
+		ctx := c.Request.Context()
+		if _, ok := remotehost.PrincipalFromContext(ctx); ok {
+			err = remoteRequestError(ctx, err)
+			if errors.Is(err, remotehost.ErrDeviceRevoked) || errors.Is(err, remotehost.ErrEntitlement) ||
+				errors.Is(err, remotehost.ErrPlanRequired) || errors.Is(err, remotehost.ErrSessionExpired) {
+				RespondRemoteError(c, err)
+				return
+			}
+		}
+	}
 	status, err = requestErrorStatus(c, status, err)
 	if c.Request != nil {
-		if _, ok := AppTokenFromContext(c.Request.Context()); ok && errors.Is(err, gateway.ErrDeviceRevoked) {
+		if _, ok := AppTokenFromContext(c.Request.Context()); ok && errors.Is(err, remotehost.ErrDeviceRevoked) {
 			RespondAppTokenError(c, err, true)
 			return
 		}
@@ -96,7 +107,7 @@ func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool
 }
 
 func requestErrorStatus(c *gin.Context, status int, err error) (int, error) {
-	if errors.Is(err, gateway.ErrDeviceRevoked) {
+	if errors.Is(err, remotehost.ErrDeviceRevoked) {
 		return status, err
 	}
 	if errors.Is(err, context.Canceled) ||
@@ -132,6 +143,9 @@ func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normal
 	if _, ok := errors.AsType[*session.MCPReloadError](err); ok {
 		return normalizedErrorStatus{status: http.StatusConflict, err: err}
 	}
+	if errors.Is(err, admission.ErrLocalExecutionDisabled) {
+		return normalizedErrorStatus{status: http.StatusConflict, err: err}
+	}
 	if errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid) {
 		status = http.StatusUnprocessableEntity
 		maskInternalErrors = false
@@ -145,7 +159,7 @@ func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normal
 		status = http.StatusServiceUnavailable
 		maskInternalErrors = false
 	}
-	if errors.Is(err, gateway.ErrDeviceRevoked) {
+	if errors.Is(err, remotehost.ErrDeviceRevoked) {
 		status = http.StatusUnauthorized
 		maskInternalErrors = false
 	}
@@ -286,7 +300,7 @@ func NewAutomationValidationError(err error) error {
 
 // StatusForAutomationError maps automation-domain failures to transport statuses.
 func StatusForAutomationError(err error) int {
-	if errors.Is(err, store.ErrWorkspaceArchived) {
+	if errors.Is(err, store.ErrWorkspaceArchived) || errors.Is(err, admission.ErrLocalExecutionDisabled) {
 		return http.StatusConflict
 	}
 	if err == nil {

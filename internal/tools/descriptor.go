@@ -111,7 +111,11 @@ func (d Descriptor) Tool() Tool {
 
 // Validate ensures the descriptor is dispatchable metadata.
 func (d Descriptor) Validate() error {
-	if d.ExecutionMetadata().InputErrorCode != "" && d.ExecutionMetadata().InputErrorCode != ErrorCodeInvalidRequest {
+	metadata := d.ExecutionMetadata()
+	if metadata.RemoteScope != "" && !metadata.RemoteScope.Valid() {
+		return NewValidationError("remote_scope", ReasonPolicyDenied, "must be a declared remote scope")
+	}
+	if metadata.InputErrorCode != "" && metadata.InputErrorCode != ErrorCodeInvalidRequest {
 		return NewValidationError("input_error_code", ReasonSchemaInvalid, "must be invalid_request or omitted")
 	}
 	if err := d.ID.Validate(); err != nil {
@@ -133,7 +137,7 @@ func (d Descriptor) Validate() error {
 	if err := toolmeta.ValidateDescriptorMetadata(presentation.FriendlyVerb, presentation.Preview); err != nil {
 		return NewValidationError("presentation", ReasonSchemaInvalid, err.Error())
 	}
-	v := schemaValidator{enforceMaxLength: d.ExecutionMetadata().InputErrorCode != ""}
+	v := schemaValidator{enforceMaxLength: metadata.InputErrorCode != ""}
 	if err := v.validateJSONObject("input_schema", d.InputSchema, true); err != nil {
 		return err
 	}

@@ -34,7 +34,7 @@ Also read the applicable references below before the operation. Paths are relati
 - Extension install, build, dev, publish, remove, kits, secrets and hooks: references/extensions.md.
 - Extension code, manifests, permissions, SDK declarations and palette contributions: references/extension-authoring.md; references/extensions.md.
 - Config keys/defaults/scopes/apply lifecycle, including `runtime_mcp` and `external_default`; Automations and suggestions: references/configuration.md.
-- Gateway posture, profiles/SSH, pairing, forwards and stream tickets: references/runtime-operations.md; references/configuration.md.
+- For Remote Computers cloud readiness, verification keys and sign-in policy, read references/computers.md.
 - Worktree creation/binding/exit/delivery/removal/recovery; isolated delegation and subagent Git/PR facts: references/worktrees.md.
 - Operator profile selection and lifecycle: references/profiles.md.
 - External apps, TypeScript/Go clients and app tokens: references/app-sdk.md.
@@ -42,6 +42,15 @@ Also read the applicable references below before the operation. Paths are relati
 Command palette operations use `references/native-tools.md`. Tool/skill discovery, Marketplace, manual MCP management, MCP approvals, a session's missing MCP tools, runtime MCP inventory and Copy to CompozyOS use `references/tools-and-skills.md`. Authorized CLI fallbacks are indexed in `references/cli-fallback.md`; a denied native capability does not authorize a fallback.
 
 Read **references/tasks-and-orchestration.md in full** before exercising daemon Task authority or submitting a review verdict. A delegated assignment or role label alone grants no Task claim, lease or review authority.
+
+## Delegation
+
+When the operator asks to use subagents, delegate, spawn agents, or parallelize work, follow the
+[native subagent workflow](references/native-tools.md#runtime-and-workspace-tools). Pick a target with
+`compozy__subagent_capabilities` and delegate with `compozy__subagent_delegate`. Use
+`compozy__session_create` or `compozy__session_spawn` when workspace instructions require long-lived
+child sessions. Use provider-native delegation only at the operator's explicit request for that
+provider's tool or when CompozyOS subagent tools are withheld or unavailable.
 
 ## Waiting and authority
 

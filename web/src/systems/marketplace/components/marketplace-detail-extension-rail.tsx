@@ -21,6 +21,7 @@ interface MarketplaceExtensionManageCardProps {
   facts: ReturnType<typeof extensionTrustFacts>;
   onRequestProvenance: () => void;
   onRequestRemoval: () => void;
+  onRequestSetup: () => void;
   onToggleEnabled: (enabled: boolean) => void;
   togglePending: boolean;
 }
@@ -30,6 +31,7 @@ function MarketplaceExtensionManageCard({
   facts,
   onRequestProvenance,
   onRequestRemoval,
+  onRequestSetup,
   onToggleEnabled,
   togglePending,
 }: MarketplaceExtensionManageCardProps) {
@@ -45,6 +47,7 @@ function MarketplaceExtensionManageCard({
         facts={facts}
         onRequestProvenance={onRequestProvenance}
         onRequestRemoval={onRequestRemoval}
+        onRequestSetup={onRequestSetup}
         onToggleEnabled={onToggleEnabled}
         togglePending={togglePending}
       />
@@ -89,13 +92,12 @@ function MarketplaceExtensionAdvancedCard({
   return (
     <MarketplaceDetailRailCard
       data-testid="marketplace-extension-advanced"
-      defaultOpen={extension.gateway_confirmation_required === true}
+      defaultOpen={false}
       icon={Wrench}
       title="Advanced"
     >
       <MarketplaceExtensionRuntimeRows extension={extension} facts={facts} />
       <MarketplaceExtensionProvenanceRows extension={extension} facts={facts} />
-      <MarketplaceExtensionGatewayRows extension={extension} />
       <MarketplaceRailGroup title="Package">
         <PropertyRow label="Entry ID" mono>
           {data.entry.entry_id}
@@ -267,31 +269,6 @@ function MarketplaceExtensionProvenanceRows({
       <PropertyRow label="Registry tier" mono>
         {facts.registryTier ?? "—"}
       </PropertyRow>
-    </MarketplaceRailGroup>
-  );
-}
-
-function MarketplaceExtensionGatewayRows({ extension }: { extension: ExtensionEntry }) {
-  if (!extension.gateway_requirement_digest) return null;
-  return (
-    <MarketplaceRailGroup title="Remote access">
-      <PropertyRow
-        editor={
-          <Pill
-            data-testid="extension-gateway-consent"
-            mono
-            size="xs"
-            tone={extension.gateway_confirmation_required ? "warning" : "success"}
-          >
-            {extension.gateway_confirmation_required ? "confirmation required" : "confirmed"}
-          </Pill>
-        }
-        label="Consent"
-      />
-      <PropertyRow
-        editor={<MonoId value={extension.gateway_requirement_digest} />}
-        label="Digest"
-      />
     </MarketplaceRailGroup>
   );
 }

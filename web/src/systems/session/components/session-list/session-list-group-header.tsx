@@ -22,13 +22,23 @@ import { SessionListGroupFolderDialog } from "./session-list-group-folder-dialog
 import { SessionListGroupProjectMenu } from "./session-list-group-project-menu";
 import { SessionListGroupToggle } from "./session-list-group-toggle";
 
-/** Collapsed header signal: needs-you outranks working; an open group shows its rows instead. */
-export function SessionListGroupSignal({ group }: { group: SessionListGroupSpec }) {
+/**
+ * Collapsed header signal: needs-you outranks working; an open group shows its rows
+ * instead. The sidebar header passes `states={false}`: its leading column carries
+ * needs-you and working (#1926), so the right keeps the always-on signal alone.
+ */
+export function SessionListGroupSignal({
+  group,
+  states = true,
+}: {
+  group: SessionListGroupSpec;
+  states?: boolean;
+}) {
   const scope = group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
   return (
     <>
       {scope ? <AlwaysOnCollapsedSignal workspaceId={scope} /> : null}
-      <SessionGroupSignal group={group} />
+      {states ? <SessionGroupSignal group={group} /> : null}
     </>
   );
 }
@@ -163,7 +173,8 @@ export function SessionListGroupHeader({
             count={group.total}
             identity={<SessionListGroupIdentity group={group} />}
             onToggle={onToggle}
-            signal={<SessionListGroupSignal group={group} />}
+            signal={<SessionListGroupSignal group={group} states={false} />}
+            leading={{ needsYou: group.needsYou, working: group.working, slot: "session-group" }}
             testId={testId}
           />
           {alwaysOn ? (

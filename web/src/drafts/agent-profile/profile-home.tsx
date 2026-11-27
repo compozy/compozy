@@ -1,5 +1,5 @@
 /** S4: the agent's home. Who it is, what it's doing, and what it has done for you. */
-import { protoHref } from "@compozy/proto";
+import { protoHref } from "@protohq/cli";
 import { ArrowRight, MessageSquarePlus, MessagesSquare, Moon, Play } from "@compozy/ui/icons";
 import { useState } from "react";
 

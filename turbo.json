@@ -5,6 +5,14 @@
         "signature": true
     },
     "tasks": {
+        "@compozy/cloud-edge#test": {
+            "dependsOn": [],
+            "outputs": []
+        },
+        "@compozy/cloud-edge#typecheck": {
+            "dependsOn": [],
+            "outputs": []
+        },
         "@compozy/lint-plugins#test": {
             "dependsOn": [],
             "inputs": [
@@ -53,6 +61,10 @@
         "@compozy/brand#build": {
             "dependsOn": ["//#codegen-check", "^build"],
             "outputs": [".output/**"]
+        },
+        "@compozy/extension-sdk#test": {
+            "dependsOn": ["//#codegen-check", "transit", "build"],
+            "outputs": []
         },
         "@compozy/extension-react#typecheck": {
             "dependsOn": ["//#codegen-check", "^build"],

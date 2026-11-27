@@ -26,7 +26,7 @@ persona:
 
 - **Who:** the developer who delivers specs through `spec_conductor` and small work through `orchestrator`. Runs sessions and Loops many times a day, switches between them, keeps the run page and CLI open side by side, and knows the runtime overrides and ceilings.
 - **What they reveal:** false `done` on an exhausted/stalled run (the trust-killer), meter drift, speed regressions in the run form, pause/resume/stop that lies about state, configure/fork friction, override clamps that don't hold, and partial task/automation catalogs presented as complete.
-- **Owns journeys:** J-01 arrive-and-use, J-02 dry-run, J-04 pause/resume, J-05 configure, J-06 fork-and-edit, J-08 watch-and-maintain, J-10 converse-and-decide, J-24 triage-work-at-scale, J-diagnose-task-session-health, J-deliver-through-public-gateway, and J-connect-gateway-ssh. **Goal:** J-26 controls, J-27 editor, and J-28 context/budgets.
+- **Owns journeys:** J-01 arrive-and-use, J-02 dry-run, J-04 pause/resume, J-05 configure, J-06 fork-and-edit, J-08 watch-and-maintain, J-10 converse-and-decide, J-24 triage-work-at-scale, J-diagnose-task-session-health, and J-operate-remote-computers. **Goal:** J-26 controls, J-27 editor, and J-28 context/budgets.
 
 ## Lea — First-time Adopter
 
@@ -274,7 +274,7 @@ persona:
 
 - **Who:** the operator whose Compozy daemon lives on a homelab box, VM, or remote dev server while her browser and terminal are local. She pairs devices, selects named remote CLI profiles, and uses browser-optional authorization flows when callbacks cannot reach her machine.
 - **What they reveal:** dead or non-copyable pairing and authorization links, remote flows that silently assume a local browser, stale profiles, unclear unreachable-versus-revoked errors, stream reconnect failures, credentials echoed in output, and recovery paths that require an already-paired device.
-- **Owns journeys:** J-mcp-authorize-repair (manual-completion lane), J-expose-and-pair-gateway, and J-operate-remote-gateway-cli.
+- **Owns journeys:** J-mcp-authorize-repair (manual-completion lane), and J-operate-remote-computers.
 
 ## Rafa — Transcript Reviewer
 
@@ -316,7 +316,7 @@ persona:
 
 - **Who:** the person who owns the daemon: restarts and deploys it, reads `compozy status`/`compozy doctor`, sets config keys, and answers for the security posture and the bill. Operates mostly through CLI/HTTP/UDS with the Web settings pages as secondary surface.
 - **What they reveal:** drains that kill in-flight work or lie about state, doctor items that disagree across HTTP/UDS/CLI, process-memory reports presented as something they are not, secrets surviving in logs/SSE/event stores, redaction toggles that silently no-op, estimated cost rendered as actual spend, and dead sidecars hammered forever or requiring a restart to recover.
-- **Owns journeys:** J-drain-daemon-safely, J-keep-secrets-contained, J-expose-and-pair-gateway, and J-audit-and-teardown-gateway; co-owns J-offer-runnable-capabilities (dead-entity half, with Ada).
+- **Owns journeys:** J-drain-daemon-safely, J-keep-secrets-contained, and J-operate-remote-computers; co-owns J-offer-runnable-capabilities (dead-entity half, with Ada).
 
 
 ## Ana — External App Builder

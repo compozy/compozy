@@ -1,6 +1,8 @@
 {
   "name": "CompozyOS",
   "short_name": "CompozyOS",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
     {
       "src": "/icon-192.png",

@@ -6,7 +6,12 @@ import { cn, ConnectionIndicator, SearchInput, type ConnectionStatus } from "@co
 import type { OsWindowRoute } from "../../lib/os-types";
 import { settingsConnectionLabel } from "./settings-connection-label";
 import { SETTINGS_NAV_ITEM_CLASS, settingsNavItemTone } from "./settings-nav-classes";
-import { SettingsNavFrame, SettingsNavGroup, SettingsNavItemContent } from "./settings-nav-parts";
+import {
+  SettingsNavFrame,
+  SettingsNavGroup,
+  SettingsNavItemContent,
+  type SettingsNavBadge,
+} from "./settings-nav-parts";
 // Leaf modules, not the `@/systems/settings` barrel: it re-exports daemon-bound
 // hooks, and this nav renders in prototypes from fixtures.
 import {
@@ -14,11 +19,13 @@ import {
   SETTINGS_SECTION_GROUPS,
   settingsSectionPath,
 } from "@/systems/settings/lib/sections";
-import type { SettingsSectionDescriptor } from "@/systems/settings/types";
+import type { SettingsSectionDescriptor, SettingsSectionSlug } from "@/systems/settings/types";
 
 export interface SettingsWindowNavProps extends Omit<ComponentProps<"nav">, "children"> {
   activeSlug: string;
   connection: ConnectionStatus;
+  /** Optional count badges per section slug (e.g. warning count for new sign-ins on Account). */
+  badges?: Partial<Record<SettingsSectionSlug, SettingsNavBadge>>;
   /**
    * Receives a plain click on a section link. Section links are window
    * navigation, not page navigation: the shell writes the URL and steers the
@@ -35,6 +42,7 @@ export interface SettingsWindowNavProps extends Omit<ComponentProps<"nav">, "chi
 export function SettingsWindowNav({
   activeSlug,
   connection,
+  badges,
   onNavigate,
   onPreload,
   searchInputRef,
@@ -72,6 +80,7 @@ export function SettingsWindowNav({
           <SettingsNavGroup key={group.id} label={group.label}>
             {sections.map(section => (
               <SettingsSectionLink
+                badge={badges?.[section.slug]}
                 isActive={section.slug === activeSlug}
                 key={section.slug}
                 onNavigate={onNavigate}
@@ -97,6 +106,7 @@ export function SettingsWindowNav({
 interface SettingsSectionLinkProps extends Omit<ComponentProps<typeof Link>, "children" | "to"> {
   section: SettingsSectionDescriptor;
   isActive: boolean;
+  badge?: SettingsNavBadge;
   onNavigate: (route: OsWindowRoute) => void;
   onPreload?: (slug: string) => void;
 }
@@ -108,6 +118,7 @@ function isPlainLeftClick(event: MouseEvent<HTMLAnchorElement>): boolean {
 function SettingsSectionLink({
   section,
   isActive,
+  badge,
   onNavigate,
   onPreload,
   className,
@@ -147,7 +158,7 @@ function SettingsSectionLink({
       data-testid={`settings-section-${section.slug}`}
       to={settingsSectionPath(section.slug)}
     >
-      <SettingsNavItemContent isActive={isActive} section={section} />
+      <SettingsNavItemContent badge={badge} isActive={isActive} section={section} />
     </Link>
   );
 }

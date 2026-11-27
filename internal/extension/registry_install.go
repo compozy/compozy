@@ -5,18 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 
 	"strings"
 
-	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/store"
 )
 
 const (
 	manifestFieldCapabilitiesProvides = "capabilities.provides"
-	manifestFieldGateway              = "gateway"
 )
 
 func (r *Registry) installWithConfig(manifest *Manifest, path string, checksum string, config installConfig) error {
@@ -68,42 +64,6 @@ func validateInstallConfig(manifest *Manifest, checksum string, config *installC
 	}
 	if config == nil {
 		return "", errors.New("extension: install config is required")
-	}
-	if providesCapability(
-		manifest.Capabilities.Provides,
-		extensionprotocol.CapabilityProvideConnectivityProvider,
-	) {
-		if config.source == SourceWorkspace {
-			return "", &ManifestValidationError{
-				Field:   manifestFieldCapabilitiesProvides,
-				Value:   extensionprotocol.CapabilityProvideConnectivityProvider,
-				Message: "connectivity providers must be installed globally",
-			}
-		}
-		digest, digestErr := GatewayRequirementDigest(manifest.Gateway)
-		if digestErr != nil {
-			return "", digestErr
-		}
-		if digest == "" {
-			return "", &ManifestValidationError{
-				Field:   manifestFieldGateway,
-				Message: "connectivity providers must declare Gateway tier permissions",
-			}
-		}
-		normalized := manifest.Gateway.Normalize()
-		privateScope := gateway.ProviderPermission(gateway.TierPrivate)
-		publicScope := gateway.ProviderPermission(gateway.TierPublic)
-		if normalized == nil || (!slices.Contains(normalized.Permissions, privateScope) &&
-			!slices.Contains(normalized.Permissions, publicScope)) {
-			return "", &ManifestValidationError{
-				Field: "gateway.permissions",
-				Message: fmt.Sprintf(
-					"connectivity providers must declare %q or %q",
-					privateScope,
-					publicScope,
-				),
-			}
-		}
 	}
 
 	sourceText := config.source.String()
@@ -188,28 +148,23 @@ func registryInstallInfo(
 		provenance = normalizeExtensionProvenance(*config.provenance, fallbackProvenance)
 	}
 	provenance.Layout = resolvedManifest.Layout
-	gatewayDigest, err := GatewayRequirementDigest(resolvedManifest.Gateway)
-	if err != nil {
-		return ExtensionInfo{}, err
-	}
 	return ExtensionInfo{
-		Name:                     strings.TrimSpace(resolvedManifest.Name),
-		Version:                  strings.TrimSpace(resolvedManifest.Version),
-		Source:                   config.source,
-		Enabled:                  config.enabled,
-		ManifestPath:             manifestPath,
-		Format:                   normalizeExtensionFormat(resolvedManifest.Format),
-		IngestDiagnostics:        cloneDiagnosticItems(resolvedManifest.IngestDiagnostics),
-		InstalledAt:              installedAt,
-		Capabilities:             capabilities,
-		Permissions:              permissions,
-		Checksum:                 actualChecksum,
-		lifecycleToken:           lifecycleToken,
-		RegistrySlug:             config.registrySlug,
-		RegistryName:             config.registryName,
-		RemoteVersion:            config.remoteVersion,
-		Provenance:               provenance,
-		GatewayRequirementDigest: gatewayDigest,
+		Name:              strings.TrimSpace(resolvedManifest.Name),
+		Version:           strings.TrimSpace(resolvedManifest.Version),
+		Source:            config.source,
+		Enabled:           config.enabled,
+		ManifestPath:      manifestPath,
+		Format:            normalizeExtensionFormat(resolvedManifest.Format),
+		IngestDiagnostics: cloneDiagnosticItems(resolvedManifest.IngestDiagnostics),
+		InstalledAt:       installedAt,
+		Capabilities:      capabilities,
+		Permissions:       permissions,
+		Checksum:          actualChecksum,
+		lifecycleToken:    lifecycleToken,
+		RegistrySlug:      config.registrySlug,
+		RegistryName:      config.registryName,
+		RemoteVersion:     config.remoteVersion,
+		Provenance:        provenance,
 	}, nil
 }
 
@@ -244,8 +199,6 @@ func (r *Registry) persistInstalledInfo(
 			info.Checksum, info.lifecycleToken,
 			nullableStringValue(info.RegistrySlug), nullableStringValue(info.RegistryName),
 			nullableStringValue(info.RemoteVersion), string(encoded.provenance),
-			strings.TrimSpace(info.GatewayRequirementDigest), nullableRegistryString(info.GatewayConfirmedBy),
-			nullableRegistryTime(info.GatewayConfirmedAt),
 		)
 		if execErr != nil {
 			if replaceExisting {
@@ -294,7 +247,7 @@ func installedInfoPersistQuery(replaceExisting bool) string {
 		INSERT INTO extensions (
 ` + registryInsertColumns + `
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	if replaceExisting {
 		query += `
@@ -313,17 +266,6 @@ func installedInfoPersistQuery(replaceExisting bool) string {
 			registry_name = excluded.registry_name,
 			remote_version = excluded.remote_version,
 			provenance_json = excluded.provenance_json
-			,gateway_requirement_digest = excluded.gateway_requirement_digest
-			,gateway_confirmed_by = CASE
-				WHEN extensions.gateway_requirement_digest = excluded.gateway_requirement_digest
-				THEN extensions.gateway_confirmed_by
-				ELSE NULL
-			END
-			,gateway_confirmed_at = CASE
-				WHEN extensions.gateway_requirement_digest = excluded.gateway_requirement_digest
-				THEN extensions.gateway_confirmed_at
-				ELSE NULL
-			END
 		`
 	}
 	return query

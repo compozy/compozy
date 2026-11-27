@@ -38,9 +38,6 @@ func (s *service) ApplySection(ctx context.Context, req SectionUpdateRequest) (A
 	if err != nil {
 		return s.recordFailedApply(ctx, req.Section, req.Scope, req.WorkspaceID, configLifecycle, err)
 	}
-	if result.Section == SectionGateway {
-		return s.recordGatewaySectionApply(ctx, result)
-	}
 	if result.Section == SectionWindowManager && result.Scope == ScopeUser {
 		return s.recordWindowManagerSectionApply(ctx, result)
 	}

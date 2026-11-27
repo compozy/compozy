@@ -173,7 +173,7 @@ func addMarketplaceReadFlags(cmd *cobra.Command, values *marketplaceReadFlagValu
 
 func newMarketplaceRefreshCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "refresh",
+		Use:   cliRefreshAction,
 		Short: "Refresh the Marketplace catalog",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

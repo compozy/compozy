@@ -9,6 +9,10 @@ import {
 import { Archive, FolderTree, FolderX, Plus } from "@compozy/ui/icons";
 import { createCodeHighlightWorker } from "@compozy/ui/lib/code-highlight-worker";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import { ComputerChip, findComputerById, toComputerView, useComputers } from "@/systems/computers";
+
 import { useFilesAppWindow } from "../hooks/use-files-app-window";
 import { FilesProjectSwitcher, FilesRootPicker } from "./files-app-pickers";
 import { FilesExplorer } from "./files-explorer";
@@ -16,6 +20,8 @@ import { FilesExplorer } from "./files-explorer";
 export interface FilesAppWindowProps {
   /** The window's project; one Files window per project (US-002.AC-5). */
   workspaceId: string;
+  /** Optional computer scope (defaults to ambient `ComputerScopeContext`). */
+  computerId?: ComputerId;
   /** Re-roots this window at another project. */
   onSwitchProject: (workspaceId: string) => void;
 }
@@ -28,15 +34,24 @@ function fileBaseName(path: string): string {
 }
 
 /** The Files OS app (`_uiux.md` S6): project and root pickers over the shared explorer. */
-export function FilesAppWindow({ workspaceId, onSwitchProject }: FilesAppWindowProps) {
+export function FilesAppWindow({
+  workspaceId,
+  computerId: explicitComputerId,
+  onSwitchProject,
+}: FilesAppWindowProps) {
+  const computerId = useCurrentComputerId(explicitComputerId);
+  const isRemote = isRemoteComputerId(computerId);
+  const computers = useComputers({ enabled: isRemote });
+  const remoteComputer = isRemote ? findComputerById(computers.computers, computerId) : undefined;
   const { status, projects, workspaceName, rootOptions, place, target, openFile } =
-    useFilesAppWindow(workspaceId);
+    useFilesAppWindow(workspaceId, computerId);
 
   // The head keeps the app's identity ("Files"); only the tab names the open file, else the project.
   const named = status === "ready" || status === "archived";
   useTopbarSlot({
     glyph: FILES_GLYPH,
     tabLabel: named ? (target ? fileBaseName(target.path) : workspaceName) : undefined,
+    status: remoteComputer ? <ComputerChip computer={toComputerView(remoteComputer)} /> : undefined,
     // The project and root follow the app identity in the head row.
     context: named ? (
       <div className="flex min-w-0 items-center gap-1.5" data-testid="files-app-pickers">
@@ -87,6 +102,7 @@ export function FilesAppWindow({ workspaceId, onSwitchProject }: FilesAppWindowP
   const root = {
     kind: "workspace" as const,
     workspaceId,
+    ...(isRemote ? { computerId } : {}),
     ...(place.worktreeId ? { worktreeId: place.worktreeId } : {}),
   };
   return (

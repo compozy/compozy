@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/gin-gonic/gin"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -33,6 +34,8 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/remotehost"
+	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
@@ -64,6 +67,62 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/links",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/links/refresh",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/link-candidates",
+			"DELETE /api/account",
+			"DELETE /api/account/devices/:id",
+			"DELETE /api/account/login",
+			"GET /api/account",
+			"GET /api/account/approvals",
+			"GET /api/account/approvals/:id",
+			"GET /api/account/devices",
+			"GET /api/account/sign-in/events",
+			"GET /api/account/stream",
+			"PATCH /api/account",
+			"PATCH /api/account/devices/:id",
+			"POST /api/account/approvals/:id/decision",
+			"POST /api/account/billing-portal",
+			"POST /api/account/checkout",
+			"POST /api/account/login",
+			"POST /api/account/logout",
+			"POST /api/account/sign-in-notices/dismiss",
+			"DELETE /api/computers/:id",
+			"DELETE /api/computers/:id/routes/:route_id",
+			"DELETE /api/computers/setups/:setup_id",
+			"GET /api/computers",
+			"GET /api/computers/:id",
+			"GET /api/computers/available",
+			"GET /api/computers/setups/:setup_id",
+			"GET /api/computers/ssh-hosts",
+			"GET /api/computers/stream",
+			"PATCH /api/computers/:id",
+			"PATCH /api/computers/local",
+			"POST /api/computers",
+			"POST /api/computers/:id/update",
+			"POST /api/computers/placement",
+			"POST /api/computers/setups/:setup_id/answer",
+			"GET /api/host/resources",
+			"CONNECT /c/:computer_id/*path",
+			"DELETE /c/:computer_id/*path",
+			"GET /c/:computer_id/*path",
+			"HEAD /c/:computer_id/*path",
+			"OPTIONS /c/:computer_id/*path",
+			"PATCH /c/:computer_id/*path",
+			"POST /c/:computer_id/*path",
+			"PUT /c/:computer_id/*path",
+			"TRACE /c/:computer_id/*path",
+			"DELETE /api/remote/devices/:id",
+			"DELETE /api/remote/link",
+			"GET /api/remote",
+			"GET /api/remote/devices",
+			"PATCH /api/remote",
+			"PATCH /api/remote/devices/:id",
+			"POST /api/remote/link",
+			"GET /api/account/tokens",
+			"POST /api/account/tokens",
+			"DELETE /api/account/tokens/:id",
+			"DELETE /api/ingress/bindings/:subject_kind/:subject_id",
+			"POST /api/ingress/bindings",
+			"GET /api/migration-notices",
+			"POST /api/migration-notices/:key/dismiss",
 			"DELETE /api/app-tokens/:app_token_id",
 			"GET /api/app-tokens",
 			"GET /api/processes",
@@ -173,6 +232,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/extensions/:name/inventory",
 			"GET /api/extensions/:name/preview",
 			"GET /api/extensions/:name/enablement",
+			"GET /api/extensions/:name/inputs",
 			"GET /api/extensions/:name/logs",
 			"GET /api/extensions/:name/provenance",
 			"GET /api/extensions/:name/secrets",
@@ -502,6 +562,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/loops/:name/run",
 			"POST /api/workspaces/:workspace_id/loops/:name/validate",
 			"POST /api/sessions",
+			"POST /api/sessions/archive-stopped",
 			"POST /api/sessions/history-cleanup",
 			"POST /api/sessions/history-cleanup/stop",
 			"POST /api/sessions/:session_id/pull-request/refresh",
@@ -617,6 +678,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PUT /api/agents/:name",
 			"PUT /api/extensions/:name",
 			"PUT /api/extensions/:name/enablement",
+			"PUT /api/extensions/:name/inputs",
 			"PUT /api/extensions/:name/secrets",
 			"PUT /api/settings/hooks/:name",
 			"PUT /api/settings/mcp-servers/:name",
@@ -777,6 +839,7 @@ func TestRemovedRoutesUseUnknownRouteBehaviorIT011(t *testing.T) {
 	handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 	engine := newTestRouter(t, handlers)
 	for _, tc := range []struct{ method, path string }{
+		{http.MethodGet, "/api/gateway/status"},
 		{http.MethodGet, "/api/memory"},
 		{http.MethodPost, "/api/memory/search"},
 		{http.MethodGet, "/api/settings/memory"},
@@ -3436,26 +3499,23 @@ func TestDaemonProfiles(t *testing.T) {
 		if rate := runtime.SetMutexProfileFraction(-1); rate != 0 {
 			t.Fatalf("repeated capture left sampling enabled: %d", rate)
 		}
-		for _, surface := range []httpapi.SurfaceSet{httpapi.SurfaceSetLocal, httpapi.SurfaceSetPrivate, httpapi.SurfaceSetPublicIngress, httpapi.SurfaceSetPublicOperator, httpapi.SurfaceSetPublicCombined} {
-			httpEngine := gin.New()
-			httpapi.RegisterSurfaceRoutes(
-				httpEngine,
-				&httpapi.Handlers{BaseHandlers: core.NewBaseHandlers(nil)},
-				surface,
-			)
-			for _, route := range httpEngine.Routes() {
-				if strings.Contains(route.Path, "/daemon/profile") {
-					t.Fatalf("profile exposed on HTTP surface %s", surface)
-				}
+		httpEngine := gin.New()
+		httpapi.RegisterRoutes(
+			httpEngine,
+			&httpapi.Handlers{BaseHandlers: core.NewBaseHandlers(nil)},
+		)
+		for _, route := range httpEngine.Routes() {
+			if strings.Contains(route.Path, "/daemon/profile") {
+				t.Fatalf("profile exposed on HTTP: %s", route.Path)
 			}
-			response := httptest.NewRecorder()
-			httpEngine.ServeHTTP(
-				response,
-				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/daemon/profile/heap", nil),
-			)
-			if response.Code == http.StatusOK && response.Header().Get("Content-Type") == "application/octet-stream" {
-				t.Fatalf("profile served on HTTP surface %s", surface)
-			}
+		}
+		response = httptest.NewRecorder()
+		httpEngine.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/daemon/profile/heap", nil),
+		)
+		if response.Code == http.StatusOK && response.Header().Get("Content-Type") == "application/octet-stream" {
+			t.Fatal("profile served on HTTP")
 		}
 	})
 }
@@ -3474,4 +3534,132 @@ func (c *cancelSamplingContext) Done() <-chan struct{} {
 		c.cancel()
 	}
 	return c.Context.Done()
+}
+
+func TestSignedOutRouteRegistration(t *testing.T) {
+	t.Parallel()
+	// UT-115. Safety Invariant 14: both operator listeners declare one admission policy per route.
+	t.Run("Should panic if a route does not declare its admission requirement", func(t *testing.T) {
+		t.Parallel()
+		engine := gin.New()
+		routes := core.NewSignInRoutes(engine, core.NewBaseHandlers(nil))
+		engine.GET("/undeclared", func(c *gin.Context) { c.Status(http.StatusOK) })
+		defer func() {
+			if result := recover(); result != "invariant: route has no sign-in requirement: GET /undeclared" {
+				t.Fatalf("registration panic = %v", result)
+			}
+		}()
+		routes.Validate()
+	})
+
+	for _, transport := range []string{"HTTP", "UDS"} {
+		t.Run("Should declare and gate every "+transport+" operator route", func(t *testing.T) {
+			t.Parallel()
+			engine := gin.New()
+			gate := &routeAccountGate{mode: account.GateEnforced}
+			if transport == "HTTP" {
+				_, err := httpapi.New(
+					httpapi.WithEngine(engine),
+					httpapi.WithHomePaths(newTestHomePaths(t)),
+					httpapi.WithHost("127.0.0.1"),
+					httpapi.WithSessionManager(&stubSessionManager{}),
+					httpapi.WithTaskService(&stubTaskManager{}),
+					httpapi.WithObserver(stubObserver{}),
+					httpapi.WithWorkspaceResolver(stubWorkspaceService{}),
+					httpapi.WithAccountService(gate),
+					httpapi.WithRemoteHost(testRouteRemoteHost{}),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				handler := core.NewBaseHandlers(nil)
+				handler.Account, handler.Remote = gate, testRouteRemoteHost{}
+				RegisterRoutes(engine, &Handlers{BaseHandlers: handler})
+			}
+			for _, route := range engine.Routes() {
+				switch route.Method + " " + route.Path {
+				case "GET /api/account", "POST /api/account/login", "DELETE /api/account/login",
+					"GET /api/account/sign-in/events", "POST /api/account/logout",
+					"GET /api/status", "GET /api/status/identity", "GET /api/settings/update",
+					"POST /api/settings/update/check", "POST /api/settings/update/apply",
+					"POST /api/settings/update/cancel", "POST /api/settings/actions/restart",
+					"GET /api/settings/actions/restart/:operation_id", "GET /api/remote", "POST /api/remote/link":
+					continue
+				}
+				if strings.HasPrefix(route.Path, "/api/webhooks/") ||
+					strings.HasPrefix(route.Path, "/api/internal/hosted-mcp/") {
+					continue
+				}
+				parts := strings.Split(route.Path, "/")
+				for i, part := range parts {
+					if strings.HasPrefix(part, ":") || strings.HasPrefix(part, "*") {
+						parts[i] = "fixture"
+					}
+				}
+				response := callAccountGateRoute(t, engine, route.Method, strings.Join(parts, "/"), "")
+				if response.Code != http.StatusUnauthorized ||
+					!strings.Contains(response.Body.String(), "sign_in_required") {
+					t.Errorf("%s %s = %d %s", route.Method, route.Path, response.Code, response.Body)
+				}
+			}
+			response := callAccountGateRoute(t, engine, http.MethodPost, "/api/remote/link", `{"link_token":"fixture"}`)
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "cmp_fixture") {
+				t.Fatalf("link token = %d %s", response.Code, response.Body)
+			}
+			response = callAccountGateRoute(t, engine, http.MethodPost, "/api/remote/link", "{}")
+			if response.Code != http.StatusUnauthorized ||
+				!strings.Contains(response.Body.String(), "sign_in_required") {
+				t.Fatalf("interactive link = %d %s", response.Code, response.Body)
+			}
+			gate.mode = account.GateOff
+			response = callAccountGateRoute(t, engine, http.MethodGet, "/api/account", "")
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"gate":"off"`) {
+				t.Fatalf("development account = %d %s", response.Code, response.Body)
+			}
+			gate.mode = account.GateGrace
+			response = callAccountGateRoute(t, engine, http.MethodGet, "/api/computers", "")
+			if response.Code != http.StatusUnauthorized ||
+				!strings.Contains(response.Body.String(), "sign_in_required") {
+				t.Fatalf("computers during grace = %d %s", response.Code, response.Body)
+			}
+		})
+	}
+}
+
+func callAccountGateRoute(
+	t *testing.T, engine *gin.Engine, method, path, body string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
+	request.Host = "127.0.0.1"
+	request.RemoteAddr = "127.0.0.1:12345"
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	engine.ServeHTTP(response, request)
+	return response
+}
+
+type routeAccountGate struct {
+	core.AccountService
+	mode string
+}
+
+func (s *routeAccountGate) Status() account.Installation {
+	return account.Installation{State: account.SignedOut, Gate: s.mode}
+}
+
+func (s *routeAccountGate) OperatorLifetime() context.Context { return nil }
+
+func (s *routeAccountGate) AdmitNewWork() error {
+	if s.mode == account.GateEnforced {
+		return account.ErrSignInRequired
+	}
+	return nil
+}
+
+type testRouteRemoteHost struct{ core.RemoteHostService }
+
+func (testRouteRemoteHost) Link(_ context.Context, _ string) (remotehost.LinkResult, error) {
+	return remotehost.LinkResult{ComputerID: remoteproto.ComputerID("cmp_fixture")}, nil
 }

@@ -114,12 +114,27 @@ export function TextLink({ children, className }: { children: ReactNode; classNa
   );
 }
 
-export function PrimaryCta({ children, icon: Glyph }: { children: ReactNode; icon?: Icon }) {
+export function PrimaryCta({
+  children,
+  icon: Glyph,
+  className,
+  onClick,
+}: {
+  children: ReactNode;
+  icon?: Icon;
+  className?: string;
+  onClick?: () => void;
+}) {
   return (
     <Button
       size="cta-lg"
       variant="primary"
-      className="group/cta relative h-[52px] overflow-hidden bg-[image:var(--gradient-brand)] bg-[length:190%_100%] bg-left px-7 text-[15.5px] text-[color:var(--color-on-gradient)] shadow-[0_0_44px_-6px_rgba(29,240,215,0.5)] transition-[background-position,box-shadow] duration-500 hover:bg-right hover:shadow-[0_0_56px_-4px_rgba(29,240,215,0.75)]"
+      className={cn(
+        "group/cta relative h-[52px] overflow-hidden bg-[image:var(--gradient-brand)] bg-[length:190%_100%] bg-left px-7 text-[15.5px] text-[color:var(--color-on-gradient)] shadow-[0_0_44px_-6px_rgba(29,240,215,0.5)] transition-[background-position,box-shadow] duration-500 hover:bg-right hover:shadow-[0_0_56px_-4px_rgba(29,240,215,0.75)]",
+        className
+      )}
+      onClick={onClick}
+      type="button"
     >
       <span
         aria-hidden
@@ -131,12 +146,27 @@ export function PrimaryCta({ children, icon: Glyph }: { children: ReactNode; ico
   );
 }
 
-export function SecondaryCta({ children, icon: Glyph }: { children: ReactNode; icon?: Icon }) {
+export function SecondaryCta({
+  children,
+  icon: Glyph,
+  className,
+  onClick,
+}: {
+  children: ReactNode;
+  icon?: Icon;
+  className?: string;
+  onClick?: () => void;
+}) {
   return (
     <Button
       size="cta-lg"
       variant="outline"
-      className="h-[52px] border-[color:var(--light-150)] bg-[color:var(--light-030)] px-7 text-[15.5px] backdrop-blur-md"
+      className={cn(
+        "h-[52px] border-[color:var(--light-150)] bg-[color:var(--light-030)] px-7 text-[15.5px] backdrop-blur-md",
+        className
+      )}
+      onClick={onClick}
+      type="button"
     >
       {Glyph ? <Glyph /> : null}
       {children}

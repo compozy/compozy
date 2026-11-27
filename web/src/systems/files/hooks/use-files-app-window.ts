@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import type { ComputerId } from "@/lib/computer-scope";
 import { useArchivedWorkspaces, useWorkspaces, useWorktrees } from "@/systems/workspace";
 
 import {
@@ -15,11 +17,12 @@ import {
 import { useFilesAppPlace } from "./use-files-app-place";
 
 /** The Files window's view model: its project's catalog standing, roots, and open file. */
-export function useFilesAppWindow(workspaceId: string) {
-  const workspaces = useWorkspaces();
-  const archived = useArchivedWorkspaces();
-  const worktrees = useWorktrees(workspaceId);
-  const place = useFilesAppPlace(workspaceId);
+export function useFilesAppWindow(workspaceId: string, explicitComputerId?: ComputerId) {
+  const computerId = useCurrentComputerId(explicitComputerId);
+  const workspaces = useWorkspaces({ computerId });
+  const archived = useArchivedWorkspaces({ computerId });
+  const worktrees = useWorktrees(workspaceId, { computerId });
+  const place = useFilesAppPlace(workspaceId, computerId);
   const placeTarget = () =>
     place.requestTarget ?? (place.path ? fileViewerTarget(place.path) : null);
   const [target, setTarget] = useState<FileViewerTarget | null>(placeTarget);

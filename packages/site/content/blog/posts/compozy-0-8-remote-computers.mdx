@@ -1,0 +1,141 @@
+---
+title: "CompozyOS 0.8: your agents on all your computers"
+description: "Run Claude Code, Codex, and Cursor across your laptops, desktops, Linux servers, and phone from one CompozyOS app. Introducing Remote Computers, Compozy Pro, and mandatory account sign-in."
+date: 2026-11-24
+category: runtime
+tags:
+  - remote-computers
+  - compozy-pro
+  - release
+  - runtime
+  - ssh
+author: pedronauck
+featured: true
+cover: ../covers/compozy-0-8-remote-computers.webp
+---
+
+Most developers running coding agents do not work on a single machine. You have a laptop in front
+of you, a desktop under the desk, and a Linux box or cloud VM with the RAM and CPU to run parallel
+builds. Until now, CompozyOS drove only the local daemon on the machine you opened it on. Getting
+another computer involved meant installing the daemon by hand, setting up Tailscale, running host
+commands, and pairing codes one device at a time.
+
+CompozyOS 0.8 replaces that with **Remote Computers**: one personal account across every machine
+you own, one-dialog SSH setup, a **Run on** picker wherever you start work, optional hosted routes
+for phone and browser access, and our first paid plan, **Compozy Pro**.
+
+## Your agents, on all your computers
+
+Add any Linux or macOS machine you can reach over OpenSSH without manually installing a daemon:
+
+```bash
+compozy account login
+compozy computer add ssh devbox
+compozy session new --computer devbox --workspace '/home/pedro/code/api' --agent general
+```
+
+CompozyOS reads your SSH config aliases, keys, and jump hosts, verifies the release archive and
+Sigstore provenance on your controller before touching the target, confirms the host-key
+fingerprint with you, installs the runtime as a persistent user service (`systemd --user` or
+`launchd`), links it to your account, and connects over an end-to-end encrypted tunnel.
+
+Once a second computer is connected:
+
+- **Pick where work runs.** Session create, Kanban **New session**, and the automation job editor
+  all gain a **Run on** menu. Sessions keep running on that computer even after your laptop closes
+  or goes to sleep.
+- **Auto load balancing.** Turn on load balancing and choose **Run on: Auto** to score connected
+  computers by live free CPU and memory and place each new session on the machine with the most
+  headroom.
+- **One sidebar, board, and search.** Sessions from every connected computer merge into one list,
+  each labeled with its computer name. Terminals, files, Changes, worktrees, tasks, and provider
+  sign-in work remotely within the device's scopes.
+- **Automatic route selection.** CompozyOS picks the fastest available route in fixed order: direct
+  LAN or tailnet first, then SSH forward, then a Pro hosted route from any other network.
+
+Read the full walkthrough in the [Remote Computers docs](/docs/computers).
+
+## What stays free, and what Compozy Pro adds
+
+Every local capability in CompozyOS stays free and open source under the MIT License: durable
+sessions, always-on agents, Loops, schedules, triggers, tasks, worktrees, extensions, and unlimited
+projects and sessions on your own computers. **Free also includes one remote computer over LAN or
+SSH**, with no time limit and no card required.
+
+**Compozy Pro** is **USD 9.99/month** or **USD 79.99/year** (USD 6.67/month billed yearly, save
+33%), plus applicable taxes calculated at checkout through Stripe Managed Payments:
+
+- **Unlimited remote computers** over LAN, SSH, or hosted routes;
+- **Hosted routes** (`compozy.run`) to reach up to 10 computers at once from any network, with no
+  router port forwarding or VPN setup;
+- **Phone and browser access** as an installable home-screen web app with Sessions, Approvals, and
+  Terminal views;
+- **Hosted webhooks** routed directly to your linked computer's existing webhook trigger paths.
+
+Enable a hosted route on any linked computer on Pro with one command or the toggle in **Settings →
+Computers**:
+
+```bash
+compozy remote cloud-route enable
+```
+
+Compare plans on the [Pricing page](/pricing), buy Pro directly from your browser at
+[cloud.compozy.com/billing/upgrade](https://cloud.compozy.com/billing/upgrade), and read our
+14-day full refund guarantee in the [Refund Policy](/legal/refunds).
+
+## Why CompozyOS 0.8 asks you to sign in
+
+Official CompozyOS 0.8 release builds ask you to sign in once with Google or GitHub on first run.
+We made this change for three direct reasons:
+
+1. **Counting real installations** without embedding invasive telemetry inside the daemon;
+2. **Product news strictly with consent** (unchecked by default at sign-in and one-click
+   unsubscribe in every broadcast);
+3. **One personal account** that ties your devices, remote computers, and Free or Pro plan
+   together.
+
+Your agents, source code, prompts, transcripts, and model API keys still stay on your own
+computers. Compozy Cloud never sees session traffic; it stores only account identity, device keys,
+computer route metadata, and subscription state.
+
+Two practical guarantees come with the sign-in gate:
+
+- **Offline use after first sign-in:** only your first sign-in needs an internet connection. Local
+  sessions, Loops, tasks, and worktrees keep working offline, and a temporary cloud outage never
+  signs you out.
+- **CI and headless runners:** create a local-only account token with `compozy account token create
+--name ci` and export `COMPOZY_ACCOUNT_TOKEN`. See [Account tokens](/docs/account/tokens).
+- **Delete anytime:** deleting your account from **Settings → Account** or `compozy account delete`
+  cancels any active Pro subscription immediately (with a full refund inside the 14-day window) and
+  leaves all local sessions and files untouched.
+
+Read the full breakdown in [Why CompozyOS asks you to sign in](/docs/account/sign-in) and our
+[Privacy Policy](/legal/privacy).
+
+## Replacing the Remote Gateway
+
+CompozyOS 0.8 removes the legacy Remote Gateway, its bundled Tailscale provider, pairing codes, and
+the `compozy gateway`, `compozy connect`, `compozy pair`, and `compozy device` commands. Remote
+Computers replaces all of them with account-authenticated, device-key-bound connections and
+built-in hosted routes.
+
+If you upgraded from 0.7.x with an existing gateway configuration:
+
+- **App tokens and webhook triggers stay.** Existing app tokens keep their allowed origins, and
+  webhook triggers keep their paths. If a trigger's public base URL changed, CompozyOS shows an
+  in-app notice so you can confirm the new address before sending deliveries again.
+- **Your local data stays.** Existing sessions, workspaces, agents, Loops, and automation jobs
+  upgrade in place; sign in once after updating and everything is right where you left it.
+- **3 months of Compozy Pro free.** Installations that migrated from the legacy Remote Gateway
+  receive a launch coupon directly in the one-time upgrade notice in Settings, good for 3 months of
+  Pro free when redeemed in Stripe Checkout within 60 days.
+
+See the [v0.8.0 migration notes](/docs/migration#remote-computers-0-8-0) for the full command
+mapping and upgrade checklist.
+
+## Get started
+
+Download the desktop app or install the latest release from the [Download page](/download), sign in
+with Google or GitHub, and add your first remote computer. Remember that `go install` is no longer
+an official install method — use the desktop app, verified installer, Homebrew, npm, or Linux
+packages for release builds.

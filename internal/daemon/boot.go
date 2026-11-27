@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/compozy/compozy/internal/account"
+	"github.com/compozy/compozy/internal/procutil"
+
 	"sync"
 	"time"
 
@@ -19,7 +22,6 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/extensionmcp"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -67,6 +69,9 @@ type bootState struct {
 	harnessResolver     *HarnessContextResolver
 	harnessRecorder     *harnessLifecycleRecorder
 	runtimeWorkers      daemonRuntimeWorkers
+	accountToken        string
+	signInDeferred      []func(context.Context) error
+	remoteOperator      *remoteOperatorHandler
 	proactiveChecksMu   sync.RWMutex
 	skillsRegistry      *skills.Registry
 	mcpResolver         *skills.MCPResolver
@@ -105,8 +110,6 @@ type bootState struct {
 	spawnReaper           *spawnReaper
 	scheduler             *schedulerRuntime
 	coordinator           *coordinatorRuntime
-	gateway               gateway.Policy
-	gatewayVerifier       *gateway.EndpointVerifier
 	accessPolicy          workspaceaccess.Policy
 	accessConsent         *workspaceAccessConsentCache
 	toolRegistry          toolspkg.Registry
@@ -194,7 +197,12 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	defer d.finishBoot(&err)
 	bootStarted := time.Now()
 
+	token, err := account.TakeLauncherToken(procutil.InternalAccountTokenEnv)
+	if err != nil {
+		return fmt.Errorf("daemon: consume account token handoff: %w", err)
+	}
 	state := &bootState{
+		accountToken:        token,
 		mcpDigestKeys:       vault.NewMCPDigestKeyProvider(d.homePaths.HomeDir),
 		mcpAuthGeneration:   mcpauth.NewMutationGeneration(),
 		toolProjectionEpoch: mcppkg.NewProjectionEpoch(),
@@ -271,7 +279,6 @@ func (d *Daemon) beginBoot() error {
 		d.sessions != nil ||
 		d.modelCatalog != nil ||
 		d.marketplace != nil ||
-		d.gateway != nil ||
 		d.toolRegistry != nil ||
 		d.observer != nil ||
 		d.resourceReconcile != nil ||

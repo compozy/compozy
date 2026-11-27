@@ -44,7 +44,7 @@ func (d *Daemon) bootRuntimeFoundation(ctx context.Context, state *bootState, cl
 	if err := d.bootRegistryState(ctx, state, cleanup); err != nil {
 		return err
 	}
-	return nil
+	return d.bootAccount(ctx, state, cleanup)
 }
 
 func (d *Daemon) bootLockAndSocket(
@@ -89,6 +89,7 @@ func (d *Daemon) bootRegistryState(
 		return fmt.Errorf("daemon: verify default profile: %w", err)
 	}
 	state.registry = registry
+	d.migrateRemovedGateway(ctx, state)
 
 	if profileStore, ok := registry.(*globaldb.GlobalDB); ok {
 		profiles, err := d.bootProfiles(state, profileStore)

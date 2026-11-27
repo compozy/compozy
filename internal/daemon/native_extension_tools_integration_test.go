@@ -40,15 +40,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func nativeGatewayExtensionDownloadResult(
+func nativeExtensionSkillDownloadResult(
 	t *testing.T,
 	version string,
-	permission string,
 ) *registrypkg.DownloadResult {
 	t.Helper()
 
 	return &registrypkg.DownloadResult{
-		Reader:      io.NopCloser(bytes.NewReader(nativeExtensionTarGzWithGateway(t, version, permission))),
+		Reader:      io.NopCloser(bytes.NewReader(nativeExtensionArchive(t, version, true))),
 		Slug:        "acme/tool-ext",
 		Version:     version,
 		ContentSize: -1,
@@ -80,8 +79,8 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		})
 
 		deps.ExtensionRuntime = func() extensionRuntime { return inspectionRuntime }
-		source.downloads["1.0.0"] = nativeGatewayExtensionDownloadResult(t, "1.0.0", "gateway.private")
-		source.downloads["2.0.0"] = nativeGatewayExtensionDownloadResult(t, "2.0.0", "gateway.public")
+		source.downloads["1.0.0"] = nativeExtensionSkillDownloadResult(t, "1.0.0")
+		source.downloads["2.0.0"] = nativeExtensionSkillDownloadResult(t, "2.0.0")
 		source.latestVersion = "1.0.0"
 		automation, ok := deps.Automation.(extensionAutomationPreviewer)
 		if !ok {
@@ -112,35 +111,18 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 			ActorKind:   string(taskpkg.ActorKindAgentSession),
 		}
 
-		firstDigest := nativeIntegrationGatewayDigest(t, "gateway.private")
-		_, err := registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDExtensionsInstall,
-			Input:  json.RawMessage(`{"source":"github","ref":"acme/tool-ext","allow_unverified":true}`),
-		})
-		if !errors.Is(err, extensionpkg.ErrExtensionGatewayConfirmationRequired) {
-			t.Fatalf("Registry.Call(extensions_install without confirmation) error = %v", err)
-		}
-		if _, err := extRegistry.Get("tool-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
-			t.Fatalf("registry after unconfirmed install error = %v, want not found", err)
-		}
-		source.downloads["1.0.0"] = nativeGatewayExtensionDownloadResult(t, "1.0.0", "gateway.private")
 		if _, err := registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
-			Input: json.RawMessage(
-				fmt.Sprintf(
-					`{"source":"github","ref":"acme/tool-ext","allow_unverified":true,"confirm_gateway_digest":%q}`,
-					firstDigest,
-				),
-			),
+			Input:  json.RawMessage(`{"source":"github","ref":"acme/tool-ext","allow_unverified":true}`),
 		}); err != nil {
-			t.Fatalf("Registry.Call(extensions_install confirmed) error = %v; cause=%v", err, errors.Unwrap(err))
+			t.Fatalf("Registry.Call(extensions_install) error = %v; cause=%v", err, errors.Unwrap(err))
 		}
 		installed, err := extRegistry.Get("tool-ext")
 		if err != nil {
 			t.Fatalf("extension registry Get(installed) error = %v", err)
 		}
 		if !installed.Enabled {
-			t.Fatal("confirmed extension enabled = false, want enabled install")
+			t.Fatal("extension enabled = false, want enabled install")
 		}
 		inspected, err := inspectionRuntime.InspectPackageResources(t.Context(), "tool-ext")
 		if err != nil {
@@ -156,31 +138,11 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		assertNativeExtensionInventoryParity(t, registry, agentScope, service, "tool-ext")
 
 		source.latestVersion = "2.0.0"
-		_, err = registry.Call(
-			t.Context(),
-			agentScope,
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDExtensionsUpdate,
-				Input:  json.RawMessage("{\"name\":\"tool-ext\",\"allow_unverified\":true}"),
-			},
-		)
-		if !errors.Is(err, extensionpkg.ErrExtensionGatewayConfirmationRequired) {
-			t.Fatalf("Registry.Call(extensions_update without confirmation) error = %v", err)
-		}
-		unchanged, err := extRegistry.Get("tool-ext")
-		if err != nil || unchanged.Version != "1.0.0" {
-			t.Fatalf("extension after refused update = %#v, %v, want version 1.0.0", unchanged, err)
-		}
-		source.downloads["2.0.0"] = nativeGatewayExtensionDownloadResult(t, "2.0.0", "gateway.public")
-		secondDigest := nativeIntegrationGatewayDigest(t, "gateway.public")
 		if _, err := registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsUpdate,
-			Input: json.RawMessage(fmt.Sprintf(
-				`{"name":"tool-ext","allow_unverified":true,"confirm_gateway_digest":%q}`,
-				secondDigest,
-			)),
+			Input:  json.RawMessage(`{"name":"tool-ext","allow_unverified":true}`),
 		}); err != nil {
-			t.Fatalf("Registry.Call(extensions_update confirmed) error = %v; cause = %v", err, errors.Unwrap(err))
+			t.Fatalf("Registry.Call(extensions_update) error = %v; cause = %v", err, errors.Unwrap(err))
 		}
 		updated, err := extRegistry.Get("tool-ext")
 		if err != nil {
@@ -188,11 +150,6 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		}
 		if updated.Version != "2.0.0" {
 			t.Fatalf("updated version = %q, want 2.0.0", updated.Version)
-		}
-		confirmation, err := extRegistry.GatewayConfirmation(extensionpkg.GlobalInstanceKey("tool-ext"))
-		if err != nil || confirmation.Digest != secondDigest ||
-			confirmation.ConfirmedBy != "agent:native-agent-session" {
-			t.Fatalf("updated gateway confirmation = %#v, %v", confirmation, err)
 		}
 
 		disabledResult, err := registry.Call(
@@ -580,19 +537,6 @@ func assertNativeExtensionInventoryParity(
 	if len(nativeInventory.Items) != 1 || nativeInventory.Items[0].Live {
 		t.Fatalf("native inventory = %#v, want one shipped inactive item", nativeInventory)
 	}
-}
-
-func nativeIntegrationGatewayDigest(t *testing.T, permission string) string {
-	t.Helper()
-	digest, err := extensionpkg.GatewayRequirementDigest(
-		&extensionpkg.GatewayRequirement{
-			Permissions: []string{permission},
-		},
-	)
-	if err != nil {
-		t.Fatalf("GatewayRequirementDigest() error = %v", err)
-	}
-	return digest
 }
 
 func callNativeExtensionBuild(

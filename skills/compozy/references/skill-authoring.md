@@ -57,7 +57,7 @@ For a workspace instance, approval installs into the workspace skills root. For 
 
 After approval, the skill behaves like any other skill in its tier. Change it later with an edit proposal.
 
-The operator can revert the latest approval of a skill (operator or automatic): a reverted `new`
+The operator can revert the latest approval of a skill. A reverted `new`
 skill is removed, and a reverted edit restores the contents it replaced byte- and mode-exact, after
 re-verifying the stored base snapshot. Only the install log's current writer can be reverted, and
 only while the skill on disk still matches what that approval installed; otherwise revert fails

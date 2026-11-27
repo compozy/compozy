@@ -23,6 +23,7 @@ func (s *Service) dynamicClientRegistration(
 	resourceURL string,
 	redirectURL string,
 	asm *oauthex.AuthServerMeta,
+	metadata Metadata,
 	loginScopes hostedLoginScopes,
 ) (hostedOAuthClient, error) {
 	if s.registrations == nil {
@@ -63,7 +64,7 @@ func (s *Service) dynamicClientRegistration(
 			"mcp auth: authorization server does not support CIMD or dynamic registration",
 		)
 	}
-	requestedScopes := withOfflineAccess(loginScopes.values, metadataFromAuthServer(asm), true)
+	requestedScopes := withOfflineAccess(loginScopes.values, metadata, true)
 	response, err := s.registerClient(
 		ctx,
 		cfg,

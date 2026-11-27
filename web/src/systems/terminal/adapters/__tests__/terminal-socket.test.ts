@@ -12,7 +12,7 @@ describe("createTerminalSocket", () => {
     const sends: unknown[] = [];
     const closes: unknown[][] = [];
     const opened: Array<{ url: string; protocol: string }> = [];
-    class FakeWebSocket {
+    class FakeWebSocket extends EventTarget {
       binaryType = "blob";
       onopen: ((event: Event) => void) | null = null;
       onmessage: ((event: MessageEvent) => void) | null = null;
@@ -20,6 +20,7 @@ describe("createTerminalSocket", () => {
       onerror: ((event: Event) => void) | null = null;
 
       constructor(url: string, protocol: string) {
+        super();
         opened.push({ url, protocol });
       }
 

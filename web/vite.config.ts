@@ -1,4 +1,4 @@
-import { proto } from "@compozy/proto/vite";
+import { proto } from "@protohq/cli/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { defineConfig } from "vite";
