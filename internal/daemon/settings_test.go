@@ -1290,7 +1290,44 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		}
 	})
 
-	// Invariant: a Settings check can publish only its matching current declaration.
+	// Invariant: an explicit Settings probe reports a rejected catalog listing as a failed probe.
+	// Owner: daemon Settings and real MCP discovery; canonical suite: Settings runtime.
+	t.Run("Should report the catalog diagnostic when a listed tool has an invalid schema", func(t *testing.T) {
+		t.Parallel()
+		fixture := mcp.NewServer(&mcp.Implementation{Name: "invalid-schema", Version: "1.0.0"}, nil)
+		fixture.AddTool(&mcp.Tool{
+			Name: "lookup", InputSchema: json.RawMessage(`{"type":"object","properties":{"query":1}}`),
+		}, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{}, nil
+		})
+		upstream := httptest.NewServer(mcp.NewStreamableHTTPHandler(
+			func(*http.Request) *mcp.Server { return fixture },
+			&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true},
+		))
+		t.Cleanup(upstream.Close)
+		state, _ := newMCPConsentFixture(t)
+		server := compozyconfig.MCPServer{
+			Name: "docs", Transport: compozyconfig.MCPServerTransportHTTP, URL: upstream.URL,
+			Headers: map[string]string{"X-Fixture": "check"},
+		}
+		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{{
+			ID: "docs", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: server,
+		}})
+		provider, executor, err := (&Daemon{}).newDaemonMCPToolProvider(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		state.mcpToolProvider, state.mcpAuthStatus = provider, executor
+		surface := &settingsRuntimeSurface{state: state, digestKey: testMCPDigestKey(t, state)}
+		status, err := surface.CheckMCPServerRuntime(t.Context(), globalMCPTestTarget(server.Name), server)
+		if err != nil || status.State != settingspkg.MCPServerRuntimeStateRuntimeUnavailable ||
+			status.Probe != settingspkg.MCPServerProbeFailed || status.Reason != string(toolspkg.ReasonSchemaInvalid) ||
+			!strings.Contains(status.Diagnostic, "properties: query") {
+			t.Fatalf("catalog rejection status = %+v, err = %v", status, err)
+		}
+	})
+
+	// Invariant: a Settings check can publish only its matching current declaration and active profile.
 	// Owner: daemon scope and definition selection; canonical suite: Settings runtime.
 	t.Run("Should select only the published definition that matches the Settings check", func(t *testing.T) {
 		t.Parallel()
@@ -1299,7 +1336,22 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		user := compozyconfig.MCPServer{Name: work.Name, Command: "personal"}
 		edited := work
 		edited.Command = "unpublished"
-		ext := compozyconfig.MCPServer{Name: work.Name, RuntimeName: "fixture.sentry", Command: "extension"}
+		ext := compozyconfig.MCPServer{
+			Name: work.Name, RuntimeName: "fixture.sentry", Transport: compozyconfig.MCPServerTransportHTTP,
+			URL: "https://mcp.example.test",
+		}
+		profile, err := state.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "work"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		state.extensionEnvBindings = state.registry.(extensionpkg.EnvBindingStore)
+		ref := vault.ExtensionProfileSecretRef("fixture", profile.ID, "", "profile-key")
+		if err := state.extensionEnvBindings.PutEnvBinding(t.Context(), extensionpkg.EnvBinding{
+			ExtensionName: "fixture", ProfileID: profile.ID, EnvName: "FIXTURE_KEY", SecretRef: ref,
+			MCPServer: ext.Name, HeaderName: "X-Fixture-Key", Kind: extensionpkg.ExtensionEnvBindingKind,
+		}); err != nil {
+			t.Fatal(err)
+		}
 		state.mcpServerCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{
 			{ID: "user", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: user},
 			{ID: "extension", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
@@ -1340,6 +1392,18 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 				}
 			})
 		}
+		t.Run("Should keep the active profile for a check of an installed extension", func(t *testing.T) {
+			t.Parallel()
+			ctx := mcpauth.WithConsentScope(t.Context(), mcpauth.ConsentScope{ProfileName: profile.Name})
+			source, found := surface.publishedMCPCheckSource(ctx, extensionTarget, ext)
+			if !found || source.ResourceID != "extension" || source.ProfileID != profile.ID {
+				t.Fatalf("extension check source = %+v, found=%v", source, found)
+			}
+			resolved, err := resolveDaemonMCPServer(ctx, state, source, extensionTarget.Owner)
+			if err != nil || resolved.Server.SecretHeaders["X-Fixture-Key"] != ref {
+				t.Fatalf("extension runtime did not select the active profile binding: %v", err)
+			}
+		})
 	})
 
 	t.Run("Should classify permission failures by error identity", func(t *testing.T) {

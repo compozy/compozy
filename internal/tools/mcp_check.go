@@ -25,16 +25,16 @@ func (p *MCPProvider) CheckMCPServer(ctx context.Context, scope Scope, name stri
 	return NewValidationError("name", ReasonSourceDisabled, "MCP server is not available in this scope")
 }
 
-// CheckMCPSource reports whether a fresh probe settled without a catalog failure.
+// CheckMCPSource reports a catalog rejection separately from an error running the check.
 func (p *MCPProvider) CheckMCPSource(
 	ctx context.Context, source SourceRef, discover func(context.Context) ([]MCPToolDescriptor, error),
-) (bool, error) {
+) (rejection error, err error) {
 	if key, tracked := mcpDeadEntityKey(source, source.ProfileID); tracked && p.reliability != nil {
 		ctx = deadentity.WithProbeRetry(ctx, key)
 	}
 	ctx = WithFreshMCPDiscovery(context.WithValue(ctx, cachedMCPProjectionKey{}, false))
-	_, complete, err := p.listSourceDiscovery(ctx, source, source.ProfileID, discover)
-	return complete, err
+	_, _, rejection, err = p.listSourceDiscovery(ctx, source, source.ProfileID, discover)
+	return rejection, err
 }
 
 type freshMCPDiscoveryKey struct{}

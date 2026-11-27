@@ -547,34 +547,6 @@ func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 }
 
 func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) {
-	// Invariant: an upstream response rejected during catalog normalization is an incomplete check.
-	// Owner: MCP provider publication; canonical suite: retained discovery and recovery.
-	t.Run("Should report an incomplete check when the catalog rejects the listing", func(t *testing.T) {
-		t.Parallel()
-		source := SourceRef{Kind: SourceMCP, Owner: "docs", RawServerName: "docs"}
-		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
-			ID: "mcp__docs__different", RawName: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`),
-		}})
-		provider := newTestMCPProvider(t, executor, []SourceRef{source})
-		complete, err := provider.CheckMCPSource(
-			t.Context(),
-			source,
-			func(ctx context.Context) ([]MCPToolDescriptor, error) {
-				return executor.ListTools(ctx, source)
-			},
-		)
-		if err != nil || complete {
-			t.Fatalf("rejected discovery complete=%v err=%v", complete, err)
-		}
-		if reason := provider.CatalogDiscoveryReason(
-			t.Context(),
-			Scope{},
-			source.Owner,
-		); reason != "Tool discovery failed" {
-			t.Fatalf("rejected discovery reason = %q", reason)
-		}
-	})
-
 	// Invariant: health follows the logical server name even when its tool ID is canonicalized.
 	// Owner: MCP provider availability; canonical suite: retained discovery and recovery.
 	t.Run("Should report a failing named source alongside its retained descriptors", func(t *testing.T) {

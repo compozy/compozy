@@ -64,9 +64,15 @@ func (p *MCPProvider) listSourceDescriptors(
 	profileID string,
 	timeout time.Duration,
 ) ([]Descriptor, bool, error) {
-	return p.listSourceDiscovery(ctx, source, profileID, func(ctx context.Context) ([]MCPToolDescriptor, error) {
-		return p.discoverSource(ctx, source, timeout)
-	})
+	descriptors, complete, _, err := p.listSourceDiscovery(
+		ctx,
+		source,
+		profileID,
+		func(ctx context.Context) ([]MCPToolDescriptor, error) {
+			return p.discoverSource(ctx, source, timeout)
+		},
+	)
+	return descriptors, complete, err
 }
 
 func (p *MCPProvider) listSourceDiscovery(
@@ -74,18 +80,18 @@ func (p *MCPProvider) listSourceDiscovery(
 	source SourceRef,
 	profileID string,
 	discover func(context.Context) ([]MCPToolDescriptor, error),
-) ([]Descriptor, bool, error) {
+) (descriptors []Descriptor, complete bool, rejection error, err error) {
 	if p.consent != nil {
 		admitted, err := p.consent(ctx, source, profileID)
 		if err != nil {
-			return nil, false, err
+			return nil, false, nil, err
 		}
 		if !admitted {
-			return nil, true, nil
+			return nil, true, nil, nil
 		}
 	}
 	if cachedMCPProjection(ctx) {
-		return p.cachedSourceDescriptors(source), true, nil
+		return p.cachedSourceDescriptors(source), true, nil, nil
 	}
 	key, tracked := mcpDeadEntityKey(source, profileID)
 	var reliabilityState *mcpReliabilityState
@@ -93,14 +99,14 @@ func (p *MCPProvider) listSourceDiscovery(
 		reliabilityState = p.reliability.stateFor(key)
 		decision, err := p.reliability.service.BeforeProbe(ctx, key)
 		if err != nil {
-			return nil, false, fmt.Errorf("tools: admit mcp source %q: %w", source.Owner, err)
+			return nil, false, nil, fmt.Errorf("tools: admit mcp source %q: %w", source.Owner, err)
 		}
 		if !decision.Allowed {
 			if !p.canRecoverAuthFailure(ctx, source, decision.Reason) {
 				if p.catalog != nil {
-					return p.cachedSourceDescriptors(source), true, nil
+					return p.cachedSourceDescriptors(source), true, nil, nil
 				}
-				return p.reliability.cached(key, reliabilityState), true, nil
+				return p.reliability.cached(key, reliabilityState), true, nil, nil
 			}
 		}
 	}
@@ -111,14 +117,15 @@ func (p *MCPProvider) listSourceDiscovery(
 	defer p.discoveryMu.Unlock()
 	current := p.discoveryGenerations[source]
 	if current.check != generation.check || (!FreshMCPDiscovery(ctx) && current.list != generation.list) {
-		return p.cachedSourceDescriptors(source), true, nil
+		return p.cachedSourceDescriptors(source), true, nil, nil
 	}
 	if FreshMCPDiscovery(ctx) {
 		current.list++
 		p.discoveryGenerations[source] = current
 	}
 	if err != nil {
-		return p.discoveryFailed(ctx, source, key, tracked, reliabilityState, err)
+		retained, complete, recordErr := p.discoveryFailed(ctx, source, key, tracked, reliabilityState, err)
+		return retained, complete, nil, recordErr
 	}
 	return p.discoverySucceeded(ctx, source, key, tracked, reliabilityState, discovered)
 }
@@ -222,28 +229,36 @@ func (p *MCPProvider) discoverySucceeded(
 	tracked bool,
 	reliabilityState *mcpReliabilityState,
 	discovered []MCPToolDescriptor,
-) ([]Descriptor, bool, error) {
+) (descriptors []Descriptor, complete bool, rejection error, err error) {
 	before, hadDiscovery := p.discovered.Load(source)
 	_, wasFailed := p.discoveryFailures.Load(source)
-	descriptors, err := p.normalizeDiscovery(source, discovered)
-	if err != nil {
+	normalized, normalizationErr := p.normalizeDiscovery(source, discovered)
+	if normalizationErr != nil {
 		// A server that publishes an unusable tool fails alone, with a recorded source status.
-		return p.discoveryFailed(ctx, source, key, tracked, reliabilityState, err)
+		retained, complete, recordErr := p.discoveryFailed(
+			ctx,
+			source,
+			key,
+			tracked,
+			reliabilityState,
+			normalizationErr,
+		)
+		return retained, complete, normalizationErr, recordErr
 	}
 	p.discoveryFailures.Delete(source)
 	if tracked && p.reliability != nil {
 		if err := p.reliability.service.RecordSuccess(ctx, key); err != nil {
-			return nil, false, fmt.Errorf("tools: record mcp source %q recovery: %w", source.Owner, err)
+			return nil, false, nil, fmt.Errorf("tools: record mcp source %q recovery: %w", source.Owner, err)
 		}
 		if p.catalog == nil {
-			p.reliability.store(key, reliabilityState, descriptors)
+			p.reliability.store(key, reliabilityState, normalized)
 		}
 	}
 	after, _ := p.discovered.Load(source)
 	if p.catalog != nil && (!hadDiscovery || before != after || wasFailed) {
 		p.catalog.sourceChanged(ctx, source, "")
 	}
-	return descriptors, true, nil
+	return normalized, true, nil, nil
 }
 
 // ForgetMCPServer retires one workspace MCP server's volatile reliability state.

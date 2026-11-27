@@ -51,7 +51,7 @@ func (s *settingsRuntimeSurface) checkPublishedMCPRuntime(
 	var discovery mcppkg.ToolDiscovery
 	var probeErr error
 	probed := false
-	complete, err := provider.CheckMCPSource(
+	rejection, err := provider.CheckMCPSource(
 		ctx,
 		source,
 		func(ctx context.Context) ([]toolspkg.MCPToolDescriptor, error) {
@@ -68,12 +68,12 @@ func (s *settingsRuntimeSurface) checkPublishedMCPRuntime(
 	if !probed {
 		return waitingMCPRuntimeStatus(), true, nil
 	}
-	if !complete && probeErr == nil {
-		probeErr = toolspkg.NewValidationError(
-			"tools",
-			toolspkg.ReasonSchemaInvalid,
-			"The catalog rejected the tool list",
-		)
+	if rejection != nil {
+		status := runtimeStatusFromMCPProbeError(rejection)
+		status.State = settingspkg.MCPServerRuntimeStateRuntimeUnavailable
+		status.Probe = settingspkg.MCPServerProbeFailed
+		status.Initialized = true
+		return status, true, nil
 	}
 	if probeErr != nil {
 		status := s.mcpRuntimeProbeFailure(target, server, probeErr)
