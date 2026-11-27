@@ -671,7 +671,7 @@ func TestAgentInstanceSkillAutoApproveSettings(t *testing.T) {
 			request.Header.Set(agentidentity.HeaderSessionID, "caller")
 			request.Header.Set(agentidentity.HeaderAgent, "coder")
 		case "app":
-			request = request.WithContext(core.ContextWithAppToken(request.Context(), gateway.AppToken{}))
+			request = request.WithContext(core.ContextWithAppToken(request.Context(), apptoken.Token{}))
 		}
 		response := httptest.NewRecorder()
 		fixture.Engine.ServeHTTP(response, request)

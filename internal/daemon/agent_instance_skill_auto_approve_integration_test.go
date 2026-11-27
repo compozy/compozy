@@ -97,7 +97,7 @@ func TestInstanceSkillAutoApproveIntegration(t *testing.T) {
 			}
 			return proposed
 		}
-		uds := gatewayDaemonUDSClient(d.homePaths.DaemonSocket)
+		uds := daemonIntegrationUDSClient(d.homePaths.DaemonSocket)
 		t.Cleanup(uds.CloseIdleConnections)
 		httpBase := fmt.Sprintf("http://127.0.0.1:%d", d.info.Port)
 		call := func(client *http.Client, base, method, path, body string) (int, []byte) {
