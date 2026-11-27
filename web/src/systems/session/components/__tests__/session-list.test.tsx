@@ -31,6 +31,8 @@ import {
 } from "@/systems/workspace";
 import { rehydrateProfileViewStore, resetProfileViews, setProfileView } from "@/systems/profiles";
 import { providerListOptions, type ProviderSummary } from "@/systems/providers";
+import { computerRegistryKeys } from "@/systems/computers";
+import { DEFAULT_COMPUTERS_LIST } from "@/systems/computers/mocks/handlers";
 
 import { primaryAgentFixture } from "@/systems/agent/testing";
 import { agentsListOptions } from "@/systems/agent";
@@ -68,6 +70,8 @@ import { sessionParentPickerStore } from "../../hooks/use-session-parent-picker"
 import { sessionScopedDetailOptions, sessionTranscriptOptions } from "../../lib/query-options";
 import { preloadSessionEntry } from "../../lib/session-entry-preload";
 import { subagentViewFromPayload } from "../../lib/subagent-payload";
+import { SessionListSubagentBranch } from "../session-list/session-list-subagent-branch";
+import { SessionListSubagentActionsHost } from "../session-list/session-list-subagent-actions";
 import { formatLaterReturn } from "../../lib/session-later";
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import { SessionSidebar } from "../session-sidebar";
@@ -1909,6 +1913,90 @@ describe("SessionList subagents", () => {
       agent_name: "coder",
       workspace_id: parent.workspace_id,
     });
+  });
+
+  // Invariant: a remote branch reads and mutates only workers on its parent computer.
+  // Owner: sidebar branch and action routing. Canonical suite: SessionList.
+  it("Should read, open, stop and delete a subagent on the remote parent computer", async () => {
+    const user = userEvent.setup();
+    const computer = DEFAULT_COMPUTERS_LIST.computers[0]!;
+    const parent = row("parent", summary(1, 1));
+    const workspaceId = parent.workspace_id ?? "";
+    const drawerStore = sessionWindowDrawerLogic.createStore();
+    const open = vi.fn();
+    const child = wireSubagent(1, "running");
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      const path = new URL(request.url).pathname;
+      if (request.method === "DELETE") return new Response(null, { status: 204 });
+      const headers = { "Content-Type": "application/json" };
+      if (request.method === "POST") return new Response("{}", { status: 202, headers });
+      const title = path.startsWith(`/c/${computer.id}/`) ? "Remote worker" : "Controller worker";
+      return new Response(JSON.stringify({ subagents: [{ ...child, title }] }), { headers });
+    });
+    vi.mocked(globalThis.fetch).mockImplementation(fetcher);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(computerRegistryKeys.list(), DEFAULT_COMPUTERS_LIST);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubagentDrawerContext value={{ store: drawerStore, open, content: () => null }}>
+          <SessionListSubagentActionsHost>
+            <SessionListSubagentBranch
+              computerId={computer.id}
+              workspaceId={workspaceId}
+              profile={parent.profile_name}
+              sessionId={parent.id}
+              total={1}
+              onSelectSession={vi.fn()}
+              testIdPrefix="session-sidebar"
+            />
+          </SessionListSubagentActionsHost>
+        </SubagentDrawerContext>
+      </QueryClientProvider>
+    );
+
+    const worker = await screen.findByRole("button", {
+      name: "Open Remote worker · claude · Coder",
+    });
+    expect(screen.queryByText("Controller worker")).not.toBeInTheDocument();
+    await user.click(worker);
+    expect(open).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "sub-1" }),
+      { newWindow: false },
+      workspaceId,
+      computer.id
+    );
+    drawerStore.trigger.opened({
+      subagent: subagentViewFromPayload(child as never),
+      workspaceId,
+      trigger: null,
+    });
+    fireEvent.contextMenu(worker);
+    await user.click(await screen.findByRole("menuitem", { name: "Stop subagent" }));
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    fireEvent.contextMenu(worker);
+    await user.click(await screen.findByRole("menuitem", { name: "Delete subagent" }));
+    await user.click(await screen.findByTestId("subagent-delete-dialog-confirm"));
+
+    const branchPath = `/c/${computer.id}/api/workspaces/${workspaceId}/sessions/${parent.id}/subagents`;
+    const workerPath = `/c/${computer.id}/api/workspaces/${workspaceId}/subagents/sub-1`;
+    await waitFor(() => {
+      const calls = fetcher.mock.calls
+        .map(([request]) => request as Request)
+        .map(request => [request.method, new URL(request.url).pathname]);
+      expect(calls).toEqual(
+        expect.arrayContaining([
+          ["GET", branchPath],
+          ["POST", `${workerPath}/cancel`],
+          ["DELETE", workerPath],
+        ])
+      );
+      expect(calls.some(([, path]) => path?.startsWith("/api/"))).toBe(false);
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Delete subagent" })).toBeNull()
+    );
+    expect(drawerStore.getSnapshot().context.selected?.subagent.id).toBe("sub-1");
   });
 
   // Issue #919: with both kinds, the indicators are segments of one control; the selected
@@ -4241,14 +4329,21 @@ describe("SessionList breadth and Group by", () => {
         });
       }
       if (url.pathname === "/api/sessions/facets") return json(facetsFor(url));
-      if (url.pathname !== "/api/sessions") return json({ error: "not found" }, 404);
+      if (url.pathname === "/c/cmp_remote/api/workspaces/ws-alpha/sessions/a1/move") {
+        return json({ folders: listedFolders.get("ws-alpha") ?? [] });
+      }
+      if (url.pathname !== "/api/sessions" && url.pathname !== "/c/cmp_remote/api/sessions") {
+        return json({ error: "not found" }, 404);
+      }
       const selector = url.searchParams.get("workspace_id");
       if (selector && failing.has(selector)) return json({ error: "unreachable" }, 503);
       const profile = url.searchParams.get("profile");
+      const folder = url.searchParams.get("folder");
       const listed = ROWS.filter(
         session =>
           (!selector || session.workspace_id === (selector === "@user" ? "" : selector)) &&
-          (!profile || session.profile_name === profile)
+          (!profile || session.profile_name === profile) &&
+          (!folder || folder === "@root" || session.folder_id === folder)
       );
       return json({ sessions: listed, page: { has_more: false, limit: 100 } });
     });
@@ -4896,6 +4991,36 @@ describe("SessionList breadth and Group by", () => {
     // No project behind the User group: the click falls through and no project menu opens.
     expect(fireEvent.contextMenu(screen.getByTestId("session-sidebar-group-user"))).toBe(true);
     expect(screen.queryByRole("menuitem", { name: "Archive project" })).not.toBeInTheDocument();
+  });
+
+  it("Should drag a remote group row into a folder on the same computer", async () => {
+    listedFolders.set("ws-alpha", [{ ...FOLDER, name: "Remote folder", profile_id: "default" }]);
+    const remote = projectSessionGroup("ws-alpha", facet(1), {
+      workspaces: WORKSPACES,
+      lens: { profile: "default" },
+      computerId: "cmp_remote",
+    });
+    renderList({ sessions: [], view: grouped({ groups: [remote] }) });
+
+    const source = await screen.findByTestId("session-sidebar-session-a1");
+    const folder = await screen.findByTestId("session-sidebar-folder-fold-new-header");
+    fireEvent.dragStart(source.parentElement!);
+    fireEvent.dragOver(folder);
+    expect(folder).toHaveAttribute("data-drop", "into");
+    fireEvent.drop(folder);
+
+    await waitFor(() =>
+      expect(
+        fetcher.mock.calls
+          .map(([input]) => input as Request)
+          .some(
+            request =>
+              request.method === "POST" &&
+              new URL(request.url).pathname ===
+                "/c/cmp_remote/api/workspaces/ws-alpha/sessions/a1/move"
+          )
+      ).toBe(true)
+    );
   });
 
   it("Should omit controller project mutations from a synthesized empty remote project header", async () => {

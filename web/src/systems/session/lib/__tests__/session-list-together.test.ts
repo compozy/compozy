@@ -176,7 +176,7 @@ describe("Together layout helpers (T-F6)", () => {
     });
   });
 
-  it("Should merge flat rows by window sort (O1, O2) and name the oldest-cursor computer for Load more (S10)", () => {
+  it("Should merge flat rows by window sort and advance the cursor at the newest tail", () => {
     const local = makeSource({ key: LOCAL_COMPUTER_ID, name: "MacBook Pro" });
     const devbox = makeSource({ key: "cmp_devbox", name: "devbox" });
     const entries = [
