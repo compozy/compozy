@@ -87,7 +87,7 @@ func (h *BaseHandlers) GetAgentSkillReview(c *gin.Context) {
 	if !ok {
 		return
 	}
-	payload, err := skillReviewPayload(review, true)
+	payload, err := skillReviewPayload(c.Request.Context(), review, true)
 	if err != nil {
 		h.skillReviewError(c, err)
 		return
@@ -249,7 +249,7 @@ func (api *AgentInstanceAPI) ProposeSkill(
 	if err != nil {
 		return contract.AgentSkillReviewResponse{}, err
 	}
-	payload, err := skillReviewPayload(result.Review, false)
+	payload, err := skillReviewPayload(ctx, result.Review, false)
 	return contract.AgentSkillReviewResponse{Review: payload, DuplicateOfPending: result.Duplicate}, err
 }
 

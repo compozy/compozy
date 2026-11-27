@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -1581,6 +1582,7 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 	for _, action := range []string{"list", "show", "approve", "reject", "revert"} {
 		t.Run("Should forward skill review "+action, func(t *testing.T) {
 			t.Parallel()
+			var decisions atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				if action == "list" {
@@ -1595,6 +1597,7 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 					return
 				}
 				if r.Method == "POST" {
+					decisions.Add(1)
 					if r.URL.Path != "/api/agent-skill-reviews/skr-test/"+action {
 						t.Errorf("decision path: %s", r.URL)
 					}
@@ -1643,6 +1646,9 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 			output, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if action == "revert" && decisions.Load() != 1 {
+				t.Fatalf("revert sent %d decision requests, want one", decisions.Load())
 			}
 			if action == "show" &&
 				(!strings.Contains(output, "Runs automatically") || !strings.Contains(output, "Review changes.")) {
@@ -1728,17 +1734,20 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 			`"runs_automatically":{"hooks":0,"mcp_servers":0,"scripts":1},`+
 			`"base_runs_automatically":{"hooks":0,"mcp_servers":0,"scripts":2},`+
 			`"changes":[{"path":"SKILL.md","change":"modified"},{"path":"assets/flow.png","change":"unchanged"},`+
-			`{"path":"scripts/old.sh","change":"removed"},{"path":"scripts/tool","change":"modified"}],`+
+			`{"path":"scripts/old.sh","change":"removed"},{"path":"scripts/tool","change":"modified"},`+
+			`{"path":"added.md","change":"added"},{"path":"removed.md","change":"removed"}],`+
 			`"files":[{"path":"SKILL.md","content":"1. Run make gate.\n2. Confirm the freeze calendar.\n"},`+
-			`{"path":"scripts/tool","content":"echo replacement\n"}],`+
+			`{"path":"scripts/tool","content":"echo replacement\n"},{"path":"added.md","content":""}],`+
 			`"base_files":[{"path":"SKILL.md","content":"1. Run make gate.\n","redacted":true},`+
 			`{"path":"assets/flow.png","binary":true,"size":18234},{"path":"scripts/old.sh","content":"echo old\n"},`+
-			`{"path":"scripts/tool","binary":true,"size":3615}]}`)
+			`{"path":"scripts/tool","binary":true,"size":3615},{"path":"removed.md","content":""}]}`)
 		for _, want := range []string{
 			"release-checklist (edit) · pending\nDigest: sha256:a90b   Base: sha256:5c2d\n",
 			"Runs automatically: 0 hooks, 0 MCP servers (base: 0 hooks, 0 MCP servers)\n",
 			"Supporting scripts: 1 (base: 2)\n",
-			"Files: 2 modified, 0 added, 1 removed\n",
+			"Files: 2 modified, 1 added, 2 removed\n",
+			"File added.md added\n",
+			"File removed.md removed\n",
 			"SKILL.md: The diff may hide changes to redacted text in the installed file.\n",
 			"--- a/SKILL.md\n+++ b/SKILL.md\n",
 			"+2. Confirm the freeze calendar.\n",

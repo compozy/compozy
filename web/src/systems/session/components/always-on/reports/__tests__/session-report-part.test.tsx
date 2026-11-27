@@ -1021,6 +1021,15 @@ describe("SessionReportPart skill review", () => {
     expect(screen.queryByRole("button", { name: "Review skill" })).toBeNull();
   });
 
+  it("Should say the installed skill stays in place after rejecting an edit", async () => {
+    skillReviews.fetch.mockResolvedValue(editReview({ state: "rejected" }));
+    render(<SessionReportPart data={SKILL_REPORT} />, { wrapper: harness(vi.fn()) });
+
+    expect(await screen.findByText(/You rejected the change/)).toHaveTextContent(
+      "The installed skill stays as it is."
+    );
+  });
+
   it("Should read and decide under the instance's own profile [UT-059]", async () => {
     reads.instances.mockResolvedValue([{ ...INSTANCE, profile_name: "work" }]);
     skillReviews.fetch.mockResolvedValue(skillReview());

@@ -429,8 +429,9 @@ changes only the files it names; every other installed file, including binary an
 is kept exactly. `show` prints the installed digest as `Base:`, Runs automatically for the change and
 for the installed skill, how many files are modified, added and removed, and a diff of each changed
 file. The CLI and Web viewer flag modified files when redacted text in the installed version
-can hide changes from the diff. Approval applies only while the installed skill still matches
-that base. If it changed, approval fails with `skill_review_base_stale` and you can only reject.
+can hide changes from the diff. The edit can contain up to 64 files and 1 MiB of file contents.
+Approval requires the reviewed install target and a skill that still matches the base. If the
+target moved or the skill changed, approval fails with `skill_review_base_stale` and you can only reject.
 
 To undo the latest approval of a skill, run `compozy agent skill review revert <review-id>
 --expected-digest <reviewed-digest>`. A reverted new skill is removed; a reverted edit restores the

@@ -38,14 +38,15 @@ Read the instance's reviews, with their lessons and evidence sessions, with `com
 Pass `mode: "edit"` to change a skill already installed in this instance's skill root (the same root approval installs into; other tiers are never read or written). An edit is an **overlay**: `SKILL.md` is regenerated from `name`, `description`, and `body`; `files` adds or replaces text files; `remove_paths` deletes installed files; every other installed file, binary and executable ones included, is kept byte- and mode-exact. A replaced file keeps its installed mode.
 
 - No skill of that name in the root: `skill_review_base_missing` (use `mode: "new"`). A `new` proposal for an installed name: `skill_propose_name_taken` (use `mode: "edit"`).
-- The installed skill has a symlink or another non-regular entry, more than 64 files, or more than 1 MiB: `skill_review_base_unsupported`; it can only be edited directly.
+- The installed skill has a symlink, another non-regular entry, a file with special permission bits, more than 64 files, or more than 1 MiB: `skill_review_base_unsupported`. Edit it directly.
+- The resulting edit contains more than 64 files or more than 1 MiB of file contents: `skill_review_invalid`. Remove files or reduce their size in the proposed edit.
 - A result identical to the installed skill: `skill_propose_no_change`.
 - `remove_paths` naming a file the installed skill does not have, naming `SKILL.md` or a file the proposal also writes, or used with `mode: "new"`: `skill_propose_invalid_remove`.
 - While the skill has an unresolved install conflict: `skill_install_conflict`.
 
 The daemon captures the installed contents as the review's base: an unredacted, lossless snapshot kept outside every scan root for as long as the review exists, with its tree digest as `base_digest`. The review shows each path as added, removed, modified, or unchanged, a diff for modified text files, binary files by name and size, and **Runs automatically** for both the resulting tree (kept files count, so a body-only edit of a skill with `scripts/` still reports them) and the installed base. The stored draft records `mode` and `remove_paths`, so the review digest covers them. Proposal identity is the digest plus `base_digest`: rejected contents are refused with `skill_propose_previously_rejected` only against the same base, and may be proposed again once the installed skill changes.
 
-Approval of an edit succeeds only while the installed skill still equals its base. If it changed (or was deleted) after the proposal, approval fails with `skill_review_base_stale` and the review stays pending; reject it and propose again against the current contents. Two pending edits of one base cannot both be approved: after the first, the second is stale.
+Approval of an edit succeeds only at the reviewed install target while the installed skill still equals its base. If the target moved or the skill changed after the proposal, approval fails with `skill_review_base_stale` and the review stays pending. Reject it and propose the edit again. Two pending edits of one base cannot both be approved: after the first, the second is stale.
 
 To rename a file by case, remove the old spelling and add the new one. The resulting tree cannot contain paths that differ only by case. Review detail marks masked base text with `redacted: true`. The CLI and Web viewer warn that changes to this text can be hidden from the diff.
 

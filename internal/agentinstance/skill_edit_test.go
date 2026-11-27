@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -68,13 +69,13 @@ func (f *skillTxFixture) linkSkillOutside(t *testing.T, name string) string {
 }
 
 // requireLinkedOutside checks that the skill path is still the symlink and its target is untouched.
-func (f *skillTxFixture) requireLinkedOutside(t *testing.T, name, outside string) {
+func (f *skillTxFixture) requireLinkedOutside(t *testing.T, name, outside string, originalMode os.FileMode) {
 	t.Helper()
 	if target, err := os.Readlink(filepath.Join(f.root, name)); err != nil || target != outside {
 		t.Fatalf("skill link = %q, %v; want %q", target, err, outside)
 	}
 	data, mode := readSkillFileMode(t, filepath.Join(outside, "scripts", "check.sh"))
-	if string(data) != skillEditBase[1].content || mode != skillEditBase[1].mode {
+	if string(data) != skillEditBase[1].content || mode != originalMode {
 		t.Fatalf("outside directory changed: %q %o", data, mode)
 	}
 }
@@ -216,7 +217,7 @@ func TestSkillEditProposals(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refuse an installed skill with a symlink or too many files [UT-015]", func(t *testing.T) {
+	t.Run("Should refuse a symlink in an installed skill [UT-015]", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
 		f.install(t, skillEditName, skillEditBase...)
@@ -228,10 +229,13 @@ func TestSkillEditProposals(t *testing.T) {
 			t.Fatalf("symlink: Propose() = %v", err)
 		}
 		requireNoReviews(t, svc)
+	})
 
-		// The whole skill directory is a symlink to a directory outside the target root.
+	t.Run("Should refuse a symlinked installed skill directory [UT-015]", func(t *testing.T) {
+		t.Parallel()
 		linked := newSkillTxFixture(t)
 		linked.install(t, skillEditName, skillEditBase...)
+		_, originalMode := readSkillFileMode(t, filepath.Join(linked.root, skillEditName, "scripts", "check.sh"))
 		outside := linked.linkSkillOutside(t, skillEditName)
 		linkedSvc := linked.service(t, "home-a", nil)
 		if _, err := linked.proposeEdit(t, linkedSvc, "Changed.\n", nil); !errors.Is(err,
@@ -239,8 +243,11 @@ func TestSkillEditProposals(t *testing.T) {
 			t.Fatalf("symlinked skill directory: Propose() = %v, want skill_review_base_unsupported", err)
 		}
 		requireNoReviews(t, linkedSvc)
-		linked.requireLinkedOutside(t, skillEditName, outside)
+		linked.requireLinkedOutside(t, skillEditName, outside, originalMode)
+	})
 
+	t.Run("Should refuse an installed skill with too many files [UT-015]", func(t *testing.T) {
+		t.Parallel()
 		many := newSkillTxFixture(t)
 		files := append([]skillTestFile{}, skillEditBase...)
 		for i := range maxSkillBaseFiles {
@@ -254,6 +261,67 @@ func TestSkillEditProposals(t *testing.T) {
 		if _, err := many.proposeEdit(t, manySvc, "Changed.\n", nil); !errors.Is(err, ErrSkillReviewBaseUnsupported) {
 			t.Fatalf("too many files: Propose() = %v", err)
 		}
+	})
+
+	t.Run("Should refuse a base file with special permission bits", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows does not store Unix set-group-ID bits")
+		}
+		f := newSkillTxFixture(t)
+		f.install(t, skillEditName, skillEditBase...)
+		path := filepath.Join(f.root, skillEditName, "scripts", "check.sh")
+		if err := os.Chmod(path, skillEditBase[1].mode|os.ModeSetgid); err != nil {
+			t.Fatal(err)
+		}
+		svc := f.service(t, "home-a", nil)
+		if _, err := f.proposeEdit(t, svc, "Changed.\n", nil); !errors.Is(err, ErrSkillReviewBaseUnsupported) {
+			t.Fatalf("Propose() = %v, want skill_review_base_unsupported", err)
+		}
+		requireNoReviews(t, svc)
+	})
+
+	t.Run("Should enforce the file limit on the completed overlay", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		files := []skillTestFile{skillEditBase[0]}
+		for i := range maxSkillBaseFiles - 1 {
+			files = append(files, skillTestFile{
+				path: "refs/" + strings.Repeat("a", i+1) + ".md", content: "x", mode: 0o600,
+			})
+		}
+		f.install(t, skillEditName, files...)
+		svc := f.service(t, "home-a", nil)
+		added := SkillDraftFile{Path: "refs/new.md", Content: "New."}
+		_, err := f.proposeEdit(t, svc, "Changed.\n", func(input *SkillProposalInput) {
+			input.Files = []SkillDraftFile{added}
+		})
+		if !errors.Is(err, ErrSkillReviewInvalid) {
+			t.Fatalf("overflowing edit = %v, want skill_review_invalid", err)
+		}
+		requireNoReviews(t, svc)
+		if _, err := f.proposeEdit(t, svc, "Changed.\n", func(input *SkillProposalInput) {
+			input.Files = []SkillDraftFile{added}
+			input.RemovePaths = []string{"refs/a.md"}
+		}); err != nil {
+			t.Fatalf("edit within the file limit = %v", err)
+		}
+	})
+
+	t.Run("Should refuse a completed overlay exceeding the byte limit", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		f.install(t, skillEditName, skillEditBase[0], skillTestFile{
+			path: "padding.md", content: strings.Repeat("a", maxSkillBaseBytes-200), mode: 0o600,
+		})
+		svc := f.service(t, "home-a", nil)
+		_, err := f.proposeEdit(t, svc, "Changed.\n", func(input *SkillProposalInput) {
+			input.Files = []SkillDraftFile{{Path: "refs/new.md", Content: strings.Repeat("a", 300)}}
+		})
+		if !errors.Is(err, ErrSkillReviewInvalid) {
+			t.Fatalf("oversized edit = %v, want skill_review_invalid", err)
+		}
+		requireNoReviews(t, svc)
 	})
 
 	t.Run("Should refuse agent-reachable overlay inputs with skill_review_invalid [UT-015]", func(t *testing.T) {
@@ -301,32 +369,35 @@ func TestSkillEditProposals(t *testing.T) {
 			readErr   error
 			kept      bool
 		}{
-			{name: "no row created", kept: false},
-			{name: "row committed despite the error", committed: true, kept: true},
-			{name: "row unreadable", readErr: errors.New("database closed"), kept: true},
+			{name: "Should discard artifacts when no row was created", kept: false},
+			{name: "Should keep artifacts when the row committed", committed: true, kept: true},
+			{name: "Should keep artifacts when the row is unreadable", readErr: errors.New("database closed"), kept: true},
 		} {
-			f := newSkillTxFixture(t)
-			f.install(t, skillEditName, skillEditBase...)
-			svc := f.service(t, "home-a", nil)
-			createErr := errors.New("database is locked")
-			svc.Store = &failingCreateStore{
-				memSkillReviewStore: skillStore(svc), err: createErr, commit: tc.committed, readErr: tc.readErr,
-			}
-			if _, err := f.proposeEdit(t, svc, "Changed.\n", nil); !errors.Is(err, createErr) {
-				t.Fatalf("%s: Propose() = %v, want the store error", tc.name, err)
-			}
-			entries, err := os.ReadDir(svc.DraftRoot)
-			if err != nil && !errors.Is(err, os.ErrNotExist) {
-				t.Fatal(err)
-			}
-			// A kept proposal leaves its draft and its base snapshot.
-			want := 0
-			if tc.kept {
-				want = 2
-			}
-			if len(entries) != want {
-				t.Fatalf("%s: draft root holds %d entries, kept = %v", tc.name, len(entries), tc.kept)
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newSkillTxFixture(t)
+				f.install(t, skillEditName, skillEditBase...)
+				svc := f.service(t, "home-a", nil)
+				createErr := errors.New("database is locked")
+				svc.Store = &failingCreateStore{
+					memSkillReviewStore: skillStore(svc), err: createErr, commit: tc.committed, readErr: tc.readErr,
+				}
+				if _, err := f.proposeEdit(t, svc, "Changed.\n", nil); !errors.Is(err, createErr) {
+					t.Fatalf("%s: Propose() = %v, want the store error", tc.name, err)
+				}
+				entries, err := os.ReadDir(svc.DraftRoot)
+				if err != nil && !errors.Is(err, os.ErrNotExist) {
+					t.Fatal(err)
+				}
+				// A kept proposal leaves its draft and its base snapshot.
+				want := 0
+				if tc.kept {
+					want = 2
+				}
+				if len(entries) != want {
+					t.Fatalf("%s: draft root holds %d entries, kept = %v", tc.name, len(entries), tc.kept)
+				}
+			})
 		}
 	})
 
@@ -334,48 +405,83 @@ func TestSkillEditProposals(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
 		f.install(t, skillEditName, skillEditBase...)
+		path := filepath.Join(f.root, skillEditName, "SKILL.md")
+		_, originalMode := readSkillFileMode(t, path)
 		svc := f.service(t, "home-a", nil)
 		review := f.mustProposeEdit(t, svc, "1. Run make gate.\n2. Confirm the freeze calendar.\n")
 		result, err := f.approve(t, svc, review)
 		if err != nil || !result.Committed || result.Warning != nil {
 			t.Fatalf("Approve() = %+v %v", result, err)
 		}
-		got, _ := skillStore(svc).GetReview(t.Context(), review.ID)
+		got := requireReviewState(t, svc, review.ID, skillReviewApproved)
 		live := f.digest(t, skillEditName)
-		if got.State != "approved" || got.InstalledDigest != live || live != review.ProposedDigest {
+		if got.InstalledDigest != live || live != review.ProposedDigest {
 			t.Fatalf("review = %+v, live %s", got, live)
 		}
-		definition, mode := readSkillFileMode(t, filepath.Join(f.root, skillEditName, "SKILL.md"))
-		if !strings.Contains(string(definition), "2. Confirm the freeze calendar.") || mode != 0o644 {
+		definition, mode := readSkillFileMode(t, path)
+		if !strings.Contains(string(definition), "2. Confirm the freeze calendar.") || mode != originalMode {
 			t.Fatalf("SKILL.md = %q mode %o", definition, mode)
 		}
 		f.requireClean(t)
 	})
 
+	t.Run("Should refuse edit approval at a different agent-local root with the same bytes", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		f.instance.WorkspaceID = ""
+		original := f.install(t, skillEditName, skillEditBase...)
+		svc := f.service(t, "home-a", nil)
+		review := f.mustProposeEdit(t, svc, "Changed.\n")
+		moved := skillTxFixture{root: filepath.Join(t.TempDir(), "skills"), instance: f.instance}
+		if base := moved.install(t, skillEditName, skillEditBase...); base != original {
+			t.Fatalf("alternate base digest = %q, want %q", base, original)
+		}
+		if _, err := moved.approve(t, svc, review); !errors.Is(err, ErrSkillReviewBaseStale) {
+			t.Fatalf("Approve() = %v, want skill_review_base_stale", err)
+		}
+		requireReviewState(t, svc, review.ID, SkillReviewPending)
+		if f.digest(t, skillEditName) != original || moved.digest(t, skillEditName) != original {
+			t.Fatal("the refused approval changed an installed skill")
+		}
+	})
+
 	t.Run("Should refuse approval after the installed skill changed or was deleted [UT-017]", func(t *testing.T) {
 		t.Parallel()
-		for _, change := range []string{"modified", "deleted"} {
-			f := newSkillTxFixture(t)
-			f.install(t, skillEditName, skillEditBase...)
-			svc := f.service(t, "home-a", nil)
-			review := f.mustProposeEdit(t, svc, "Changed.\n")
-			dir := filepath.Join(f.root, skillEditName)
-			if change == "modified" {
-				if err := os.WriteFile(filepath.Join(dir, "notes.md"), []byte("operator"), 0o600); err != nil {
+		for _, change := range []struct {
+			name    string
+			deleted bool
+		}{
+			{name: "Should refuse approval after the base changed"},
+			{name: "Should refuse approval after the base was deleted", deleted: true},
+		} {
+			t.Run(change.name, func(t *testing.T) {
+				t.Parallel()
+				f := newSkillTxFixture(t)
+				f.install(t, skillEditName, skillEditBase...)
+				svc := f.service(t, "home-a", nil)
+				review := f.mustProposeEdit(t, svc, "Changed.\n")
+				dir := filepath.Join(f.root, skillEditName)
+				if !change.deleted {
+					if err := os.WriteFile(filepath.Join(dir, "notes.md"), []byte("operator"), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.RemoveAll(dir); err != nil {
 					t.Fatal(err)
 				}
-			} else if err := os.RemoveAll(dir); err != nil {
-				t.Fatal(err)
-			}
-			before, _ := skillTreeState(dir)
-			if _, err := f.approve(t, svc, review); !errors.Is(err, ErrSkillReviewBaseStale) {
-				t.Fatalf("%s: Approve() = %v, want base stale", change, err)
-			}
-			got, _ := skillStore(svc).GetReview(t.Context(), review.ID)
-			if after, _ := skillTreeState(dir); after != before || got.State != SkillReviewPending {
-				t.Fatalf("%s: live %s -> %s, state %s", change, before, after, got.State)
-			}
-			f.requireClean(t)
+				before, err := skillTreeState(dir)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := f.approve(t, svc, review); !errors.Is(err, ErrSkillReviewBaseStale) {
+					t.Fatalf("Approve() = %v, want base stale", err)
+				}
+				requireReviewState(t, svc, review.ID, SkillReviewPending)
+				after, err := skillTreeState(dir)
+				if err != nil || after != before {
+					t.Fatalf("live %s -> %s, err %v", before, after, err)
+				}
+				f.requireClean(t)
+			})
 		}
 	})
 
@@ -401,15 +507,22 @@ func TestSkillEditProposals(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
 		f.install(t, skillEditName, skillEditBase...)
+		modes := make(map[string]os.FileMode, len(skillEditBase)-1)
+		for _, file := range skillEditBase[1:] {
+			_, modes[file.path] = readSkillFileMode(
+				t,
+				filepath.Join(f.root, skillEditName, filepath.FromSlash(file.path)),
+			)
+		}
 		svc := f.service(t, "home-a", nil)
 		review := f.mustProposeEdit(t, svc, "1. Run make gate.\n2. Confirm the freeze calendar.\n")
-		contents, err := ReadSkillReviewContents(review)
+		contents, err := ReadSkillReviewContents(t.Context(), review)
 		if err != nil || contents.SnapshotProblem != nil {
 			t.Fatalf("ReadSkillReviewContents() = %v %v", err, contents.SnapshotProblem)
 		}
 		for _, file := range skillEditBase[1:] {
 			kept, ok := contents.Result.find(file.path)
-			if !ok || !bytes.Equal(kept.Data, []byte(file.content)) || kept.Perm != file.mode {
+			if !ok || !bytes.Equal(kept.Data, []byte(file.content)) || kept.Perm != modes[file.path] {
 				t.Fatalf("result %s = %+v", file.path, kept)
 			}
 		}
@@ -442,13 +555,13 @@ func TestSkillEditProposals(t *testing.T) {
 		}
 		for _, file := range skillEditBase[1:] {
 			data, mode := readSkillFileMode(t, filepath.Join(f.root, skillEditName, filepath.FromSlash(file.path)))
-			if !bytes.Equal(data, []byte(file.content)) || mode != file.mode {
+			if !bytes.Equal(data, []byte(file.content)) || mode != modes[file.path] {
 				t.Fatalf("installed %s = %q mode %o", file.path, data, mode)
 			}
 		}
 	})
 
-	t.Run("Should refuse remove_paths of an absent file or with mode new [UT-053]", func(t *testing.T) {
+	t.Run("Should refuse an absent removal path [UT-053]", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
 		f.install(t, skillEditName, skillEditBase...)
@@ -459,23 +572,39 @@ func TestSkillEditProposals(t *testing.T) {
 		if !errors.Is(err, ErrSkillProposeInvalidRemove) {
 			t.Fatalf("absent path: Propose() = %v", err)
 		}
-		_, err = f.proposeEdit(t, svc, "Changed.\n", func(input *SkillProposalInput) {
+		requireNoReviews(t, svc)
+	})
+
+	t.Run("Should refuse removal paths on a new skill [UT-053]", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		_, err := f.proposeEdit(t, svc, "Changed.\n", func(input *SkillProposalInput) {
 			input.Name, input.Mode, input.RemovePaths = "fresh-skill", SkillProposalNew, []string{"notes.md"}
 		})
 		if !errors.Is(err, ErrSkillProposeInvalidRemove) {
 			t.Fatalf("mode new: Propose() = %v", err)
 		}
 		requireNoReviews(t, svc)
+	})
 
+	t.Run("Should show the overlay with the named file removed [UT-053]", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		f.install(t, skillEditName, skillEditBase...)
+		svc := f.service(t, "home-a", nil)
 		removed, err := f.proposeEdit(t, svc, "1. Run make gate.\n", func(input *SkillProposalInput) {
 			input.Description, input.RemovePaths = "Base", []string{"scripts/check.sh"}
 		})
 		if err != nil {
 			t.Fatalf("valid removal: %v", err)
 		}
-		contents, err := ReadSkillReviewContents(removed.Review)
-		if err != nil {
-			t.Fatal(err)
+		contents, err := ReadSkillReviewContents(t.Context(), removed.Review)
+		if err != nil || contents.SnapshotProblem != nil {
+			t.Fatalf("ReadSkillReviewContents() = %v, snapshot problem %v", err, contents.SnapshotProblem)
+		}
+		if _, kept := contents.Result.find("assets/flow.png"); !kept {
+			t.Fatal("retained file missing from the resulting tree")
 		}
 		if _, kept := contents.Result.find("scripts/check.sh"); kept {
 			t.Fatal("removed file kept in the resulting tree")
@@ -491,7 +620,7 @@ func TestSkillEditProposals(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(review.SnapshotPath, "SKILL.md"), []byte("tampered"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		contents, err := ReadSkillReviewContents(review)
+		contents, err := ReadSkillReviewContents(t.Context(), review)
 		if err != nil || !errors.Is(contents.SnapshotProblem, ErrSkillReviewSnapshotInvalid) ||
 			contents.Base != nil || contents.Changes != nil {
 			t.Fatalf("contents = %+v %v", contents, err)

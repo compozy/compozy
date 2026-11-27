@@ -341,7 +341,7 @@ func TestSkillRevert(t *testing.T) {
 		approved := f.mustApprove(t, svc, f.mustProposeEdit(t, svc, "Approved change.\n"))
 		reverted := f.mustRevert(t, svc, approved)
 		for _, review := range []SkillReview{requireReviewState(t, svc, rejected.ID, "rejected"), reverted} {
-			contents, err := ReadSkillReviewContents(review)
+			contents, err := ReadSkillReviewContents(t.Context(), review)
 			if err != nil || contents.SnapshotProblem != nil || len(contents.Base) != len(skillEditBase) ||
 				len(contents.Changes) == 0 {
 				t.Fatalf("contents of %s %s = %+v, %v", review.State, review.ID, contents, err)
@@ -480,46 +480,56 @@ func TestSkillRevert(t *testing.T) {
 
 	t.Run("Should resolve a conflicted revert from another home either way [UT-078]", func(t *testing.T) {
 		t.Parallel()
-		for _, keep := range []string{SkillConflictKeepCurrent, SkillConflictKeepPrevious} {
-			f := newSkillTxFixture(t)
-			svc := f.service(t, "home-a", nil)
-			_, edit := f.approvedEditOverBase(t, svc)
-			installed := f.digest(t, skillEditName)
-			skillFile := filepath.Join(f.root, skillEditName, "SKILL.md")
-			hook := withHook(svc, func(step string) bool {
-				if step == "rechecked" {
-					if err := os.WriteFile(skillFile, []byte("external"), 0o600); err != nil {
-						t.Error(err)
+		for _, choice := range []struct {
+			name string
+			keep string
+		}{
+			{name: "Should resolve by keeping the external edit", keep: SkillConflictKeepCurrent},
+			{name: "Should resolve by restoring the installed edit", keep: SkillConflictKeepPrevious},
+		} {
+			t.Run(choice.name, func(t *testing.T) {
+				t.Parallel()
+				keep := choice.keep
+				f := newSkillTxFixture(t)
+				svc := f.service(t, "home-a", nil)
+				_, edit := f.approvedEditOverBase(t, svc)
+				installed := f.digest(t, skillEditName)
+				skillFile := filepath.Join(f.root, skillEditName, "SKILL.md")
+				hook := withHook(svc, func(step string) bool {
+					if step == "rechecked" {
+						if err := os.WriteFile(skillFile, []byte("external"), 0o600); err != nil {
+							t.Error(err)
+						}
+					}
+					return false
+				})
+				if _, err := f.revert(t, hook, edit); !errors.Is(err, ErrSkillInstallConflict) {
+					t.Fatalf("Revert() = %v, want skill_install_conflict", err)
+				}
+				payload, ok := f.journal(t, skillEditName)
+				if !ok || payload.OriginalSource != skillOriginalInCopy {
+					t.Fatalf("journal = %+v, %v; want the original in the verified copy", payload, ok)
+				}
+				external := f.digest(t, skillEditName)
+				result, err := f.resolve(t, f.service(t, "home-b", nil), payload.OpID, keep)
+				if err != nil || result.AlreadyResolved {
+					t.Fatalf("ResolveInstallConflict(%s) = %+v, %v", keep, result, err)
+				}
+				writer := f.currentWriter(t, skillEditName)
+				switch keep {
+				case SkillConflictKeepCurrent:
+					if f.digest(t, skillEditName) != external || writer == nil || writer.ReviewID != "" {
+						t.Fatalf("keep=current left %s with writer %+v", f.digest(t, skillEditName), writer)
+					}
+				default:
+					if f.digest(t, skillEditName) != installed || writer == nil || writer.ReviewID != edit.ID {
+						t.Fatalf("keep=previous left %s with writer %+v", f.digest(t, skillEditName), writer)
+					}
+					if f.digest(t, skillConflictCopyPrefix+payload.OpID) != external {
+						t.Fatal("the external edit is not in the keep-copy directory")
 					}
 				}
-				return false
 			})
-			if _, err := f.revert(t, hook, edit); !errors.Is(err, ErrSkillInstallConflict) {
-				t.Fatalf("Revert() = %v, want skill_install_conflict", err)
-			}
-			payload, ok := f.journal(t, skillEditName)
-			if !ok || payload.OriginalSource != skillOriginalInCopy {
-				t.Fatalf("journal = %+v, %v; want the original in the verified copy", payload, ok)
-			}
-			external := f.digest(t, skillEditName)
-			result, err := f.resolve(t, f.service(t, "home-b", nil), payload.OpID, keep)
-			if err != nil || result.AlreadyResolved {
-				t.Fatalf("ResolveInstallConflict(%s) = %+v, %v", keep, result, err)
-			}
-			writer := f.currentWriter(t, skillEditName)
-			switch keep {
-			case SkillConflictKeepCurrent:
-				if f.digest(t, skillEditName) != external || writer == nil || writer.ReviewID != "" {
-					t.Fatalf("keep=current left %s with writer %+v", f.digest(t, skillEditName), writer)
-				}
-			default:
-				if f.digest(t, skillEditName) != installed || writer == nil || writer.ReviewID != edit.ID {
-					t.Fatalf("keep=previous left %s with writer %+v", f.digest(t, skillEditName), writer)
-				}
-				if f.digest(t, skillConflictCopyPrefix+payload.OpID) != external {
-					t.Fatal("the external edit is not in the keep-copy directory")
-				}
-			}
 		}
 	})
 

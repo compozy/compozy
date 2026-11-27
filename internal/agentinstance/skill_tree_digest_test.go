@@ -113,7 +113,7 @@ func TestSkillTreeDigest(t *testing.T) {
 		// The enumeration's modes are stale, as after a replacement between listing and opening.
 		stale := []skillTreeFile{{path: "SKILL.md", perm: 0o777}, {path: "scripts/run.sh", perm: 0o777},
 			{path: "z.txt", perm: 0o777}}
-		got, err := hashSkillTreeFiles(root, stale)
+		got, err := hashSkillTreeFiles(t.Context(), root, stale)
 		if err != nil || got != digest(t, dir) {
 			t.Fatalf("hashSkillTreeFiles() = %s, %v; want the digest of the opened files", got, err)
 		}
@@ -130,7 +130,7 @@ func TestSkillTreeDigest(t *testing.T) {
 				t.Errorf("close root: %v", err)
 			}
 		})
-		_, err = hashSkillTreeFiles(root, []skillTreeFile{{path: "SKILL.md", perm: 0o600}, {path: "gone.md"}})
+		_, err = hashSkillTreeFiles(t.Context(), root, []skillTreeFile{{path: "SKILL.md", perm: 0o600}, {path: "gone.md"}})
 		if !errors.Is(err, errSkillTreeChanged) || errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("hashSkillTreeFiles() = %v, want a changed tree without not-exist identity", err)
 		}

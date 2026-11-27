@@ -1,6 +1,7 @@
 package agentinstance
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -23,6 +24,19 @@ var ErrSkillTreeUnsupported = errors.New("skill_tree_unsupported")
 var errSkillTreeChanged = errors.New("skill tree changed while it was read")
 
 const skillTreeDigestHeader = "compozy-skill-tree-v1\n"
+const skillUnsupportedMode = fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
+
+type skillContextReader struct {
+	ctx    context.Context
+	source io.Reader
+}
+
+func (r skillContextReader) Read(buf []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.source.Read(buf)
+}
 
 // SkillTreeDigest returns "sha256:<hex>" over the v1 manifest (ADR-002):
 //
@@ -30,8 +44,15 @@ const skillTreeDigestHeader = "compozy-skill-tree-v1\n"
 //	"<len(path)>:<path>\n<perm octal>\n<size>\n<sha256(content) hex>\n".
 //
 // Paths are slash-separated and relative to dir. Directories contribute only through their files.
-// Symlinks and non-regular entries return ErrSkillTreeUnsupported.
+// Symlinks, non-regular entries and files with special mode bits return ErrSkillTreeUnsupported.
 func SkillTreeDigest(dir string) (string, error) {
+	return digestSkillTree(context.Background(), dir)
+}
+
+func digestSkillTree(ctx context.Context, dir string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	info, err := os.Lstat(dir)
 	if err != nil {
 		return "", err
@@ -43,7 +64,11 @@ func SkillTreeDigest(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	digest, err := skillTreeDigest(root)
+	files, err := skillTreeFiles(ctx, root, 0)
+	if err != nil {
+		return "", errors.Join(err, root.Close())
+	}
+	digest, err := hashSkillTreeFiles(ctx, root, files)
 	return digest, errors.Join(err, root.Close())
 }
 
@@ -52,22 +77,14 @@ type skillTreeFile struct {
 	perm fs.FileMode
 }
 
-func skillTreeDigest(root *os.Root) (string, error) {
-	files, err := skillTreeFiles(root, 0)
-	if err != nil {
-		return "", err
-	}
-	return hashSkillTreeFiles(root, files)
-}
-
 // hashSkillTreeFiles builds the manifest from the enumerated files. Each record takes its mode, size
 // and hash from the one file it opened, and a file that vanished since enumeration is a changed
 // tree, never an absent one.
-func hashSkillTreeFiles(root *os.Root, files []skillTreeFile) (string, error) {
+func hashSkillTreeFiles(ctx context.Context, root *os.Root, files []skillTreeFile) (string, error) {
 	manifest := sha256.New()
 	manifest.Write([]byte(skillTreeDigestHeader))
 	for _, file := range files {
-		perm, size, sum, err := hashRootFile(root, file.path)
+		perm, size, sum, err := hashRootFile(ctx, root, file.path)
 		if errors.Is(err, fs.ErrNotExist) {
 			return "", fmt.Errorf("%w: %s disappeared while it was read", errSkillTreeChanged, file.path)
 		}
@@ -86,10 +103,13 @@ func skillManifestLine(path string, perm fs.FileMode, size int64, sum string) st
 }
 
 // skillTreeFiles lists the regular files of root sorted by path bytes, refusing any other entry type.
-func skillTreeFiles(root *os.Root, limit int) ([]skillTreeFile, error) {
+func skillTreeFiles(ctx context.Context, root *os.Root, limit int) ([]skillTreeFile, error) {
 	var files []skillTreeFile
 	err := fs.WalkDir(root.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		if entry.IsDir() {
@@ -105,6 +125,9 @@ func skillTreeFiles(root *os.Root, limit int) ([]skillTreeFile, error) {
 		if err != nil {
 			return err
 		}
+		if info.Mode()&skillUnsupportedMode != 0 {
+			return fmt.Errorf("%w: %s has special permission bits", ErrSkillTreeUnsupported, path)
+		}
 		files = append(files, skillTreeFile{path: path, perm: info.Mode().Perm()})
 		return nil
 	})
@@ -115,20 +138,23 @@ func skillTreeFiles(root *os.Root, limit int) ([]skillTreeFile, error) {
 	return files, nil
 }
 
-func hashRootFile(root *os.Root, path string) (fs.FileMode, int64, string, error) {
+func hashRootFile(ctx context.Context, root *os.Root, path string) (fs.FileMode, int64, string, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, 0, "", err
+	}
 	file, err := root.Open(path)
 	if err != nil {
 		return 0, 0, "", err
 	}
 	info, err := file.Stat()
-	if err == nil && !info.Mode().IsRegular() {
+	if err == nil && (!info.Mode().IsRegular() || info.Mode()&skillUnsupportedMode != 0) {
 		err = fmt.Errorf("%w: %s", ErrSkillTreeUnsupported, path)
 	}
 	if err != nil {
 		return 0, 0, "", errors.Join(err, file.Close())
 	}
 	sum := sha256.New()
-	size, err := io.Copy(sum, file)
+	size, err := io.Copy(sum, skillContextReader{ctx: ctx, source: file})
 	if err := errors.Join(err, file.Close()); err != nil {
 		return 0, 0, "", err
 	}
@@ -138,10 +164,17 @@ func hashRootFile(root *os.Root, path string) (fs.FileMode, int64, string, error
 // skillTreeState returns the tree digest of dir, or "" when dir itself does not exist. Only that
 // first check classifies a skill as absent; a tree that changes while it is read is an error.
 func skillTreeState(dir string) (string, error) {
+	return skillTreeStateContext(context.Background(), dir)
+}
+
+func skillTreeStateContext(ctx context.Context, dir string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) {
 		return "", nil
 	}
-	return SkillTreeDigest(dir)
+	return digestSkillTree(ctx, dir)
 }
 
 // skillTreeUnexplained stands for a tree recovery cannot digest (a symlink or other unsupported
@@ -173,7 +206,7 @@ func copySkillTree(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	files, err := skillTreeFiles(root, 0)
+	files, err := skillTreeFiles(context.Background(), root, 0)
 	if err == nil {
 		err = os.Mkdir(dst, 0o700)
 	}

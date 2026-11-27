@@ -73,12 +73,15 @@ type RevertEligibility struct {
 // RevertEligibility reads the install log and the live tree without locks; Revert evaluates the same
 // rule under both skill locks before writing.
 func (s *SkillProposalService) RevertEligibility(
-	_ context.Context,
+	ctx context.Context,
 	review SkillReview,
 	targetRoot string,
 ) (RevertEligibility, error) {
 	if reason := revertPrecondition(review, targetRoot); reason != "" {
 		return RevertEligibility{Reason: reason}, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return RevertEligibility{}, err
 	}
 	root, err := fileutil.CanonicalPathWithExistingPrefix(targetRoot)
 	if err != nil {
@@ -90,7 +93,7 @@ func (s *SkillProposalService) RevertEligibility(
 	if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
 		return RevertEligibility{Reason: SkillRevertTargetUnavailable}, nil
 	}
-	return s.readRevertEligibility(review, root, review.SkillName)
+	return s.readRevertEligibility(ctx, review, root, review.SkillName)
 }
 
 // revertPrecondition is the part of eligibility that needs no files.
@@ -111,9 +114,13 @@ func revertPrecondition(review SkillReview, targetRoot string) string {
 // log's current writer, the live tree must equal its installed digest, and an edit's base snapshot
 // must still verify.
 func (s *SkillProposalService) readRevertEligibility(
+	ctx context.Context,
 	review SkillReview,
 	root, name string,
 ) (RevertEligibility, error) {
+	if err := ctx.Err(); err != nil {
+		return RevertEligibility{}, err
+	}
 	entries, err := readSkillInstallLog(root, name)
 	if err != nil {
 		return RevertEligibility{}, err
@@ -131,7 +138,7 @@ func (s *SkillProposalService) readRevertEligibility(
 		}
 		return RevertEligibility{Reason: SkillRevertSuperseded}, nil
 	}
-	live, err := skillTreeState(filepath.Join(root, name))
+	live, err := skillTreeStateContext(ctx, filepath.Join(root, name))
 	if errors.Is(err, ErrSkillTreeUnsupported) {
 		return RevertEligibility{Reason: SkillRevertChangedOnDisk}, nil
 	}
@@ -142,7 +149,10 @@ func (s *SkillProposalService) readRevertEligibility(
 		return RevertEligibility{Reason: SkillRevertChangedOnDisk}, nil
 	}
 	if review.Kind == SkillProposalEdit {
-		if _, err := readSkillSnapshot(review); err != nil {
+		if _, err := readSkillSnapshot(ctx, review); err != nil {
+			if ctx.Err() != nil {
+				return RevertEligibility{}, err
+			}
 			return RevertEligibility{Reason: SkillRevertTargetUnavailable}, nil
 		}
 	}
@@ -222,7 +232,7 @@ func (s *SkillProposalService) revertLocked(
 	default:
 		return SkillInstallResult{}, ErrSkillReviewStale
 	}
-	eligibility, err := s.readRevertEligibility(review, t.root, t.name)
+	eligibility, err := s.readRevertEligibility(ctx, review, t.root, t.name)
 	if err != nil {
 		return SkillInstallResult{}, err
 	}
@@ -233,7 +243,7 @@ func (s *SkillProposalService) revertLocked(
 	if !eligibility.Allowed {
 		return SkillInstallResult{}, &SkillRevertConflictError{Name: t.name, Reason: eligibility.Reason}
 	}
-	op, err := s.revertOp(t, instance, review, operator)
+	op, err := s.revertOp(ctx, t, instance, review, operator)
 	if err != nil {
 		return SkillInstallResult{}, err
 	}
@@ -252,6 +262,7 @@ func (s *SkillProposalService) revertLocked(
 // snapshot, verified again, and restores the review's previous writer only when that writer's installed
 // digest is the restored base; otherwise the restored contents have no writer (operator-authored).
 func (s *SkillProposalService) revertOp(
+	ctx context.Context,
 	t *skillTarget,
 	instance Instance,
 	review SkillReview,
@@ -280,7 +291,7 @@ func (s *SkillProposalService) revertOp(
 			op.next = &previous
 		}
 	}
-	base, err := readSkillSnapshot(review)
+	base, err := readSkillSnapshot(ctx, review)
 	if err != nil {
 		return skillOp{}, errors.Join(
 			&SkillRevertConflictError{Name: t.name, Reason: SkillRevertTargetUnavailable},

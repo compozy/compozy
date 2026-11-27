@@ -413,6 +413,10 @@ masked text. The Web viewer and CLI diff warn that changes to the masked text
 may be hidden, and the review response exposes only the masked version. Rename
 a supporting file by removing its old spelling and adding its new spelling
 with a case change. After approval, the new spelling is the only one installed.
+Add or remove an empty file and check that CLI `review show` lists its path and
+change. Rejecting an edit reports that the installed skill stays in place.
+An edit cannot be approved at a different agent-local target, even when that
+target holds identical files.
 
 Automation event hardening (UT-053, UT-072, UT-073): deliver an escaping-heavy
 summary followed by ordinary events. The complete serialized batch stays within

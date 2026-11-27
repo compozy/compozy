@@ -7,12 +7,11 @@ import { useState } from "react";
 
 import { Alert, AlertDescription, Button, Eyebrow, Item, Receipt } from "@compozy/ui";
 
+import type { AgentSkillReviewView, SkillAutomaticItem } from "@/systems/agent";
 import {
   AgentSkillViewerDialog,
   SkillInstallConflictAlert,
-} from "@/systems/agent/components/skill-review/agent-skill-viewer-dialog";
-import type { AgentSkillReviewView } from "@/systems/agent/hooks/use-agent-skill-review";
-import type { SkillAutomaticItem } from "@/systems/agent/lib/agent-skill-review";
+} from "@/systems/agent/skill-review-view";
 
 import type { ReportAgent } from "../../../lib/session-report-identity";
 import { Notice } from "./report-entry";
@@ -195,7 +194,15 @@ export function SkillReviewCardView({
   if (view.state === "rejected") {
     return (
       <Receipt icon={<X aria-hidden="true" />} tone="rejected">
-        You rejected <b>{review.name}</b>. It stays off unless its contents change.
+        {review.kind === "edit" ? (
+          <>
+            You rejected the change to <b>{review.name}</b>. The installed skill stays as it is.
+          </>
+        ) : (
+          <>
+            You rejected <b>{review.name}</b>. It stays off unless its contents change.
+          </>
+        )}
       </Receipt>
     );
   }

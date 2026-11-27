@@ -47,7 +47,7 @@ func (s *SkillProposalService) Review(
 	if err != nil {
 		return SkillReview{}, SkillDraft{}, err
 	}
-	draft, err := ReadSkillDraft(review.DraftPath, review.Digest)
+	draft, err := ReadSkillDraft(ctx, review.DraftPath, review.Digest)
 	if err != nil {
 		return SkillReview{}, SkillDraft{}, err
 	}

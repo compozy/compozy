@@ -94,7 +94,7 @@ func (s *SkillProposalService) Propose(
 	}
 	defer func() { err = errors.Join(err, t.close()) }()
 	// Checked again after Reconcile, so an interrupted install is settled before name or base is judged.
-	edit, err := checkProposalTarget(t, targetRoot, draft, blocked)
+	edit, err := checkProposalTarget(ctx, t, targetRoot, draft, blocked)
 	if err != nil {
 		return SkillProposalResult{}, err
 	}
@@ -190,6 +190,7 @@ func prepareProposalDraft(input SkillProposalInput) (SkillDraft, error) {
 // checkProposalTarget applies Business Rule 4 under the skill locks: a new skill needs a free name; an
 // edit needs a settled, supported installed base and returns it with the resulting tree.
 func checkProposalTarget(
+	ctx context.Context,
 	t *skillTarget,
 	targetRoot string,
 	draft SkillDraft,
@@ -201,7 +202,7 @@ func checkProposalTarget(
 	if blocked != nil {
 		return skillEdit{}, skillInstallConflictError(draft.Name, blocked.OpID)
 	}
-	return prepareSkillEdit(t.dir, draft)
+	return prepareSkillEdit(ctx, t.dir, draft)
 }
 
 // writeProposal writes the inert draft and, for an edit, the base snapshot beside it.

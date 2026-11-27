@@ -123,7 +123,7 @@ export {
   agentSkillReviewOptions,
 } from "./lib/query-options";
 export { useAgentSkillReview, type AgentSkillReviewView } from "./hooks/use-agent-skill-review";
-export { AgentSkillViewerDialog } from "./components/skill-review/agent-skill-viewer-dialog";
+export { AgentSkillViewerDialog, SkillInstallConflictAlert } from "./skill-review-view";
 export type {
   SkillAutomaticItem,
   SkillAutomaticKind,

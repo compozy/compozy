@@ -73,6 +73,11 @@ func agentSkillEditText(text *strings.Builder, review contract.AgentSkillReviewP
 		case skillChangeRemoved:
 			to, after = skillDiffNoFile, ""
 		}
-		text.WriteString(udiff.Unified(from, to, before.Content, after))
+		diff := udiff.Unified(from, to, before.Content, after)
+		if diff == "" {
+			fmt.Fprintf(text, "File %s %s\n", change.Path, change.Change)
+			continue
+		}
+		text.WriteString(diff)
 	}
 }

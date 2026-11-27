@@ -59,7 +59,7 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 		if _, err := os.Stat(scanRoot); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("proposal created a scan root: %v", err)
 		}
-		if _, err := agentinstance.ReadSkillDraft(review.DraftPath, review.Digest); err != nil {
+		if _, err := agentinstance.ReadSkillDraft(t.Context(), review.DraftPath, review.Digest); err != nil {
 			t.Fatal(err)
 		}
 		var payload string
@@ -188,7 +188,7 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		draft, err := agentinstance.ReadSkillDraft(changed.DraftPath, changed.Digest)
+		draft, err := agentinstance.ReadSkillDraft(t.Context(), changed.DraftPath, changed.Digest)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -456,7 +456,7 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				contents, err := agentinstance.ReadSkillReviewContents(stored)
+				contents, err := agentinstance.ReadSkillReviewContents(t.Context(), stored)
 				if err != nil || contents.SnapshotProblem != nil || len(contents.Base) == 0 {
 					t.Fatalf("%s review %s contents = %+v, %v", stored.State, id, contents, err)
 				}

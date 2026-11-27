@@ -82,7 +82,7 @@ func (api *AgentInstanceAPI) SkillReviewsPage(ctx context.Context, query agentin
 		return result, err
 	}
 	for _, row := range rows {
-		payload, err := skillReviewPayload(row, false)
+		payload, err := skillReviewPayload(ctx, row, false)
 		if err != nil {
 			return result, err
 		}
@@ -107,9 +107,13 @@ func (api *AgentInstanceAPI) SkillReviewsPage(ctx context.Context, query agentin
 	return result, nil
 }
 
-func skillReviewPayload(review agentinstance.SkillReview, detail bool) (contract.AgentSkillReviewPayload, error) {
+func skillReviewPayload(
+	ctx context.Context,
+	review agentinstance.SkillReview,
+	detail bool,
+) (contract.AgentSkillReviewPayload, error) {
 	result := skillReviewMetadata(review)
-	contents, err := agentinstance.ReadSkillReviewContents(review)
+	contents, err := agentinstance.ReadSkillReviewContents(ctx, review)
 	if err != nil && !errors.Is(err, agentinstance.ErrSkillReviewInvalid) {
 		return contract.AgentSkillReviewPayload{}, err
 	}
