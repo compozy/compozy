@@ -28,7 +28,8 @@ async function sendRawRequest(path: string, payload: string): Promise<string> {
     socket.once("end", () => {
       resolve(response);
     });
-    socket.once("connect", () => socket.end(payload));
+    // Windows named pipes do not support TCP-style half-close; keep the pipe open until the server ends it.
+    socket.once("connect", () => socket.write(payload));
   });
 }
 
@@ -62,7 +63,10 @@ async function windowsPermissions(path: string, pipe = false) {
               "$acl = if ([System.IO.Directory]::Exists($env:COMPOZY_PRIVATE_DIRECTORY)) { [System.IO.Directory]::GetAccessControl($env:COMPOZY_PRIVATE_DIRECTORY) } else { [System.IO.File]::GetAccessControl($env:COMPOZY_PRIVATE_DIRECTORY) }",
             ]),
         "$rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])",
-        "@{ user = $user; owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; protected = $acl.AreAccessRulesProtected; allowed = @($rules | ForEach-Object { $_.IdentityReference.Value }) } | ConvertTo-Json -Compress",
+        "$owner = ($acl.GetOwner([System.Security.Principal.SecurityIdentifier])).Value",
+        "$protected = $acl.AreAccessRulesProtected.ToString().ToLowerInvariant()",
+        "$allowed = (@(foreach ($r in $rules) { '\"' + $r.IdentityReference.Value + '\"' })) -join ','",
+        '[Console]::WriteLine(\'{"user":"\' + $user + \'","owner":"\' + $owner + \'","protected":\' + $protected + \',"allowed":[\' + $allowed + \']}\')',
       ].join("; "),
     ],
     {
