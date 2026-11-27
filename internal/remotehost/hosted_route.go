@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -20,6 +21,9 @@ const (
 	hostedRefresh       = time.Minute
 	hostedStartTimeout  = 35 * time.Second
 	hostedProbeInterval = 250 * time.Millisecond
+	hostedEdgeRetry     = 2 * time.Second
+	hostedEdgeInterval  = 15 * time.Second
+	hostedEdgeTimeout   = 3 * time.Second
 )
 
 type hostedView struct {
@@ -36,6 +40,8 @@ type hostedRun struct {
 	fetch    func(context.Context) (remoteproto.HostedTunnel, error)
 	install  func(context.Context, string) (string, error)
 	home     string
+	identity Identity
+	edge     *http.Client
 	refresh  chan struct{}
 	onChange func(context.Context)
 }
@@ -53,7 +59,7 @@ func (h *Host) replaceHostedRoute(run *hostRun, listener string, initial remotep
 			return h.provisionHosted(ctx, run, listener)
 		},
 		install: h.opts.InstallCloudflared, home: h.opts.Home, refresh: make(chan struct{}, 1),
-		onChange: run.syncIngress,
+		identity: h.identity, edge: hostedEdgeClient(h.opts.HostedRouteTransport), onChange: run.syncIngress,
 	}
 	hosted.view.Store(new(hostedView{status: HostedStatus{Enabled: true, State: hostedStateStarting}}))
 	run.hosted.Store(hosted)
@@ -61,6 +67,17 @@ func (h *Host) replaceHostedRoute(run *hostRun, listener string, initial remotep
 		defer close(hosted.done)
 		hosted.supervise(ctx, initial)
 	})
+}
+
+func hostedEdgeClient(transport http.RoundTripper) *http.Client {
+	if transport == nil {
+		transport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment, DisableKeepAlives: true, ForceAttemptHTTP2: true,
+		}
+	}
+	return &http.Client{Transport: transport, Timeout: hostedEdgeTimeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 }
 
 func (r *hostRun) stopHostedRoute() {
@@ -158,6 +175,7 @@ func (h *hostedRun) observeProcess(
 	defer startup.Stop()
 	readyDeadline := startup.C
 	everReady := false
+	var nextEdgeProbe time.Time
 	for {
 		select {
 		case <-ctx.Done():
@@ -170,15 +188,12 @@ func (h *hostedRun) observeProcess(
 			return everReady, process.diagnostics.diagnosis(), errors.New("hosted connector did not become ready")
 		case <-probe.C:
 			ready, err := process.ready(ctx, client)
-			everReady = everReady || ready
 			if err == nil && ready {
+				everReady = true
 				readyDeadline = nil
-				state := remoteproto.HostedRouteReady
-				if credentials.Mode == remoteproto.HostedTunnelEntitlementOnly {
-					state = remoteproto.HostedTunnelEntitlementOnly
-				}
-				h.publish(ctx, credentials.Hostname, credentials.Mode, state, "")
+				nextEdgeProbe = h.observeEdge(ctx, credentials, nextEdgeProbe)
 			} else {
+				nextEdgeProbe = time.Time{}
 				diagnosis := process.diagnostics.diagnosis()
 				if everReady || diagnosis != "" {
 					h.publish(ctx, credentials.Hostname, credentials.Mode, hostedStateRetrying, diagnosis)
@@ -201,8 +216,42 @@ func (h *hostedRun) observeProcess(
 			process.stop(h.logger)
 			return everReady, "", errors.New("hosted connector credentials changed")
 		}
+		if next.Mode != credentials.Mode {
+			nextEdgeProbe = time.Time{}
+		}
 		credentials = next
 	}
+}
+
+func (h *hostedRun) observeEdge(
+	ctx context.Context,
+	credentials remoteproto.HostedTunnel,
+	nextProbe time.Time,
+) time.Time {
+	hostname, mode := credentials.Hostname, credentials.Mode
+	if mode == remoteproto.HostedTunnelEntitlementOnly {
+		h.publish(ctx, hostname, mode, remoteproto.HostedTunnelEntitlementOnly, "")
+		return time.Time{}
+	}
+	if time.Now().Before(nextProbe) {
+		return nextProbe
+	}
+	target := &url.URL{Scheme: "https", Host: hostname}
+	descriptor, err := remoteproto.FetchDescriptor(ctx, target, h.edge)
+	if ctx.Err() != nil {
+		return time.Time{}
+	}
+	if err == nil && descriptor.ComputerID == h.identity.ComputerID &&
+		descriptor.TLSRootSHA256 == h.identity.TLSRootSHA256 && descriptor.BrowserSignIn {
+		h.publish(ctx, hostname, mode, remoteproto.HostedRouteReady, "")
+		return time.Now().Add(hostedEdgeInterval)
+	}
+	diagnosis := "Hosted route did not return this computer's descriptor over HTTPS."
+	if errors.Is(err, remoteproto.ErrDescriptorTLS) {
+		diagnosis = remoteproto.HostedTLSFailureMessage
+	}
+	h.publish(ctx, hostname, mode, hostedStateRetrying, diagnosis)
+	return time.Now().Add(hostedEdgeRetry)
 }
 
 func (h *hostedRun) publish(ctx context.Context, hostname, mode, state, diagnosis string) {

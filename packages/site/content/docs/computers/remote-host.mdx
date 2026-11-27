@@ -39,7 +39,9 @@ A device with terminal access can run commands as the daemon's OS user. Across a
 
 On a linked computer with Compozy Pro, run `compozy remote cloud-route enable`. Compozy Cloud assigns a hostname under `compozy.run`, and the daemon downloads and verifies the connector on first use. The connector makes an outbound connection to Cloudflare and forwards requests to the hosted listener on `127.0.0.1:47824` by default.
 
-Read the assigned hostname and connector state with `compozy remote status --json`. If it reports **Hosted route can't reach Cloudflare (port 7844 blocked)**, allow the outbound connection on port 7844. The daemon retries with backoff. Run `compozy remote cloud-route disable` to remove the hosted route and its tunnel. Unlinking the computer also deletes its tunnel.
+Read the assigned hostname and route state with `compozy remote status --json`. The route reports `ready` after the public hostname passes TLS verification and returns this computer's descriptor. The daemon retries if TLS fails and reports the problem in `cloud_route.diagnosis`. If it reports **Hosted route can't reach Cloudflare (port 7844 blocked)**, allow the outbound connection on port 7844.
+
+Run `compozy remote cloud-route disable` to remove the hosted route and its tunnel. Unlinking the computer also deletes its tunnel.
 
 ### Browser access
 

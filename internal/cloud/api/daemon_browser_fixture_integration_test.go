@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
@@ -79,7 +78,7 @@ func startAdditionalHostedDaemon(t *testing.T, f authFixture, home, email string
 	installHostedConnectorFixture(t, home)
 	configureHostedDaemon(t, home, "")
 	host, _ := startConfiguredDaemonAccount(t, f, home, daemonAccountBoot{
-		options: []daemon.Option{daemon.WithCloudflaredInstaller(hostedFixtureInstaller)},
+		options: hostedRouteOptions(t, home),
 	})
 	progress := host.stream(t, contract.AccountSignInEventsPath, "")
 	signInAccountDevice(t, f, host, progress, email)

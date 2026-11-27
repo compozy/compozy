@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -99,6 +100,49 @@ func TestDaemonHostedRoute(t *testing.T) {
 		if created, deleted := fake.counts(); created != 1 || deleted != 1 {
 			t.Fatalf("route lifecycle created/deleted %d/%d tunnels, want 1/1", created, deleted)
 		}
+	})
+
+	t.Run("Should report edge TLS failure until the assigned route serves the computer", func(t *testing.T) {
+		f, _ := newHostedAuthFixture(t)
+		home := filepath.Join(root, "edge-tls")
+		var rejectTLS atomic.Bool
+		rejectTLS.Store(true)
+		transport := hostedEdgeTransport(t, home, &rejectTLS)
+		host, _, id := startHostedDaemon(t, f, home, "", daemon.WithHostedRouteTransport(transport))
+		host.uds(t, http.MethodPatch, contract.RemotePath, contract.RemotePatchRequest{CloudRoute: new(true)}).
+			expect(t, http.StatusOK, string(id))
+		connector := waitHostedConnector(t, home, 0)
+		testutil.Eventually(t, "host reports the edge TLS failure", 8*time.Second, func() bool {
+			status := readRemoteDaemonStatus(t, host).CloudRoute
+			return status.State == "retrying" && status.Hostname != nil && *status.Hostname == connector.Hostname &&
+				status.Diagnosis == remoteproto.HostedTLSFailureMessage
+		})
+		edge := &http.Client{Transport: transport, Timeout: 5 * time.Second}
+		controller, _ := startComputerController(
+			t,
+			f,
+			filepath.Join(root, "edge-controller"),
+			hostedFixtureEmail,
+			nil,
+			daemon.WithComputersOptions(
+				computers.WithRouteHTTP(func(remoteproto.RouteKind) *http.Client { return edge }),
+			),
+		)
+		addAccountComputer(t, controller, id)
+		testutil.Eventually(t, "controller reports the edge TLS failure", 8*time.Second, func() bool {
+			view := readControllerComputer(t, controller, id)
+			return view.Status == string(computers.NeedsAttention) && view.RouteInUse == nil && view.Diagnosis != nil &&
+				view.Diagnosis.Step == "route" && view.Diagnosis.Code == "hosted_route_tls_failed"
+		})
+
+		rejectTLS.Store(false)
+		status := waitHostedRouteReady(t, host).CloudRoute
+		next, err := readHostedConnector(home)
+		if err != nil || next.PID != connector.PID || *status.Hostname != connector.Hostname || status.Diagnosis != "" {
+			t.Fatalf("edge recovery changed the underlying route: status %+v, connector %+v, err %v", status, next, err)
+		}
+		f.clock.Advance(2 * time.Second)
+		waitComputerRoute(t, controller, id, remoteproto.RouteCloud)
 	})
 
 	t.Run(
@@ -198,13 +242,13 @@ func expectHostedOperatorRejections(t *testing.T, client *http.Client, base stri
 }
 
 func startHostedDaemon(
-	t *testing.T, f authFixture, home, publicURL string,
+	t *testing.T, f authFixture, home, publicURL string, options ...daemon.Option,
 ) (daemonAccountFixture, *daemonAccountKeyring, remoteproto.ComputerID) {
 	t.Helper()
 	installHostedConnectorFixture(t, home)
 	configureHostedDaemon(t, home, publicURL)
 	host, ring := startConfiguredDaemonAccount(t, f, home, daemonAccountBoot{
-		automation: publicURL != "", options: []daemon.Option{daemon.WithCloudflaredInstaller(hostedFixtureInstaller)},
+		automation: publicURL != "", options: append(hostedRouteOptions(t, home), options...),
 	})
 	progress := host.stream(t, contract.AccountSignInEventsPath, "")
 	signInAccountDevice(t, f, host, progress, hostedFixtureEmail)

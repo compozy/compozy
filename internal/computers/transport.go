@@ -77,26 +77,17 @@ func routeClient(kind remoteproto.RouteKind) *http.Client {
 func fetchDescriptor(
 	ctx context.Context, origin *url.URL, client *http.Client,
 ) (remoteproto.Descriptor, error) {
-	target := origin.JoinPath(remoteproto.DescriptorPath)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), http.NoBody)
-	if err != nil {
-		return remoteproto.Descriptor{}, ErrOffline
-	}
-	// #nosec G704 -- unauthenticated preflight to the account's advertised address.
-	resp, err := client.Do(req)
-	if err != nil {
-		return remoteproto.Descriptor{}, ErrOffline
-	}
-	defer resp.Body.Close()
-	if planRequiredResponse(resp) {
+	descriptor, err := remoteproto.FetchDescriptor(ctx, origin, client)
+	switch {
+	case errors.Is(err, remoteproto.ErrDescriptorPlanRequired):
 		return remoteproto.Descriptor{}, ErrPlanRequired
-	}
-	var descriptor remoteproto.Descriptor
-	if resp.StatusCode != http.StatusOK ||
-		json.UnmarshalRead(io.LimitReader(resp.Body, maxTunnelResponse), &descriptor) != nil {
+	case errors.Is(err, remoteproto.ErrDescriptorTLS):
+		return remoteproto.Descriptor{}, ErrHostedTLS
+	case err != nil:
 		return remoteproto.Descriptor{}, ErrOffline
+	default:
+		return descriptor, nil
 	}
-	return descriptor, nil
 }
 
 func dialTunnel(

@@ -209,11 +209,11 @@ func runHostedCrashDaemon(t *testing.T, rawTime string) {
 		_ = ring.Set(entry[0], entry[1], entry[2])
 	}
 	clock := clockwork.NewFakeClockAt(now)
-	instance, err := daemon.New(
+	options := append(hostedRouteOptions(t, home),
 		daemon.WithHomePaths(paths), daemon.WithConfig(&cfg), daemon.WithNow(clock.Now),
-		daemon.WithCloudflaredInstaller(hostedFixtureInstaller),
 		daemon.WithAccountOptions(account.WithKeyring(ring), account.WithClock(clock)),
 	)
+	instance, err := daemon.New(options...)
 	if err != nil {
 		t.Fatal(err)
 	}

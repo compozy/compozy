@@ -37,7 +37,7 @@ func activeFailure(err error) routeProblem {
 		step = stepCloud
 	case CodeDeviceRevoked, "sign_in_required":
 		step = stepSignIn
-	case ErrOffline.Code:
+	case ErrOffline.Code, ErrHostedTLS.Code:
 		step = stepRoute
 	}
 	return routeProblem{step: step, err: err}

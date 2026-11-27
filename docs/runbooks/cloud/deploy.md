@@ -38,4 +38,8 @@ Generate the Ed25519 configuration with `compozy-cloud keys generate <kid>` and 
 - File the Public Suffix List entry for `compozy.run` at least eight weeks before stable. Publish the abuse contact page and confirm PSL eligibility first. The operator adds the verification `_psl` TXT record and submits the change to `publicsuffix/list`. Add the staging rule if the submission requires isolated site boundaries for `*.staging.compozy.run`.
 - Configure and verify a permanent redirect from `https://compozy.app` to `https://compozy.com`. The operator owns the registrar, DNS and redirect.
 
+## Hosted route certificates
+
+The tunnel provisioner creates a proxied DNS record for each assigned hostname. In a full Cloudflare zone, Universal SSL covers a single label under the zone. A deployment with deeper names such as `<assigned-host>.staging.<zone>` needs an active edge certificate for `*.staging.<zone>` before verification. Order an advanced wildcard certificate for that namespace if it needs coverage. Check the assigned URL with normal TLS verification. The Cloud service health endpoint uses a separate hostname.
+
 Related procedures [Monitoring and on-call](monitoring.md), [Signing keys](key-rotation.md), [Restore drill](../../qa/scenarios/RT-cloud-restore-drill.md).

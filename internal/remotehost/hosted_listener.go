@@ -72,6 +72,9 @@ func (h listenerHandler) guardHosted(next http.Handler) http.Handler {
 			writeFailure(w, ErrEntitlement)
 			return
 		}
+		if req.URL.Path == DescriptorPath {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		next.ServeHTTP(w, req)
 	})
 }

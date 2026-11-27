@@ -244,9 +244,7 @@ func TestDaemonBilling(t *testing.T) {
 			host.stop()
 
 			f.clock.Advance(24 * time.Hour)
-			boot := daemonAccountBoot{keyring: ring, options: []daemon.Option{
-				daemon.WithCloudflaredInstaller(hostedFixtureInstaller),
-			}}
+			boot := daemonAccountBoot{keyring: ring, options: hostedRouteOptions(t, home)}
 			host, _ = startConfiguredDaemonAccount(t, f, home, boot)
 			restarted := waitHostedConnector(t, home, prior.PID)
 			if restarted.Hostname != hostname {
@@ -328,7 +326,7 @@ func linkBillingHost(
 	if hosted {
 		installHostedConnectorFixture(t, home)
 		configureHostedDaemon(t, home, "")
-		boot.options = []daemon.Option{daemon.WithCloudflaredInstaller(hostedFixtureInstaller)}
+		boot.options = hostedRouteOptions(t, home)
 	}
 	host, ring := startConfiguredDaemonAccount(t, f, home, boot)
 	progress := host.stream(t, contract.AccountSignInEventsPath, "")

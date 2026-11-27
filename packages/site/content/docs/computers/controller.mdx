@@ -17,6 +17,8 @@ To install and link a host from the controller, see [Add a computer over SSH](/d
 
 The controller keeps the entry while the computer is offline. It prefers a direct LAN or tailnet connection, then an established SSH forward, then the computer's hosted route on Compozy Pro. The controller discovers the hosted hostname from Compozy Cloud. The status reports the route in use and the step that needs attention when the connection fails. Each route must identify the linked computer and present its pinned TLS root before the controller sends credentials.
 
+If the hosted route fails its public TLS handshake and the controller has no working route, `compozy computer status <id> --json` can report `diagnosis.code` as `hosted_route_tls_failed`. Check the hosted route on the target with `compozy remote status --json`.
+
 ## Change how the controller connects
 
 - Run `compozy computer routes devbox` to see available routes. Remove a learned address with `compozy computer routes devbox remove direct:10.0.0.42:47823`.

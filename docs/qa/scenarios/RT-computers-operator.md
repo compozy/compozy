@@ -20,4 +20,6 @@ qa_status: pending
 9. List sessions through the controller bridge as a local operator on HTTP and UDS. Repeat as an app token and as an identified agent caller. Confirm both refusals happen at the controller.
 10. Keep a bridged terminal stream open across credential renewal. Enroll another device on the account while the terminal is running. Confirm new output arrives over the original stream and the target persists the command in its journal.
 
+11. On a linked Pro host, enable the hosted route. With valid edge TLS, verify `compozy remote status --json` reports `ready`, the assigned HTTPS URL serves the app, and the controller can connect over Cloud. In a fixture where the public edge refuses TLS while the connector is connected, expect `retrying` with a TLS diagnosis on the host and `hosted_route_tls_failed` on the controller when Cloud is the only route. Restore TLS and confirm the same hostname becomes ready.
+
 Walk the UI parts with E2E-004 after integrating the terminal and provider views.

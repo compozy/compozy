@@ -97,6 +97,11 @@ var (
 	ErrOffline = &Failure{
 		Status: http.StatusServiceUnavailable, Code: "computer_offline", Message: "The computer is offline.",
 	}
+	ErrHostedTLS = &Failure{
+		Status:  http.StatusServiceUnavailable,
+		Code:    "hosted_route_tls_failed",
+		Message: remoteproto.HostedTLSFailureMessage,
+	}
 	ErrSessionExpired = &Failure{
 		Status: http.StatusUnauthorized, Code: CodeSessionExpired, Message: "The remote session has expired.",
 	}

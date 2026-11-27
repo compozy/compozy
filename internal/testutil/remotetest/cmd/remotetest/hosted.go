@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -23,7 +24,11 @@ import (
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
 
-const hostedBrowser = "hosted-browser"
+const (
+	hostedBrowser        = "hosted-browser"
+	hostedEdgeAddressEnv = "COMPOZY_TEST_HOSTED_EDGE_ADDRESS"
+	hostedEdgeCertEnv    = "COMPOZY_TEST_HOSTED_EDGE_CERT"
+)
 
 const hostedTurnstileStub = `const form = document.querySelector("#provider-form");
 const challenge = document.querySelector("#turnstile");
@@ -48,7 +53,7 @@ func startHostedBrowserEdge(
 	idp *remotetest.IdentityProvider,
 	fake *hostedFakeCloudflare,
 	profile remotetest.ProviderProfile,
-) int {
+) *httptest.Server {
 	f.Helper()
 	const providerPath = "/fixture/google/authorize"
 	cloudTarget, err := url.Parse(cloudURL)
@@ -72,7 +77,7 @@ func startHostedBrowserEdge(
 		},
 	}
 
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host := stripHostPort(r.Host)
 		switch {
 		case host == "cloud.compozy.com" && r.URL.Path == "/auth-assets/turnstile.js":
@@ -110,8 +115,11 @@ func startHostedBrowserEdge(
 			http.NotFound(w, r)
 		}
 	}))
+	certificate := remotetest.HostedEdgeCertificate(f, "compozy.run")
+	server.TLS = &tls.Config{Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12}
+	server.StartTLS()
 	f.Cleanup(server.Close)
-	return server.Listener.Addr().(*net.TCPAddr).Port
+	return server
 }
 
 func prepareHostedBrowser(
@@ -158,7 +166,11 @@ func prepareHostedBrowser(
 		},
 	}, nil).Server.URL
 
-	edgePort := startHostedBrowserEdge(f, cloudURL, idp, fake, profile)
+	edge := startHostedBrowserEdge(f, cloudURL, idp, fake, profile)
+	edgeCert := filepath.Join(f.TempDir(), "edge.der")
+	if err := os.WriteFile(edgeCert, edge.Certificate().Raw, 0o600); err != nil {
+		f.Fatal(err)
+	}
 
 	controller := prepareDaemon(f, true)
 	configureHostedListener(f, controller)
@@ -169,6 +181,8 @@ func prepareHostedBrowser(
 		controller,
 		cloudURL,
 		fixtureConnectorEnv+"=1",
+		hostedEdgeAddressEnv+"="+edge.Listener.Addr().String(),
+		hostedEdgeCertEnv+"="+edgeCert,
 		"COMPOZY_WEB_DIST_DIR="+distDir,
 	)
 
@@ -231,6 +245,6 @@ func prepareHostedBrowser(
 		SessionID:    session.ID,
 		SessionTitle: searchTitle,
 		WorkspaceID:  session.WorkspaceID,
-		EdgePort:     edgePort,
+		EdgePort:     edge.Listener.Addr().(*net.TCPAddr).Port,
 	}
 }

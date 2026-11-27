@@ -144,6 +144,18 @@ func runDaemon(ctx context.Context) error {
 	if os.Getenv(fixtureConnectorEnv) == "1" {
 		options = append(options, daemon.WithCloudflaredInstaller(fixtureConnectorPath))
 	}
+	if address := os.Getenv(hostedEdgeAddressEnv); address != "" {
+		certificate, err := os.ReadFile(os.Getenv(hostedEdgeCertEnv))
+		if err != nil {
+			return err
+		}
+		transport, err := remotetest.HostedEdgeTransport(address, certificate)
+		if err != nil {
+			return err
+		}
+		defer transport.CloseIdleConnections()
+		options = append(options, daemon.WithHostedRouteTransport(transport))
+	}
 	if os.Getenv(signInRequiredEnv) == "1" {
 		options = append(options, daemon.WithAccountOptions(account.WithSignInRequired(true)))
 	}

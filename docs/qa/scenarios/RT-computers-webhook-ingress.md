@@ -9,7 +9,8 @@ entry_points: Automations → Triggers; POST /api/ingress/bindings; Webhook HTTP
 qa_status: pending
 ---
 
-1. Link a computer, turn on remote access, and enable a hosted route. Create two workspace webhook
+1. Link a computer, turn on remote access, and enable a hosted route. Wait for `cloud_route.state` to
+   report `ready` after public HTTPS verification. Create two workspace webhook
    triggers with the same slug. Confirm each advertised URL and verify the workspace ID and stable
    webhook ID distinguish the two paths.
 2. Send a signed delivery to one URL. Verify exactly one attributed run on the intended computer

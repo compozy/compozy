@@ -215,6 +215,7 @@ type Daemon struct {
 	wrapRemoteTunnel     func(http.Handler) http.Handler
 	sshSetupOptions      sshsetup.Options
 	installCloudflared   func(context.Context, string) (string, error)
+	hostedRouteTransport http.RoundTripper
 	homePaths            compozyconfig.HomePaths
 	loadConfig           ConfigLoader
 	logger               *slog.Logger

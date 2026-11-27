@@ -25,6 +25,11 @@ func WithCloudflaredInstaller(install func(context.Context, string) (string, err
 	return func(d *Daemon) { d.installCloudflared = install }
 }
 
+// WithHostedRouteTransport supplies the HTTP transport used to check the public hosted route.
+func WithHostedRouteTransport(transport http.RoundTripper) Option {
+	return func(d *Daemon) { d.hostedRouteTransport = transport }
+}
+
 func WithRemoteHostClock(clock clockwork.Clock) Option {
 	return func(d *Daemon) { d.remoteHostClock = clock }
 }
@@ -68,16 +73,17 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 		workers.account,
 		state.cfg.Remote,
 		remotehost.HostOptions{
-			Now:                d.now,
-			Clock:              d.remoteHostClock,
-			Logger:             state.logger,
-			Home:               d.homePaths.HomeDir,
-			Operator:           state.remoteOperator,
-			HostedApp:          app,
-			Persist:            d.persistRemoteConfig,
-			InstallCloudflared: d.installCloudflared,
-			SyncIngress:        remoteIngressSync(state, d.now),
-			WrapTunnelHandler:  d.wrapRemoteTunnel,
+			Now:                  d.now,
+			Clock:                d.remoteHostClock,
+			Logger:               state.logger,
+			Home:                 d.homePaths.HomeDir,
+			Operator:             state.remoteOperator,
+			HostedApp:            app,
+			Persist:              d.persistRemoteConfig,
+			InstallCloudflared:   d.installCloudflared,
+			HostedRouteTransport: d.hostedRouteTransport,
+			SyncIngress:          remoteIngressSync(state, d.now),
+			WrapTunnelHandler:    d.wrapRemoteTunnel,
 		},
 	)
 	if err != nil {

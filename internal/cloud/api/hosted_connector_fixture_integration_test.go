@@ -6,6 +6,7 @@ package api_test
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -19,12 +20,16 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/cloudflare"
+	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
 
 const (
@@ -176,7 +181,20 @@ func waitHostedConnector(t *testing.T, home string, previousPID int) hostedConne
 
 func hostedEdgeClient(t *testing.T, home string) *http.Client {
 	t.Helper()
-	edge := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	return &http.Client{Transport: hostedEdgeTransport(t, home, nil), Timeout: 10 * time.Second}
+}
+
+func hostedRouteOptions(t *testing.T, home string) []daemon.Option {
+	t.Helper()
+	return []daemon.Option{
+		daemon.WithCloudflaredInstaller(hostedFixtureInstaller),
+		daemon.WithHostedRouteTransport(hostedEdgeTransport(t, home, nil)),
+	}
+}
+
+func hostedEdgeTransport(t *testing.T, home string, rejectTLS *atomic.Bool) *http.Transport {
+	t.Helper()
+	edge := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		state, err := readHostedConnector(home)
 		if err != nil || req.Host != state.Hostname {
 			http.NotFound(w, req)
@@ -184,17 +202,22 @@ func hostedEdgeClient(t *testing.T, home string) *http.Client {
 		}
 		httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: state.Address}).ServeHTTP(w, req)
 	}))
-	t.Cleanup(edge.Close)
-	client := edge.Client()
-	base, ok := client.Transport.(*http.Transport)
-	if !ok {
-		t.Fatal("fixture TLS server did not return an HTTP transport")
+	certificate := remotetest.HostedEdgeCertificate(t, cloudflare.ProductionDomain)
+	edge.TLS = &tls.Config{Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12}
+	if rejectTLS != nil {
+		edge.TLS.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+			if rejectTLS.Load() {
+				return nil, errors.New("edge certificate unavailable")
+			}
+			return &certificate, nil
+		}
 	}
-	transport := base.Clone()
-	transport.TLSClientConfig.ServerName = "example.com"
-	transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, network, edge.Listener.Addr().String())
+	edge.StartTLS()
+	t.Cleanup(edge.Close)
+	transport, err := remotetest.HostedEdgeTransport(edge.Listener.Addr().String(), certificate.Certificate[0])
+	if err != nil {
+		t.Fatal(err)
 	}
 	t.Cleanup(transport.CloseIdleConnections)
-	return &http.Client{Transport: transport, Timeout: 10 * time.Second}
+	return transport
 }

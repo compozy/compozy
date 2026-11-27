@@ -65,16 +65,17 @@ type hostedCloud interface {
 }
 
 type HostOptions struct {
-	Now                func() time.Time
-	Clock              clockwork.Clock
-	Logger             *slog.Logger
-	Home               string
-	Operator           http.Handler
-	HostedApp          http.Handler
-	Persist            func(context.Context, Patch, func(config.RemoteConfig) error) error
-	InstallCloudflared func(context.Context, string) (string, error)
-	SyncIngress        func(context.Context, ingress.RemoteEndpoint) error
-	WrapTunnelHandler  func(http.Handler) http.Handler
+	Now                  func() time.Time
+	Clock                clockwork.Clock
+	Logger               *slog.Logger
+	Home                 string
+	Operator             http.Handler
+	HostedApp            http.Handler
+	Persist              func(context.Context, Patch, func(config.RemoteConfig) error) error
+	InstallCloudflared   func(context.Context, string) (string, error)
+	HostedRouteTransport http.RoundTripper
+	SyncIngress          func(context.Context, ingress.RemoteEndpoint) error
+	WrapTunnelHandler    func(http.Handler) http.Handler
 }
 
 type Patch struct {
