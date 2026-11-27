@@ -1293,6 +1293,26 @@ binding = { type = "env", name = "BOUND_SECRET" }
 	if err != nil || !otherEnabled {
 		t.Fatalf("disable changed other profile: enabled=%t error=%v", otherEnabled, err)
 	}
+
+	origin := filepath.Join(harness.workspaceRoot, "input-overlay")
+	generation := writeBoundSecretExtensionGenerationWithEnv(t, origin, name, "2.0.0", []string{"BOUND_SECRET"})
+	dev, err := service.Dev(ctx, contract.DevLinkExtensionRequest{
+		OriginPath: origin, GenerationHash: generation,
+	}, newExtensionSecretIntegrationActor(t, workspace, "link workspace input overlay"))
+	if err != nil || !dev.Dev || len(dev.MissingEnv) != 1 || dev.MissingEnv[0] != "BOUND_SECRET" {
+		t.Fatalf("development overlay: linked=%t missing=%v error=%v", dev.Dev, dev.MissingEnv, err)
+	}
+	if err := setEnabled("default", true); err != nil {
+		t.Fatalf("profile enable with development overlay: %v", err)
+	}
+	if err := setEnabled("default", false); err != nil {
+		t.Fatal(err)
+	}
+	enabled, err = service.Enable(ctx, name, contract.EnableExtensionRequest{}, actor)
+	if err != nil || !enabled.Extension.Enabled || !enabled.Extension.Dev {
+		t.Fatalf("legacy enable with development overlay: enabled=%t dev=%t error=%v",
+			enabled.Extension.Enabled, enabled.Extension.Dev, err)
+	}
 }
 
 func writeBoundSecretExtensionFixture(t *testing.T, root, name string) string {

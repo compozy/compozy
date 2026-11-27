@@ -526,8 +526,9 @@ resource is unplaced or placed in that profile. Active dev instances populate on
 workspace's catalogs and workspace detail. Reload swaps that workspace snapshot atomically, and
 unlinking removes it without mutating the published installation.
 
-Profile enablement reuses the required inputs stored for each visible installation in that
-workspace and profile. An installation with missing inputs can still be disabled.
+Enablement applies to the selected profile. It checks each applicable installation using the
+inputs stored for its workspace and profile. A missing-input refusal names the workspace for
+operators. An installation with missing inputs can still be disabled.
 
 The workspace is bound server-side — from the operator's resolved workspace or the agent session's
 trusted scope — never from a request body or tool input. An agent caller that names a different
