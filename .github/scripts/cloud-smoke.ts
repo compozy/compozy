@@ -13,8 +13,10 @@ async function request(path: string, init: RequestInit = {}) {
   return response;
 }
 
+// Cloudflare Containers start the new revision and drain the old one over several minutes, so
+// readiness polls for up to 10 minutes before failing the rollout.
 async function waitForRevision() {
-  for (let attempt = 0; attempt < 20; attempt++) {
+  for (let attempt = 0; attempt < 200; attempt++) {
     const health = await request("/healthz").catch(() => undefined);
     if (health) {
       const body: { status?: string } = await health.json();
