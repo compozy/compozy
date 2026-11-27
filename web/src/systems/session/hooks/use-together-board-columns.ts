@@ -76,10 +76,12 @@ function buildTogetherColumnView(input: {
     input;
   const colSlots: ColumnSlot[] = [];
   const colQueries: MultiQuerySlotResult[] = [];
+  const firstSlotsByComputer = new Map<ComputerId, ColumnSlot>();
   for (let index = 0; index < slots.length; index++) {
-    if (slots[index]!.columnId !== column.id) continue;
-    if (slots[index]!.emptyRemoteMatch) continue;
-    colSlots.push(slots[index]!);
+    const slot = slots[index]!;
+    if (slot.columnId !== column.id || slot.emptyRemoteMatch) continue;
+    colSlots.push(slot);
+    if (!firstSlotsByComputer.has(slot.source.key)) firstSlotsByComputer.set(slot.source.key, slot);
     if (queries[index]) colQueries.push(queries[index]!);
   }
   const summary = summarizeMultiQuerySlots(colSlots, colQueries);
@@ -88,18 +90,15 @@ function buildTogetherColumnView(input: {
   let hasCount = false;
   const entries: TogetherFlatPageEntry[] = [];
   for (const source of answered) {
-    if (!colSlots.some(slot => slot.source.key === source.key)) continue;
+    const slot = firstSlotsByComputer.get(source.key);
+    if (!slot) continue;
     const facetCount = source.facets?.facets.board?.[column.id];
     if (facetCount !== undefined) {
       hasCount = true;
       count += facetCount;
     }
     if (source.read === "offline") {
-      const slot = colSlots.find(slot => slot.source.key === source.key);
-      const cached =
-        slot && !slot.emptyRemoteMatch
-          ? readCachedOfflineRowsForComputer(queryClient, source.key, slot.filters)
-          : [];
+      const cached = readCachedOfflineRowsForComputer(queryClient, source.key, slot.filters);
       entries.push({ source, sessions: cached, hasMore: false, nextCursor: null });
       continue;
     }

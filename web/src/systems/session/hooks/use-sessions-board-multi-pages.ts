@@ -230,12 +230,17 @@ function collectShelfEntries(
   queryClient: QueryClient | undefined,
   shelf: "archive" | "later"
 ) {
+  const firstSlotsByComputer = new Map<ComputerId, MultiPageSlot>();
+  for (const slot of slots) {
+    if (!firstSlotsByComputer.has(slot.source.key)) firstSlotsByComputer.set(slot.source.key, slot);
+  }
+
   const entries: TogetherFlatPageEntry[] = [];
   let total = summary.firstPageTotal;
   let hasTotal = summary.hasFirstPageTotal;
 
   for (const source of answered) {
-    const slot = slots.find(slot => slot.source.key === source.key);
+    const slot = firstSlotsByComputer.get(source.key);
     if (!slot || slot.emptyRemoteMatch) continue;
     if (source.read === "offline") {
       const cached = readCachedOfflineRowsForComputer(queryClient, source.key, slot.filters);
