@@ -205,7 +205,13 @@ func loadManifestTOMLContent(path string, data []byte) (*Manifest, error) {
 					return nil, unknownManifestFieldError(parseErr.LastKey + "." + field)
 				}
 			}
-			decodeErr.line, decodeErr.column = parseErr.Position.Line, parseErr.Position.Col
+			// The decoder measures offsets from the first byte after the byte order mark.
+			source := bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
+			if bytes.HasPrefix(data, []byte("\xff\xfe")) || bytes.HasPrefix(data, []byte("\xfe\xff")) {
+				source = data[2:]
+			}
+			decodeErr.line = parseErr.Position.Line
+			decodeErr.column = sourceColumn(source, parseErr.Position.Start)
 		}
 		return nil, decodeErr
 	}

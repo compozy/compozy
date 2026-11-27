@@ -239,7 +239,7 @@ func ExtensionValidationErrorPayload(
 		err,
 	); ok &&
 		status < http.StatusInternalServerError {
-		payload.Error = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(decodeErr.PackageMessage()))
+		payload.Error = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(decodeErr.PackageMessage(err.Error())))
 		issue = decodeErr.Issue(payload.Error)
 	} else if validationErr, ok := errors.AsType[*extensionpkg.ManifestValidationError](
 		err,

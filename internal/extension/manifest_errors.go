@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -30,18 +31,16 @@ type ManifestDecodeError struct {
 var _ error = (*ManifestDecodeError)(nil)
 
 func (e *ManifestDecodeError) Error() string {
-	return e.message(e.path)
+	return fmt.Sprintf("extension: decode manifest %q: %v", e.path, e.cause)
 }
 
 func (e *ManifestDecodeError) Is(target error) bool { return target == ErrManifestInvalid }
 
 func (e *ManifestDecodeError) Unwrap() error { return e.cause }
 
-// PackageMessage identifies the manifest by its package-relative filename.
-func (e *ManifestDecodeError) PackageMessage() string { return e.message(filepath.Base(e.path)) }
-
-func (e *ManifestDecodeError) message(path string) string {
-	return fmt.Sprintf("extension: decode manifest %q: %v", path, e.cause)
+// PackageMessage uses the relative manifest filename and retains surrounding error context.
+func (e *ManifestDecodeError) PackageMessage(message string) string {
+	return strings.ReplaceAll(message, strconv.Quote(e.path), strconv.Quote(filepath.Base(e.path)))
 }
 
 // Issue combines the source location with the caller's redacted message.
