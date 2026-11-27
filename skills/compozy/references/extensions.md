@@ -527,6 +527,13 @@ resource is unplaced or placed in that profile. Active dev instances populate on
 workspace's catalogs and workspace detail. Reload swaps that workspace snapshot atomically, and
 unlinking removes it without mutating the published installation.
 
+Enablement applies to the selected profile. It checks each applicable installation using the
+inputs stored for its workspace and profile. A missing-input refusal names the workspace for
+operators. An installation with missing inputs can still be disabled.
+
+Agent calls to the legacy HTTP/UDS `/extensions/{name}/enable` and `/disable` routes require a
+global installation. The native enable and disable tools use the caller's selected profile.
+
 The workspace is bound server-side — from the operator's resolved workspace or the agent session's
 trusted scope — never from a request body or tool input. An agent caller that names a different
 workspace is denied with `403` (`extension: workspace access denied`), and its list, status, logs, and
