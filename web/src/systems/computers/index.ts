@@ -164,6 +164,16 @@ export {
   type AutoPlacementCandidateView,
 } from "./lib/placement-view";
 export {
+  computerCanOperateSessions,
+  computerReadDetail,
+  isComputerCounted,
+  isComputerUncounted,
+  mapComputerRead,
+  uncountedComputerNames,
+  type ComputerRead,
+  type ComputerReadInput,
+} from "./lib/computer-read";
+export {
   extractLocalPendingApprovals,
   iconKindForPlatform,
   isComputersCloudUnreachableError,

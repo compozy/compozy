@@ -74,6 +74,7 @@ export function useComputers({
 
   return {
     ...query,
+    canRead: enabled,
     computers,
     enabledComputers,
     computerViews,
