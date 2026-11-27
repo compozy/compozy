@@ -669,7 +669,7 @@ func fillAttentionClarificationQueue(
 	sessionPath, answerPath string,
 ) {
 	t.Helper()
-	var queued compozycontract.SendPromptResultPayload
+	var queued compozycontract.SendPromptResultResponse
 	fill := compozycontract.SendPromptRequest{
 		Message: "Fill the input queue", Mode: compozycontract.PromptModeQueue,
 		MessageID: "clarify-queue-filler", IdempotencyKey: "clarify-queue-filler",
@@ -677,8 +677,8 @@ func fillAttentionClarificationQueue(
 	if err := harness.HTTPJSON(ctx, http.MethodPost, sessionPath+"/prompt", fill, &queued); err != nil {
 		t.Fatalf("fill input queue: %v", err)
 	}
-	if queued.QueueEntryID == "" {
-		t.Fatalf("queued prompt = %#v, want the only available entry", queued)
+	if queued.Prompt.Status != "queued" || queued.Prompt.QueueEntryID == "" {
+		t.Fatalf("queued prompt = %#v, want the only available entry", queued.Prompt)
 	}
 	request, err := http.NewRequestWithContext(
 		ctx, http.MethodPost, harness.HTTPURL(answerPath), strings.NewReader(`{"choice_index":1}`),
@@ -704,7 +704,7 @@ func fillAttentionClarificationQueue(
 			failure,
 		)
 	}
-	queueEntryPath := sessionPath + "/prompt/queue/" + url.PathEscape(queued.QueueEntryID)
+	queueEntryPath := sessionPath + "/prompt/queue/" + url.PathEscape(queued.Prompt.QueueEntryID)
 	if err := harness.HTTPJSON(ctx, http.MethodDelete, queueEntryPath, nil, nil); err != nil {
 		t.Fatalf("free capacity for the same clarification answer: %v", err)
 	}
