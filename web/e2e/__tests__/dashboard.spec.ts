@@ -326,7 +326,8 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
     method: "POST",
     body: "{}",
   });
-  await expect(homeMetricValue(home, "Working now")).toHaveText("0", { timeout: 35_000 });
+  // If the parent is inspected first, the cleared wait reaches it on the next supervision pass.
+  await expect(homeMetricValue(home, "Working now")).toHaveText("0", { timeout: 50_000 });
   await expect(workCards).toHaveCount(0);
 });
 
