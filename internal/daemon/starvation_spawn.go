@@ -57,8 +57,18 @@ func (r *taskRoleRuntime) resumeStarvationOwner(
 			return fmt.Errorf("daemon: resolve starvation owner capabilities: %w", err)
 		}
 	}
-	// The claim is fenced to the original session ID. Normal scheduler wakes dispatch after resume.
-	if _, err := r.sessions.Resume(admission.WithBackgroundWork(ctx), ownerID); err != nil {
+	resumer, ok := r.sessions.(interface {
+		ResumeWaitingSession(context.Context, string) error
+	})
+	if !ok {
+		return errStarvationSpawnUnresolvable
+	}
+	// Restart recovery validates the durable binding. The next scheduler wake dispatches the run.
+	err = resumer.ResumeWaitingSession(admission.WithBackgroundWork(ctx), ownerID)
+	if err != nil {
+		if starvationOwnerResumeRefused(err) {
+			return errStarvationSpawnUnresolvable
+		}
 		return fmt.Errorf("daemon: resume starvation owner %q: %w", ownerID, err)
 	}
 	r.logger.InfoContext(ctx, "daemon: starvation owner resumed",
@@ -68,13 +78,20 @@ func (r *taskRoleRuntime) resumeStarvationOwner(
 	return nil
 }
 
+func starvationOwnerResumeRefused(err error) bool {
+	// A joined error can include a failure stopping a resumed session, which must surface.
+	_, ineligible := err.(*session.MonitorOwnerIneligibleError)
+	return ineligible || errors.Is(err, session.ErrMonitorOwnerStopped) ||
+		errors.Is(err, session.ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotAttachable) ||
+		errors.Is(err, session.ErrSessionInLater) || errors.Is(err, session.ErrSessionArchived) ||
+		errors.Is(err, session.ErrPromptInProgress)
+}
+
 func starvationOwnerResumable(taskRecord taskpkg.Task, owner *session.Info) bool {
 	if owner.State != session.StateStopped || owner.Type != session.SessionTypeUser ||
+		owner.StopReason != store.StopShutdown ||
 		owner.ArchivedAt != nil || owner.Later != nil || owner.StopVerificationFailed ||
 		(owner.Lineage != nil && (owner.Lineage.AutoStopOnParent || owner.Lineage.TTLExpiresAt != nil)) {
-		return false
-	}
-	if owner.StopReason != store.StopAgentCrashed && owner.StopReason != store.StopError {
 		return false
 	}
 	if firstNonEmpty(

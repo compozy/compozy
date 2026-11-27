@@ -576,10 +576,12 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		name     string
 		change   func(*session.Info)
 		missing  bool
+		global   bool
 		required []string
+		refusal  error
 		resume   bool
 	}{
-		{name: "Should resume the crashed owner even when another agent sorts first", resume: true},
+		{name: "Should resume the shutdown-stopped owner even when another agent sorts first", resume: true},
 		{name: "Should keep an active owner on the normal wake path", change: func(info *session.Info) {
 			info.State = session.StateActive
 		}},
@@ -587,12 +589,35 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		{name: "Should skip an owner stopped by the operator", change: func(info *session.Info) {
 			info.StopReason = store.StopUserCanceled
 		}},
+		{name: "Should skip an owner whose process crashed", change: func(info *session.Info) {
+			info.StopReason = store.StopAgentCrashed
+		}},
+		{name: "Should skip an archived owner", change: func(info *session.Info) {
+			info.ArchivedAt = new(taskRoleRuntimeClock)
+		}},
+		{name: "Should skip an owner parked in Later", change: func(info *session.Info) {
+			info.Later = &store.SessionLater{}
+		}},
+		{name: "Should skip an owner whose process exit was not verified", change: func(info *session.Info) {
+			info.StopVerificationFailed = true
+		}},
+		{name: "Should skip an owner governed by a parent stop", change: func(info *session.Info) {
+			info.Lineage = &store.SessionLineage{AutoStopOnParent: true}
+		}},
+		{name: "Should skip a TTL-bounded owner", change: func(info *session.Info) {
+			info.Lineage = &store.SessionLineage{TTLExpiresAt: new(taskRoleRuntimeClock.Add(time.Hour))}
+		}},
 		{name: "Should skip an owner that belongs to another profile", change: func(info *session.Info) {
 			info.ProfileID = "profile-other"
 		}},
 		{name: "Should skip an owner that moved to another workspace", change: func(info *session.Info) {
 			info.WorkspaceID = "ws-other"
 		}},
+		{name: "Should skip a workspace owner for a global task", global: true},
+		{
+			name:    "Should skip activation when the session manager refuses restart recovery",
+			refusal: &session.MonitorOwnerIneligibleError{Reason: "binding_unknown"},
+		},
 		{name: "Should resume an owner that covers the run capability", required: []string{"go"}, resume: true},
 		{
 			name:     "Should skip an owner when only a different agent covers the run capability",
@@ -607,16 +632,19 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 			taskRecord.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindAgentSession, Ref: "sess-owner"}
 			run := taskRoleRuntimeRun("run-session-owner", taskRecord.ID)
 			run.RequiredCapabilities = tc.required
-			sessions := &taskRoleRuntimeSessions{}
+			sessions := &taskRoleRuntimeSessions{resumeError: tc.refusal}
 			if !tc.missing {
 				owner := &session.Info{
 					ID: taskRecord.Owner.Ref, AgentName: "zeta-agent", WorkspaceID: taskRecord.WorkspaceID,
-					Type: session.SessionTypeUser, State: session.StateStopped, StopReason: store.StopAgentCrashed,
+					Type: session.SessionTypeUser, State: session.StateStopped, StopReason: store.StopShutdown,
 				}
 				if tc.change != nil {
 					tc.change(owner)
 				}
 				sessions.infos = []*session.Info{owner}
+			}
+			if tc.global {
+				taskRecord.Scope, taskRecord.WorkspaceID = taskpkg.ScopeGlobal, ""
 			}
 			runtime := newTaskRoleRuntimeForTest(t, newTaskRoleRuntimeStore(taskRecord, run), sessions)
 			spawner := starvationSpawner{
@@ -637,7 +665,8 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 						sessions.resumeCalls,
 					)
 				}
-			} else if !errors.Is(err, errStarvationSpawnUnresolvable) || len(sessions.resumeCalls) != 0 {
+			} else if !errors.Is(err, errStarvationSpawnUnresolvable) ||
+				(len(sessions.resumeCalls) != 0) != (tc.refusal != nil) {
 				t.Fatalf(
 					"activateForStarvation() error/resumed = %v/%v, want no replacement",
 					err,
@@ -1094,6 +1123,7 @@ type taskRoleRuntimeSessions struct {
 	infos        []*session.Info
 	createCalls  []session.CreateOpts
 	resumeCalls  []string
+	resumeError  error
 	promptCalls  []taskRoleRuntimePromptCall
 	promptErrors []error
 	stopCalls    []taskRoleRuntimeStopCall
@@ -1236,17 +1266,11 @@ func (s *taskRoleRuntimeSessions) Status(_ context.Context, id string) (*session
 	return nil, session.ErrSessionNotFound
 }
 
-func (s *taskRoleRuntimeSessions) Resume(_ context.Context, id string) (*session.Session, error) {
+func (s *taskRoleRuntimeSessions) ResumeWaitingSession(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.resumeCalls = append(s.resumeCalls, id)
-	for _, info := range s.infos {
-		if info != nil && info.ID == id {
-			info.State = session.StateActive
-			return &session.Session{ID: id, AgentName: info.AgentName, State: info.State}, nil
-		}
-	}
-	return nil, session.ErrSessionNotFound
+	return s.resumeError
 }
 
 func (s *taskRoleRuntimeSessions) Events(
