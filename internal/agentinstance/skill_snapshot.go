@@ -277,17 +277,20 @@ func skillSnapshotPath(draftPath, reviewID string) string {
 
 // writeSkillSnapshot writes the base byte- and mode-exact into the new directory dir and verifies it.
 // Snapshots are never redacted.
-func writeSkillSnapshot(dir string, base SkillTree, digest string) error {
+func writeSkillSnapshot(ctx context.Context, dir string, base SkillTree, digest string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		return err
 	}
-	err := writeSkillTreeFiles(dir, base)
+	err := writeSkillTreeFiles(ctx, dir, base)
 	if err == nil {
-		err = syncSkillTree(dir)
+		err = syncSkillTree(ctx, dir)
 	}
 	if err == nil {
 		var written string
-		written, err = SkillTreeDigest(dir)
+		written, err = SkillTreeDigest(ctx, dir)
 		if err == nil && written != digest {
 			err = errors.New("skill base snapshot does not match the captured base")
 		}
@@ -299,8 +302,11 @@ func writeSkillSnapshot(dir string, base SkillTree, digest string) error {
 }
 
 // writeSkillTreeFiles writes every file of tree into the existing directory dir with its exact mode.
-func writeSkillTreeFiles(dir string, tree SkillTree) error {
+func writeSkillTreeFiles(ctx context.Context, dir string, tree SkillTree) error {
 	for _, file := range tree {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if !validSkillTreePath(file.Path) {
 			return ErrSkillReviewInvalid
 		}

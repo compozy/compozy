@@ -154,7 +154,7 @@ func TestSkillEditProposals(t *testing.T) {
 		if err != nil || within {
 			t.Fatalf("snapshot inside the scan root: %v %v", within, err)
 		}
-		if digest, err := SkillTreeDigest(review.SnapshotPath); err != nil || digest != base {
+		if digest, err := SkillTreeDigest(t.Context(), review.SnapshotPath); err != nil || digest != base {
 			t.Fatalf("snapshot digest = %s %v, want %s", digest, err, base)
 		}
 		if review.ProposedDigest == "" || review.ProposedDigest == base {
@@ -468,7 +468,7 @@ func TestSkillEditProposals(t *testing.T) {
 				} else if err := os.RemoveAll(dir); err != nil {
 					t.Fatal(err)
 				}
-				before, err := skillTreeState(dir)
+				before, err := skillTreeState(t.Context(), dir)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -476,7 +476,7 @@ func TestSkillEditProposals(t *testing.T) {
 					t.Fatalf("Approve() = %v, want base stale", err)
 				}
 				requireReviewState(t, svc, review.ID, SkillReviewPending)
-				after, err := skillTreeState(dir)
+				after, err := skillTreeState(t.Context(), dir)
 				if err != nil || after != before {
 					t.Fatalf("live %s -> %s, err %v", before, after, err)
 				}

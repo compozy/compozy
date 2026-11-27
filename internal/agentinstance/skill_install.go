@@ -87,7 +87,7 @@ func (s *SkillProposalService) approveLocked(
 		return SkillInstallResult{}, err
 	}
 	current := currentSkillWriter(entries)
-	live, err := skillTreeStateContext(ctx, t.dir)
+	live, err := skillTreeState(ctx, t.dir)
 	if errors.Is(err, ErrSkillTreeUnsupported) {
 		// Something that is not a skill tree occupies the target name.
 		if review.Kind == SkillProposalEdit {
@@ -163,7 +163,7 @@ func prepareSkillInstallOp(
 		}
 		op.changed = skillTargetExistsError(t.name)
 		tree := draftSkillTree(draft)
-		op.stage = func(dir string) error { return writeSkillInstallStage(dir, tree) }
+		op.stage = func(dir string) error { return writeSkillInstallStage(ctx, dir, tree) }
 		return nil
 	case SkillProposalEdit:
 		if live == "" || live != review.BaseDigest {
@@ -190,15 +190,15 @@ func prepareSkillInstallOp(
 		op.preExists, op.preDigest = true, review.BaseDigest
 		op.changed = skillBaseStaleError(t.name)
 		op.next.InstalledDigest = review.ProposedDigest
-		op.stage = func(dir string) error { return writeSkillInstallStage(dir, tree) }
+		op.stage = func(dir string) error { return writeSkillInstallStage(ctx, dir, tree) }
 		return nil
 	default:
 		return ErrSkillReviewInvalid
 	}
 }
 
-func writeSkillInstallStage(stage string, tree SkillTree) error {
-	if err := writeSkillTreeFiles(stage, tree); err != nil {
+func writeSkillInstallStage(ctx context.Context, stage string, tree SkillTree) error {
+	if err := writeSkillTreeFiles(ctx, stage, tree); err != nil {
 		return err
 	}
 	for _, file := range tree {

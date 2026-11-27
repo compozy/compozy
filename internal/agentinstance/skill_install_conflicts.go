@@ -175,7 +175,7 @@ func (s *SkillProposalService) ResolveInstallConflict(
 	if !exists || payload.OpID != opID {
 		return s.repeatResolution(ctx, t, result)
 	}
-	if journal, payload, err = s.startResolution(t, journal, payload, keep, operator); err != nil {
+	if journal, payload, err = s.startResolution(ctx, t, journal, payload, keep, operator); err != nil {
 		return SkillConflictResolution{}, err
 	}
 	if keep == SkillConflictKeepPrevious {
@@ -191,6 +191,7 @@ func (s *SkillProposalService) ResolveInstallConflict(
 // startResolution records keep on a conflict journal, or checks it against the keep recorded by an
 // interrupted resolution.
 func (s *SkillProposalService) startResolution(
+	ctx context.Context,
 	t *skillTarget,
 	journal dirpublish.Journal,
 	payload SkillInstallPayload,
@@ -198,12 +199,15 @@ func (s *SkillProposalService) startResolution(
 ) (dirpublish.Journal, SkillInstallPayload, error) {
 	switch payload.State {
 	case skillInstallStateConflict:
-		if keep == SkillConflictKeepPrevious && !previousRestorable(t, journal, payload) {
+		if keep == SkillConflictKeepPrevious && !previousRestorable(ctx, t, journal, payload) {
+			if err := ctx.Err(); err != nil {
+				return journal, payload, err
+			}
 			return journal, payload, fmt.Errorf(
 				"%w: the previous %s is no longer available to restore; resolve %s with --keep current",
 				ErrSkillInstallConflict, t.name, payload.OpID)
 		}
-		return s.recordResolution(t, journal, payload, keep, operator)
+		return s.recordResolution(ctx, t, journal, payload, keep, operator)
 	case skillInstallStateResolving:
 		if payload.Keep != keep {
 			return journal, payload, skillConflictResolvingError(payload.Keep)
@@ -216,7 +220,12 @@ func (s *SkillProposalService) startResolution(
 // previousRestorable reports whether keep=previous can restore what was installed before: nothing
 // for a new skill, otherwise an original that still matches PreDigest in the backup slot or the
 // original copy. Refusing otherwise keeps the install log from naming a writer whose tree is gone.
-func previousRestorable(t *skillTarget, journal dirpublish.Journal, payload SkillInstallPayload) bool {
+func previousRestorable(
+	ctx context.Context,
+	t *skillTarget,
+	journal dirpublish.Journal,
+	payload SkillInstallPayload,
+) bool {
 	if !payload.PreExists {
 		return true
 	}
@@ -229,7 +238,7 @@ func previousRestorable(t *skillTarget, journal dirpublish.Journal, payload Skil
 	default:
 		return false
 	}
-	digest, err := skillTreeState(t.path(source))
+	digest, err := skillTreeState(ctx, t.path(source))
 	return err == nil && digest == payload.PreDigest
 }
 
@@ -301,16 +310,20 @@ func (s *SkillProposalService) repeatResolution(
 
 // recordResolution sets the journal to resolving with the operator's choice before anything moves.
 func (s *SkillProposalService) recordResolution(
+	ctx context.Context,
 	t *skillTarget,
 	journal dirpublish.Journal,
 	payload SkillInstallPayload,
 	keep, operator string,
 ) (dirpublish.Journal, SkillInstallPayload, error) {
+	if err := ctx.Err(); err != nil {
+		return journal, payload, err
+	}
 	payload.State, payload.Keep, payload.ResolvedBy = skillInstallStateResolving, keep, operator
 	payload.KeepCopyName = skillConflictCopyPrefix + payload.OpID
 	payload.NextMarker = payload.PrevMarker
 	if keep == SkillConflictKeepCurrent {
-		edited, err := skillTreeState(t.dir)
+		edited, err := skillTreeState(ctx, t.dir)
 		if errors.Is(err, ErrSkillTreeUnsupported) {
 			return journal, payload, fmt.Errorf("%w: cannot keep the current %s (%w); "+
 				"repair the skill or resolve %s with --keep previous",

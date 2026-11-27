@@ -51,7 +51,11 @@ func TestSkillInstallRecovery(t *testing.T) {
 		for _, name := range f.leftovers(t) {
 			if strings.HasPrefix(name, ".compozy-backup-") {
 				backups++
-				if digest, err := skillTreeState(filepath.Join(f.root, name)); err != nil || digest != base {
+				if digest, err := skillTreeState(
+					t.Context(),
+					filepath.Join(f.root, name),
+				); err != nil ||
+					digest != base {
 					t.Fatalf("backup slot = %s, %v; want the original", digest, err)
 				}
 			}
@@ -309,7 +313,11 @@ func TestSkillInstallRecovery(t *testing.T) {
 		if data, err := os.ReadFile(filepath.Join(elsewhere, "SKILL.md")); err != nil || string(data) != "outside" {
 			t.Fatalf("recovery followed the symlink: %q, %v", data, err)
 		}
-		if got, err := skillTreeState(filepath.Join(f.root, journal.BackupName)); err != nil || got != base {
+		if got, err := skillTreeState(
+			t.Context(),
+			filepath.Join(f.root, journal.BackupName),
+		); err != nil ||
+			got != base {
 			t.Fatalf("backup = %s, %v; want the original", got, err)
 		}
 	})
@@ -391,14 +399,14 @@ func TestSkillInstallRecovery(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(backup, "late.md"), []byte("saved late"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		edited, err := skillTreeState(backup)
+		edited, err := skillTreeState(t.Context(), backup)
 		if err != nil {
 			t.Fatal(err)
 		}
 		installed := f.digest(t, "release-checklist")
 		f.reconcile(t, svc)
 		retained := filepath.Join(f.root, skillConflictCopyPrefix+payload.OpID+"-edited-backup")
-		if got, err := skillTreeState(retained); err != nil || got != edited {
+		if got, err := skillTreeState(t.Context(), retained); err != nil || got != edited {
 			t.Fatalf("retained backup = %s, %v; want the edited backup", got, err)
 		}
 		if f.digest(t, "release-checklist") != installed {
@@ -493,13 +501,13 @@ func TestSkillInstallRecovery(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(original, "late.md"), []byte("saved late"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		edited, err := skillTreeState(original)
+		edited, err := skillTreeState(t.Context(), original)
 		if err != nil {
 			t.Fatal(err)
 		}
 		f.reconcile(t, svc)
 		retained := filepath.Join(f.root, skillRetainedName(payload.OpID, "edited-original"))
-		if got, err := skillTreeState(retained); err != nil || got != edited {
+		if got, err := skillTreeState(t.Context(), retained); err != nil || got != edited {
 			t.Fatalf("retained original copy = %s, %v; want the edited copy", got, err)
 		}
 		f.requireClean(t)
@@ -523,13 +531,13 @@ func TestSkillInstallRecovery(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(aside, "late.md"), []byte("saved late"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		edited, err := skillTreeState(aside)
+		edited, err := skillTreeState(t.Context(), aside)
 		if err != nil {
 			t.Fatal(err)
 		}
 		f.reconcile(t, svc)
 		retained := filepath.Join(f.root, skillRetainedName(payload.OpID, "edited-aside"))
-		if got, err := skillTreeState(retained); err != nil || got != edited {
+		if got, err := skillTreeState(t.Context(), retained); err != nil || got != edited {
 			t.Fatalf("retained aside tree = %s, %v; want the edited tree", got, err)
 		}
 		f.requireClean(t)
@@ -588,7 +596,7 @@ func TestSkillInstallRecovery(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(retained, "SKILL.md"), []byte("first edit"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		edit, err := skillTreeState(retained)
+		edit, err := skillTreeState(t.Context(), retained)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -598,7 +606,7 @@ func TestSkillInstallRecovery(t *testing.T) {
 				t.Fatalf("journal = %+v, %v; want the conflict kept so the retained tree stays discoverable", got, ok)
 			}
 		}
-		if got, err := skillTreeState(retained); err != nil || got != edit {
+		if got, err := skillTreeState(t.Context(), retained); err != nil || got != edit {
 			t.Fatalf("retained unverified tree = %s, %v; want it unchanged", got, err)
 		}
 	})
@@ -628,7 +636,7 @@ func TestSkillInstallRecovery(t *testing.T) {
 			t.Fatalf("journal = %+v, %v; want a retained conflict", got, ok)
 		}
 		retained := filepath.Join(f.root, skillRetainedName(payload.OpID, "unverified"))
-		if got, err := skillTreeState(retained); err != nil || got != unverified {
+		if got, err := skillTreeState(t.Context(), retained); err != nil || got != unverified {
 			t.Fatalf("retained unverified tree = %s, %v; want the first edit", got, err)
 		}
 		if f.digest(t, "release-checklist") != occupant {
@@ -647,7 +655,7 @@ func TestSkillInstallRecovery(t *testing.T) {
 		if err != nil || result.RetainedCopy != retained {
 			t.Fatalf("ResolveInstallConflict() = %+v, %v; want retained copy %s", result, err, retained)
 		}
-		if got, err := skillTreeState(retained); err != nil || got != unverified {
+		if got, err := skillTreeState(t.Context(), retained); err != nil || got != unverified {
 			t.Fatalf("retained unverified tree after resolution = %s, %v; want it kept", got, err)
 		}
 		if f.digest(t, "release-checklist") != occupant {

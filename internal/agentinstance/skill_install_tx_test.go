@@ -203,7 +203,7 @@ func (f *skillTxFixture) install(t *testing.T, name string, files ...skillTestFi
 
 func (f *skillTxFixture) digest(t *testing.T, name string) string {
 	t.Helper()
-	digest, err := skillTreeState(filepath.Join(f.root, name))
+	digest, err := skillTreeState(t.Context(), filepath.Join(f.root, name))
 	if err != nil {
 		t.Fatalf("digest %s: %v", name, err)
 	}
@@ -611,6 +611,42 @@ func TestSkillInstallTransaction(t *testing.T) {
 		}
 		f.requireClean(t)
 		requireReviewState(t, svc, review.ID, SkillReviewPending)
+	})
+	t.Run("Should finish publication when canceled after moving the original", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		f.install(t, skillEditName, skillEditBase...)
+		review := f.mustProposeEdit(t, svc, "Changed.\n")
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+		canceling := withHook(svc, func(step string) bool {
+			if step == "backup_moved" {
+				cancel()
+			}
+			return false
+		})
+		result, err := canceling.Approve(
+			ctx,
+			skillOperator,
+			f.instance,
+			review.ID,
+			review.Digest,
+			"operator:prof-a",
+			f.root,
+		)
+		if err != nil || !result.Committed || !errors.Is(ctx.Err(), context.Canceled) {
+			t.Fatalf(
+				"Approve() = %+v, %v, context %v; want a committed install after cancellation",
+				result,
+				err,
+				ctx.Err(),
+			)
+		}
+		if got := f.digest(t, skillEditName); got != review.ProposedDigest {
+			t.Fatalf("installed digest = %q, want %q", got, review.ProposedDigest)
+		}
+		f.requireClean(t)
 	})
 	t.Run("Should neither project nor roll back a published journal that is not durable", func(t *testing.T) {
 		t.Parallel()

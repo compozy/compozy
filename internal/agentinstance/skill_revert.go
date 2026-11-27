@@ -138,7 +138,7 @@ func (s *SkillProposalService) readRevertEligibility(
 		}
 		return RevertEligibility{Reason: SkillRevertSuperseded}, nil
 	}
-	live, err := skillTreeStateContext(ctx, filepath.Join(root, name))
+	live, err := skillTreeState(ctx, filepath.Join(root, name))
 	if errors.Is(err, ErrSkillTreeUnsupported) {
 		return RevertEligibility{Reason: SkillRevertChangedOnDisk}, nil
 	}
@@ -302,10 +302,13 @@ func (s *SkillProposalService) revertOp(
 		)
 	}
 	op.stage = func(dir string) error {
-		if err := writeSkillTreeFiles(dir, base); err != nil {
+		if err := writeSkillTreeFiles(ctx, dir, base); err != nil {
 			return err
 		}
-		staged, err := SkillTreeDigest(dir)
+		staged, err := SkillTreeDigest(ctx, dir)
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
+		}
 		if err != nil || staged != review.BaseDigest {
 			return errors.Join(&SkillRevertConflictError{Name: t.name, Reason: SkillRevertTargetUnavailable}, err)
 		}

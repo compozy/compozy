@@ -45,11 +45,7 @@ func (r skillContextReader) Read(buf []byte) (int, error) {
 //
 // Paths are slash-separated and relative to dir. Directories contribute only through their files.
 // Symlinks, non-regular entries and files with special mode bits return ErrSkillTreeUnsupported.
-func SkillTreeDigest(dir string) (string, error) {
-	return digestSkillTree(context.Background(), dir)
-}
-
-func digestSkillTree(ctx context.Context, dir string) (string, error) {
+func SkillTreeDigest(ctx context.Context, dir string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -163,18 +159,14 @@ func hashRootFile(ctx context.Context, root *os.Root, path string) (fs.FileMode,
 
 // skillTreeState returns the tree digest of dir, or "" when dir itself does not exist. Only that
 // first check classifies a skill as absent; a tree that changes while it is read is an error.
-func skillTreeState(dir string) (string, error) {
-	return skillTreeStateContext(context.Background(), dir)
-}
-
-func skillTreeStateContext(ctx context.Context, dir string) (string, error) {
+func skillTreeState(ctx context.Context, dir string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
 	if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) {
 		return "", nil
 	}
-	return digestSkillTree(ctx, dir)
+	return SkillTreeDigest(ctx, dir)
 }
 
 // skillTreeUnexplained stands for a tree recovery cannot digest (a symlink or other unsupported
@@ -184,8 +176,8 @@ const skillTreeUnexplained = "unexplained"
 
 // recoveryTreeState is skillTreeState for recovery classification, mapping an unsupported tree to
 // skillTreeUnexplained; every other inspection failure stays an error.
-func recoveryTreeState(dir string) (string, error) {
-	digest, err := skillTreeState(dir)
+func recoveryTreeState(ctx context.Context, dir string) (string, error) {
+	digest, err := skillTreeState(ctx, dir)
 	if errors.Is(err, ErrSkillTreeUnsupported) {
 		return skillTreeUnexplained, nil
 	}
@@ -194,7 +186,10 @@ func recoveryTreeState(dir string) (string, error) {
 
 // copySkillTree copies src into the new directory dst byte- and permission-exact and syncs it.
 // Symlinks, non-regular entries and special mode bits are refused. The caller removes partial copies.
-func copySkillTree(src, dst string) error {
+func copySkillTree(ctx context.Context, src, dst string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	info, err := os.Lstat(src)
 	if err != nil {
 		return err
@@ -206,24 +201,27 @@ func copySkillTree(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	files, err := skillTreeFiles(context.Background(), root, 0)
+	files, err := skillTreeFiles(ctx, root, 0)
 	if err == nil {
 		err = os.Mkdir(dst, 0o700)
 	}
 	if err == nil {
 		for _, file := range files {
-			if err = copyRootFile(root, file, dst); err != nil {
+			if err = copyRootFile(ctx, root, file, dst); err != nil {
 				break
 			}
 		}
 	}
 	if err == nil {
-		err = syncSkillTree(dst)
+		err = syncSkillTree(ctx, dst)
 	}
 	return errors.Join(err, root.Close())
 }
 
-func copyRootFile(root *os.Root, file skillTreeFile, dst string) error {
+func copyRootFile(ctx context.Context, root *os.Root, file skillTreeFile, dst string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	target := filepath.Join(dst, filepath.FromSlash(file.path))
 	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 		return err
@@ -232,7 +230,7 @@ func copyRootFile(root *os.Root, file skillTreeFile, dst string) error {
 	if err != nil {
 		return err
 	}
-	data, err := io.ReadAll(source)
+	data, err := io.ReadAll(skillContextReader{ctx: ctx, source: source})
 	if err := errors.Join(err, source.Close()); err != nil {
 		return err
 	}
@@ -256,9 +254,12 @@ func writeSkillFile(path string, data []byte, perm fs.FileMode) error {
 }
 
 // syncSkillTree syncs every directory of dir so a following rename publishes durable contents.
-func syncSkillTree(dir string) error {
+func syncSkillTree(ctx context.Context, dir string) error {
 	return filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil || !entry.IsDir() {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		handle, err := fileutil.OpenDirectoryForMutation(path)

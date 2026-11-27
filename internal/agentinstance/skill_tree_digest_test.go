@@ -27,7 +27,7 @@ func TestSkillTreeDigest(t *testing.T) {
 	}
 	digest := func(t *testing.T, dir string) string {
 		t.Helper()
-		value, err := SkillTreeDigest(dir)
+		value, err := SkillTreeDigest(t.Context(), dir)
 		if err != nil {
 			t.Fatalf("SkillTreeDigest() = %v", err)
 		}
@@ -67,7 +67,7 @@ func TestSkillTreeDigest(t *testing.T) {
 		if err := os.Symlink(filepath.Join(dir, "SKILL.md"), filepath.Join(dir, "link.md")); err != nil {
 			t.Skipf("symlinks unavailable: %v", err)
 		}
-		if _, err := SkillTreeDigest(dir); !errors.Is(err, ErrSkillTreeUnsupported) {
+		if _, err := SkillTreeDigest(t.Context(), dir); !errors.Is(err, ErrSkillTreeUnsupported) {
 			t.Fatalf("SkillTreeDigest() = %v, want ErrSkillTreeUnsupported", err)
 		}
 	})
@@ -91,7 +91,7 @@ func TestSkillTreeDigest(t *testing.T) {
 			t.Fatal(err)
 		}
 		dst := filepath.Join(t.TempDir(), "copy")
-		if err := copySkillTree(src, dst); err != nil {
+		if err := copySkillTree(t.Context(), src, dst); err != nil {
 			t.Fatalf("copySkillTree() = %v", err)
 		}
 		if digest(t, dst) != digest(t, src) {
@@ -130,11 +130,12 @@ func TestSkillTreeDigest(t *testing.T) {
 				t.Errorf("close root: %v", err)
 			}
 		})
-		_, err = hashSkillTreeFiles(t.Context(), root, []skillTreeFile{{path: "SKILL.md", perm: 0o600}, {path: "gone.md"}})
+		listed := []skillTreeFile{{path: "SKILL.md", perm: 0o600}, {path: "gone.md"}}
+		_, err = hashSkillTreeFiles(t.Context(), root, listed)
 		if !errors.Is(err, errSkillTreeChanged) || errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("hashSkillTreeFiles() = %v, want a changed tree without not-exist identity", err)
 		}
-		if state, err := skillTreeState(filepath.Join(dir, "missing-skill")); err != nil || state != "" {
+		if state, err := skillTreeState(t.Context(), filepath.Join(dir, "missing-skill")); err != nil || state != "" {
 			t.Fatalf("skillTreeState(absent dir) = %q, %v; want absent", state, err)
 		}
 	})

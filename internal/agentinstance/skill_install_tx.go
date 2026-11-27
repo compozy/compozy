@@ -157,6 +157,9 @@ type skillTx struct {
 // runSkillOp runs steps 3–6 of the install transaction under both locks, after Reconcile and the
 // step-2 checks. Any failure before the commit point rolls back through the recovery policy.
 func (s *SkillProposalService) runSkillOp(ctx context.Context, t *skillTarget, op skillOp) (SkillInstallResult, error) {
+	if err := ctx.Err(); err != nil {
+		return SkillInstallResult{}, err
+	}
 	opID, err := store.NewID("sop")
 	if err != nil {
 		return SkillInstallResult{}, err
@@ -186,17 +189,14 @@ func (s *SkillProposalService) runSkillOp(ctx context.Context, t *skillTarget, o
 	if err := dirpublish.WriteJournal(t.parent, tx.journal, false); err != nil {
 		return SkillInstallResult{}, err
 	}
-	if err := tx.prepare(); err != nil {
+	if err := tx.prepare(ctx); err != nil {
 		return SkillInstallResult{}, tx.abort(ctx, err)
 	}
-	// A canceled request stops before the target moves; abort removes the stage and the journal.
-	if err := ctx.Err(); err != nil {
+	if err := tx.swap(ctx); err != nil {
 		return SkillInstallResult{}, tx.abort(ctx, err)
 	}
-	if err := tx.swap(); err != nil {
-		return SkillInstallResult{}, tx.abort(ctx, err)
-	}
-	entry, err := tx.commit()
+	// Once the swap starts, finish or recover the recorded operation even if the caller leaves.
+	entry, err := tx.commit(context.WithoutCancel(ctx))
 	if err != nil {
 		return SkillInstallResult{}, tx.abort(ctx, err)
 	}
@@ -207,19 +207,22 @@ func (s *SkillProposalService) runSkillOp(ctx context.Context, t *skillTarget, o
 }
 
 // prepare copies the original aside (verified against PreDigest) and stages the incoming tree.
-func (tx *skillTx) prepare() error {
+func (tx *skillTx) prepare(ctx context.Context) error {
 	if tx.s.crashed("prepared") {
 		return errSkillInstallCrashed
 	}
 	if tx.op.preExists {
 		copyPath := tx.t.path(tx.payload.OriginalCopyName)
-		if err := copySkillTree(tx.t.dir, copyPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := copySkillTree(ctx, tx.t.dir, copyPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 		if tx.s.crashed("original_copied") {
 			return errSkillInstallCrashed
 		}
-		digest, err := skillTreeState(copyPath)
+		digest, err := skillTreeState(ctx, copyPath)
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
+		}
 		if err != nil || digest != tx.op.preDigest {
 			return errors.Join(tx.op.changed, err)
 		}
@@ -237,10 +240,10 @@ func (tx *skillTx) prepare() error {
 	if err := tx.op.stage(incoming); err != nil {
 		return err
 	}
-	if err := syncSkillTree(incoming); err != nil {
+	if err := syncSkillTree(ctx, incoming); err != nil {
 		return err
 	}
-	staged, err := SkillTreeDigest(incoming)
+	staged, err := SkillTreeDigest(ctx, incoming)
 	if err != nil {
 		return err
 	}
@@ -255,11 +258,14 @@ func (tx *skillTx) prepare() error {
 }
 
 // swap re-checks the live target, moves it to the backup slot (verified), and publishes incoming.
-func (tx *skillTx) swap() error {
+func (tx *skillTx) swap(ctx context.Context) error {
 	if tx.s.crashed("incoming_ready") {
 		return errSkillInstallCrashed
 	}
-	live, err := skillTreeState(tx.t.dir)
+	live, err := skillTreeState(ctx, tx.t.dir)
+	if contextErr := ctx.Err(); contextErr != nil {
+		return contextErr
+	}
 	if err != nil {
 		return errors.Join(tx.op.changed, err)
 	}
@@ -268,6 +274,9 @@ func (tx *skillTx) swap() error {
 	}
 	if tx.s.crashed("rechecked") {
 		return errSkillInstallCrashed
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if err := tx.advance(dirpublish.PhaseBackup); err != nil {
 		return err
@@ -279,7 +288,7 @@ func (tx *skillTx) swap() error {
 		if tx.s.crashed("backup_moved") {
 			return errSkillInstallCrashed
 		}
-		backup, err := skillTreeState(tx.t.path(tx.journal.BackupName))
+		backup, err := skillTreeState(context.WithoutCancel(ctx), tx.t.path(tx.journal.BackupName))
 		if err != nil || backup != tx.op.preDigest {
 			return errors.Join(errSkillInstallRaced, err)
 		}
@@ -297,8 +306,8 @@ func (tx *skillTx) swap() error {
 
 // commit re-checks that the live target is the staged tree, appends the install-log entry, then
 // sets the journal to published: the single commit point.
-func (tx *skillTx) commit() (skillInstallLogEntry, error) {
-	live, err := recoveryTreeState(tx.t.dir)
+func (tx *skillTx) commit(ctx context.Context) (skillInstallLogEntry, error) {
+	live, err := recoveryTreeState(ctx, tx.t.dir)
 	if err != nil || live != tx.payload.StagedDigest {
 		return skillInstallLogEntry{}, errors.Join(errSkillInstallRaced, err)
 	}
@@ -380,7 +389,7 @@ func (s *SkillProposalService) afterCommit(
 	payload SkillInstallPayload,
 ) error {
 	warning := s.projectSkillInstall(ctx, entry)
-	warning = errors.Join(warning, finalizeSkillOp(t, journal, payload))
+	warning = errors.Join(warning, finalizeSkillOp(context.WithoutCancel(ctx), t, journal, payload))
 	warning = errors.Join(warning, s.publishSkills(ctx))
 	if warning != nil {
 		slog.WarnContext(ctx, "skill.install.committed_with_warning", "op_id", entry.OpID,

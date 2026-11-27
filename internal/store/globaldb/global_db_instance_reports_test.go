@@ -262,7 +262,7 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 			t.Fatalf("Approve() = %+v, %v; want committed with the projection warning", result, err)
 		}
 		installed := filepath.Join(scanRoot, "rollback-skill")
-		digest, err := agentinstance.SkillTreeDigest(installed)
+		digest, err := agentinstance.SkillTreeDigest(t.Context(), installed)
 		if err != nil {
 			t.Fatalf("committed skill missing after the projection failed: %v", err)
 		}
@@ -280,7 +280,7 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 			approved.DecidedVia != "operator" || approved.PrevInstallMarker != nil {
 			t.Fatalf("reconciled review = %+v, %v; want approved with the installed digest", approved, err)
 		}
-		if after, err := agentinstance.SkillTreeDigest(installed); err != nil || after != digest {
+		if after, err := agentinstance.SkillTreeDigest(t.Context(), installed); err != nil || after != digest {
 			t.Fatalf("reconcile changed committed files: %s %v", after, err)
 		}
 	})

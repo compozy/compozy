@@ -102,7 +102,7 @@ func (s *SkillProposalService) Propose(
 	if err != nil {
 		return SkillProposalResult{}, err
 	}
-	path, digest, snapshot, err := s.writeProposal(id, draft, edit)
+	path, digest, snapshot, err := s.writeProposal(ctx, id, draft, edit)
 	if err != nil {
 		return SkillProposalResult{}, err
 	}
@@ -207,16 +207,20 @@ func checkProposalTarget(
 
 // writeProposal writes the inert draft and, for an edit, the base snapshot beside it.
 func (s *SkillProposalService) writeProposal(
+	ctx context.Context,
 	id string,
 	draft SkillDraft,
 	edit skillEdit,
 ) (path, digest, snapshot string, err error) {
+	if err := ctx.Err(); err != nil {
+		return "", "", "", err
+	}
 	path, digest, err = WriteSkillDraft(s.DraftRoot, s.ScanRoots, draft)
 	if err != nil || draft.Mode != SkillProposalEdit {
 		return path, digest, "", err
 	}
 	snapshot = skillSnapshotPath(path, id)
-	if err := writeSkillSnapshot(snapshot, edit.base, edit.baseDigest); err != nil {
+	if err := writeSkillSnapshot(ctx, snapshot, edit.base, edit.baseDigest); err != nil {
 		return "", "", "", errors.Join(err, os.Remove(path))
 	}
 	return path, digest, snapshot, nil
