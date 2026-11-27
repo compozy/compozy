@@ -94,8 +94,8 @@ func (m *Manager) setEndedEarly(ctx context.Context, target *Session, turnID str
 }
 
 // turnEndedEarly applies the early-stop trigger: a child or orchestrated session ended
-// a turn with end_turn, holds no open work signal or pending interaction, its creator
-// received no answer to its input, is not awaiting this reply, and has no linked pull request.
+// a turn with end_turn, holds no open work signal or pending interaction, has no linked
+// pull request, and its creator has no answer, reply watch, or completion monitor.
 func (m *Manager) turnEndedEarly(ctx context.Context, target *Session, turnState *promptTurnDispatchState) bool {
 	if turnState.stopReason != acp.PromptStopReasonEndTurn || promptTurnWasCanceled(target, turnState) {
 		return false
@@ -109,6 +109,10 @@ func (m *Manager) turnEndedEarly(ctx context.Context, target *Session, turnState
 		return false
 	}
 	parentID := store.NormalizeSessionLineage(info.ID, info.Lineage).ParentSessionID
+	// Before settlement only an active monitor can cover the upcoming completion.
+	if m.spawnWakeCovered(parentID, &Info{ID: info.ID}, BadgeDone) {
+		return false
+	}
 	if m.creatorAwaitsChildReply(ctx, parentID, info.ID, turnState.turnID) {
 		return false
 	}
