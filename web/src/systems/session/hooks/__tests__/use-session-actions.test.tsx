@@ -1787,8 +1787,12 @@ describe("session actions", () => {
       });
       vi.mocked(fetchSessionById)
         .mockResolvedValueOnce(createdSession)
-        .mockReturnValueOnce(confirmationRead)
-        .mockResolvedValueOnce({ ...createdSession, id: "replacement" });
+        .mockReturnValueOnce(confirmationRead);
+      if (replace)
+        vi.mocked(fetchSessionById).mockResolvedValueOnce({
+          ...createdSession,
+          id: "replacement",
+        });
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       const { result, unmount } = renderHook(() => useSessionLifecycleActions(), {
         wrapper: createWrapper(client),
