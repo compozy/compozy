@@ -7371,6 +7371,52 @@ func TestQueuedAgentCommandDelivery(t *testing.T) {
 			t.Fatalf("queued command = %#v", request)
 		}
 	})
+	t.Run("Should dispatch an after_turn synthetic wake as a normal turn", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(database))
+		registerManagerInputQueueWorkspace(t, database, h)
+		session := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, session)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		metadata, err := json.Marshal(acp.PromptSyntheticMeta{
+			Kind: acp.PromptSyntheticKindMonitor, WakeEventID: "monitor-wake",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		inserted, _, err := database.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "queued-wake", SessionID: session.ID, OwnerKind: store.SessionInputOwnerSynthetic, Priority: 1,
+			MessageID: "queued-message", TurnID: "wake", Text: "reply arrived",
+			Mode: store.SessionInputQueueModeQueue, QueueCap: 1, Now: h.manager.now(),
+			SyntheticPrompt: &store.SessionInputSyntheticPrompt{
+				RunID: "monitor-wake", Delivery: store.SessionInputDeliveryAfterTurn, Metadata: metadata,
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		entry, err := h.manager.inputQueue.Get(t.Context(), session.ID, inserted.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req, err := h.manager.newQueuedInputPromptRequest(session.ID, queuedInputFromEntry(&entry))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if req.delivery != PromptDeliveryNormal {
+			t.Fatalf("queued wake delivery = %q, want normal", req.delivery)
+		}
+		stream, err := h.manager.submitPromptRequest(t.Context(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		boundary := session.Meta().RestartBoundary
+		if boundary == nil || boundary.TurnID != "wake" || boundary.Delivery != string(PromptDeliveryNormal) {
+			t.Fatalf("restart boundary = %+v, want a normal boundary for turn wake", boundary)
+		}
+	})
 }
 
 func TestManagerBoundarySteer(t *testing.T) {
