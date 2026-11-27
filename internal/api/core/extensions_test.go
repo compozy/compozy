@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -1506,8 +1507,7 @@ func TestExtensionDependencyHandlers(t *testing.T) {
 	}
 }
 
-// Invariant: a dependency's missing marketplace digest keeps the validation payload's field issue and names the
-// dependency (G-2). Owner: core extension install handlers; suite: TestExtensionDependencyHandlers.
+// Dependency validation errors retain attribution and the relevant field or source location.
 func TestExtensionDependencyValidationPayload(t *testing.T) {
 	t.Parallel()
 	t.Run("Should keep the expected_digest issue and name the dependency", func(t *testing.T) {
@@ -1541,6 +1541,48 @@ func TestExtensionDependencyValidationPayload(t *testing.T) {
 		if len(payload.Issues) != 1 || payload.Issues[0].Field != "expected_digest" ||
 			payload.Dependency != "acme-core" || !reflect.DeepEqual(installed, []string{"acme-base"}) {
 			t.Fatalf("payload = %#v body=%s", payload, response.Body.String())
+		}
+	})
+	t.Run("Should report the dependency and column of a malformed manifest", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "extension.toml")
+		content := []byte("\xef\xbb\xbf[extension]\nname = \"acme-core\"\nversion = \"1.0.0\"\n= \"oops\"\n")
+		if err := os.WriteFile(path, content, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, decodeErr := extensionpkg.LoadManifest(dir)
+		if decodeErr == nil {
+			t.Fatal("LoadManifest accepted the malformed fixture")
+		}
+		service := extensionServiceStub{installFn: func(
+			context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext,
+		) (contract.ExtensionPayload, error) {
+			return contract.ExtensionPayload{}, &extensionpkg.DependenciesInstalledError{
+				Installed: []string{"acme-base"},
+				Err:       &extensionpkg.DependencyGateError{Dependency: "acme-core", Err: decodeErr},
+			}
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions", handlers.InstallExtension)
+		response := performRequest(t, engine, http.MethodPost, "/extensions",
+			[]byte(`{"source":"curated","ref":"acme/tool","with_dependencies":true}`))
+		if response.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("status = %d, want 422; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.ExtensionValidationErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(error) error = %v", err)
+		}
+		if !strings.Contains(payload.Error, `dependency "acme-core": extension: decode manifest "extension.toml"`) ||
+			!strings.Contains(payload.Error, "dependencies installed: acme-base") ||
+			payload.Dependency != "acme-core" || !reflect.DeepEqual(payload.DependenciesInstalled, []string{"acme-base"}) {
+			t.Fatalf("payload = %#v, want dependency and partial-install context", payload)
+		}
+		if len(payload.Issues) != 1 || payload.Issues[0].Path != "extension.toml" ||
+			payload.Issues[0].Line != 4 || payload.Issues[0].Column != 1 {
+			t.Fatalf("issues = %#v, want extension.toml line 4 column 1", payload.Issues)
 		}
 	})
 }

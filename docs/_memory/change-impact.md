@@ -1,5 +1,23 @@
 # Compozy Change Impact
 
+## Live CLI shell-completion values (2026-11-26)
+
+- **CLI/HTTP/UDS.** Additive value completion on the existing `compozy completion <shell>` output for
+  session IDs, workspace refs, agent names, providers, models, profiles, task and task-run IDs, loops,
+  automations, worktrees, session and workspace folder IDs, extensions, computers, vault refs and
+  toolsets, plus the `--workspace`, `--profile`, `--agent`, `--provider`, `--model`, `--folder`,
+  `--session`, `--task`, `--job-id`, `--worktree`, `--extension`, `--computer`, `--vault-ref`,
+  `--toolset` and `--output` flag values. No verb, flag, route or DTO changed; generated CLI docs are
+  unchanged. `provider models set` completes models only when a provider is already typed.
+- **Native tools.** None.
+- **Extensibility, hooks and config.** None; no config key, hook payload or extension contract changed.
+- **State and isolation.** No schema or migration change. Completion performs read-only list calls
+  scoped by the explicit `--workspace`/`COMPOZY_WORKSPACE` value or one cwd match under the active
+  profile; vault completion exposes refs only. Completion never starts or mutates the daemon.
+- **Web, official skill, docs and QA.** No Web change. `docs/adr/0001-dynamic-cli-completions.md`
+  records the latency, no-cache and silent-failure contract; the glossary gains "value completion"
+  and "completion candidate". QA: ET-cli-shell-completion.
+
 ## Extension inputs for subprocesses, setup and dependencies (GH-1845)
 
 - **Native tools.** New `compozy__extensions_setup` (stable): read input state or write missing,
