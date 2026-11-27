@@ -180,7 +180,9 @@ Session pages include a Vault tab in the inspector. It shows only entries below
 
 The default key provider is `file`. It never queries the OS keyring, including during startup or
 diagnostics. Existing installations keep their current behavior: `COMPOZY_VAULT_KEY` overrides the
-file key; otherwise CompozyOS creates `$COMPOZY_HOME/vault.key` with `0600` permissions on first use.
+file key; otherwise CompozyOS creates `$COMPOZY_HOME/vault.key` on first use. On Unix, CompozyOS creates
+the file with `0600` permissions and rejects group or other permissions when it reopens the key. On
+Windows, filesystem access controls govern access to the file.
 
 ### Opt in to the OS keyring
 
