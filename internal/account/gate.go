@@ -3,7 +3,6 @@ package account
 import (
 	"context"
 	"encoding/json/v2"
-	"errors"
 	"time"
 
 	"github.com/compozy/compozy/internal/cloudclient"
@@ -120,7 +119,8 @@ func (s *Service) gateStatusLocked() (string, *Grace) {
 		if s.gate.policy.GraceAt(now) {
 			return GateGrace, &Grace{Source: "policy", Until: *s.gate.policy.Until, Message: s.gate.policy.Message}
 		}
-		if current.PreAccountInstall && current.AuthGeneration == 0 && current.GatePolicyFetchedAt.IsZero() &&
+		if s.gate.policy.Mode == "" && current.PreAccountInstall && current.AuthGeneration == 0 &&
+			current.GatePolicyFetchedAt.IsZero() &&
 			!current.OfflineGraceStartedAt.IsZero() {
 			until := current.OfflineGraceStartedAt.Add(offlineGrace)
 			if now.Before(until) {
@@ -196,8 +196,6 @@ func (s *Service) runGate(cloud gateCloud) {
 
 func (s *Service) fetchGatePolicy(ctx context.Context, cloud gateCloud) {
 	token, err := cloud.GatePolicy(ctx)
-	failure, typed := errors.AsType[*cloudclient.Failure](err)
-	unavailable := err != nil && (!typed || failure.Temporary())
 	var policy remoteproto.GatePolicy
 	var encodedKeys []byte
 	if err == nil {
@@ -209,10 +207,6 @@ func (s *Service) fetchGatePolicy(ctx context.Context, cloud gateCloud) {
 				encodedKeys, err = json.Marshal(keys)
 			}
 		}
-		unavailable = err != nil
-	}
-	if len(encodedKeys) == 0 {
-		token = ""
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -222,15 +216,20 @@ func (s *Service) fetchGatePolicy(ctx context.Context, cloud gateCloud) {
 		return
 	}
 	next := s.installation
-	if unavailable {
+	if next.GatePolicyJWS == "" && next.GatePolicyKeys == "" {
+		// Older builds could record first contact without a verified policy.
+		next.GatePolicyFetchedAt = time.Time{}
+	}
+	if err != nil {
 		if next.PreAccountInstall && next.AuthGeneration == 0 && next.GatePolicyFetchedAt.IsZero() &&
 			next.OfflineGraceStartedAt.IsZero() {
 			next.OfflineGraceStartedAt = now
 		}
 	} else {
-		next.GatePolicyJWS, next.GatePolicyKeys, next.GatePolicyFetchedAt = token, string(encodedKeys), now
-		// A reachable but invalid response revokes any previously cached grace.
 		s.gate.policy = policy
+		if len(encodedKeys) != 0 {
+			next.GatePolicyJWS, next.GatePolicyKeys, next.GatePolicyFetchedAt = token, string(encodedKeys), now
+		}
 	}
 	if next.GatePolicyJWS != s.installation.GatePolicyJWS ||
 		next.GatePolicyKeys != s.installation.GatePolicyKeys ||

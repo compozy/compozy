@@ -81,6 +81,20 @@ describe("ComputerDetailsPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /Update gpu-vm/i }));
     expect(onStartUpdate).toHaveBeenCalledTimes(1);
 
+    rerender(
+      <ComputerDetailsPanel
+        computer={DETAILS_GPU_VM}
+        initialTab="update"
+        liveUpdateState="provenance_failed"
+        open
+        placement="pane"
+      />
+    );
+    expect(screen.getByRole("link", { name: "CompozyOS releases on GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/compozy/compozy/releases"
+    );
+
     const onCheckVersion = vi.fn();
     rerender(
       <ComputerDetailsPanel

@@ -154,7 +154,7 @@ export const PRICING_FAQ: readonly PricingFaqItem[] = [
     id: "when-pro-ends",
     question: "What happens when Pro ends?",
     answer: [
-      "Your hosted routes stay reachable for 7 days in entitlement-only mode so you have time to renew, after which the cloud tunnels are removed.",
+      "Compozy Cloud keeps your hosted addresses for 7 days. Renew Pro during that window to restore access at the same addresses. After 7 days without Pro, Compozy Cloud removes the routes.",
       "Your most recently used remote computer stays usable over LAN or SSH. Additional remote computers pause until you renew, nothing is unlinked, and all local sessions and files stay untouched.",
     ],
   },

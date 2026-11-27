@@ -42,6 +42,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const paths = Array.from(
     new Set([
       "/",
+      "/abuse",
       "/blog",
       "/changelog",
       "/changelog/feed.xml",

@@ -674,13 +674,16 @@ func TestSignInGate(t *testing.T) {
 			if tc.state == ReauthRequired {
 				initial.SignedOutReason = "device_revoked"
 			}
-			service, _, _ := newAccountTest(
+			service, store, _ := newAccountTest(
 				t,
 				testGateCloud(t, tc.until, tc.foreign),
 				initial,
 				WithSignInRequired(tc.enabled),
 			)
 			assertTestGate(t, service, tc.want, "")
+			if tc.foreign && !store.current().GatePolicyFetchedAt.IsZero() {
+				t.Fatal("unverified policy was recorded as first contact")
+			}
 		})
 	}
 
@@ -714,7 +717,7 @@ func TestSignInGate(t *testing.T) {
 		assertTestGate(t, restarted, GateEnforced, "")
 	})
 
-	t.Run("Should end offline grace at the first reachable response", func(t *testing.T) {
+	t.Run("Should end offline grace at the first verified policy", func(t *testing.T) {
 		t.Parallel()
 		cloud := testGateCloud(t, 0, false)
 		cloud.failure.Store(&cloudclient.Failure{Status: http.StatusServiceUnavailable})
@@ -731,6 +734,19 @@ func TestSignInGate(t *testing.T) {
 		}
 		t.Cleanup(restarted.Close)
 		assertTestGate(t, restarted, GateEnforced, "")
+	})
+
+	t.Run("Should recover offline grace after a previously recorded failed fetch", func(t *testing.T) {
+		t.Parallel()
+		cloud := testGateCloud(t, 0, false)
+		cloud.failure.Store(&cloudclient.Failure{Status: http.StatusProxyAuthRequired})
+		service, store, _ := newAccountTest(t, cloud, Installation{
+			State: SignedOut, PreAccountInstall: true, GatePolicyFetchedAt: accountTestTime(),
+		}, WithSignInRequired(true))
+		assertTestGate(t, service, GateGrace, "offline")
+		if !store.current().GatePolicyFetchedAt.IsZero() {
+			t.Fatal("first contact without a verified policy was retained")
+		}
 	})
 
 	t.Run("Should enforce sign-in immediately for a fresh offline home", func(t *testing.T) {
@@ -753,6 +769,15 @@ func TestSignInGate(t *testing.T) {
 		}},
 		{"JWKS unavailability", func(cloud *gateCloudStub) {
 			cloud.keysFailure.Store(&cloudclient.Failure{Status: http.StatusServiceUnavailable})
+		}},
+		{"a forbidden policy response", func(cloud *gateCloudStub) {
+			cloud.failure.Store(&cloudclient.Failure{Status: http.StatusForbidden})
+		}},
+		{"a missing policy endpoint", func(cloud *gateCloudStub) {
+			cloud.failure.Store(&cloudclient.Failure{Status: http.StatusNotFound})
+		}},
+		{"a proxy authentication response", func(cloud *gateCloudStub) {
+			cloud.failure.Store(&cloudclient.Failure{Status: http.StatusProxyAuthRequired})
 		}},
 	} {
 		t.Run("Should keep signed grace through "+tc.name, func(t *testing.T) {
@@ -781,6 +806,7 @@ func TestSignInGate(t *testing.T) {
 			service, store, _ := newAccountTest(t, cloud, Installation{
 				State: SignedOut, PreAccountInstall: true,
 			}, WithSignInRequired(true))
+			assertTestGate(t, service, GateGrace, "offline")
 			cloud.failure.Store(&cloudclient.Failure{Status: http.StatusServiceUnavailable})
 			service.fetchGatePolicy(t.Context(), cloud)
 			assertTestGate(t, service, GateGrace, "offline")

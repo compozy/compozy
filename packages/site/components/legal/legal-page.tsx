@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { DOCS_PROSE } from "@/components/docs/docs-classes";
 import { DocsH2, DocsInlineCode, DocsLink, DocsTable } from "@/components/docs/docs-prose";
 import { CONTAINER, FOCUS, HAIRLINE } from "@/components/site/layout";
+import { ABUSE_REPORT } from "./abuse-content";
 import { LEGAL_DOC_IDS, LEGAL_DOCUMENTS, type LegalDocId } from "./legal-content";
 import { LegalDesktopToc, LegalMobileToc } from "./legal-toc";
 
@@ -15,14 +16,17 @@ const MARKDOWN_COMPONENTS: Components = {
   code: ({ node: _node, ...props }) => <DocsInlineCode {...props} />,
 };
 
+const DOCUMENTS = { ...LEGAL_DOCUMENTS, abuse: ABUSE_REPORT };
+const DOCUMENT_IDS = [...LEGAL_DOC_IDS, "abuse"] as const;
+
 export function LegalPage({
   docId,
   mobileTocDefaultOpen = false,
 }: {
-  docId: LegalDocId;
+  docId: LegalDocId | "abuse";
   mobileTocDefaultOpen?: boolean;
 }) {
-  const doc = LEGAL_DOCUMENTS[docId];
+  const doc = DOCUMENTS[docId];
   const tocItems = doc.sections.map(section => ({ id: section.id, title: section.title }));
 
   return (
@@ -48,8 +52,8 @@ export function LegalPage({
               </nav>
 
               <nav aria-label="Legal documents" className="flex items-center gap-1">
-                {LEGAL_DOC_IDS.map(tabId => {
-                  const item = LEGAL_DOCUMENTS[tabId];
+                {DOCUMENT_IDS.map(tabId => {
+                  const item = DOCUMENTS[tabId];
                   const selected = tabId === docId;
                   return (
                     <Link
@@ -92,6 +96,13 @@ export function LegalPage({
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
                     {section.body}
                   </ReactMarkdown>
+                  {docId === "terms" && section.id === "acceptable-use-and-suspension" ? (
+                    <p>
+                      <DocsLink href={ABUSE_REPORT.route}>Report hosted-route abuse</DocsLink> if
+                      you encounter misuse on a <DocsInlineCode>*.compozy.run</DocsInlineCode>{" "}
+                      address.
+                    </p>
+                  ) : null}
                 </div>
               </section>
             ))}

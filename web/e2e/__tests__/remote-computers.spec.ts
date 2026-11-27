@@ -710,7 +710,9 @@ test.describe("Account deletion on Pro", () => {
 test.describe("Remote Gateway upgrade", () => {
   test.use({ scenario: "gateway-upgrade" });
 
-  test("E2E-009 shows the upgrade notice after sign-in and remembers Dismiss", async ({ page }) => {
+  test("E2E-009 shows the migration offer after sign-in and remembers Dismiss", async ({
+    page,
+  }) => {
     await page.goto("/settings/gateway", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/settings\/computers/);
     const settings = appWindow(page, "settings");
@@ -722,6 +724,9 @@ test.describe("Remote Gateway upgrade", () => {
       "Paired devices and connection profiles were removed. Set up remote computers again."
     );
     await expect(notice).toContainText("2 webhook triggers need confirmation");
+    await expect(notice).toContainText(
+      "Enter GATEWAY3 at Pro checkout by January 27, 2027 for 3 months of Compozy Pro free on your first purchase."
+    );
     await expect(
       notice.getByRole("link", { name: "Remote Computers launch notes" })
     ).toHaveAttribute("href", "https://compozy.com/blog/compozy-0-8-remote-computers");

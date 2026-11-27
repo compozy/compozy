@@ -212,7 +212,7 @@ func TestCloudDeviceSessions(t *testing.T) {
 			t.Fatal(err)
 		}
 		messages := resend.Messages()
-		if len(messages) != 1 || messages[0].Subject != "New sign-in to Compozy on MacBook Pro (Lisbon, PT)" {
+		if len(messages) != 1 || messages[0].Subject != "New sign-in to CompozyOS on MacBook Pro (Lisbon, PT)" {
 			t.Fatal("the first enrollment did not send the expected security notice")
 		}
 		token = newEnrollment(t, f, auth.Google, p, false)

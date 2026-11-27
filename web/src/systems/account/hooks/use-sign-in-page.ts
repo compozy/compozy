@@ -43,7 +43,6 @@ export function useSignInPage(options: UseSignInPageOptions = {}) {
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [waiting, setWaiting] = useState<SignInWaitingAttemptFixture | null>(null);
   const [notice, setNotice] = useState<ResolvedSignInNotice | null>(null);
-  const [cloudUnreachable, setCloudUnreachable] = useState(false);
   const [rateLimitUntilMs, setRateLimitUntilMs] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -74,7 +73,6 @@ export function useSignInPage(options: UseSignInPageOptions = {}) {
     activeAttemptIdRef.current = null;
     setWaiting(null);
     setNotice(null);
-    setCloudUnreachable(false);
     let latest: AccountStatusPayload | undefined;
     try {
       latest = await fetchAccountStatus();
@@ -125,12 +123,11 @@ export function useSignInPage(options: UseSignInPageOptions = {}) {
           return;
         }
         if (progress.state === "failed") {
+          const resolved = noticeFromSignInError({ code: progress.code });
+          // Only an attempt started on this screen has a provider to retry.
+          if (resolved.kind === "cloud_unreachable" && !currentAttempt) return;
           activeAttemptIdRef.current = null;
           setWaiting(null);
-          const resolved = noticeFromSignInError({ code: progress.code });
-          if (resolved.kind === "cloud_unreachable") {
-            setCloudUnreachable(true);
-          }
           setNotice(resolved);
         }
       },
@@ -163,7 +160,6 @@ export function useSignInPage(options: UseSignInPageOptions = {}) {
     onSuccess: ({ provider, response }) => {
       activeAttemptIdRef.current = response.attempt_id;
       setNotice(null);
-      setCloudUnreachable(false);
       void queryClient.invalidateQueries({ queryKey: accountKeys.status() });
       setWaiting({
         attemptId: response.attempt_id,
@@ -190,14 +186,12 @@ export function useSignInPage(options: UseSignInPageOptions = {}) {
           err.code === "cloud_unavailable" ||
           err.status === 503
         ) {
-          setCloudUnreachable(true);
           setNotice(noticeFromSignInError({ code: "account_cloud_unreachable" }));
           return;
         }
         setNotice(noticeFromSignInError({ code: err.code, message: err.message }));
         return;
       }
-      setCloudUnreachable(true);
       setNotice(noticeFromSignInError({ code: "account_cloud_unreachable" }));
     },
   });
@@ -235,17 +229,9 @@ export function useSignInPage(options: UseSignInPageOptions = {}) {
   }, []);
 
   const handleRetryConnection = useCallback(() => {
-    setCloudUnreachable(false);
-    setNotice(null);
-    void fetchAccountStatus(undefined, { refresh: true })
-      .then(next => {
-        queryClient.setQueryData(accountKeys.status(), next);
-      })
-      .catch(() => {
-        setCloudUnreachable(true);
-        setNotice(noticeFromSignInError({ code: "account_cloud_unreachable" }));
-      });
-  }, [queryClient]);
+    const provider = startLoginMutation.variables;
+    if (provider) handleSelectProvider(provider);
+  }, [handleSelectProvider, startLoginMutation.variables]);
 
   const isGrace = isAccountGraceActive(statusQuery.data);
   const handleBackToApp = useMemo(
@@ -263,9 +249,8 @@ export function useSignInPage(options: UseSignInPageOptions = {}) {
       resolveSignInView(statusQuery.data, {
         notice,
         rateLimitRemainingSeconds,
-        cloudUnreachable,
       }),
-    [statusQuery.data, notice, rateLimitRemainingSeconds, cloudUnreachable]
+    [statusQuery.data, notice, rateLimitRemainingSeconds]
   );
 
   return {
@@ -276,6 +261,7 @@ export function useSignInPage(options: UseSignInPageOptions = {}) {
     marketingOptIn,
     setMarketingOptIn,
     isUnlinking: unlinkMutation.isPending,
+    isRetrying: notice?.kind === "cloud_unreachable" && startLoginMutation.isPending,
     handleSelectProvider,
     handleCancelWaiting,
     handleReopenBrowser,

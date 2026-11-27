@@ -406,7 +406,7 @@ func assertLifecycleNotices(t *testing.T, f authFixture, resend *remotetest.Rese
 			t.Fatal(err)
 		}
 	}
-	assertOperationalMessage(t, resend, suspendedAddr, "Your Compozy account was suspended", "support@compozy.com", 1)
+	assertOperationalMessage(t, resend, suspendedAddr, "Your CompozyOS account was suspended", "support@compozy.com", 1)
 
 	resend.SetOnSend(func(message remotetest.ResendMessage) {
 		if message.Subject != "Your Compozy account was deleted" {

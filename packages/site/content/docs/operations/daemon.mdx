@@ -33,6 +33,10 @@ compozy daemon start --foreground
 Foreground mode keeps the daemon attached to the terminal. It exits when the process receives
 `SIGINT`, `SIGTERM`, or when its parent context is cancelled.
 
+Official release builds start the daemon and report process health while signed out. New local work
+requires sign-in or an active sign-in grace period. Run `compozy account status` to check the gate
+for this home and `compozy account login` to sign in. See [Sign-in and offline use](/docs/account/sign-in).
+
 ## Check status and health
 
 Use `compozy status` for the process-level status:

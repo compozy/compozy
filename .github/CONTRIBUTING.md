@@ -28,9 +28,11 @@ go build -o ./bin/compozy .
 export PATH="$PWD/bin:$PATH"
 ```
 
-Source builds are **development builds**: they run without the mandatory sign-in gate and without
-Compozy Cloud features (`version.SignInRequired` is stamped only on official release builds). Official
-end-user install methods (desktop app, verified installer, Homebrew, npm, and Linux packages) are
+Source builds are **development builds** with optional sign-in. Run `compozy account login` to use
+Compozy Cloud features. The daemon connects to `https://cloud.compozy.com` by default. To use staging,
+set `COMPOZY_CLOUD_URL=https://staging.cloud.compozy.com` in the daemon's environment.
+
+Official end-user install methods (desktop app, verified installer, Homebrew, npm, and Linux packages) are
 documented at [compozy.com/download](https://compozy.com/download).
 
 ## Quality gates

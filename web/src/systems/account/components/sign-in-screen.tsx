@@ -56,6 +56,7 @@ export interface SignInScreenProps {
   marketingOptIn?: boolean;
   autoFocusFirstProvider?: boolean;
   isUnlinking?: boolean;
+  isRetrying?: boolean;
   onMarketingOptInChange?: (checked: boolean) => void;
   onSelectProvider?: (provider: SignInProvider) => void;
   onReopenBrowser?: (attempt: SignInWaitingAttemptFixture) => void;
@@ -156,6 +157,7 @@ export function SignInScreen({
   marketingOptIn = false,
   autoFocusFirstProvider = false,
   isUnlinking = false,
+  isRetrying = false,
   onMarketingOptInChange,
   onSelectProvider,
   onReopenBrowser,
@@ -203,6 +205,7 @@ export function SignInScreen({
 
         {notice ? (
           <SignInNotice
+            isRetrying={isRetrying}
             isUnlinking={isUnlinking}
             notice={notice}
             onRetryConnection={onRetryConnection}
@@ -328,13 +331,14 @@ export function SignInScreen({
 
 type SignInNoticeProps = Pick<
   SignInScreenProps,
-  "isUnlinking" | "onRetryConnection" | "onUnlinkInstallation"
+  "isRetrying" | "isUnlinking" | "onRetryConnection" | "onUnlinkInstallation"
 > & {
   notice: NonNullable<SignInScreenProps["notice"]>;
 };
 
 function SignInNotice({
   notice,
+  isRetrying,
   isUnlinking,
   onRetryConnection,
   onUnlinkInstallation,
@@ -367,6 +371,7 @@ function SignInNotice({
         )}
       </AlertDescription>
       <SignInNoticeActions
+        isRetrying={isRetrying}
         isUnlinking={isUnlinking}
         notice={notice}
         onRetryConnection={onRetryConnection}
@@ -378,6 +383,7 @@ function SignInNotice({
 
 function SignInNoticeActions({
   notice,
+  isRetrying,
   isUnlinking,
   onRetryConnection,
   onUnlinkInstallation,
@@ -393,7 +399,13 @@ function SignInNoticeActions({
   return (
     <AlertActions className="justify-start pt-0.5">
       {notice.retryable && (
-        <Button onClick={onRetryConnection} size="sm" type="button" variant="secondary">
+        <Button
+          disabled={isRetrying}
+          onClick={onRetryConnection}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
           Try again
         </Button>
       )}
