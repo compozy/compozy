@@ -215,7 +215,9 @@ export function useProjectFolderGroups(options: {
   const { groupBy, breadth, lens, showEmptyProjects: showEmpty } = options;
   const projectGrouping = groupBy === "project" && breadth.allProjects;
   // Project folders belong to one profile and arrange the project groups of All projects.
-  const applies = projectGrouping && "profile" in lens;
+  // Remote computers read all profiles on their own daemon, whose default profile owns layout writes.
+  const applies =
+    projectGrouping && ("profile" in lens || isRemoteComputerId(options.computerId));
   const { layout, loadError } = useWorkspaceLayout({
     profile: "profile" in lens ? lens.profile : "",
     enabled: options.enabled && applies,

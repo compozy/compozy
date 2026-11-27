@@ -2,7 +2,8 @@ import { createStoreLogic } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "@compozy/ui";
 
-import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
+import { useComputerWorkspaces } from "@/systems/computers";
 import { useProfileReadScope, useProfiles } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -63,8 +64,15 @@ export function useSessionListGroupFolderCreate(target: {
     open && target.profile === null,
     remote ? target.computerId : undefined
   );
+  const remoteWorkspaces = useComputerWorkspaces(
+    target.computerId ?? LOCAL_COMPUTER_ID,
+    open && remote
+  );
+  const projectWorkspaces = remote
+    ? (remoteWorkspaces.data ?? []).filter(workspace => !workspace.archived_at)
+    : active.projectWorkspaces;
   const projectOptions =
-    target.workspaceId === null ? sessionProjectOptions(active.projectWorkspaces) : [];
+    target.workspaceId === null ? sessionProjectOptions(projectWorkspaces) : [];
   const profileOptions = target.profile === null ? sessionProfileOptions(profiles.data ?? []) : [];
   const workspaceId = groupFolderWorkspace(target.workspaceId, picks.project, projectOptions);
   const fallbackProfile = remote
@@ -79,7 +87,7 @@ export function useSessionListGroupFolderCreate(target: {
   });
   const projectLabel =
     projectOptions.find(option => option.value === workspaceId)?.label ??
-    active.projectWorkspaces.find(workspace => workspace.id === workspaceId)?.name;
+    projectWorkspaces.find(workspace => workspace.id === workspaceId)?.name;
 
   return {
     open,

@@ -1,6 +1,8 @@
 import type { MenuTreeNode } from "@compozy/ui";
 import { use } from "react";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
+
 import { SessionClearContext } from "../contexts/session-clear-context-value";
 import { SessionDeriveContext } from "../contexts/session-derive-context-value";
 import { SessionForkContext } from "../contexts/session-fork-context-value";
@@ -9,6 +11,7 @@ import type { SessionMenuSourceData } from "../contexts/session-menu-source-cont
 import { SessionProfileMoveContext } from "../contexts/session-profile-move-context-value";
 import { copySessionText } from "../lib/session-copy";
 import { sessionMenuTree, type SessionRowLayoutMenu } from "../lib/session-menu-tree";
+import { sessionComputerOf } from "../lib/session-row-ref";
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./session-lifecycle-types";
 import { requestSessionLinkDialog } from "./use-session-link-dialog";
@@ -47,19 +50,23 @@ export function useSessionRowMenuTree(
   const profileMove = use(SessionProfileMoveContext);
   const openSession = use(SessionMenuOpenContext);
   const { onOpen } = options;
+  const computerId = sessionComputerOf(session);
+  const remote = isRemoteComputerId(computerId);
   const work = options.linkedWork ?? summaryLinkedWork(session);
   return sessionMenuTree({
     session,
     actions,
     testIdPrefix: options.testIdPrefix,
-    ...(requestContinue ? { onContinue: (source: SessionPayload) => requestContinue(source) } : {}),
-    ...(requestFork ? { onFork: (source: SessionPayload) => requestFork(source) } : {}),
-    ...(profileMove
+    ...(!remote && requestContinue
+      ? { onContinue: (source: SessionPayload) => requestContinue(source) }
+      : {}),
+    ...(!remote && requestFork ? { onFork: (source: SessionPayload) => requestFork(source) } : {}),
+    ...(!remote && profileMove
       ? { profileTargets: profileMove.targets, onMoveToProfile: profileMove.request }
       : {}),
-    clear: clear?.sessionId === session.id ? clear : null,
-    // One picker, hosted by the shell, serves every row, card and the palette.
-    ...(actions.onAdopt
+    clear: !remote && clear?.sessionId === session.id ? clear : null,
+    // One picker, hosted by the shell, serves local rows, cards and the palette.
+    ...(!remote && actions.onAdopt
       ? { onMoveUnder: (source: SessionPayload) => requestSessionParentPicker(source.id) }
       : {}),
     ...(options.layout ? { layout: options.layout } : {}),
@@ -80,7 +87,12 @@ export function useSessionRowMenuTree(
           ...(openSession
             ? {
                 onOpenSession: (id: string) =>
-                  openSession({ id, agent_name: "", workspace_id: session.workspace_id }),
+                  openSession({
+                    id,
+                    agent_name: "",
+                    workspace_id: session.workspace_id,
+                    ...(remote ? { computerId } : {}),
+                  }),
               }
             : {}),
         }

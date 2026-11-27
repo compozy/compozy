@@ -196,10 +196,23 @@ export function SessionList({
 
   const toolbarNewFolder = multiComputerVisible
     ? { onNewFolder: undefined, newFolderUnavailable: SESSION_LIST_NEW_FOLDER_MULTI_COMPUTER_NOTE }
-    : listNewFolder(view, {
-        session: layout ? () => folders.setDialog({ kind: "create" }) : undefined,
-        project: projectLayout ? () => setProjectFolderDialog({ kind: "create" }) : undefined,
-      });
+    : scopedRemoteSource
+      ? scopedRemoteSource.canOperate &&
+        scopedRemoteSource.read === "ok" &&
+        view.groupBy === "project" &&
+        view.allProjects
+        ? { onNewFolder: () => setProjectFolderDialog({ kind: "create" }), newFolderUnavailable: null }
+        : {
+            onNewFolder: undefined,
+            newFolderUnavailable:
+              scopedRemoteSource.canOperate && scopedRemoteSource.read === "ok"
+                ? "Group by Project to add folders."
+                : "Folders aren't available on this computer right now.",
+          }
+      : listNewFolder(view, {
+          session: layout ? () => folders.setDialog({ kind: "create" }) : undefined,
+          project: projectLayout ? () => setProjectFolderDialog({ kind: "create" }) : undefined,
+        });
 
   const computerLayoutOption =
     multiComputerVisible && view.setComputers
@@ -250,8 +263,10 @@ export function SessionList({
           </span>
           {header?.(visibleCount)}
           <SessionListControls
+            archiveStoppedDisabled={multiComputerVisible || scopedRemoteSource !== null}
             bulk={bulk}
             computerLayout={computerLayoutOption}
+            disableAlwaysOnCreate={multiComputerVisible || scopedRemoteSource !== null}
             laterCount={effectiveLaterCount}
             view={view}
             onNewSession={toolbarNewSession}
@@ -291,6 +306,7 @@ export function SessionList({
               onSelectSession={onSelectSession}
               onThreadBranchChange={onThreadBranchChange}
               pinnedSection={pinnedSection}
+              projectFolderDialog={scopedRemoteSource ? projectFolderDialog : undefined}
               scope={dataScope}
               scopedSource={scopedRemoteSource}
               search={activeSearch}
@@ -321,7 +337,7 @@ export function SessionList({
               view={view}
             />
           )}
-          {layout ? (
+          {!scopedRemoteSource && layout ? (
             <SessionFolderDialogs
               state={folders.dialog}
               onClose={() => folders.setDialog(null)}
@@ -330,7 +346,7 @@ export function SessionList({
               onDelete={layout.deleteFolder}
             />
           ) : null}
-          {projectLayout ? (
+          {!scopedRemoteSource && projectLayout ? (
             <SessionFolderDialogs
               holds="projects"
               state={projectFolderDialog}
@@ -345,7 +361,9 @@ export function SessionList({
             uncountedNames={multiComputerVisible ? computerSources.uncountedNames : undefined}
             testIdPrefix={testIdPrefix}
           />
-          <ArchivedCleanup view={view} testIdPrefix={testIdPrefix} />
+          {!multiComputerVisible && !scopedRemoteSource ? (
+            <ArchivedCleanup view={view} testIdPrefix={testIdPrefix} />
+          ) : null}
           {bulk.folderMove ? (
             <SessionListSelectionFolders folders={bulk.folderMove} active={bulk.active} />
           ) : null}

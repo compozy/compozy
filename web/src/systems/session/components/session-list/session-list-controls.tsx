@@ -17,6 +17,8 @@ export function SessionListControls({
   newFolderUnavailable,
   computerLayout,
   laterCount,
+  archiveStoppedDisabled = false,
+  disableAlwaysOnCreate = false,
   testIdPrefix,
 }: {
   bulk: ReturnType<typeof useSessionListBulkSelection>;
@@ -26,9 +28,11 @@ export function SessionListControls({
   newFolderUnavailable: string | null;
   computerLayout?: SessionViewOptionsMenuProps["computerLayout"];
   laterCount?: number;
+  archiveStoppedDisabled?: boolean;
+  disableAlwaysOnCreate?: boolean;
   testIdPrefix: string;
 }) {
-  const archiveStopped = useListArchiveStopped(view);
+  const archiveStopped = useListArchiveStopped(view, { disabled: archiveStoppedDisabled });
   return bulk.active ? (
     <SessionListSelectionBar {...bulk.bar} testIdPrefix={testIdPrefix} />
   ) : (
@@ -58,7 +62,7 @@ export function SessionListControls({
             onNewFolder={onNewFolder}
             onNewSession={onNewSession}
             alwaysOn={
-              view.focusedWorkspaceId
+              !disableAlwaysOnCreate && view.focusedWorkspaceId
                 ? { place: view.focusedWorkspaceId, name: view.focusedScopeName }
                 : null
             }

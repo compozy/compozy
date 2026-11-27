@@ -23,13 +23,16 @@ export interface SessionComputerScopeModel {
  * is removed or disabled in Settings (`C2`, `C4`). Never persists remote data
  * beyond the computer id and resets on account eviction (`C3`).
  */
-export function useSessionComputerScope(): SessionComputerScopeModel {
-  const scopeId = useWorktreeScopeId();
+export function useSessionComputerScope(scopeIdOverride?: string): SessionComputerScopeModel {
+  const worktreeScopeId = useWorktreeScopeId();
+  const scopeId = scopeIdOverride ?? worktreeScopeId;
   const scope = useSelector(
     sessionSidebarStore,
     snapshot => resolveSessionWindowOrder(snapshot.context.byScope, scopeId).computerScope
   );
-  const { computers, enabledComputers, isLoading, isError, canRead } = useComputers();
+  const { computers, enabledComputers, isLoading, isError, canRead } = useComputers({
+    passive: true,
+  });
   const [removedName, setRemovedName] = useState<string | null>(null);
   const lastKnownNameRef = useRef<Map<string, string>>(new Map());
 

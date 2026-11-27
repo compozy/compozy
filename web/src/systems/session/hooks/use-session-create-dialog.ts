@@ -290,7 +290,7 @@ export function useSessionCreateDialogViewModel(
     autoCandidates: placement.autoCandidates,
     autoNoEligible: placement.autoNoEligible,
     autoNoEligibleReason: placement.autoNoEligibleReason,
-    computerLocked: draft.sent || pendingOp.isSubmitting,
+    computerLocked: flow.fixedComputer || draft.sent || pendingOp.isSubmitting,
     submitDisabled: remoteState.submitDisabled || localExecutionBlocked || placement.submitBlocked,
     offlineComputer: remoteState.offlineComputer,
     offlineComputerName: remoteState.offlineComputer?.name ?? null,

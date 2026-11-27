@@ -88,7 +88,8 @@ export function useSessionCreateSubmit({
 }: UseSessionCreateSubmitOptions): () => void {
   const navigate = useNavigate();
   const shell = use(OsShellContext);
-  const computerScope = useSessionComputerScope();
+  const focusedWindowId = shell?.manager.getState().focusedWindowId ?? undefined;
+  const computerScope = useSessionComputerScope(focusedWindowId);
   const createSession = useCreateSession();
   const scopedComputerId = normalizeComputerId(computerId);
   const scopedProjectComputerId = normalizeComputerId(projectComputerId);
@@ -98,7 +99,8 @@ export function useSessionCreateSubmit({
   const pendingSubmit = flow.pendingSubmit;
   const worktreeId = environment.worktreeId;
   const createSessionAsync = createSession.mutateAsync;
-  const profile = target.profileAxis ? target.profile : undefined;
+  const profile =
+    target.profileAxis || (isRemote && target.profile.trim() !== "") ? target.profile : undefined;
   const allProjectsTarget = target.projectAxis ? target.projectValue : null;
 
   useEffect(() => {

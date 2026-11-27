@@ -236,6 +236,7 @@ export interface SessionListMultiComputerBodyProps {
   onThreadBranchChange: SessionThreadBranchChange;
   onSelectSession: (session: SessionListTarget) => void;
   onNewSession: (options?: SessionCreateOpenOptions) => void;
+  projectFolderDialog?: SessionFolderDialogState<WorkspaceFolderPayload>;
   onProjectFolderDialog: (state: SessionFolderDialogState<WorkspaceFolderPayload>) => void;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
@@ -263,6 +264,7 @@ export function SessionListMultiComputerBody({
   onThreadBranchChange,
   onSelectSession,
   onNewSession,
+  projectFolderDialog,
   onProjectFolderDialog,
   sessionActions,
   testIdPrefix,
@@ -289,8 +291,10 @@ export function SessionListMultiComputerBody({
             currentSessionId={currentSessionId}
             onNewSession={onNewSession}
             onOpenComputerDetails={onOpenComputerDetails}
+            onProjectFolderDialogChange={onProjectFolderDialog}
             onSelectSession={onSelectSession}
             onThreadBranchChange={onThreadBranchChange}
+            projectFolderDialog={projectFolderDialog}
             scoped
             search={search}
             sectionRank={0}

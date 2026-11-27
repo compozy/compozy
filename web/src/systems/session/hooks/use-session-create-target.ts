@@ -101,7 +101,9 @@ function buildTargetProjection({
     isRemote ? null : focusedBinding
   );
   const profileOptions = profileAxis ? sessionProfileOptions(profilesData) : [];
-  const profile = resolveProfilePick(profileOptions, current.profile, profileDestination);
+  const profile = isRemote
+    ? (current.profile ?? "")
+    : resolveProfilePick(profileOptions, current.profile, profileDestination);
   const named = resolveNamedProject(projectAxis, current.project, projectWorkspaces);
   const scope = named.workspace
     ? sessionTargetScope(named.workspace.id)
@@ -153,7 +155,7 @@ export function useSessionCreateTarget({
   const pickKey = `${String(resetKey)}:${scopedComputerId}`;
   const opening: Picks = {
     key: pickKey,
-    project: isRemote ? null : (seed?.project ?? null),
+    project: seed?.project ?? null,
     profile: seed?.profile ?? null,
   };
   const [picks, setPicks] = useState<Picks>(opening);
