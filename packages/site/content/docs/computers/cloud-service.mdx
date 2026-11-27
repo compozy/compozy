@@ -39,6 +39,8 @@ Check the displayed code, computer name, and request location before continuing.
 
 Both cloud replicas share sign-in quotas by client IP. You can start 10 device flows per hour. Activation and OAuth callbacks share 30 requests per 10 minutes. Browser authorization and billing sign-in each allow 30 requests per 10 minutes.
 
+Sign-in pages show a recovery page when the request prefers HTML. The page carries `data-error-code="rate_limited"` and the response includes `Retry-After`. Device flow and programmatic requests receive the JSON error.
+
 Send enrollment and refresh credentials in the `Authorization` header and use the `DPoP` header for the proof. An access token lasts 15 minutes. For access-token calls, the proof includes the token hash in `ath`. Keep the device code, enrollment token, and session credentials private.
 
 If the refresh response is lost, retry with the same refresh credential and a new proof from the same device key. For two minutes, the cloud returns the same replacement refresh credential while it is still current and the account security epoch is unchanged. Reusing a replaced credential after that window, a further rotation, or an epoch change revokes the session.

@@ -14,7 +14,7 @@ import (
 
 func RegisterAuthRoutes(mux *http.ServeMux, service *auth.Service) {
 	h := authRoutes{service: service}
-	mux.HandleFunc("POST /v1/device-flow", LimitSignIn(service, auth.DeviceFlowRate, h.start))
+	mux.HandleFunc("POST /v1/device-flow", LimitSignIn(service, auth.DeviceFlowRate, h.start, nil))
 	mux.HandleFunc("DELETE /v1/device-flow/{device_code}", h.cancel)
 	mux.HandleFunc("POST /v1/device-flow/token", h.poll)
 	mux.HandleFunc("POST /v1/devices/enroll", h.enroll)

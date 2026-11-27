@@ -134,15 +134,23 @@ func (s *Service) issueTokens(d store.AuthDeviceSession, now time.Time) (remotep
 }
 
 func (s *Service) issueAccessToken(d store.AuthDeviceSession, now time.Time) (string, error) {
-	return s.signer.SignDeviceAccess(remoteproto.DeviceAccessClaims{
+	token, err := s.signer.SignDeviceAccess(remoteproto.DeviceAccessClaims{
 		Issuer: s.issuer, AccountID: d.AccountID, SessionID: d.ID, DeviceID: remoteproto.DeviceID(d.DeviceID),
 		Cnf: remoteproto.Confirmation{JKT: d.JKT}, IssuedAt: now.Unix(), JTI: Secret(),
 		ExpiresAt: now.Add(remoteproto.DeviceAccessTTL).Unix(),
 	})
+	if err != nil {
+		return "", fmt.Errorf("sign device access token: %w", err)
+	}
+	return token, nil
 }
 
 func marshalRefreshSession(d store.AuthDeviceSession) ([]byte, error) {
-	return json.Marshal(refreshSession{SessionID: d.ID, AccountID: d.AccountID, JKT: d.JKT})
+	claims, err := json.Marshal(refreshSession{SessionID: d.ID, AccountID: d.AccountID, JKT: d.JKT})
+	if err != nil {
+		return nil, fmt.Errorf("marshal refresh session: %w", err)
+	}
+	return claims, nil
 }
 
 func encodeRefresh(sealed []byte) string {
@@ -157,7 +165,7 @@ func (s *Service) refreshSuccessor(d store.AuthDeviceSession, predecessorHash []
 	info := fmt.Sprintf("%s:%d:%s", refreshAAD, d.SecurityEpoch, claims)
 	nonce, err := hkdf.Key(sha256.New, s.refreshNonceKey, predecessorHash, info, s.refreshSeal.NonceSize())
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("derive refresh successor nonce: %w", err)
 	}
 	// #nosec G407 -- The keyed nonce binds the predecessor, epoch and exact plaintext for deterministic retries.
 	sealed := s.refreshSeal.Seal(nil, nonce, claims, []byte(refreshAAD))
@@ -296,12 +304,15 @@ func (s *Service) retryRefresh(d store.AuthDeviceSession, presented []byte, now 
 
 func revokeReusedRefresh(ctx context.Context, q *store.Queries, d store.AuthDeviceSession, now time.Time) error {
 	if err := q.RevokeDeviceSessions(ctx, d.DeviceID, now); err != nil {
-		return err
+		return fmt.Errorf("revoke device sessions after refresh reuse: %w", err)
 	}
-	return q.AppendSecurityEvent(ctx, store.SecurityEvent{
+	if err := q.AppendSecurityEvent(ctx, store.SecurityEvent{
 		AccountID: d.AccountID, Actor: accountActorPrefix + d.DeviceID, At: now, Type: "device_session_revoked",
 		Details: map[string]any{deviceIDDetail: d.DeviceID, "session_id": d.ID, reasonDetail: "refresh_reuse"},
-	})
+	}); err != nil {
+		return fmt.Errorf("record refresh reuse: %w", err)
+	}
+	return nil
 }
 
 func lockRefreshAccount(ctx context.Context, q *store.Queries, accountID string) error {

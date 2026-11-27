@@ -58,15 +58,24 @@ func Register(
 		return err
 	}
 	p := signInPages{service: service, template: t, billing: purchase, lifecycle: lifecycle}
-	mux.HandleFunc("GET "+activatePath, api.LimitSignIn(service, auth.ActivationRate, p.activate))
-	mux.HandleFunc("POST "+activatePath, api.LimitSignIn(service, auth.ActivationRate, p.continueActivation))
-	mux.HandleFunc("GET /v1/auth/callback/{provider}", api.LimitSignIn(service, auth.ActivationRate, p.callback))
-	authorize := api.LimitSignIn(service, auth.BrowserAuthorizeRate, p.browserAuthorize)
+	mux.HandleFunc("GET "+activatePath, api.LimitSignIn(service, auth.ActivationRate, p.activate, p.rejectActivation))
+	mux.HandleFunc(
+		"POST "+activatePath, api.LimitSignIn(service, auth.ActivationRate, p.continueActivation, p.rejectActivation),
+	)
+	mux.HandleFunc(
+		"GET /v1/auth/callback/{provider}",
+		api.LimitSignIn(service, auth.ActivationRate, p.callback, p.rejectActivation),
+	)
+	authorize := api.LimitSignIn(service, auth.BrowserAuthorizeRate, p.browserAuthorize, p.rejectBrowserAuthorize)
 	mux.HandleFunc("GET "+authorizePath, authorize)
 	mux.HandleFunc("POST "+authorizePath, authorize)
 	mux.Handle("GET /auth-assets/", http.StripPrefix("/auth-assets/", http.FileServerFS(assetFiles(pages, "assets"))))
 	mux.Handle("GET /brand/", http.FileServerFS(assetFiles(brand.CloudAssets, "public")))
 	return nil
+}
+
+func (p signInPages) rejectActivation(w http.ResponseWriter, _ *http.Request, err error) {
+	p.render(w, signInPage{Title: signInTitle, EnterCode: true}, err)
 }
 
 func assetFiles(source fs.FS, path string) fs.FS {

@@ -57,4 +57,4 @@ The Cloudflare zone rule blocks bursts above 10 requests per 10 seconds per IP a
 | `/v1/browser/authorize`                        | 30 per 10 minutes         |
 | `POST /billing/upgrade/sign-in`                | 30 per 10 minutes         |
 
-The service returns HTTP 429 with JSON code `rate_limited` and `Retry-After` in seconds until the window resets. The auth cleanup task removes expired counters. Exercise both layers and the Turnstile checks in `RT-sign-in-first-run.md`. Inside each replica, authenticated account writes share a 60-request allowance per account per minute.
+The service returns HTTP 429 with `Retry-After` in seconds until the window resets. The device-flow endpoint and programmatic requests receive the JSON code `rate_limited`. Sign-in pages render the recovery page with `data-error-code="rate_limited"` when the client prefers HTML. The auth cleanup task removes expired counters. Exercise both layers and the Turnstile checks in `RT-sign-in-first-run.md`. Inside each replica, authenticated account writes share a 60-request allowance per account per minute.

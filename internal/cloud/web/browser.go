@@ -5,6 +5,7 @@ package web
 import (
 	"errors"
 	"net/http"
+	"net/url"
 
 	"github.com/compozy/compozy/internal/cloud/auth"
 )
@@ -60,6 +61,22 @@ func (p signInPages) browserAuthorize(w http.ResponseWriter, r *http.Request) {
 		Title: signInTitle, Action: authorizePath, Browser: request, Providers: providerButtons(request.Provider),
 		SiteKey: p.service.TurnstileSiteKey(), TurnstileAction: auth.BrowserAction,
 	}, err)
+}
+
+func (p signInPages) rejectBrowserAuthorize(w http.ResponseWriter, r *http.Request, err error) {
+	form := r.URL.Query()
+	if r.Method == http.MethodPost && parseForm(w, r) {
+		form = r.PostForm
+	}
+	page := signInPage{Title: signInTitle}
+	if request, parseErr := p.service.ParseBrowserRequest(form); parseErr == nil {
+		retry := url.Values{
+			"hostname": {request.Hostname}, "public_jwk": {request.PublicJWK},
+			"state": {request.State}, "code_challenge": {request.Challenge},
+		}
+		page.RetryURL = authorizePath + "?" + retry.Encode()
+	}
+	p.render(w, page, err)
 }
 
 func redirectBrowser(w http.ResponseWriter, r *http.Request, result auth.BrowserResult) {

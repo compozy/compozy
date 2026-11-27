@@ -13,6 +13,7 @@ import (
 	"encoding/json/v2"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -45,15 +46,14 @@ func TestCloudBrowserSignIn(t *testing.T) {
 			form.Set("hostname", host)
 			page := f.request(t, http.MethodGet, browserAuthorizePath+"?"+form.Encode(), nil)
 			assertTurnstileFailure(t, page)
-			policy := page.Header.Get("Content-Security-Policy")
-			if !strings.Contains(policy, "https://"+host) || strings.Contains(policy, "https://*.") ||
-				!strings.Contains(policy, "frame-src https://challenges.cloudflare.com") {
-				t.Fatal("sign-in CSP did not scope the form target and Turnstile frame")
-			}
+			formOrigins := []string{"'self'", "https://accounts.google.com", "https://github.com", f.provider.Origin}
+			assertCSPDirective(t, page, "form-action", append(formOrigins, "https://"+host))
+			assertCSPDirective(t, page, "frame-src", []string{"https://challenges.cloudflare.com"})
 			other := "testbox-a1b2." + test.other
 			form.Set("hostname", other)
 			refused := f.request(t, http.MethodGet, browserAuthorizePath+"?"+form.Encode(), nil)
 			refused.expect(t, http.StatusBadRequest, "invalid_request")
+			assertCSPDirective(t, refused, "form-action", formOrigins)
 			if strings.Contains(refused.Header.Get("Content-Security-Policy"), other) {
 				t.Fatal("sign-in CSP allowed a host from the other environment")
 			}
@@ -252,6 +252,26 @@ func redeemBrowser(
 	}
 	return callAuth(t, f.replica, http.MethodPost, remoteproto.BrowserRedemptionPath, input, nil,
 		map[string]string{remoteproto.ComputerProofHeader: proof})
+}
+
+func assertCSPDirective(t *testing.T, response authReply, directive string, want []string) {
+	t.Helper()
+	policy := response.Header.Get("Content-Security-Policy")
+	for rule := range strings.SplitSeq(policy, ";") {
+		tokens := strings.Fields(rule)
+		if len(tokens) == 0 || tokens[0] != directive {
+			continue
+		}
+		sources := tokens[1:]
+		slices.Sort(sources)
+		expected := slices.Clone(want)
+		slices.Sort(expected)
+		if !slices.Equal(slices.Compact(sources), expected) {
+			t.Fatalf("CSP %s sources = %v, want %v", directive, sources, expected)
+		}
+		return
+	}
+	t.Fatalf("CSP is missing %s", directive)
 }
 
 func browserForm(t *testing.T) url.Values {

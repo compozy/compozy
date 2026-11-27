@@ -40,7 +40,8 @@ func registerBilling(
 	p := billingPages{auth: service, billing: bills, limiter: limiter, template: t}
 	mux.HandleFunc("GET "+billing.UpgradePath, p.upgrade)
 	mux.HandleFunc("GET "+billing.SuccessPath, p.success)
-	mux.HandleFunc("POST "+billing.UpgradePath+"/sign-in", api.LimitSignIn(service, auth.BillingSignInRate, p.signIn))
+	signIn := api.LimitSignIn(service, auth.BillingSignInRate, p.signIn, p.rejectSignIn)
+	mux.HandleFunc("POST "+billing.UpgradePath+"/sign-in", signIn)
 	mux.HandleFunc("POST "+billing.UpgradePath+"/sign-out", p.signOut)
 	mux.HandleFunc("POST "+billing.UpgradePath+"/checkout", p.checkout)
 	mux.HandleFunc("POST "+billing.UpgradePath+"/portal", p.portal)
@@ -162,6 +163,16 @@ func (p billingPages) signIn(w http.ResponseWriter, r *http.Request) {
 	setPageHeaders(w)
 	// #nosec G710 -- OAuth chooses its configured provider endpoint.
 	http.Redirect(w, r, next, http.StatusSeeOther)
+}
+
+func (p billingPages) rejectSignIn(w http.ResponseWriter, r *http.Request, err error) {
+	target := billing.Target{Interval: billingIntervalYear}
+	if parseForm(w, r) {
+		if requested, targetErr := p.billing.Target(r.PostForm); targetErr == nil {
+			target = requested
+		}
+	}
+	p.render(w, purchasePage(target), err)
 }
 
 func (p billingPages) afterOAuth(w http.ResponseWriter, r *http.Request, next string, err error) {
@@ -354,6 +365,9 @@ func purchaseError(page *billingPage, err error) int {
 	if failure, ok := errors.AsType[*auth.Failure](err); ok {
 		status, page.Code, page.Title = failure.Status, failure.Code, failure.Message
 		if status == http.StatusTooManyRequests {
+			if failure.RetryAfter > 0 {
+				page.RetryAfter = failure.RetryAfter
+			}
 			page.Title, page.ShowPlans = purchasePage(page.Target).Title, true
 			page.Message = "Too many requests. Try again in " + strconv.Itoa(page.RetryAfter) + " seconds."
 			page.RetryURL = page.Target.URL()
