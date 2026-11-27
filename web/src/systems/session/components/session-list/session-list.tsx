@@ -1,31 +1,21 @@
-import { QueryClientContext } from "@tanstack/react-query";
-import { useContext, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
-import { SearchInput, toast } from "@compozy/ui";
+import { SearchInput } from "@compozy/ui";
 
-import { isRemoteComputerId, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
-import { computerRegistryKeys, patchComputer } from "@/systems/computers";
-import type { ComputerFixture } from "@/systems/computers/mocks/remote-computers-types";
-import { useProfileReadScope } from "@/systems/profiles";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 
 import { SessionMenuOpenContext } from "../../contexts/session-menu-open-context-value";
-import {
-  useComputerSessionsSources,
-  type ComputerSessionsSource,
-} from "../../hooks/use-computer-sessions-sources";
-import { useMultiComputerPinned } from "../../hooks/use-multi-computer-pinned";
-import { useSessionComputerScope } from "../../hooks/use-session-computer-scope";
+import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
-import { useSessionListLocalState } from "../../hooks/use-session-list-local-state";
+import { useSessionListSearch } from "../../hooks/use-session-list-local-state";
+import { useSessionListComputers } from "../../hooks/use-session-list-computers";
 import { useSessionListContent } from "../../hooks/use-session-list-reveal-current";
 import { useSessionListSelection } from "../../hooks/use-session-list-selection";
 import type {
   SessionListTotals as Totals,
   SessionListViewModel,
 } from "../../hooks/use-session-list-view";
-import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
 import { SESSION_LIST_NEW_FOLDER_MULTI_COMPUTER_NOTE } from "../../lib/session-list-view-helpers";
@@ -125,27 +115,21 @@ export function SessionList({
   scopeNotice,
   onOpenComputerDetails,
 }: SessionListProps) {
-  const queryClient = useContext(QueryClientContext);
-  const [reconnectingScoped, setReconnectingScoped] = useState(false);
-  const { dataScope } = useActiveWorkspace();
-  const profile = useProfileReadScope();
   const { contentRef, sessionActions, announcement } = useSessionListContent(
     hostActions,
     testIdPrefix,
     currentSessionId
   );
-  const { filter, setFilter, projectFolderDialog, setProjectFolderDialog } =
-    useSessionListLocalState(view.selectionKey);
+  const {
+    activeSearch,
+    listed,
+    normalizedFilter,
+    projectFolderDialog,
+    setFilter,
+    setProjectFolderDialog,
+    threads,
+  } = useSessionListSearch(view, sessions, revealedSession);
   const projectLayout = view.projectFolders?.layout;
-  const remoteSearch = view.search !== undefined;
-  const activeSearch = view.search ?? filter;
-  const normalizedFilter = activeSearch.trim().toLocaleLowerCase();
-  const listed = useSubagentContextSessions(
-    sessions,
-    revealedSession,
-    remoteSearch && normalizedFilter !== ""
-  );
-  const threads = buildSessionListThreads(listed, remoteSearch ? "" : normalizedFilter);
   const grouped = view.groupBy !== "none";
   const visibleCount = sessionListVisibleCount(view, threads, normalizedFilter);
   const filtering = normalizedFilter !== "";
@@ -157,33 +141,19 @@ export function SessionList({
     filtering,
   });
 
-  const computerSources = useComputerSessionsSources({
-    scope: dataScope,
-    lens: profile.params,
-    shelf: view.shelf,
-    showAutomation: view.showAutomation,
-    search: view.groupFilters.q,
-    worktreeId: view.worktreeId,
-  });
-  const computerScopeState = useSessionComputerScope(computerSources.remoteComputers);
-  const hasRemote = computerSources.hasRemoteComputers;
-  const effectiveComputerScope = hasRemote ? computerScopeState.effectiveScope : "all";
-  const isScopedToLocal = hasRemote && effectiveComputerScope === LOCAL_COMPUTER_ID;
-  const scopedRemoteSource =
-    hasRemote && isRemoteComputerId(effectiveComputerScope)
-      ? (computerSources.sources.find(source => source.key === effectiveComputerScope) ?? null)
-      : null;
-  const multiComputerVisible = hasRemote && effectiveComputerScope === "all";
-  const computersLayout = view.computers ?? "separate";
-
-  const multiComputerPinned = useMultiComputerPinned({
-    enabled: (multiComputerVisible || scopedRemoteSource !== null) && view.shelf === "active",
-    sources: scopedRemoteSource ? [scopedRemoteSource] : computerSources.sources,
-    scope: dataScope,
-    localLens: profile.params,
-    groupFilters: view.groupFilters,
-    allProjects: view.allProjects === true,
-  });
+  const {
+    computerScopeState,
+    computerSources,
+    computersLayout,
+    dataScope,
+    isScopedToLocal,
+    multiComputerPinned,
+    multiComputerVisible,
+    reconnectingScoped,
+    reconnectScopedComputer,
+    scopedOfflineComputer,
+    scopedRemoteSource,
+  } = useSessionListComputers(view);
 
   const pinnedSection = (
     <SessionListPinned
@@ -251,30 +221,16 @@ export function SessionList({
   const showAlwaysOnTop =
     !scopedRemoteSource && (!multiComputerVisible || computersLayout === "together");
 
-  const scopedOfflineComputer =
-    scopedRemoteSource &&
-    (scopedRemoteSource.read === "offline" || scopedRemoteSource.read === "offline_empty")
-      ? (scopedRemoteSource.computer as ComputerFixture)
-      : null;
-
   const builtInNotice = computerScopeState.removedName ? (
     <SessionListScopeRemovedNotice
       name={computerScopeState.removedName}
-      onDismiss={computerScopeState.dismissRemoved}
+      onDismiss={computerScopeState.dismissRemovedNotice}
       testIdPrefix={testIdPrefix}
     />
   ) : scopedOfflineComputer ? (
     <SessionListOfflineNotice
       computer={scopedOfflineComputer}
-      onReconnect={() => {
-        setReconnectingScoped(true);
-        void patchComputer(scopedOfflineComputer.id, { enabled: true })
-          .then(() => queryClient?.invalidateQueries({ queryKey: computerRegistryKeys.all }))
-          .catch(err => {
-            toast.error(err instanceof Error ? err.message : "Failed to reconnect computer.");
-          })
-          .finally(() => setReconnectingScoped(false));
-      }}
+      onReconnect={() => reconnectScopedComputer(scopedOfflineComputer.id)}
       reconnecting={reconnectingScoped}
       testIdPrefix={testIdPrefix}
     />

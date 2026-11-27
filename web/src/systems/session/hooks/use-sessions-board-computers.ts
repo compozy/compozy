@@ -218,9 +218,9 @@ export function useSessionsBoardComputers(options: {
     showAutomation,
     enabled,
   });
-  const scopeState = useSessionComputerScope(sourcesResult.remoteComputers);
+  const scopeState = useSessionComputerScope();
   const hasRemote = sourcesResult.hasRemoteComputers;
-  const effectiveScope = hasRemote ? scopeState.effectiveScope : "all";
+  const effectiveScope = hasRemote ? scopeState.scope : "all";
   const scopedRemoteSource =
     hasRemote && isRemoteComputerId(effectiveScope)
       ? (sourcesResult.sources.find(source => source.key === effectiveScope) ?? null)
@@ -349,11 +349,14 @@ export function useSessionsBoardComputers(options: {
         })
       : null;
 
-  const failedComputers: ScopedComputerFailureItem[] = together
-    ? sourcesResult.sources
-        .filter(source => source.read === "failed")
-        .map(source => ({ id: source.key, name: source.name, retry: source.retry }))
-    : [];
+  const failedComputers: ScopedComputerFailureItem[] = [];
+  if (together) {
+    for (const source of sourcesResult.sources) {
+      if (source.read === "failed") {
+        failedComputers.push({ id: source.key, name: source.name, retry: source.retry });
+      }
+    }
+  }
 
   const workspaceNameOf = (session: SessionBoardPayload): string | null => {
     if (!allProjects) return null;
