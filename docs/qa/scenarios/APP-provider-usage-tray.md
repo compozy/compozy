@@ -98,6 +98,10 @@ Antigravity on macOS (`agy` signed in; its login is the `gemini`/`antigravity` K
   and a later `agy` run recovers it on the next refresh;
 - a custom provider with `runtime_provider = "agy"` reads `Usage not available` and its consent is
   never used; turning **Antigravity Keychain access** off returns the row to `Needs access`;
+- without `agy` on the daemon host, the row reports `provider_unavailable` and never requests
+  Keychain authorization;
+- clicking **Allow** on both the Claude and Antigravity rows while the first save is in flight
+  preserves both grants;
 - `compozy__config_set provider_usage.providers.agy.keychain_access true` is refused.
 
 Key-based providers and settings:

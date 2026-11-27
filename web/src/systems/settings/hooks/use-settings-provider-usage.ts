@@ -23,6 +23,10 @@ export interface SettingsProviderUsageSave {
   collectionProfile: string;
 }
 
+type SettingsProviderUsageWrite =
+  | SettingsProviderUsageSave
+  | { consentProviderId: string; collectionProfile: string };
+
 /**
  * Saves the whole provider usage config through the apply lifecycle. Usage
  * views re-read too: an apply can remove targets or turn the feature off.
@@ -31,8 +35,21 @@ export function useUpdateSettingsProviderUsage() {
   const queryClient = useQueryClient();
   return useMutation({
     networkMode: "always",
-    mutationFn: ({ body, collectionProfile }: SettingsProviderUsageSave) =>
-      updateSettingsProviderUsage(body, collectionProfile),
+    scope: { id: "settings-provider-usage" },
+    mutationFn: async (input: SettingsProviderUsageWrite) => {
+      if ("body" in input) {
+        return updateSettingsProviderUsage(input.body, input.collectionProfile);
+      }
+      // Read after the preceding save so two Allow actions preserve both grants.
+      const { config } = await queryClient.fetchQuery({
+        ...settingsProviderUsageOptions(),
+        staleTime: 0,
+      });
+      return updateSettingsProviderUsage(
+        { config: withProviderUsageKeychainAccess(config, input.consentProviderId, true) },
+        input.collectionProfile
+      );
+    },
     onSuccess: recordSettingsMutation,
     onSettled: () =>
       Promise.all([
@@ -44,23 +61,16 @@ export function useUpdateSettingsProviderUsage() {
 }
 
 /**
- * The usage row's **Allow**: saves `provider_usage.providers.<id>.keychain_access
- * = true` for that row's Keychain provider over the current config for `profile` — the profile the follow-up
- * refresh targets — and reports a failed save itself. The returned promise
- * rejects on failure so the caller sends no refresh.
+ * Saves the usage row's Keychain grant and reports a failed save.
+ * The daemon collects for the active profile after the grant applies.
  */
 export function useAllowProviderUsageKeychain(
   profile: string
 ): (providerId: string) => Promise<void> {
-  const queryClient = useQueryClient();
   const mutation = useUpdateSettingsProviderUsage();
   return async providerId => {
     try {
-      const section = await queryClient.fetchQuery(settingsProviderUsageOptions());
-      await mutation.mutateAsync({
-        body: { config: withProviderUsageKeychainAccess(section.config, providerId, true) },
-        collectionProfile: profile,
-      });
+      await mutation.mutateAsync({ consentProviderId: providerId, collectionProfile: profile });
     } catch (error) {
       toast.error(
         error instanceof Error && error.message

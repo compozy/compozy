@@ -5,7 +5,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"net/http"
 	"os"
@@ -83,6 +83,11 @@ func (c *AgyCollector) credential(ctx context.Context, t Target, intent Intent) 
 		usage.Message = "agy usage is available only on macOS"
 		return agyCredential{}, usage
 	}
+	if t.Route.NativeCommand == "" {
+		usage := NewUsageError(ErrorCodeProviderUnavailable, agyProviderID)
+		usage.Message = "Install the Antigravity CLI (agy) on the daemon host to read usage"
+		return agyCredential{}, usage
+	}
 	if !t.Route.KeychainAccess {
 		return agyCredential{}, NewUsageError(ErrorCodeKeychainConsentRequired, agyProviderID)
 	}
@@ -149,7 +154,7 @@ func (c *AgyCollector) Identity(ctx context.Context, t Target, intent Intent) (C
 func (c *AgyCollector) post(ctx context.Context, path, token, body string, out any) error {
 	headers := bearerHeaders(token)
 	headers.Set("User-Agent", agyUserAgent)
-	data, err := c.client().Do(ctx, http.MethodPost, path, headers, strings.NewReader(body), agyLabel)
+	data, err := c.client().Do(ctx, http.MethodPost, path, headers, strings.NewReader(body), agyProviderID)
 	if err != nil {
 		return err
 	}
@@ -260,7 +265,10 @@ func (summary agyQuotaSummary) windows() ([]Window, error) {
 			}
 		}
 	}
-	slices.SortStableFunc(result, func(a, b Window) int { return cmp.Compare(a.ID, b.ID) })
+	if len(result) == 0 {
+		return nil, NewUsageError(ErrorCodeParseError, agyLabel)
+	}
+	slices.SortFunc(result, func(a, b Window) int { return cmp.Compare(a.ID, b.ID) })
 	return result, nil
 }
 
@@ -279,13 +287,10 @@ func agyWindow(group string, bucket agyQuotaBucket) (Window, error) {
 	if group != "" {
 		window.Label = group + " · " + window.Label
 	}
-	if bucket.Remaining != nil {
-		if !validCollectorPercent(*bucket.Remaining) || *bucket.Remaining > 1 {
-			return Window{}, NewUsageError(ErrorCodeParseError, agyLabel)
-		}
-		used := (1 - *bucket.Remaining) * 100
-		window.UsedPercent = &used
+	if bucket.Remaining == nil || !validCollectorPercent(*bucket.Remaining) || *bucket.Remaining > 1 {
+		return Window{}, NewUsageError(ErrorCodeParseError, agyLabel)
 	}
+	window.UsedPercent = new((1 - *bucket.Remaining) * 100)
 	return window, nil
 }
 

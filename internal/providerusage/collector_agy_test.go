@@ -40,7 +40,7 @@ func agyTestTarget(consent bool) Target {
 		ProfileID:    "profile",
 		ProviderID:   agyProviderID,
 		ProviderName: "Google Antigravity",
-		Route:        ResolvedRoute{KeychainAccess: consent},
+		Route:        ResolvedRoute{KeychainAccess: consent, NativeCommand: "/fixture/bin/agy"},
 	}
 }
 
@@ -125,7 +125,7 @@ func TestAgyCollector(t *testing.T) {
 		}
 	})
 
-	t.Run("Should read nothing and contact nothing before credentials are usable", func(t *testing.T) {
+	t.Run("Should reject unavailable logins before requesting quota", func(t *testing.T) {
 		t.Parallel()
 		now := fixtureClock(t).Now()
 		cases := []struct {
@@ -136,23 +136,40 @@ func TestAgyCollector(t *testing.T) {
 			want     ErrorCode
 			reads    int32
 		}{
-			{"without consent", agyTestTarget(false), "darwin", &fakeClaudeKeychain{}, ErrorCodeKeychainConsentRequired, 0},
-			{"off macOS", agyTestTarget(true), "linux", &fakeClaudeKeychain{}, ErrorCodeNoCollector, 0},
-			{"for an alias", Target{ProviderID: "agy-work", Route: ResolvedRoute{KeychainAccess: true}}, "darwin",
-				&fakeClaudeKeychain{}, ErrorCodeNoCollector, 0},
-			{"without a login", agyTestTarget(true), "darwin", &fakeClaudeKeychain{err: os.ErrNotExist},
+			{"Should require consent", agyTestTarget(false), "darwin",
+				&fakeClaudeKeychain{}, ErrorCodeKeychainConsentRequired, 0},
+			{
+				"Should refuse non-macOS hosts",
+				agyTestTarget(true),
+				"linux",
+				&fakeClaudeKeychain{},
+				ErrorCodeNoCollector,
+				0,
+			},
+			{
+				"Should refuse an alias",
+				Target{ProviderID: "agy-work", Route: ResolvedRoute{KeychainAccess: true}},
+				"darwin",
+				&fakeClaudeKeychain{},
+				ErrorCodeNoCollector,
+				0,
+			},
+			{"Should refuse a missing CLI even with consent",
+				Target{ProviderID: agyProviderID, Route: ResolvedRoute{KeychainAccess: true}}, "darwin",
+				&fakeClaudeKeychain{}, ErrorCodeProviderUnavailable, 0},
+			{"Should require a login", agyTestTarget(true), "darwin", &fakeClaudeKeychain{err: os.ErrNotExist},
 				ErrorCodeAuthMissing, 1},
-			{"when macOS denies the read", agyTestTarget(true), "darwin",
+			{"Should report a denied Keychain read", agyTestTarget(true), "darwin",
 				&fakeClaudeKeychain{err: os.ErrPermission}, ErrorCodeKeychainDenied, 1},
-			{"when the background read times out", agyTestTarget(true), "darwin",
+			{"Should report a background read timeout", agyTestTarget(true), "darwin",
 				&fakeClaudeKeychain{err: NewUsageError(ErrorCodeKeychainReadTimeout, "Claude")},
 				ErrorCodeKeychainReadTimeout, 1},
-			{"when the reader fails", agyTestTarget(true), "darwin",
+			{"Should report a Keychain reader failure", agyTestTarget(true), "darwin",
 				&fakeClaudeKeychain{err: errors.New("security exited")}, ErrorCodeProviderUnavailable, 1},
-			{"with an expired token", agyTestTarget(true), "darwin",
+			{"Should report an expired token", agyTestTarget(true), "darwin",
 				&fakeClaudeKeychain{data: agyKeychainItem(t, "fixture@example.test", now.Add(30*time.Second))},
 				ErrorCodeAuthExpired, 1},
-			{"with a corrupt item", agyTestTarget(true), "darwin",
+			{"Should report a corrupt Keychain item", agyTestTarget(true), "darwin",
 				&fakeClaudeKeychain{data: agyKeyringPrefix + "%%%"}, ErrorCodeParseError, 1},
 		}
 		for _, tc := range cases {
@@ -162,7 +179,7 @@ func TestAgyCollector(t *testing.T) {
 					t.Errorf("unexpected request %s", r.URL.Path)
 				})
 				collector := agyTestCollector(t, server.URL, tc.keychain, tc.platform)
-				_, err := collector.Identity(t.Context(), tc.target, IntentBackground)
+				_, err := collector.Collect(t.Context(), tc.target, IntentBackground, CredentialIdentity{})
 				usage := AsUsageError(err, agyLabel)
 				requireEqual(t, tc.want, usage.Code)
 				requireEqual(t, tc.reads, tc.keychain.calls.Load())
@@ -190,7 +207,10 @@ func TestAgyCollector(t *testing.T) {
 	t.Run("Should keep ownership across CLI token renewals of the same account", func(t *testing.T) {
 		t.Parallel()
 		expiry := fixtureClock(t).Now().Add(time.Hour)
-		first, err := parseAgyCredential([]byte(agyKeychainItem(t, "fixture@example.test", expiry)), fixtureClock(t).Now())
+		first, err := parseAgyCredential(
+			[]byte(agyKeychainItem(t, "fixture@example.test", expiry)),
+			fixtureClock(t).Now(),
+		)
 		requireNoError(t, err)
 		renewed := first
 		renewed.token = "renewed-access-secret"
@@ -203,6 +223,9 @@ func TestAgyCollector(t *testing.T) {
 	t.Run("Should reject malformed quota buckets", func(t *testing.T) {
 		t.Parallel()
 		for _, body := range []string{
+			`{}`,
+			`{"buckets":[{"bucketId":"a","window":"5h"}]}`,
+			`{"buckets":[{"bucketId":"a","disabled":true}]}`,
 			`{"buckets":[{"bucketId":"a","window":"5h","remainingFraction":1.5}]}`,
 			`{"buckets":[{"window":"5h","remainingFraction":0.5}]}`,
 			`{"buckets":[{"bucketId":"a","remainingFraction":0.5},{"bucketId":"A","remainingFraction":0.2}]}`,

@@ -277,7 +277,8 @@ CompozyOS runs a Codex session.
 
 ### Antigravity Keychain consent
 
-The Antigravity CLI (`agy`) keeps its Google login in the macOS Keychain. Its row reads
+The Antigravity CLI (`agy`) keeps its Google login in the macOS Keychain. With the CLI installed on
+the daemon host, its row reads
 `Needs access` until you click **Allow** or turn on **Antigravity Keychain access** in Settings →
 Provider usage. From the terminal:
 
@@ -295,6 +296,7 @@ plan.
 - CompozyOS never renews the Antigravity login. When its access token expires and the CLI is not
   running, the row reads `Signed out · Run agy to refresh your login`; any `agy` run renews it.
 - Without a login the row reads `Sign in with agy to read usage`; run `compozy provider auth login agy`.
+- If the CLI is missing, install it on the daemon host, then refresh usage.
 - Linux, Windows, and custom providers that use `runtime_provider = "agy"` show
   `Usage not available`.
 - To withdraw consent, turn off **Antigravity Keychain access**.
