@@ -175,7 +175,7 @@ func TestAgyCollector(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+				server := fixtureServer(t, func(_ http.ResponseWriter, r *http.Request) {
 					t.Errorf("unexpected request %s", r.URL.Path)
 				})
 				collector := agyTestCollector(t, server.URL, tc.keychain, tc.platform)
@@ -222,18 +222,22 @@ func TestAgyCollector(t *testing.T) {
 
 	t.Run("Should reject malformed quota buckets", func(t *testing.T) {
 		t.Parallel()
-		for _, body := range []string{
-			`{}`,
-			`{"buckets":[{"bucketId":"a","window":"5h"}]}`,
-			`{"buckets":[{"bucketId":"a","disabled":true}]}`,
-			`{"buckets":[{"bucketId":"a","window":"5h","remainingFraction":1.5}]}`,
-			`{"buckets":[{"window":"5h","remainingFraction":0.5}]}`,
-			`{"buckets":[{"bucketId":"a","remainingFraction":0.5},{"bucketId":"A","remainingFraction":0.2}]}`,
+		for _, tc := range []struct{ name, body string }{
+			{"Should reject a missing quota envelope", `{}`},
+			{"Should reject a missing quota fraction", `{"buckets":[{"bucketId":"a","window":"5h"}]}`},
+			{"Should reject a response containing only disabled buckets", `{"buckets":[{"bucketId":"a","disabled":true}]}`},
+			{"Should reject a fraction over one", `{"buckets":[{"bucketId":"a","window":"5h","remainingFraction":1.5}]}`},
+			{"Should reject a missing bucket ID", `{"buckets":[{"window":"5h","remainingFraction":0.5}]}`},
+			{"Should reject duplicate bucket IDs",
+				`{"buckets":[{"bucketId":"a","remainingFraction":0.5},{"bucketId":"A","remainingFraction":0.2}]}`},
 		} {
-			var summary agyQuotaSummary
-			requireNoError(t, json.Unmarshal([]byte(body), &summary))
-			_, err := summary.windows()
-			requireEqual(t, ErrorCodeParseError, AsUsageError(err, agyLabel).Code)
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				var summary agyQuotaSummary
+				requireNoError(t, json.Unmarshal([]byte(tc.body), &summary))
+				_, err := summary.windows()
+				requireEqual(t, ErrorCodeParseError, AsUsageError(err, agyLabel).Code)
+			})
 		}
 	})
 }

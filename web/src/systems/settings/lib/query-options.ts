@@ -150,6 +150,7 @@ export function settingsProviderUsageOptions() {
   return queryOptions({
     queryKey: settingsKeys.section("provider-usage"),
     queryFn: ({ signal }) => getSettingsProviderUsage(signal),
+    networkMode: "always",
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

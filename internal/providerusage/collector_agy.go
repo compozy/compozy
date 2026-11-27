@@ -78,7 +78,7 @@ func (c *AgyCollector) credential(ctx context.Context, t Target, intent Intent) 
 		usage.Message = "Usage is available only for the agy provider, not its aliases"
 		return agyCredential{}, usage
 	}
-	if c.platform != "darwin" {
+	if c.platform != keychainPlatform {
 		usage := NewUsageError(ErrorCodeNoCollector, agyProviderID)
 		usage.Message = "agy usage is available only on macOS"
 		return agyCredential{}, usage
@@ -297,4 +297,10 @@ func agyWindow(group string, bucket agyQuotaBucket) (Window, error) {
 	return window, nil
 }
 
-var agyWindowSeconds = map[string]int64{"5h": 18000, "daily": 86400, "1d": 86400, "weekly": 604800, "7d": 604800}
+var agyWindowSeconds = map[string]int64{
+	"5h":                     18000,
+	string(WindowKindDaily):  86400,
+	"1d":                     86400,
+	string(WindowKindWeekly): 604800,
+	"7d":                     604800,
+}

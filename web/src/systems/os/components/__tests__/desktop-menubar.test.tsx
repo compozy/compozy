@@ -13,10 +13,10 @@
 // shell).
 // Owning layer: desktop-menubar.tsx. Canonical suite: this file.
 // Boundary: daemon reads and refreshes run over a stubbed `fetch`.
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { toast, UIProvider } from "@compozy/ui";
 import { resetProfileViews } from "@/systems/profiles";
@@ -778,7 +778,7 @@ describe("DesktopMenubar provider usage control", () => {
     }
   });
 
-  it("Should preserve both Keychain grants when Allow saves overlap", async () => {
+  it("Should preserve overlapping Keychain grants when the browser is offline", async () => {
     const user = userEvent.setup();
     const claude = statusTargets(NOW).needsConsent;
     const agy = { ...claude, provider_id: "agy", provider_name: "Antigravity" };
@@ -816,6 +816,9 @@ describe("DesktopMenubar provider usage control", () => {
     });
 
     const popover = within(await screen.findByTestId("os-usage-popover"));
+    const wasOnline = onlineManager.isOnline();
+    onTestFinished(() => onlineManager.setOnline(wasOnline));
+    onlineManager.setOnline(false);
     await user.click(popover.getByRole("button", { name: "Claude, Needs access" }));
     await user.click(popover.getByRole("button", { name: "Allow" }));
     try {
