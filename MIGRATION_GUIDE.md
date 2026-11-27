@@ -57,7 +57,8 @@ profiles from `config.toml` and removes their local credential directory. Add ea
 - Replace `/api/gateway/ingress-bindings` with `/api/ingress/bindings`. Other Gateway API routes
   and the `compozy__gateway` tool are retired. Use a hosted route or configure
   `remote.ingress.public_url` before confirming a new webhook address.
-- Use the desktop app, verified installer, Homebrew, npm, or Linux release packages from
+- Official install methods no longer include `go install`. Use the desktop app, verified installer,
+  Homebrew, npm, or Linux release packages from
   [Download](https://compozy.com/download). [Build from source](https://compozy.com/docs/getting-started/installation#build-from-source)
   for optional sign-in. Run `compozy account login` to use Compozy Cloud features in a source build.
 

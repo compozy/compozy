@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import { computerRegistryKeys } from "@/systems/computers/lib/query-keys";
+import { createDeferred } from "@/test/event-recorder";
 import {
   AccountApiError,
   type AccountSignInStreamHandlers,
@@ -304,7 +305,7 @@ describe("U0 SignInScreen states and legal/help links (UT-120, UT-138)", () => {
     expect(screen.getByRole("button", { name: /Continue with GitHub/i })).toBeDisabled();
 
     // A second outage keeps the same retry action available.
-    const retryResponse = Promise.withResolvers<never>();
+    const retryResponse = createDeferred<never>();
     mocks.startAccountLogin.mockReturnValueOnce(retryResponse.promise);
     const retry = screen.getByRole("button", { name: "Try again" });
     fireEvent.click(retry);
