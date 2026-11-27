@@ -1,7 +1,10 @@
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
+
 import { sessionListGroupFilters, type SessionListGroupSpec } from "../lib/session-list-groups";
 
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import { sessionListPartitionFolders } from "../lib/session-list-partitions";
+import { folderComputerFoldKey, type SessionFoldSet } from "../lib/session-sidebar-scope";
 import type { SessionFoldersState } from "./use-session-folders";
 import { useSessionListPartitions } from "./use-session-list-partitions";
 import { useSessionSidebarState } from "./use-session-sidebar-state";
@@ -10,8 +13,12 @@ import { useSessionCatalog } from "./use-session-catalog";
 import type { SessionListViewModel } from "./use-session-list-view";
 
 type GroupCatalog = ReturnType<typeof useSessionCatalog>;
-type CatalogScope = Omit<Pick<SessionListGroupSpec, "scope" | "lens" | "pair">, "scope"> & {
+type CatalogScope = Omit<
+  Pick<SessionListGroupSpec, "scope" | "lens" | "pair" | "computerId">,
+  "scope"
+> & {
   scope: SessionListGroupSpec["scope"] | null;
+  matchedWorkspaceIds?: readonly string[] | null;
 };
 type CatalogView = Pick<SessionListViewModel, "groupFilters" | "sort" | "shelf">;
 
@@ -39,18 +46,26 @@ export function useSessionListContainerCatalog(
   search: string
 ) {
   const { folderFolds } = useSessionSidebarState();
+  const computerId: ComputerId = group.computerId ?? group.pair?.computerId ?? LOCAL_COMPUTER_ID;
+  const remote = isRemoteComputerId(computerId);
+  const scopedFolds: SessionFoldSet = remote
+    ? { has: id => folderFolds.has(folderComputerFoldKey(computerId, id)) }
+    : folderFolds;
   const filters = sessionListGroupFilters(view, group, folders.layout !== undefined);
   const partitions = useSessionListPartitions(
     sessionCatalogScopedFilters(group.scope, filters, group.lens),
     sessionListPartitionFolders(folders.layout?.folders, folders.pendingEdits),
-    folderFolds,
+    scopedFolds,
     enabled,
     search.trim() !== (filters.q ?? "").trim(),
-    folders.pendingEdits
+    folders.pendingEdits,
+    computerId
   );
   const read = useSessionCatalog(group.scope, filters, enabled && !partitions && !folders.loading, {
     facets: false,
     lens: group.lens,
+    computerId,
+    matchedWorkspaceIds: group.matchedWorkspaceIds,
   });
   const catalog = partitions?.catalog ?? {
     ...read,

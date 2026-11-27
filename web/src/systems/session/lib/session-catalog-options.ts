@@ -6,6 +6,7 @@ import { fetchWorkspaceLayout } from "../adapters/workspace-layout-api";
 import type { SessionListFilters } from "../types";
 import { sessionKeys } from "./query-keys";
 import { normalizeSessionListFilters } from "./session-list-query";
+import { recordSessionsComputer } from "./session-row-ref";
 
 export interface SessionCatalogCursor {
   cursor?: string;
@@ -27,10 +28,17 @@ export function sessionCatalogOptions(
   const keys = sessionKeys.forComputer(computerId);
   return infiniteQueryOptions({
     queryKey: keys.catalogPage(normalized),
-    queryFn: ({ pageParam, signal }) =>
-      remote
-        ? fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal, computerId)
-        : fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal),
+    queryFn: async ({ pageParam, signal }) => {
+      const page = remote
+        ? await fetchSessionCatalogPage(
+            { ...normalized, cursor: pageParam.cursor },
+            signal,
+            computerId
+          )
+        : await fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal);
+      recordSessionsComputer(page.sessions, computerId);
+      return page;
+    },
     initialPageParam: { previous: [] } as SessionCatalogCursor,
     getNextPageParam: (page, _pages, current) =>
       page.page.has_more && page.page.next_cursor
@@ -60,7 +68,11 @@ export function sessionCatalogFirstPageOptions(
   const keys = sessionKeys.forComputer(computerId);
   return queryOptions({
     queryKey: [...keys.catalogPage(normalized), "first-page"] as const,
-    queryFn: ({ signal }) => fetchSessionCatalogPage(normalized, signal, computerId),
+    queryFn: async ({ signal }) => {
+      const page = await fetchSessionCatalogPage(normalized, signal, computerId);
+      recordSessionsComputer(page.sessions, computerId);
+      return page;
+    },
     staleTime: 5_000,
     refetchOnWindowFocus: false,
     retry: false,
@@ -129,10 +141,13 @@ export function sessionBoardPageOptions(
   const keys = sessionKeys.forComputer(computerId);
   return infiniteQueryOptions({
     queryKey: [...keys.workspaceLists(normalized.workspace_id ?? ""), "board", normalized] as const,
-    queryFn: ({ pageParam, signal }) =>
-      remote
-        ? fetchSessionCatalogPage({ ...normalized, cursor: pageParam }, signal, computerId)
-        : fetchSessionCatalogPage({ ...normalized, cursor: pageParam }, signal),
+    queryFn: async ({ pageParam, signal }) => {
+      const page = remote
+        ? await fetchSessionCatalogPage({ ...normalized, cursor: pageParam }, signal, computerId)
+        : await fetchSessionCatalogPage({ ...normalized, cursor: pageParam }, signal);
+      recordSessionsComputer(page.sessions, computerId);
+      return page;
+    },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page =>
       page.page.has_more && page.page.next_cursor ? page.page.next_cursor : undefined,

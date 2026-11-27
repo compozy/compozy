@@ -122,4 +122,29 @@ describe("mergeSessionPages and multi-computer helpers", () => {
     expect(groups.map(group => group.label)).toEqual(["api · devbox", "api · studio"]);
     expect(groups[0]?.key).not.toBe(groups[1]?.key);
   });
+
+  it("T-F5 / P1: Should never fall back to a raw ws_… id when a remote workspace name is missing", () => {
+    const merged = mergeSessionPages([
+      {
+        computer: { id: "cmp_devbox", name: "devbox", status: "connected" },
+        sessions: [
+          {
+            id: "s1",
+            updated_at: "2026-04-10T00:00:05.000Z",
+            workspace_id: "ws_raw_id_123",
+          },
+          {
+            id: "s2",
+            updated_at: "2026-04-10T00:00:04.000Z",
+            workspace_id: "ws_path_only",
+            workspace_path: "/srv/repos/billing-api",
+          },
+        ],
+      },
+    ]);
+
+    const groups = groupSessionsByProjectAndComputer(merged);
+    expect(groups.map(group => group.projectName)).toEqual(["Unknown project", "billing-api"]);
+    expect(groups.some(group => group.label.includes("ws_"))).toBe(false);
+  });
 });

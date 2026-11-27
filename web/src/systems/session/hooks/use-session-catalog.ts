@@ -5,11 +5,42 @@ import {
   type InfiniteQueryObserverResult,
   type InfiniteData,
 } from "@tanstack/react-query";
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
 import type { DataScope } from "@/systems/workspace";
 import { sessionCatalogOptions, sessionFacetsOptions } from "../lib/session-catalog-options";
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import type { SessionCatalogPageResponse, SessionListFilters } from "../types";
+
+function scopedCatalogFilters(
+  scope: DataScope | null,
+  filters: SessionListFilters,
+  lens: ProfileScopeParams,
+  computerId: ComputerId | undefined,
+  matchedWorkspaceIds: readonly string[] | null | undefined
+): { scoped: SessionListFilters; emptyRemoteMatch: boolean } {
+  if (isRemoteComputerId(computerId) && scope?.kind === "project" && matchedWorkspaceIds != null) {
+    if (matchedWorkspaceIds.length === 0) {
+      return {
+        scoped: { ...filters, all_workspaces: true, ...lens },
+        emptyRemoteMatch: true,
+      };
+    }
+    return {
+      scoped: {
+        ...filters,
+        all_workspaces: true,
+        workspace_ids: [...matchedWorkspaceIds],
+        ...lens,
+      },
+      emptyRemoteMatch: false,
+    };
+  }
+  return {
+    scoped: sessionCatalogScopedFilters(scope, filters, lens),
+    emptyRemoteMatch: false,
+  };
+}
 
 /**
  * One session catalog page for a data scope: a project, User (`@user`), or
@@ -21,12 +52,24 @@ export function useSessionCatalog(
   scope: DataScope | null,
   filters: SessionListFilters = {},
   enabled = true,
-  options: { facets?: boolean; lens?: ProfileScopeParams } = {}
+  options: {
+    facets?: boolean;
+    lens?: ProfileScopeParams;
+    computerId?: ComputerId;
+    matchedWorkspaceIds?: readonly string[] | null;
+  } = {}
 ) {
   const { params } = useProfileReadScope();
-  const scoped = sessionCatalogScopedFilters(scope, filters, options.lens ?? params);
-  const active = enabled && scope !== null;
-  const pageOptions = sessionCatalogOptions(scoped);
+  const computerId = options.computerId ?? LOCAL_COMPUTER_ID;
+  const { scoped, emptyRemoteMatch } = scopedCatalogFilters(
+    scope,
+    filters,
+    options.lens ?? params,
+    options.computerId,
+    options.matchedWorkspaceIds
+  );
+  const active = enabled && scope !== null && !emptyRemoteMatch;
+  const pageOptions = sessionCatalogOptions(scoped, computerId);
   const { q: _search, ...population } = pageOptions.queryKey[6];
   const populationKey = JSON.stringify(population);
   const page = useInfiniteQuery({
@@ -43,10 +86,26 @@ export function useSessionCatalog(
   });
   const withFacets = options.facets === true;
   const facets = useQuery({
-    ...sessionFacetsOptions(scoped),
+    ...sessionFacetsOptions(scoped, computerId),
     enabled: active && withFacets,
   });
   const catalog = sessionCatalogPageView(page);
+  if (emptyRemoteMatch) {
+    return {
+      ...catalog,
+      sessions: [],
+      total: 0,
+      working: 0,
+      needsYou: 0,
+      loading: false,
+      placeholder: false,
+      failed: false,
+      next: false,
+      previous: false,
+      paging: false,
+      facets: undefined,
+    };
+  }
   return {
     ...catalog,
     facets: facets.data?.facets,

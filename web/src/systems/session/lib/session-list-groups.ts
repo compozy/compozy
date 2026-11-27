@@ -1,4 +1,8 @@
-import type { ComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import type {
+  ComputerIconKind,
+  ComputerPlatform,
+} from "@/systems/computers/mocks/remote-computers-types";
 import type { ProfileOwner, ProfileScopeParams } from "@/systems/profiles";
 import {
   ownerDataScope,
@@ -15,6 +19,7 @@ import { workspaceWorkingLabel } from "@/systems/workspace/lib/workspace-working
 
 import type { fetchSessionFacets } from "../adapters/session-catalog-api";
 import type { SessionListFilters } from "../types";
+import { computerWorkspaceBadgeIdentity } from "./session-list-computer-filter";
 import { sessionListSortParam, type SessionListSort } from "./session-list-preferences";
 import { sessionListShelfNoun, type SessionListShelf } from "./session-list-shelf";
 
@@ -57,6 +62,14 @@ export interface SessionListGroupSpec {
   lens: ProfileScopeParams;
   /** Set only when the group's own query is exactly one (workspace, profile) pair. */
   pair: SessionListPair | null;
+  /** Owning daemon when the group represents a remote computer or a Together-layer group (`F5`, `F6`). */
+  computerId?: ComputerId;
+  /** Computer display name shown in Together-layer headers (`F6`). */
+  computerName?: string;
+  computerPlatform?: ComputerPlatform;
+  computerIconKind?: ComputerIconKind;
+  /** True when the owning computer is offline (dimmed, read-only). */
+  offline?: boolean;
 }
 
 function counts(facets: GroupFacets) {
@@ -71,12 +84,17 @@ function counts(facets: GroupFacets) {
 /** The pair a bounded scope and a single profile resolve to; `null` for any aggregate. */
 export function sessionListPair(
   scope: DataScope | null,
-  lens: ProfileScopeParams
+  lens: ProfileScopeParams,
+  computerId?: ComputerId
 ): SessionListPair | null {
   if (scope === null || scope.kind === "all" || !("profile" in lens) || !lens.profile) {
     return null;
   }
-  return { workspaceId: workspaceSelectorForScope(scope), profile: lens.profile };
+  return {
+    ...(isRemoteComputerId(computerId) ? { computerId } : {}),
+    workspaceId: workspaceSelectorForScope(scope),
+    profile: lens.profile,
+  };
 }
 
 /**
@@ -89,6 +107,12 @@ export function projectSessionGroups(
   input: {
     workspaces: ReadonlyArray<{ id: string; name: string }>;
     lens: ProfileScopeParams;
+    computerId?: ComputerId;
+    computerName?: string;
+    computerPlatform?: ComputerPlatform;
+    computerIconKind?: ComputerIconKind;
+    offline?: boolean;
+    qualifyKey?: boolean;
   }
 ): SessionListGroupSpec[] {
   if (!facets) return [];
@@ -111,18 +135,34 @@ export function projectSessionGroup(
   input: {
     workspaces: ReadonlyArray<{ id: string; name: string }>;
     lens: ProfileScopeParams;
+    computerId?: ComputerId;
+    computerName?: string;
+    computerPlatform?: ComputerPlatform;
+    computerIconKind?: ComputerIconKind;
+    offline?: boolean;
+    qualifyKey?: boolean;
   }
 ): SessionListGroupSpec {
   const names = new Map(input.workspaces.map(workspace => [workspace.id, workspace.name]));
   const scope = ownerDataScope(workspaceId);
+  const remote = isRemoteComputerId(input.computerId);
+  const baseKey = scope.kind === "user" ? "user" : `project:${scope.workspaceId}`;
+  const key = input.qualifyKey && input.computerId ? `project:${input.computerId}:${scope.kind === "user" ? "@user" : scope.workspaceId}` : baseKey;
   return {
-    key: scope.kind === "user" ? "user" : `project:${scope.workspaceId}`,
+    key,
     kind: "project",
-    badge: workspaceBadgeIdentity(workspaceId, names),
+    badge: remote
+      ? computerWorkspaceBadgeIdentity(workspaceId, names, { isRemote: true })
+      : workspaceBadgeIdentity(workspaceId, names),
     ...counts(facets),
     scope,
     lens: input.lens,
-    pair: sessionListPair(scope, input.lens),
+    pair: sessionListPair(scope, input.lens, input.computerId),
+    ...(remote ? { computerId: input.computerId } : {}),
+    ...(input.computerName !== undefined ? { computerName: input.computerName } : {}),
+    ...(input.computerPlatform !== undefined ? { computerPlatform: input.computerPlatform } : {}),
+    ...(input.computerIconKind !== undefined ? { computerIconKind: input.computerIconKind } : {}),
+    ...(input.offline ? { offline: true } : {}),
   };
 }
 
@@ -151,9 +191,10 @@ export function withInstanceProjectGroups(
  */
 export function profileSessionGroups(
   facets: Pick<SessionCatalogFacets, "by_profile"> | undefined,
-  input: { profiles: readonly ProfileOwner[]; scope: DataScope }
+  input: { profiles: readonly ProfileOwner[]; scope: DataScope; computerId?: ComputerId }
 ): SessionListGroupSpec[] {
   if (!facets) return [];
+  const remote = isRemoteComputerId(input.computerId);
   const byId = new Map(facets.by_profile.map(row => [row.profile_id, row.facets]));
   return input.profiles.flatMap(owner => {
     const row = byId.get(owner.id);
@@ -167,7 +208,8 @@ export function profileSessionGroups(
         ...counts(row),
         scope: input.scope,
         lens,
-        pair: sessionListPair(input.scope, lens),
+        pair: sessionListPair(input.scope, lens, input.computerId),
+        ...(remote ? { computerId: input.computerId } : {}),
       },
     ];
   });
@@ -194,9 +236,11 @@ export function sessionListGroupFilters(
  * the group spans — All projects or All profiles — stays `null`.
  */
 export function sessionListGroupTarget(
-  group: Pick<SessionListGroupSpec, "pair" | "scope" | "lens">
+  group: Pick<SessionListGroupSpec, "pair" | "scope" | "lens" | "computerId">
 ) {
+  const computerId = group.pair?.computerId ?? group.computerId;
   return {
+    ...(isRemoteComputerId(computerId) ? { computerId } : {}),
     workspaceId: group.pair?.workspaceId ?? workspaceSelectorOrAll(group.scope),
     profile: group.pair?.profile ?? ("profile" in group.lens ? group.lens.profile : null) ?? null,
   };

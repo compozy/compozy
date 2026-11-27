@@ -1,6 +1,8 @@
 import { InfiniteQueryObserver, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useSyncExternalStore } from "react";
 
+import { LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
+
 import { normalizeSessionListFilters } from "../lib/session-list-query";
 import {
   projectPartitionRows,
@@ -24,7 +26,8 @@ export function useSessionListPartitions(
   folds: SessionFoldSet,
   enabled: boolean,
   debouncing: boolean,
-  edits: readonly PendingSessionLayoutEdit[] | undefined
+  edits: readonly PendingSessionLayoutEdit[] | undefined,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
 ) {
   const client = useQueryClient();
   const filterKey = JSON.stringify(normalizeSessionListFilters(filters));
@@ -37,8 +40,15 @@ export function useSessionListPartitions(
       : []
   );
   const source = useMemo(
-    () => createPartitionSource(client, JSON.parse(filterKey), JSON.parse(containerKey), enabled),
-    [client, containerKey, enabled, filterKey]
+    () =>
+      createPartitionSource(
+        client,
+        JSON.parse(filterKey),
+        JSON.parse(containerKey),
+        enabled,
+        computerId
+      ),
+    [client, computerId, containerKey, enabled, filterKey]
   );
   const results = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   if (!folders?.length) return undefined;
@@ -84,13 +94,14 @@ function createPartitionSource(
   client: ReturnType<typeof useQueryClient>,
   scoped: SessionListFilters,
   containers: [string, boolean][],
-  enabled: boolean
+  enabled: boolean,
+  computerId: ComputerId
 ) {
   const entries = containers.map(([folder, countOnly]) => ({
     folder,
     countOnly,
     observer: new InfiniteQueryObserver(client, {
-      ...sessionListPartitionOptions(scoped, folder, countOnly),
+      ...sessionListPartitionOptions(scoped, folder, countOnly, computerId),
       enabled,
       // A fold changes one request. Other containers already refresh on
       // catalog invalidation and need not refetch just because they remount.

@@ -147,7 +147,7 @@ function resolveProjectName(
     const mapped = workspaceNames?.get(rawId) ?? session.workspace_name?.trim();
     if (mapped) return { id: rawId, name: mapped };
     const pathTail = session.workspace_path?.split("/").filter(Boolean).at(-1);
-    return { id: rawId, name: pathTail ?? rawId };
+    return { id: rawId, name: pathTail ?? "Unknown project" };
   }
   const fallbackName = session.workspace_name?.trim();
   if (fallbackName) return { id: fallbackName, name: fallbackName };
