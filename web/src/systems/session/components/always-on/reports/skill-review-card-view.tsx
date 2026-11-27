@@ -129,6 +129,38 @@ function ApprovedSkillReview({ name, view }: { name: string; view: AgentSkillRev
   );
 }
 
+function ClosedSkillReview({
+  name,
+  edit,
+  state,
+}: {
+  name: string;
+  edit: boolean;
+  state: "rejected" | "reverted";
+}) {
+  if (state === "reverted") {
+    return (
+      <Receipt icon={<Undo2 aria-hidden="true" />} tone="rejected">
+        Reverted <b>{name}</b>
+        {edit ? " to its previous contents." : "."}
+      </Receipt>
+    );
+  }
+  return (
+    <Receipt icon={<X aria-hidden="true" />} tone="rejected">
+      {edit ? (
+        <>
+          You rejected the change to <b>{name}</b>. The installed skill stays as it is.
+        </>
+      ) : (
+        <>
+          You rejected <b>{name}</b>. It stays off unless its contents change.
+        </>
+      )}
+    </Receipt>
+  );
+}
+
 /** The card for a loaded review; the container below reads and decides it. */
 export function SkillReviewCardView({
   agent,
@@ -146,11 +178,20 @@ export function SkillReviewCardView({
   const [open, setOpen] = useState(defaultOpen);
   const { review } = view;
   if (!review) return null;
-  const decide = (decision: "approve" | "reject") => view.decide(decision);
+  if (view.state === "approved") {
+    return <ApprovedSkillReview name={review.name} view={view} />;
+  }
+  if (view.state === "reverted" || view.state === "rejected") {
+    return (
+      <ClosedSkillReview edit={review.kind === "edit"} name={review.name} state={view.state} />
+    );
+  }
+  if (view.unreadable) {
+    return <UnreadableSkillReview agent={agent} name={review.name} view={view} when={when} />;
+  }
   const dialog = (
     <AgentSkillViewerDialog
       agentLabel={agent.label}
-      decided={view.state !== "pending"}
       deciding={view.deciding}
       approveDisabled={view.invalid}
       automaticComparison={view.automaticComparison}
@@ -163,49 +204,13 @@ export function SkillReviewCardView({
       initialPath={initialPath}
       key={review.digest}
       name={review.name}
-      onApprove={() => decide("approve")}
+      onApprove={() => view.decide("approve")}
       onOpenChange={setOpen}
-      onReject={() => decide("reject")}
-      open={open && view.state === "pending"}
+      onReject={() => view.decide("reject")}
+      open={open}
       stale={view.stale}
     />
   );
-  if (view.unreadable && view.state === "pending") {
-    return <UnreadableSkillReview agent={agent} name={review.name} view={view} when={when} />;
-  }
-  if (view.state === "approved") {
-    return <ApprovedSkillReview name={review.name} view={view} />;
-  }
-  if (view.state === "reverted") {
-    return (
-      <Receipt icon={<Undo2 aria-hidden="true" />} tone="rejected">
-        {review.kind === "edit" ? (
-          <>
-            Reverted <b>{review.name}</b> to its previous contents.
-          </>
-        ) : (
-          <>
-            Reverted <b>{review.name}</b>.
-          </>
-        )}
-      </Receipt>
-    );
-  }
-  if (view.state === "rejected") {
-    return (
-      <Receipt icon={<X aria-hidden="true" />} tone="rejected">
-        {review.kind === "edit" ? (
-          <>
-            You rejected the change to <b>{review.name}</b>. The installed skill stays as it is.
-          </>
-        ) : (
-          <>
-            You rejected <b>{review.name}</b>. It stays off unless its contents change.
-          </>
-        )}
-      </Receipt>
-    );
-  }
   return (
     <>
       <Notice
