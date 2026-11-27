@@ -189,14 +189,7 @@ func requestErrorIndicatesDeadline(err error) bool {
 // The refusal is permanent for the current configuration: the same thread never loads again,
 // so a retry only repeats the failure.
 func IsLoadSessionProviderMismatch(err error) bool {
-	if !errors.Is(err, ErrLoadSessionFailed) {
-		return false
-	}
-	reqErr, ok := errors.AsType[*acpsdk.RequestError](err)
-	if !ok || reqErr == nil {
-		return false
-	}
-	return requestErrorIndicatesProviderMismatch(reqErr)
+	return errors.Is(err, ErrLoadSessionFailed) && requestErrorIndicatesProviderMismatch(err)
 }
 
 // LoadSessionRequiresFreshThread reports the classified session/load failures after which the
@@ -216,14 +209,15 @@ func LoadSessionRequiresFreshThread(err error) bool {
 // IsLoadSessionTimeout reports a transient session/load or session/resume deadline
 // classified while the caller's context was still alive.
 func IsLoadSessionTimeout(err error) bool {
-	return errors.Is(err, ErrLoadSessionTimeout)
+	return errors.Is(err, ErrLoadSessionTimeout) && !requestErrorIndicatesProviderMismatch(err)
 }
 
 // requestErrorIndicatesProviderMismatch is the single matcher for the provider's
 // account/backend mismatch wording. Both phrases must be present so an unrelated error that
 // merely mentions a provider is never classified as permanent.
-func requestErrorIndicatesProviderMismatch(reqErr *acpsdk.RequestError) bool {
-	if reqErr == nil {
+func requestErrorIndicatesProviderMismatch(err error) bool {
+	reqErr, ok := errors.AsType[*acpsdk.RequestError](err)
+	if !ok || reqErr == nil {
 		return false
 	}
 	text := strings.ToLower(strings.TrimSpace(requestErrorDiagnosticText(reqErr)))

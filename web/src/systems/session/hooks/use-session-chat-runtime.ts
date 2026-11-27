@@ -54,6 +54,8 @@ import {
 
 type QueryClient = ReturnType<typeof useQueryClient>;
 
+const DETACHED_REBIND_BODY_TIMEOUT_MS = 5_000;
+
 /**
  * Settles the composer draft a prompt POST took. The draft is consumed only
  * once the daemon accepts the prompt; a refusal, or a request that never got
@@ -108,9 +110,19 @@ function settleDetachedPrompt(
         outcome.notSent(messageId, null);
         return;
       }
+      // Only the structured 504 is an explicit refusal. Bound the read after headers so
+      // the draft returns even if the error body stalls after the composer closes.
+      const refusalBody =
+        response.status === 504 && response.body
+          ? new Response(
+              response.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>(), {
+                signal: AbortSignal.timeout(DETACHED_REBIND_BODY_TIMEOUT_MS),
+              })
+            )
+          : response;
       const refusal = parseSessionPromptRefusal(
         response.status,
-        await response.text().catch(() => "")
+        await refusalBody.text().catch(() => "")
       );
       outcome.notSent(
         messageId,

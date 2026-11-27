@@ -2841,6 +2841,7 @@ func TestLoadSessionTimeoutClassification(t *testing.T) {
 		requestErr   *acpsdk.RequestError
 		cancelCaller bool
 		wantTimeout  bool
+		wantFresh    bool
 	}{
 		{
 			name:   "Should classify provider context deadline text as transient",
@@ -2861,6 +2862,14 @@ func TestLoadSessionTimeoutClassification(t *testing.T) {
 			method: acpsdk.AgentMethodSessionLoad, requestErr: &acpsdk.RequestError{
 				Code: -32603, Message: "The stored session cannot be loaded",
 			},
+		},
+		{
+			name:   "Should keep a provider mismatch permanent when the diagnostic also reports a deadline",
+			method: acpsdk.AgentMethodSessionLoad, requestErr: &acpsdk.RequestError{
+				Code: -32603, Message: "This chat uses openai, but your current provider is cliproxyapi.",
+				Data: map[string]any{"error": "context deadline exceeded"},
+			},
+			wantFresh: true,
 		},
 		{
 			name:   "Should not reclassify a caller deadline",
@@ -2889,12 +2898,15 @@ func TestLoadSessionTimeoutClassification(t *testing.T) {
 				tc.method,
 				tc.requestErr,
 			)
+			if got := errors.Is(classified, ErrLoadSessionTimeout); got != tc.wantTimeout {
+				t.Fatalf("classified control timeout = %v, want %v; error = %v", got, tc.wantTimeout, classified)
+			}
 			loadErr := fmt.Errorf("%w: %w", ErrLoadSessionFailed, classified)
 			if got := IsLoadSessionTimeout(loadErr); got != tc.wantTimeout {
 				t.Fatalf("IsLoadSessionTimeout() = %v, want %v; error = %v", got, tc.wantTimeout, loadErr)
 			}
-			if got := LoadSessionRequiresFreshThread(loadErr); got {
-				t.Fatalf("LoadSessionRequiresFreshThread() = true for timeout/permanent transient error %v", loadErr)
+			if got := LoadSessionRequiresFreshThread(loadErr); got != tc.wantFresh {
+				t.Fatalf("LoadSessionRequiresFreshThread() = %v, want %v; error = %v", got, tc.wantFresh, loadErr)
 			}
 		})
 	}

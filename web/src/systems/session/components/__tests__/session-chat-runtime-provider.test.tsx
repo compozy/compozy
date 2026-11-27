@@ -2115,29 +2115,48 @@ describe("SessionChatRuntimeProvider", () => {
     );
   });
 
-  it("Should keep the draft as unconfirmed, not refused, when a closed runtime's prompt gets a 5xx", async () => {
-    const answer = createDeferred<Response>();
-    promptResponsePromise = answer.promise;
-    render(<Toaster duration={5_000} />);
-    const user = userEvent.setup();
-    const first = renderSessionThread();
+  it.each(["generic 504", "stalled 504"])(
+    "Should restore the draft as unconfirmed after a %s from a closed runtime's prompt",
+    async response => {
+      const answer = createDeferred<Response>();
+      const cancelBody = vi.fn();
+      promptResponsePromise = answer.promise;
+      render(<Toaster duration={5_000} />);
+      const user = userEvent.setup();
+      const first = renderSessionThread();
 
-    await screen.findByTestId("composer-input");
-    await setComposerText("Maybe recorded");
-    await user.click(screen.getByTestId("composer-send-button"));
-    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+      await screen.findByTestId("composer-input");
+      await setComposerText("Maybe recorded");
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
 
-    first.unmount();
-    answer.resolve(jsonResponse({ error: "gateway timeout" }, { status: 504 }));
-    expect(
-      await screen.findByText("Couldn't confirm the message was sent. Your draft was kept.")
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/Message not sent/)).not.toBeInTheDocument();
+      first.unmount();
+      if (response === "stalled 504") {
+        const deadline = new AbortController();
+        const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValueOnce(deadline.signal);
+        onTestFinished(() => timeout.mockRestore());
+        answer.resolve(
+          new Response(new ReadableStream({ cancel: cancelBody }), {
+            status: 504,
+            headers: { "content-type": "application/json" },
+          })
+        );
+        await waitFor(() => expect(timeout).toHaveBeenCalled());
+        deadline.abort();
+      } else {
+        answer.resolve(jsonResponse({ error: "gateway timeout" }, { status: 504 }));
+      }
+      expect(
+        await screen.findByText("Couldn't confirm the message was sent. Your draft was kept.")
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Message not sent/)).not.toBeInTheDocument();
+      if (response === "stalled 504") expect(cancelBody).toHaveBeenCalledOnce();
 
-    renderSessionThread();
-    await screen.findByTestId("composer-input");
-    await waitFor(() => expect(composerText()).toBe("Maybe recorded"));
-  });
+      renderSessionThread();
+      await screen.findByTestId("composer-input");
+      await waitFor(() => expect(composerText()).toBe("Maybe recorded"));
+    }
+  );
 
   it("Should consume the draft when a prompt left by a closed runtime is accepted", async () => {
     const acceptance = createDeferred<Response>();

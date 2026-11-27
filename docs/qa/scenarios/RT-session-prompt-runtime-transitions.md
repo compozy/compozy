@@ -65,3 +65,5 @@ failed transcript-replay fallback returns a retryable 504 with Continue/Fork gui
 generic server error. Re-walk the provider-backed idle-release and retained-draft flow; this change's
 automated regressions do not verify the live provider scenario. Repeat the timeout through
 `compozy__session_prompt` and verify its structured error has the same code and retry guidance.
+Close the session while a prompt is awaiting its answer. If a gateway sends 504 headers and
+stalls the body, the composer should restore the draft with an unconfirmed-send notice.
