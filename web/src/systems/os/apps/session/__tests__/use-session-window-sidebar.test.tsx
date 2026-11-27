@@ -439,6 +439,35 @@ describe("useSessionBoardWindow", () => {
     });
   });
 
+  it("Should open a remote card when the drawer shows a local session with the same ID", () => {
+    const local = session("workspace-1");
+    const target = { ...local, computerId: "cmp_remote" };
+    getState.mockReturnValue({
+      windows: {
+        source: {
+          id: "source",
+          app: "session",
+          instanceKey: local.id,
+          route: { pathname: `/agents/claude/sessions/${local.id}`, search: { drawer: "open" } },
+        },
+      },
+      client: { focusOrder: ["source"] },
+    });
+
+    const { result } = renderBoardWindow(local.id, true);
+    act(() => result.current.onOpen(target));
+
+    expect(setSessionWindowView).not.toHaveBeenCalled();
+    expect(userRetarget).toHaveBeenCalledExactlyOnceWith("source", {
+      app: "session",
+      instanceKey: `cmp_remote:${target.id}`,
+      route: {
+        pathname: `/agents/claude/sessions/${target.id}`,
+        search: expect.objectContaining({ computer: "cmp_remote", drawer: "open" }),
+      },
+    });
+  });
+
   it("Should close the drawer when the window leaves the board for List", () => {
     const target = session("workspace-1");
     getState.mockReturnValue({

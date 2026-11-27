@@ -12,6 +12,13 @@ import { describe, expect, it, vi } from "vitest";
 import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import { LOCAL_COMPUTER } from "@/systems/computers/mocks/remote-computers-fixtures";
 
+import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
+import { useSessionListSelection } from "../../hooks/use-session-list-selection";
+import { sessionCatalogOptions } from "../../lib/session-catalog-options";
+import { projectSessionGroup, sessionListGroupFilters } from "../../lib/session-list-groups";
+import { sessionCatalogScopedFilters } from "../../lib/session-catalog-scope";
+import { sessionListViewFixture } from "../../mocks/session-list-view-fixtures";
+import { SessionListGroupBody } from "../session-list/session-list-group-body";
 import type { ComputerSessionsSource } from "../../hooks/use-computer-sessions-sources";
 import { useSessionListDnd } from "../../hooks/use-session-list-dnd";
 import { buildComputerPopulationFilters } from "../../lib/session-list-computer-filter";
@@ -70,6 +77,7 @@ function renderSection(
         onSelectSession={vi.fn()}
         onThreadBranchChange={vi.fn()}
         search={options.search ?? ""}
+        scope={{ kind: "all" }}
         sessionActions={sessionLifecycleActionsFixture()}
         source={source}
         subagentThreads={{ has: () => false }}
@@ -306,6 +314,100 @@ describe("SessionListComputerSection and Not counted footer (T-F7)", () => {
       client: offlineClient,
     });
     expect(noMatchRender.container).toBeEmptyDOMElement();
+  });
+
+  it("Should select the same Profile group from both computer sections", () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    const view = sessionListViewFixture({ groupBy: "profile" });
+    const sessionActions = sessionLifecycleActionsFixture();
+    const computers = ["local", "cmp_remote"];
+    const groups = computers.map(computerId => ({
+      ...projectSessionGroup(
+        "ws-shared",
+        { all: 1, working: 0, needs_you: 0 },
+        {
+          workspaces: [{ id: "ws-shared", name: "Shared" }],
+          lens: { profile: "default" },
+          computerId,
+        }
+      ),
+      key: "profile:default",
+      kind: "profile" as const,
+    }));
+    for (const [index, computerId] of computers.entries()) {
+      const group = groups[index]!;
+      const filters = sessionCatalogScopedFilters(
+        group.scope,
+        sessionListGroupFilters(view, group, true),
+        group.lens
+      );
+      client.setQueryData(sessionKeys.forComputer(computerId).folders("ws-shared", "default"), []);
+      client.setQueryData(sessionCatalogOptions(filters, computerId).queryKey, {
+        pageParams: [{ previous: [] }],
+        pages: [
+          {
+            sessions: [
+              {
+                ...primarySessionFixture,
+                id: "shared-session",
+                name: `Session on ${computerId}`,
+                computerId,
+              },
+            ],
+            page: { has_more: false, next_cursor: "", limit: 50, total: 1 },
+          },
+        ],
+      });
+    }
+
+    function SeparateGroups() {
+      const { bulk, groupSelection } = useSessionListSelection({
+        grouped: true,
+        selectionKey: "separate-profile",
+        shelf: "active",
+        sessions: [],
+        visibleThreads: [],
+        collapsedThreads: EMPTY_SET,
+        sessionActions,
+      });
+      return (
+        <div data-testid="selection-host" onKeyDown={bulk.onKeyDown}>
+          <SessionListGroupSelectionContext value={groupSelection}>
+            {groups.map((group, index) => (
+              <section key={computers[index]}>
+                <SessionListGroupBody
+                  group={group}
+                  path={[index]}
+                  filtering={false}
+                  view={view}
+                  collapsedThreads={EMPTY_SET}
+                  subagentThreads={{ has: () => false }}
+                  onThreadBranchChange={vi.fn()}
+                  onSelectSession={vi.fn()}
+                  onNewSession={vi.fn()}
+                  sessionActions={sessionActions}
+                  renderSubgroup={() => null}
+                  testIdPrefix={computers[index]!}
+                />
+              </section>
+            ))}
+          </SessionListGroupSelectionContext>
+          <output data-testid="selection-count">{bulk.rowSelection.selectedIds.size}</output>
+        </div>
+      );
+    }
+
+    render(
+      <QueryClientProvider client={client}>
+        <SeparateGroups />
+      </QueryClientProvider>
+    );
+    expect(screen.getByText("Session on local")).toBeInTheDocument();
+    expect(screen.getByText("Session on cmp_remote")).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByTestId("selection-host"), { key: "a", metaKey: true });
+    expect(screen.getByTestId("selection-count")).toHaveTextContent("2");
   });
 
   it("Should render Not counted footer naming unanswered computers (R9)", () => {
