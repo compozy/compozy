@@ -7380,7 +7380,7 @@ func TestQueuedAgentCommandDelivery(t *testing.T) {
 		registerManagerInputQueueSession(t, database, h, session)
 		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
 		metadata, err := json.Marshal(acp.PromptSyntheticMeta{
-			Kind: acp.PromptSyntheticKindMonitor, WakeEventID: "monitor-wake",
+			Kind: acp.PromptSyntheticKindSessionReply, WakeEventID: "reply-watch", Reason: store.ReplyOutcomeCompleted,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -7390,7 +7390,7 @@ func TestQueuedAgentCommandDelivery(t *testing.T) {
 			MessageID: "queued-message", TurnID: "wake", Text: "reply arrived",
 			Mode: store.SessionInputQueueModeQueue, QueueCap: 1, Now: h.manager.now(),
 			SyntheticPrompt: &store.SessionInputSyntheticPrompt{
-				RunID: "monitor-wake", Delivery: store.SessionInputDeliveryAfterTurn, Metadata: metadata,
+				RunID: "reply-wake", Delivery: store.SessionInputDeliveryAfterTurn, Metadata: metadata,
 			},
 		})
 		if err != nil {
