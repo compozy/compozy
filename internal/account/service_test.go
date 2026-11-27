@@ -760,6 +760,23 @@ func TestSignInGate(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep verified grace when a later policy fails verification", func(t *testing.T) {
+		t.Parallel()
+		service, store, clock := newAccountTest(t, testGateCloud(t, time.Hour, false),
+			Installation{State: SignedOut}, WithSignInRequired(true))
+		assertTestGate(t, service, GateGrace, "policy")
+		cached := store.current()
+		lifetime := service.OperatorLifetime()
+		clock.Advance(time.Minute)
+		service.fetchGatePolicy(t.Context(), testGateCloud(t, 0, true))
+		assertTestGate(t, service, GateGrace, "policy")
+		if state := store.current(); state.GatePolicyJWS != cached.GatePolicyJWS ||
+			state.GatePolicyKeys != cached.GatePolicyKeys || !state.GatePolicyFetchedAt.Equal(cached.GatePolicyFetchedAt) ||
+			lifetime.Err() != nil {
+			t.Fatalf("unverified policy displaced the working policy or operator lifetime: %v", lifetime.Err())
+		}
+	})
+
 	for _, tc := range []struct {
 		name  string
 		setup func(*gateCloudStub)

@@ -151,8 +151,9 @@ func (s *Service) sendDeletionNotice(ctx context.Context, q *store.Queries, id s
 	if err != nil {
 		return err
 	}
+	const subject = "Your CompozyOS account was deleted"
 	return s.config.Email.Send(ctx, "account-deleted/"+id, email.Message{
-		To: account.Email, Subject: "Your Compozy account was deleted",
-		Text: "Your Compozy Cloud account was deleted. Your local sessions and projects are still on your computers.",
+		To: account.Email, Subject: subject,
+		Text: subject + ". Your local sessions and projects are still on your computers.",
 	})
 }

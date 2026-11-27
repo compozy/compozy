@@ -355,8 +355,9 @@ function SignInNotice({
     >
       <NoticeIcon kind={notice.kind} />
       <AlertDescription className="text-fg">
-        {showSupportLink ? (
-          <span>
+        {notice.kind !== "suspended" && <p>{notice.message}</p>}
+        {showSupportLink && (
+          <p>
             Contact{" "}
             <a
               className="font-medium underline decoration-line-strong underline-offset-3 hover:text-fg-strong"
@@ -365,9 +366,7 @@ function SignInNotice({
               support@compozy.com
             </a>
             .
-          </span>
-        ) : (
-          notice.message
+          </p>
         )}
       </AlertDescription>
       <SignInNoticeActions

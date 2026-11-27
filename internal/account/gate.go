@@ -225,11 +225,9 @@ func (s *Service) fetchGatePolicy(ctx context.Context, cloud gateCloud) {
 			next.OfflineGraceStartedAt.IsZero() {
 			next.OfflineGraceStartedAt = now
 		}
-	} else {
+	} else if len(encodedKeys) != 0 {
 		s.gate.policy = policy
-		if len(encodedKeys) != 0 {
-			next.GatePolicyJWS, next.GatePolicyKeys, next.GatePolicyFetchedAt = token, string(encodedKeys), now
-		}
+		next.GatePolicyJWS, next.GatePolicyKeys, next.GatePolicyFetchedAt = token, string(encodedKeys), now
 	}
 	if next.GatePolicyJWS != s.installation.GatePolicyJWS ||
 		next.GatePolicyKeys != s.installation.GatePolicyKeys ||

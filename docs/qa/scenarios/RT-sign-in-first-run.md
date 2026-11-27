@@ -39,7 +39,11 @@ Use IT-094, IT-096, IT-098, IT-099, IT-104, and E2E-011 for the related automate
 10. Leave product news unchecked during one enrollment and opt in during a separate fresh enrollment. Confirm the second account appears in the staging news segment. Open its unsubscribe link, check that opening it leaves the setting enabled, then confirm and verify the contact is removed.
 11. Enroll a second device. Check the sign-in email and both installations' notices. Dismiss on one installation and check the other still shows the notice. Reuse the device key and confirm there is only one email. Open the email link with an ordinary web session, complete a fresh Google sign-in, and revoke the device.
 12. Delete a fresh Free account from a trusted admin device. Check that the caller signs out immediately and local work stays on disk. Verify another installation is signed out on its next credential refresh, the host is unlinked, and the Resend contact is removed.
-13. In the staged admin scenario, suspend an account with a linked computer and an open terminal stream. Check that the stream closes and sign-in reports the suspension reason. Lift the suspension and confirm the linked computer recovers on its next revalidation while the device signs in again.
+13. In the staged admin scenario, suspend an account with a linked computer and an open terminal
+    stream. Check that the stream closes and sign-in reports the suspension. During a Cloud outage,
+    try to sign in with another account and verify the support link remains available alongside the
+    connection notice and **Try again**. Restore the Cloud and lift the suspension. Confirm the
+    linked computer recovers on its next revalidation while the device signs in again.
 
 The S1b HTTP and Postgres integration suite covers the cloud portion with fake provider and Turnstile endpoints. Keep the staging walk pending until the real OAuth apps, Turnstile widget, and hosted listener are available.
 

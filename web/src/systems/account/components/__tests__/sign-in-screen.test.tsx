@@ -24,7 +24,7 @@ import {
   COMPOZY_TERMS_URL,
   COMPOZY_WHY_SIGN_IN_URL,
 } from "../../lib/account-view";
-import { resolveSignInView } from "../../lib/sign-in-gate";
+import { noticeFromSignInError, resolveSignInView } from "../../lib/sign-in-gate";
 import { useSignInPage } from "../../hooks/use-sign-in-page";
 import { AccountSignInNoticesSection } from "../account-sign-in-notices-section";
 import { GateGraceBannerView } from "../gate-grace-banner";
@@ -217,9 +217,11 @@ describe("U0 SignInScreen states and legal/help links (UT-120, UT-138)", () => {
     expect(screen.getByText(/compozy account login/)).toBeInTheDocument();
 
     // UT-138: account_suspended shows mailto:support@compozy.com link and keeps provider buttons.
-    const suspendedView = resolveSignInView(
-      makeStatus({ state: "reauth_required", signed_out_reason: "account_suspended" })
-    );
+    const suspendedStatus = makeStatus({
+      state: "reauth_required",
+      signed_out_reason: "account_suspended",
+    });
+    const suspendedView = resolveSignInView(suspendedStatus);
     rerender(
       <SignInScreen
         buttonsDisabled={suspendedView.buttonsDisabled}
@@ -234,6 +236,23 @@ describe("U0 SignInScreen states and legal/help links (UT-120, UT-138)", () => {
     );
     expect(screen.getByRole("button", { name: /Continue with Google/i })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Continue with GitHub/i })).toBeEnabled();
+
+    const suspendedOutage = resolveSignInView(suspendedStatus, {
+      notice: noticeFromSignInError({ code: "account_cloud_unreachable" }),
+    });
+    rerender(
+      <SignInScreen
+        buttonsDisabled={suspendedOutage.buttonsDisabled}
+        notice={suspendedOutage.notice}
+        title={suspendedOutage.title}
+      />
+    );
+    expect(screen.getByRole("link", { name: "support@compozy.com" })).toHaveAttribute(
+      "href",
+      COMPOZY_SUPPORT_MAILTO
+    );
+    expect(screen.getByText("Can't reach CompozyOS. Check your connection.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
   });
 
   it("UT-120: handles waiting, Cancel, expiry, unlinking, and retry after a cloud outage", async () => {

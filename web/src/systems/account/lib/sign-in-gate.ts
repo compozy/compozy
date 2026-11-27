@@ -160,11 +160,9 @@ export function resolveSignInView(
   if (isSuspended) {
     title = "This account is suspended";
     subtitle = undefined;
-    notice = notice ?? {
-      kind: "suspended",
-      message: "This account is suspended.",
-      showSupportLink: true,
-    };
+    notice = notice
+      ? { ...notice, showSupportLink: true }
+      : noticeFromSignInError({ code: "account_suspended" });
   } else if (isTokenRevoked) {
     title = "Sign in again";
     subtitle = undefined;
