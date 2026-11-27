@@ -1317,6 +1317,12 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(func() {
+			ctx := context.WithoutCancel(t.Context())
+			if err := executor.(*mcppkg.CallExecutor).CloseCatalogConnections(ctx); err != nil {
+				t.Error(err)
+			}
+		})
 		state.mcpToolProvider, state.mcpAuthStatus = provider, executor
 		surface := &settingsRuntimeSurface{state: state, digestKey: testMCPDigestKey(t, state)}
 		status, err := surface.CheckMCPServerRuntime(t.Context(), globalMCPTestTarget(server.Name), server)
