@@ -162,6 +162,6 @@ func recoverDeviceAdmin(ctx context.Context, q *store.Queries, d store.AuthDevic
 	}
 	return q.AppendSecurityEvent(ctx, store.SecurityEvent{
 		Type: "device_admin_changed", AccountID: d.AccountID, Actor: accountActorPrefix + d.ID, At: now,
-		Details: map[string]any{deviceIDDetail: d.ID, "admin": true, "reason": "recovery"},
+		Details: map[string]any{deviceIDDetail: d.ID, "admin": true, reasonDetail: "recovery"},
 	})
 }

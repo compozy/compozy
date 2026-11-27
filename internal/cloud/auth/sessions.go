@@ -300,7 +300,7 @@ func revokeReusedRefresh(ctx context.Context, q *store.Queries, d store.AuthDevi
 	}
 	return q.AppendSecurityEvent(ctx, store.SecurityEvent{
 		AccountID: d.AccountID, Actor: accountActorPrefix + d.DeviceID, At: now, Type: "device_session_revoked",
-		Details: map[string]any{deviceIDDetail: d.DeviceID, "session_id": d.ID, "reason": "refresh_reuse"},
+		Details: map[string]any{deviceIDDetail: d.DeviceID, "session_id": d.ID, reasonDetail: "refresh_reuse"},
 	})
 }
 

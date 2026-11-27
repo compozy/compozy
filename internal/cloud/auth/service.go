@@ -31,6 +31,7 @@ const (
 	accountActorPrefix = "account:"
 	systemActor        = "system"
 	deviceIDDetail     = "device_id"
+	reasonDetail       = "reason"
 
 	stateActive     = "active"
 	stateSuspended  = "suspended"

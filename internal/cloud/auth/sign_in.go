@@ -247,7 +247,7 @@ func (s *Service) failOAuth(ctx context.Context, attempt store.OAuthAttempt, cau
 		}
 		return q.AppendSecurityEvent(ctx, store.SecurityEvent{
 			Type: "sign_in_failed", Actor: systemActor, At: now,
-			Details: map[string]any{providerField: attempt.Provider, "reason": f.Code},
+			Details: map[string]any{providerField: attempt.Provider, reasonDetail: f.Code},
 		})
 	})
 	if err != nil {
