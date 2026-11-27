@@ -61,13 +61,6 @@ func (s *daemonExtensionService) Preview(
 	if err := s.checkReady(); err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
-	return s.previewExtension(ctx, name)
-}
-
-func (s *daemonExtensionService) previewExtension(
-	ctx context.Context,
-	name string,
-) (contract.ExtensionEnablePreviewPayload, error) {
 	return s.previewExtensionTarget(ctx, name, extensionMutationTarget{profile: extensionDefaultProfileLens()})
 }
 
@@ -98,14 +91,17 @@ func (s *daemonExtensionService) previewExtensionTarget(
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
-	return contract.ExtensionEnablePreviewPayload{
+	preview := contract.ExtensionEnablePreviewPayload{
 		Extension:          ext.Info.Name,
 		Changes:            changes,
 		AgentConflicts:     conflicts,
-		MissingEnv:         slices.Clone(status.MissingEnv),
-		MissingInputs:      slices.Clone(status.MissingInputs),
 		AutomationStarting: automationStarting,
-	}, nil
+	}
+	if !status.Dev {
+		preview.MissingEnv = slices.Clone(status.MissingEnv)
+		preview.MissingInputs = slices.Clone(status.MissingInputs)
+	}
+	return preview, nil
 }
 
 func (s *daemonExtensionService) extensionKitChanges(

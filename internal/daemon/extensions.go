@@ -106,6 +106,20 @@ func (s *daemonExtensionService) reloadExtensions(ctx context.Context, names ...
 	return s.reload(ctx)
 }
 
+func (s *daemonExtensionService) reloadExtensionProfile(
+	ctx context.Context, name, profileID string, enabled bool,
+) error {
+	if runtime, ok := s.runtime.(interface {
+		ReloadForExtensionProfile(context.Context, string, string, bool) error
+	}); ok {
+		return errors.Join(
+			runtime.ReloadForExtensionProfile(ctx, name, profileID, enabled),
+			s.syncExtensionConsumers(ctx),
+		)
+	}
+	return s.reloadExtensions(ctx, name)
+}
+
 func (s *daemonExtensionService) syncExtensionConsumers(ctx context.Context) error {
 	const waitError = "daemon: wait for extension consumer sync: %w"
 	if err := ctx.Err(); err != nil {

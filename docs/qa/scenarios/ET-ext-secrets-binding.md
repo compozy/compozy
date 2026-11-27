@@ -42,6 +42,8 @@ Steps:
    `compozy extension secrets set <name> --env ACME_TOKEN --workspace <ws>`: `compozy extension setup
    <name> --workspace <ws> -o json` shows `api_token` `set`, and after restart the subprocess still
    receives `ACME_TOKEN`.
+5. Disable and re-enable the workspace installation in the same profile. Setup still shows
+   `api_token` as set and the restarted subprocess reports that it received `ACME_TOKEN`.
 
 Pass: the value never appears in CLI output, logs, events, SSE or transcripts; the daemon's own
 `ACME_TOKEN` environment variable never reaches the subprocess.

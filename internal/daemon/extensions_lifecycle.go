@@ -390,10 +390,11 @@ func (s *daemonExtensionService) Enable(
 	}
 	var result contract.ExtensionEnableResult
 	err := s.lifecycle.withName(ctx, name, func() error {
-		var err error
-		result, err = s.enableTargetUnlocked(
-			ctx, name, actor, extensionMutationTarget{profile: extensionDefaultProfileLens()},
-		)
+		targets, err := s.defaultProfileExtensionTargets(ctx, name, actor)
+		if err != nil {
+			return err
+		}
+		result, err = s.enableTargetUnlocked(ctx, name, actor, targets[0], targets[1:]...)
 		return err
 	})
 	return result, err
@@ -413,25 +414,31 @@ func (s *daemonExtensionService) Disable(
 	}
 	var item contract.ExtensionPayload
 	err := s.lifecycle.withName(ctx, name, func() error {
-		info, getErr := s.registry.Get(name)
-		if getErr != nil {
-			return getErr
+		if _, err := s.registry.Get(name); err != nil {
+			return err
 		}
-		snapshot := snapshotGlobalExtensionLifecycle(info)
+		profile := extensionDefaultProfileLens()
+		previous, err := s.registry.IsEnabledForProfileContext(ctx, name, profile.ID)
+		if err != nil {
+			return err
+		}
+		targets, err := s.defaultProfileExtensionTargets(ctx, name, actor)
+		if err != nil {
+			return err
+		}
 		if disableErr := s.registry.Disable(name); disableErr != nil {
 			return disableErr
 		}
-		if reloadErr := s.reloadExtensions(ctx, name); reloadErr != nil {
-			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, reloadErr)
+		if reloadErr := s.reloadExtensionProfile(ctx, name, profile.ID, false); reloadErr != nil {
+			return s.rollbackGlobalExtensionLifecycle(ctx, name, previous, reloadErr)
 		}
 		s.evictExtensionMCPHealth(name, "")
-		var statusErr error
-		item, statusErr = s.Status(ctx, name)
-		if statusErr != nil {
-			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, statusErr)
+		item, err = s.installedTargetStatus(ctx, name, targets[0])
+		if err != nil {
+			return s.rollbackGlobalExtensionLifecycle(ctx, name, previous, err)
 		}
 		if eventErr := s.recordExtensionEvent(ctx, eventspkg.ExtensionDisabled, actor, &item); eventErr != nil {
-			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, eventErr)
+			return s.rollbackGlobalExtensionLifecycle(ctx, name, previous, eventErr)
 		}
 		return nil
 	})

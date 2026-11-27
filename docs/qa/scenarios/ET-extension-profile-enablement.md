@@ -32,3 +32,7 @@ Focused verification passed under `-race`: `TestExtensionToolProviderDispatch/Sh
 Existing root CI mappings, not rerun by this worker: `TestExtensionCommandRoundTripIntegration/Should require install consent and round-trip profile enablement` (`internal/cli/cli_integration_test.go`), and `E2E-023 / E2E-030: profile setup and enablement update extension details and placed palette commands` (`web/e2e/__tests__/extensions.spec.ts`).
 
 The prior skipped live scenario remains skipped; focused backend checks do not establish a new Web, native-tool or transport-parity verdict. Full commands and limits: [extension/marketplace audit](../reports/2026-11-01-performance/extension-marketplace.md).
+
+For a workspace installation with a required input, enable must use that workspace's stored
+value for the selected profile. An unconfigured installation in another profile does not prevent
+re-enabling the configured profile. See [ET-extension-setup-inputs](ET-extension-setup-inputs.md).

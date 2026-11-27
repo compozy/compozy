@@ -1,16 +1,24 @@
 package extensionpkg
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // ErrDevelopmentRestartDeferred reports that a development base keeps its launch-time inputs: it
 // relaunches with the stored values only through `extension dev reload`.
 var ErrDevelopmentRestartDeferred = errors.New("extension: development base restarts through extension dev reload")
 
-func (m *Manager) startInstalledPackage(ctx context.Context, info *ExtensionInfo) error {
+func (m *Manager) startInstalledPackage(
+	ctx context.Context,
+	info *ExtensionInfo,
+	profileID string,
+	enabled bool,
+) error {
 	key := GlobalInstanceKey(info.Name)
 	ext := &managedExtension{
 		key:     key,
@@ -42,14 +50,25 @@ func (m *Manager) startInstalledPackage(ctx context.Context, info *ExtensionInfo
 			instanceKey := InstanceKey{
 				Name: info.Name, ProfileID: installation.Scope.ProfileID, WorkspaceID: installation.Scope.WorkspaceID,
 			}
-			errs = append(errs, m.startScopedInstallation(ctx, instanceKey))
+			err := m.startScopedInstallation(ctx, instanceKey)
+			if includeStartupError(err, instanceKey, profileID, enabled) {
+				errs = append(errs, err)
+			}
 			continue
 		}
 		if ext.info.Enabled {
-			errs = append(errs, m.startOne(ctx, ext))
+			if err := m.startOne(ctx, ext); includeStartupError(err, key, profileID, enabled) {
+				errs = append(errs, err)
+			}
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// Shared base runtimes read the default profile's launch inputs even when they serve other profiles.
+func includeStartupError(err error, key InstanceKey, profileID string, enabled bool) bool {
+	return err != nil && (profileID == "" || !errors.Is(err, ErrExtensionInputsRequired) ||
+		(enabled && cmp.Or(key.ProfileID, store.DefaultProfileID) == profileID))
 }
 
 func (m *Manager) startScopedInstallation(ctx context.Context, key InstanceKey) error {
