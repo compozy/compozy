@@ -588,7 +588,7 @@ describe("useSessionTopbarSlot", () => {
 
   // Invariant (#1202): the head offers Mark as seen only for a Needs you the daemon can
   // clear; a session waiting on an answer keeps its badge without the control.
-  it("Should explain an early stop and offer Mark as seen only for dismissible attention", async () => {
+  it("Should explain an early stop alongside a Later return and restrict Mark as seen", async () => {
     const user = userEvent.setup();
     const { rerender } = renderWithTopbar(
       <SessionPublisher
@@ -598,13 +598,16 @@ describe("useSessionTopbarSlot", () => {
           badge: "needs-attention",
           attention: "ended_early",
           attention_dismissible: true,
+          returned_from_later_at: "2026-10-30T09:00:00Z",
         }}
       />
     );
     const markSeen = screen.getByRole("button", { name: "Mark as seen" });
     expect(markSeen).toBeEnabled();
     await user.hover(markSeen);
-    expect(await screen.findByRole("tooltip")).toHaveTextContent("Stopped before delivering");
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toHaveTextContent("Stopped before delivering");
+    expect(tooltip).toHaveTextContent("Back from Later");
 
     rerender(
       <SessionPublisher

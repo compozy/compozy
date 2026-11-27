@@ -41,7 +41,7 @@ const STOP_REASON = "Stop not confirmed";
 export const ENDED_EARLY_ATTENTION = "ended_early";
 
 const ENDED_EARLY_REASON = "Stopped before delivering";
-const ENDED_EARLY_DETAIL =
+export const ENDED_EARLY_DETAIL =
   "Stopped before delivering: no pull request, and nothing left running to resume it";
 
 function capitalize(text: string): string {
