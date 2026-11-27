@@ -1542,6 +1542,23 @@ func TestLifecycleTabRepair(t *testing.T) {
 							t.Fatalf("session deletion changed client focus: %+v", view)
 						}
 					}
+					wantChangedWindows := []WindowID{id}
+					if split {
+						wantChangedWindows = append(wantChangedWindows, "other")
+					}
+					for _, sub := range subscriptions {
+						select {
+						case update := <-sub.Updates():
+							event := update.Event
+							if event == nil || event.Revision != got.Revision ||
+								!slices.Equal(event.Changes.WindowIDs, wantChangedWindows) {
+								t.Fatalf("session retirement event = %+v, want revision %d and windows %v",
+									event, got.Revision, wantChangedWindows)
+							}
+						default:
+							t.Fatal("session retirement event was not published")
+						}
+					}
 					continue
 				}
 				if _, ok := got.Windows[id]; ok {
