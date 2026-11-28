@@ -59,7 +59,7 @@ curl -fsSL https://compozy.com/install.sh | sh
 
 The verified installer pins the latest release and checks its Sigstore provenance before it
 installs the binary on macOS or Linux. Prefer the desktop app?
-[Download it for macOS or Linux](https://compozy.com/download).
+[See desktop downloads for your operating system](https://compozy.com/download).
 
 <details>
 <summary>Homebrew or npm</summary>

@@ -44,6 +44,9 @@ With `WINDOWS_DESKTOP_RELEASE` unset, confirm Release dry-run builds and smokes 
 bundles. Confirm the Windows CLI archive remains in the GoReleaser build. Check that the download
 page offers the Windows CLI ZIP and shows the Windows desktop installer as coming soon.
 
+With `WINDOWS_DESKTOP_RELEASE=true`, confirm Release dry-run builds and smokes all three desktop
+platforms. After publication, confirm the download page offers the signed Windows x64 installer.
+
 Use a clean Windows x64 test profile with an unused default Compozy home. Use an installation
 directory with spaces and non-ASCII characters. Install the signed NSIS baseline without administrator elevation. Confirm
 offline bundled-runtime provisioning, product readiness and the existing `app status`, `app open`,

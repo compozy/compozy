@@ -9,7 +9,7 @@ export const revalidate = 300;
 export const metadata: Metadata = createPageMetadata({
   title: "Download CompozyOS",
   description:
-    "Download the CompozyOS desktop app for macOS, Linux, or Windows, or install the compozy command from your terminal.",
+    "Download the CompozyOS desktop app or install the compozy command. See available packages for your operating system.",
   path: "/download",
   keywords: [
     "CompozyOS download",
