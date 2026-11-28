@@ -44,6 +44,11 @@ on:
         description: Optional prior release run for the same source commit; reuse completed desktop artifacts
         required: false
         type: string
+      windows_signing_check:
+        description: Sign and verify Windows desktop without publishing
+        required: false
+        default: false
+        type: boolean
 
 # Release merges ("build: release "/"build: prepare release ", plus legacy
 # "release:"/"ci(release):" subjects) land in their
@@ -55,7 +60,7 @@ on:
 # cancel an active PR validation run.
 concurrency:
   group: >-
-    release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ (github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):') || startsWith(github.event.head_commit.message, 'build: release ') || startsWith(github.event.head_commit.message, 'build: prepare release '))) && '-publish' || '' }}${{ github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name != 'ci:full' && format('-ignored-label-{0}', github.run_id) || '' }}
+    release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ inputs.windows_signing_check && '-windows-signing-check' || '' }}${{ (github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):') || startsWith(github.event.head_commit.message, 'build: release ') || startsWith(github.event.head_commit.message, 'build: prepare release '))) && '-publish' || '' }}${{ github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name != 'ci:full' && format('-ignored-label-{0}', github.run_id) || '' }}
   cancel-in-progress: >-
     ${{ !(github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):') || startsWith(github.event.head_commit.message, 'build: release ') || startsWith(github.event.head_commit.message, 'build: prepare release '))) }}
 
@@ -464,12 +469,14 @@ jobs:
       fail-fast: false
       matrix: &desktop-release-matrix
         include: >-
-          ${{ fromJSON(format('[{0}{1}]',
+          ${{ fromJSON(format('[{0}{1}{2}]',
+            !inputs.windows_signing_check &&
             '{"name":"macOS arm64","id":"macos-arm64","runner":"macos-15","platform":"mac","arch":"arm64","smoke":"macOS arm64 DMG","extension":"dmg"},
              {"name":"macOS x64","id":"macos-x64","runner":"macos-15-intel","platform":"mac","arch":"x64","smoke":"macOS x64 DMG","extension":"dmg"},
-             {"name":"Linux x86_64","id":"linux","runner":"ubuntu-22.04","platform":"linux","arch":"x64","smoke":"Linux AppImage","extension":"AppImage"}',
-            vars.WINDOWS_DESKTOP_RELEASE == 'true' &&
-            ',{"name":"Windows x64","id":"windows","runner":"windows-latest","platform":"win","arch":"x64","smoke":"Windows x64 NSIS","extension":"exe"}' || '')) }}
+             {"name":"Linux x86_64","id":"linux","runner":"ubuntu-22.04","platform":"linux","arch":"x64","smoke":"Linux AppImage","extension":"AppImage"}' || '',
+            !inputs.windows_signing_check && vars.WINDOWS_DESKTOP_RELEASE == 'true' && ',' || '',
+            (inputs.windows_signing_check || vars.WINDOWS_DESKTOP_RELEASE == 'true') &&
+            '{"name":"Windows x64","id":"windows","runner":"windows-latest","platform":"win","arch":"x64","smoke":"Windows x64 NSIS","extension":"exe"}' || '')) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     defaults:
@@ -825,7 +832,8 @@ jobs:
           ref: ${{ inputs.release_ref || github.sha }}
           fetch-depth: 0
           fetch-tags: true
-          token: ${{ secrets.RELEASE_TOKEN }}
+          token: ${{ inputs.windows_signing_check && github.token || secrets.RELEASE_TOKEN }}
+          persist-credentials: ${{ !inputs.windows_signing_check }}
 
       - uses: ./.github/actions/setup-go
         with:
@@ -844,7 +852,7 @@ jobs:
           install-playwright: "false"
 
       - name: Synchronize explicit release web assets
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && !inputs.windows_signing_check
         env:
           COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
@@ -980,6 +988,7 @@ jobs:
     name: Stage Production Release
     needs: [release-plan, desktop-compatibility, desktop-build, desktop-smoke]
     if: |
+      !inputs.windows_signing_check &&
       needs.release-plan.result == 'success' &&
       needs.desktop-build.result == 'success' &&
       needs.desktop-smoke.result == 'success'
@@ -1296,7 +1305,7 @@ jobs:
 
       - name: Resolve reusable desktop artifact
         id: reuse
-        if: inputs.desktop_artifacts_run_id != ''
+        if: inputs.desktop_artifacts_run_id != '' && !inputs.windows_signing_check
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_RUN_ID: ${{ inputs.desktop_artifacts_run_id }}
@@ -1466,6 +1475,7 @@ jobs:
           )
           foreach ($file in $files) {
             if ((Get-AuthenticodeSignature $file).Status -ne 'Valid') { throw "Invalid signature: $file" }
+            Write-Output "Verified Authenticode signature: $file"
           }
 
       - name: Collect exact desktop artifacts
@@ -1503,6 +1513,7 @@ jobs:
           fi
 
       - name: Upload exact desktop artifacts
+        if: ${{ !inputs.windows_signing_check }}
         uses: actions/upload-artifact@v7
         with:
           name: desktop-release-${{ matrix.id }}-${{ needs.release-plan.outputs.desktop_channel }}
@@ -1613,6 +1624,7 @@ jobs:
     name: Smoke Packaged Desktop ${{ matrix.smoke }}
     needs: [release-plan, desktop-build]
     if: |
+      !inputs.windows_signing_check &&
       needs.release-plan.result == 'success' &&
       needs.desktop-build.result == 'success'
     strategy:

@@ -895,7 +895,8 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"startsWith(" + subject + ", 'build: release ') || " +
 			"startsWith(" + subject + ", 'build: prepare release ')))"
 		assertEqualString(t, "publication concurrency group", stringAt(t, concurrency, "group"),
-			"release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ "+
+			"release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}"+
+				"${{ inputs.windows_signing_check && '-windows-signing-check' || '' }}${{ "+
 				publishingPush+" && '-publish' || '' }}${{ github.event_name == 'pull_request' && "+
 				"github.event.action == 'labeled' && github.event.label.name != 'ci:full' && "+
 				"format('-ignored-label-{0}', github.run_id) || '' }}")
@@ -1129,6 +1130,27 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 		assertContainsText(t, "production Electron builder", productionBuild, "bun run --cwd desktop electron-builder")
 		assertNotContainsText(t, "unlocked Electron builder", workflow, "bunx")
 		assertContainsText(t, "production Electron publish suppression", productionBuild, "--publish never")
+	})
+
+	t.Run("Should verify Windows signing without staging a release", func(t *testing.T) {
+		t.Parallel()
+
+		plan := workflowJobSection(t, workflow, "release-plan", "release")
+		assertContainsText(t, "signing check skips branch synchronization", plan,
+			"if: github.event_name == 'workflow_dispatch' && !inputs.windows_signing_check")
+		releaseJob := workflowJobSection(t, workflow, "release", "desktop-compatibility")
+		assertContainsText(t, "signing check skips production staging", releaseJob,
+			"if: |\n      !inputs.windows_signing_check &&")
+		build := workflowJobSection(t, workflow, "desktop-build", "desktop-publish")
+		for _, required := range []string{
+			"matrix: *desktop-release-matrix",
+			"if: inputs.desktop_artifacts_run_id != '' && !inputs.windows_signing_check",
+			"name: Verify Windows Authenticode signatures",
+			"(Get-AuthenticodeSignature $file).Status -ne 'Valid'",
+			"name: Upload exact desktop artifacts\n        if: ${{ !inputs.windows_signing_check }}",
+		} {
+			assertContainsText(t, "signing check builds and verifies fresh artifacts", build, required)
+		}
 	})
 
 	t.Run("Should stamp dry-run desktop bundles with the prospective release identity", func(t *testing.T) {

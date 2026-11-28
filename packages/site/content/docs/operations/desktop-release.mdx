@@ -50,7 +50,11 @@ Enable Windows for the next release after Microsoft approves the Azure Artifact 
 
 1. Create the Certificate Profile in the approved Azure Artifact Signing account.
 2. Update `AZURE_CERTIFICATE_PROFILE` to the exact Certificate Profile name.
-3. Set the GitHub Actions repository variable `WINDOWS_DESKTOP_RELEASE` to `true`.
+3. Dispatch Release with `windows_signing_check=true` and the intended release ref, version, and channel.
+4. Confirm `Verify Windows Authenticode signatures` passed for the installer, app, and bundled runtime.
+5. Set the GitHub Actions repository variable `WINDOWS_DESKTOP_RELEASE` to `true`.
+
+The signing check builds only Windows. It creates no release or tag and uploads no desktop artifacts.
 
 Keep the variable fixed across validation, publication, and any retry for the same version.
 Unset the variable or set it to `false` before validating a later release to omit Windows again.
