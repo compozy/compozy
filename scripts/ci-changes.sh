@@ -97,6 +97,7 @@ require_lanes() {
       # Release owns the identical reusable lane and gates its dry-run on it.
       "go-integration": ($heavy and $backend and ($o.release_pr != "true")),
       "go-terminal-windows": ($heavy and $backend),
+      "desktop-windows": ($heavy and ($backend or $web or $desktop)),
       "e2e-runtime": ($heavy and ($backend or $web)),
       "e2e-web": ($heavy and ($backend or $web)),
       "e2e-desktop": ($heavy and ($backend or $web or $desktop))
@@ -104,7 +105,8 @@ require_lanes() {
     (if $kind == "fast" then
       ["changes", "preflight", "frontend", "go-static", "go-test", "sdk-go-test", "go-build", "go-peer-darwin", "desktop"]
      elif $kind == "heavy" then
-      ["changes", "preflight", "go-integration", "go-terminal-windows", "e2e-runtime", "e2e-web", "e2e-desktop"]
+      ["changes", "preflight", "go-integration", "go-terminal-windows", "desktop-windows",
+       "e2e-runtime", "e2e-web", "e2e-desktop"]
      else ["invalid-gate-kind"] end) as $required |
     ($required | all(. as $key | $needs | has($key))) and
     ($needs.changes.result == "success") and
@@ -189,11 +191,15 @@ EOF
   fi
   projection=$(jq '.changes.outputs.backend = "true" | .changes.outputs.heavy = "true" |
     {changes, preflight, "go-integration": {result: "success"},
-     "go-terminal-windows": {result: "success"}, "e2e-runtime": {result: "success"},
+     "go-terminal-windows": {result: "success"}, "desktop-windows": {result: "success"},
+     "e2e-runtime": {result: "success"},
      "e2e-web": {result: "success"}, "e2e-desktop": {result: "success"}}' <<<"$projection")
   require_lanes heavy <<<"$projection"
   if jq 'del(."go-integration")' <<<"$projection" | require_lanes heavy; then
     echo "missing integration was accepted" >&2; return 1
+  fi
+  if jq 'del(."desktop-windows")' <<<"$projection" | require_lanes heavy; then
+    echo "missing Windows desktop lane was accepted" >&2; return 1
   fi
   if jq '."go-integration".result = "skipped"' <<<"$projection" | require_lanes heavy; then
     echo "required integration skip was accepted" >&2; return 1
@@ -207,9 +213,10 @@ EOF
       if $scenario == "disabled" then .changes.outputs.heavy = "false"
       else .changes.outputs[$scenario] = "true" end |
       ."go-integration".result = "success" | ."go-terminal-windows".result = "success" |
+      ."desktop-windows".result = "success" |
       ."e2e-runtime".result = "success" | ."e2e-web".result = "success" | ."e2e-desktop".result = "success"
     ' <<<"$projection")
-    for job in go-integration go-terminal-windows e2e-runtime e2e-web e2e-desktop; do
+    for job in go-integration go-terminal-windows desktop-windows e2e-runtime e2e-web e2e-desktop; do
       skipped=$(jq --arg job "$job" '.[$job].result = "skipped"' <<<"$projection")
       if [[ " $expected " == *" $job "* ]]; then
         if require_lanes heavy <<<"$skipped"; then
@@ -220,8 +227,9 @@ EOF
       fi
     done
   done <<'HEAVY'
-web|e2e-runtime e2e-web e2e-desktop
-desktop|e2e-desktop
+backend|go-integration go-terminal-windows desktop-windows e2e-runtime e2e-web e2e-desktop
+web|desktop-windows e2e-runtime e2e-web e2e-desktop
+desktop|desktop-windows e2e-desktop
 disabled|
 HEAVY
   jq 'with_entries(if .key == "changes" or .key == "preflight" then . else .value.result = "skipped" end)' <<<"$projection" | require_lanes heavy
