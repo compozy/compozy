@@ -618,11 +618,24 @@ jobs:
             extract
 
       - name: Upload smoke diagnostics on failure
-        if: failure()
+        if: failure() && matrix.platform != 'win'
         uses: actions/upload-artifact@v7
         with:
           name: desktop-dry-run-smoke-${{ matrix.id }}-diagnostics
           path: ${{ runner.temp }}/compozyds.*/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload Windows smoke diagnostics on failure
+        if: failure() && matrix.platform == 'win'
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-dry-run-smoke-${{ matrix.id }}-diagnostics
+          path: &windows-smoke-diagnostics |
+            ${{ runner.temp }}/compozyds.*/runtime/app.json
+            ${{ runner.temp }}/compozyds.*/runtime/logs/*.log
+            ${{ runner.temp }}/compozyds.*/runtime/logs/desktop-bootstrap.jsonl
+            ${{ runner.temp }}/compozyds.*/signed-out/logs/*.log
           if-no-files-found: ignore
           retention-days: 14
 
@@ -1691,6 +1704,9 @@ jobs:
       - name: Install and launch the Windows package
         if: matrix.platform == 'win'
         shell: pwsh
+        env:
+          COMPOZY_RELEASE_SMOKE_GATE: "1"
+          COMPOZY_RELEASE_SMOKE_ACCOUNT_TOKEN: ${{ secrets.COMPOZY_RELEASE_SMOKE_ACCOUNT_TOKEN }}
         run: >-
           ./scripts/smoke-desktop-release-windows.ps1
           -Artifact $env:SMOKE_ARTIFACT
@@ -1713,11 +1729,20 @@ jobs:
             extract
 
       - name: Upload smoke diagnostics on failure
-        if: failure()
+        if: failure() && matrix.platform != 'win'
         uses: actions/upload-artifact@v7
         with:
           name: desktop-release-smoke-${{ matrix.id }}-diagnostics
           path: ${{ runner.temp }}/compozyds.*/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload Windows smoke diagnostics on failure
+        if: failure() && matrix.platform == 'win'
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-release-smoke-${{ matrix.id }}-diagnostics
+          path: *windows-smoke-diagnostics
           if-no-files-found: ignore
           retention-days: 14
 
