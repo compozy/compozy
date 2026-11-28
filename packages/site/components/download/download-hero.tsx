@@ -201,7 +201,9 @@ export function DownloadHero(props: HeroProps) {
           <H1>Download CompozyOS</H1>
         </div>
         <Lead className="mt-5 max-w-[600px] md:text-[19px]">
-          Get the desktop app with the runtime included, or install the compozy command.
+          {hasWindowsDesktop(props.release)
+            ? "The desktop app for macOS, Linux, and Windows, with the runtime included."
+            : "Get the desktop app with the runtime included, or install the compozy command."}
         </Lead>
         <Actions {...props} />
       </div>

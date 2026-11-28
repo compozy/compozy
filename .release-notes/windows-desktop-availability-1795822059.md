@@ -1,6 +1,6 @@
 ---
-title: Windows desktop availability
+title: Windows desktop app
 type: highlight
 ---
 
-The Windows desktop app build is ready. A later v0.8.x release will include the Windows installer after Microsoft approves code signing.
+CompozyOS v0.8.0 adds a signed desktop installer for Windows x64. The installer includes the runtime and installs the app for your user account. Download it from the release assets.

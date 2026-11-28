@@ -50,7 +50,7 @@ export function Hero() {
         <div className="mt-6 flex flex-col items-center gap-3">
           <TextLink href={HREF.docs}>Open the runtime docs</TextLink>
           <Small className="text-fg/45">
-            Verified installer · macOS and Linux &nbsp;·&nbsp; CLI for macOS, Linux, and Windows
+            Verified CLI installer · macOS and Linux &nbsp;·&nbsp; Windows desktop from v0.8.0
           </Small>
         </div>
       </Entrance>
