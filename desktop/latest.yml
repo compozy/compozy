@@ -1,0 +1,6 @@
+version: 0.8.0
+releaseDate: 2026-11-28T07:52:02.319Z
+files:
+  - url: https://github.com/compozy/compozy/releases/download/v0.8.0/CompozyOS-0.8.0-win-x64.exe
+    sha512: NrYO5s/r5yaL2FrCzKr4i4X1b7sVQ5BV5uwNeT67UwCffHnkm6XQ4scMFhqvOhG6dWgEYjbQcIcz6cPZkls0pg==
+    size: 207762440
