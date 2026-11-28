@@ -5,6 +5,90 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.0 - 2026-11-28
+
+### Bug Fixes
+
+- Accept workspace_id matcher for subagent hooks (#1950)
+- Coerce --input by declared Loop input type
+- Show needs-you on collapsed session folders (#1997)
+- Pass cloud environment secrets to the staging deploy (#1998)
+- Run cloud migrations as a non-superuser role (#1999)
+- Copy every cloud dependency into the cloud image (#2000)
+- Isolate tool provider failures from unrelated CompozyOS tools (#2003)
+- Accept boolean JSON subschemas and tuples in MCP tool schemas (#2001)
+- Launch the GitHub MCP server with its stdio subcommand (#2005)
+- Request resource-advertised offline_access and accept narrower MCP OAuth grants (#2008)
+- Route managed delegation through CompozyOS subagents (#2014)
+- Balance daemon integration shards using CI timings
+- Give daemon integration shards more headroom
+- Accept ACP speed options in the "speed" category (#2028)
+- Honor the target agent runtime in subagent delegation (#2038)
+- Reopen persisted vault keys on Windows (#2034)
+- Report malformed extension manifest errors (#2037)
+- Settle child turns watched by their creator (#2035)
+- Keep cloud deploy tags out of release version bumps (#2050)
+- Let the cloud sign-in form run Turnstile with a deferred api.js (#2047)
+- Keep starved task runs with their owner session (#2041)
+- Stabilize the session delete confirmation (#2031)
+- Honor authored Loop iteration caps (#1949)
+- Resume sessions after late clarification answers (#2039)
+- Refresh the session MCP catalog after a settings check (#2040)
+- Keep Sessions open after deleting a session (#2049)
+- Reuse workspace inputs when re-enabling extensions (#2045)
+- Show one chevron in the session environment picker (#2053)
+- Show only live session work on the dashboard (#2048)
+- Address Remote Computers launch findings (#2052)
+- **BREAKING:** Official CompozyOS builds require signing in with a Compozy Cloud account, and the legacy Remote Gateway with its gateway, connect, pair and device commands is removed. See MIGRATION_GUIDE.md.
+- Harden cloud sign-in and Stripe billing (#2051)
+- Preserve unbounded ACP clarification waits (#2026)
+- Wait for ACP reasoning config_option_update before failing (#2016)
+- Classify session rebind load timeouts and repair the replay fallback (#2030)
+- Resume always-on mains after a restart when their last turn was a peer reply (#2033)
+- Guard nil worktree service and order worktree boot before task recovery (#2054)
+- Verify public TLS before marking hosted routes ready
+- Handle hosted edge propagation and test certificates
+- Verify hosted route readiness after renewal
+- Recover hosted readiness from cached negative DNS
+- Authorize hosted browsers with the route's Cloud
+- Restore sessions by computer on main
+- Stabilize session folder moves and board preferences
+- Bind computer scope picker to its session window
+- Isolate native windows update and teardown
+- Preserve Windows bootstrap home resolution
+- Format Windows desktop release changes
+- Preserve historical desktop publication retries
+- Shut down the Windows daemon gracefully on restart
+- Include Windows desktop in the E2E gate
+- Authenticate the Windows desktop release smoke
+
+### Features
+
+- Let extensions declare min_compozy_version (#1952)
+- Offer spec_conductor delivery when cy-create-spec closes (#1937)
+- Allow fallback_chain in CompozyOS agent overrides (#1941)
+- Mark the open always-on agent on its row, seat and +N crew (#1938)
+- Support structured handoff and prior subagent linkage on delegation
+- Resolve loop inputs at fire time
+- Authored terminal status for gates and contract
+- Put running activity in the sidebar's leading column
+- Archive stopped session threads in one action
+- Let extension inputs reach the extension process and add setup
+- Require evidence-backed lessons on CompozyOS skill proposals
+- Let extensions declare and install experimental dependencies
+- Add Remote Computers, cloud hosting, and required sign-in (#1994)
+- Install CompozyOS skills through a crash-safe transaction (#1966)
+- Complete CLI identifier values from the daemon (#2029)
+- Show Antigravity (agy) provider usage on macOS (#2042)
+- Propose edits to CompozyOS skills and revert approvals (#2044)
+- Opt in to automatic approvals for evidence-backed skill lessons (#2060)
+- Show sessions by computer in the List and Kanban (#2065)
+- Add Windows desktop distribution for CompozyOS (#1279)
+
+### Testing
+
+- Align computer error assertions with product copy
+
 ## 0.7.8 - 2026-11-22
 
 ### Bug Fixes
@@ -843,7 +927,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Refactoring
 
-- Replace the in-repo prototype gallery with the Proto CLI (#1092)
+- Replace the in-repo prototype gallery with @compozy/proto (#1092)
 - Align @compozy/ui with the bnui contract (#1126)
 
 ### Testing
@@ -1836,6 +1920,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.8.0]: https://github.com/compozy/compozy/compare/v0.7.8...v0.8.0
 [0.7.8]: https://github.com/compozy/compozy/compare/v0.7.7...v0.7.8
 [0.7.7]: https://github.com/compozy/compozy/compare/v0.7.6...v0.7.7
 [0.7.6]: https://github.com/compozy/compozy/compare/v0.7.5...v0.7.6

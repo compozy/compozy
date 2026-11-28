@@ -150,8 +150,8 @@ github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNU
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/compozy/acp-go-sdk v0.13.6-0.20261108202101-365be815fac8 h1:NllS03zDHvXkCD9xvqE7Y5tK0fkKeykrDkrfqxX5No0=
 github.com/compozy/acp-go-sdk v0.13.6-0.20261108202101-365be815fac8/go.mod h1:yKzM/3R9uELp4+nBAwwtkS0aN1FOFjo11CNPy37yFko=
-github.com/compozy/compozy-web-assets v0.0.880 h1:dyNJw1ONFFFNRd9JM6mbWos3Z9uYKdrEbOUN5ARD8p0=
-github.com/compozy/compozy-web-assets v0.0.880/go.mod h1:+vAAEpoIVLAjo8/BbhgSB7IMWX+SG7uS/S5edn+suBo=
+github.com/compozy/compozy-web-assets v0.0.895 h1:3K3pDIE+Vp+YceWZG5Ai6pK8MdptlJ1s1WU0JoCzbqs=
+github.com/compozy/compozy-web-assets v0.0.895/go.mod h1:+vAAEpoIVLAjo8/BbhgSB7IMWX+SG7uS/S5edn+suBo=
 github.com/coreos/go-oidc/v3 v3.21.0 h1:wZo4Q9Pum8dYEj0eMUPrqR+kvuGkeUplbLpNCkBqoWM=
 github.com/coreos/go-oidc/v3 v3.21.0/go.mod h1:DYCf24+ncYi+XkIH97GY1+dqoRlbaSI26KVTCI9SrY4=
 github.com/coreos/go-semver v0.3.1 h1:yi21YpKnrx1gt5R+la8n5WgS0kCrsPp33dmEyHReZr4=

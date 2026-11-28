@@ -19,7 +19,7 @@ require (
 	github.com/charmbracelet/x/xpty v0.1.4
 	github.com/coder/acp-go-sdk v0.13.5
 	github.com/coder/websocket v1.8.15
-	github.com/compozy/compozy-web-assets v0.0.880
+	github.com/compozy/compozy-web-assets v0.0.895
 	github.com/compozy/compozy/sdk/go v0.4.8
 	github.com/creativeprojects/go-selfupdate v1.7.0
 	github.com/dave/jennifer v1.7.1
