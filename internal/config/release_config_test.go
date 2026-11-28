@@ -1135,9 +1135,16 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 	t.Run("Should verify Windows signing without staging a release", func(t *testing.T) {
 		t.Parallel()
 
+		matrix := workflowJobSection(t, workflow, "desktop-dry-run", "desktop-dry-run-smoke")
+		assertContainsText(t, "signing check excludes macOS and Linux", matrix,
+			"fromJSON(format('[{0}{1}{2}]',\n            !inputs.windows_signing_check &&")
+		assertContainsText(t, "signing check selects Windows independently of the release gate", matrix,
+			"(inputs.windows_signing_check || vars.WINDOWS_DESKTOP_RELEASE == 'true') &&")
 		plan := workflowJobSection(t, workflow, "release-plan", "release")
 		assertContainsText(t, "signing check skips branch synchronization", plan,
 			"if: github.event_name == 'workflow_dispatch' && !inputs.windows_signing_check")
+		assertContainsText(t, "signing check does not persist checkout credentials", plan,
+			"persist-credentials: ${{ !inputs.windows_signing_check }}")
 		releaseJob := workflowJobSection(t, workflow, "release", "desktop-compatibility")
 		assertContainsText(t, "signing check skips production staging", releaseJob,
 			"if: |\n      !inputs.windows_signing_check &&")
@@ -1146,11 +1153,17 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 			"matrix: *desktop-release-matrix",
 			"if: inputs.desktop_artifacts_run_id != '' && !inputs.windows_signing_check",
 			"name: Verify Windows Authenticode signatures",
-			"(Get-AuthenticodeSignature $file).Status -ne 'Valid'",
+			"$signature = Get-AuthenticodeSignature -FilePath $file",
+			"$signature.Status -ne 'Valid'",
+			"$signature.SignerCertificate.GetNameInfo($nameType, $false) -cne $env:AZURE_PUBLISHER_NAME",
+			"!$signature.TimeStamperCertificate",
 			"name: Upload exact desktop artifacts\n        if: ${{ !inputs.windows_signing_check }}",
 		} {
 			assertContainsText(t, "signing check builds and verifies fresh artifacts", build, required)
 		}
+		smoke := workflowJobSection(t, workflow, "desktop-smoke", "desktop-finalize")
+		assertContainsText(t, "signing check skips the smoke job that requires artifact upload", smoke,
+			"if: |\n      !inputs.windows_signing_check &&")
 	})
 
 	t.Run("Should stamp dry-run desktop bundles with the prospective release identity", func(t *testing.T) {

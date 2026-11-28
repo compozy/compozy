@@ -1244,6 +1244,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-plan.outputs.release_ref }}
+          persist-credentials: ${{ !inputs.windows_signing_check }}
 
       - uses: ./.github/actions/setup-go
         with:
@@ -1302,6 +1303,7 @@ jobs:
           ref: ${{ needs.release-plan.outputs.release_ref }}
           fetch-depth: 0
           fetch-tags: true
+          persist-credentials: ${{ !inputs.windows_signing_check }}
 
       - name: Resolve reusable desktop artifact
         id: reuse
@@ -1467,14 +1469,21 @@ jobs:
         shell: pwsh
         env:
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          AZURE_PUBLISHER_NAME: ${{ vars.AZURE_PUBLISHER_NAME }}
         run: |
           $files = @(
             "desktop/.artifacts/builder/CompozyOS-$env:RELEASE_VERSION-win-x64.exe",
             'desktop/.artifacts/builder/win-unpacked/CompozyOS.exe',
             'desktop/.artifacts/builder/win-unpacked/resources/runtime/compozy.exe'
           )
+          $nameType = [System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName
           foreach ($file in $files) {
-            if ((Get-AuthenticodeSignature $file).Status -ne 'Valid') { throw "Invalid signature: $file" }
+            $signature = Get-AuthenticodeSignature -FilePath $file
+            if ($signature.Status -ne 'Valid') { throw "Invalid signature for ${file}: $($signature.Status)" }
+            if ($signature.SignerCertificate.GetNameInfo($nameType, $false) -cne $env:AZURE_PUBLISHER_NAME) {
+              throw "Signer for $file does not match AZURE_PUBLISHER_NAME"
+            }
+            if (!$signature.TimeStamperCertificate) { throw "Missing signature timestamp for $file" }
             Write-Output "Verified Authenticode signature: $file"
           }
 
