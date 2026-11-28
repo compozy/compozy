@@ -118,7 +118,16 @@ func CanonicalExistingDirectoryExact(path string) (string, error) {
 // PathWithinRoot reports whether candidate is lexically contained by root.
 // Callers that need physical identity containment must resolve paths first.
 func PathWithinRoot(root string, candidate string) (bool, error) {
-	relative, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+	cleanRoot := filepath.Clean(root)
+	cleanCandidate := filepath.Clean(candidate)
+	// filepath.Rel fails for paths on different Windows volumes. Such a
+	// candidate is outside the root, which is an answer and not an error.
+	rootVolume := filepath.VolumeName(cleanRoot)
+	candidateVolume := filepath.VolumeName(cleanCandidate)
+	if rootVolume != "" && candidateVolume != "" && !strings.EqualFold(rootVolume, candidateVolume) {
+		return false, nil
+	}
+	relative, err := filepath.Rel(cleanRoot, cleanCandidate)
 	if err != nil {
 		return false, err
 	}
