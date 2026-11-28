@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"os"
+	"runtime"
 
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/api/udsapi"
@@ -29,6 +30,9 @@ func (d *Daemon) applyServerFactoryDefaults() {
 func (d *Daemon) applySystemDefaults() {
 	if d.signalProcess == nil {
 		d.signalProcess = procutil.Signal
+		if runtime.GOOS == "windows" {
+			d.signalProcess = d.signalWindowsRestart
+		}
 	}
 	if d.processAlive == nil {
 		d.processAlive = procutil.Alive

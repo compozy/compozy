@@ -248,6 +248,7 @@ type Daemon struct {
 	readyCh          chan struct{}
 	readyClosed      bool
 	booting          bool
+	stopRun          context.CancelFunc
 	shutdown         *daemonShutdownOperation
 	restartRequested bool
 	config           compozyconfig.Config

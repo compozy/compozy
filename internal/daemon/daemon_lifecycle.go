@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
 
 	"syscall"
 	"time"
@@ -19,6 +20,23 @@ import (
 func (d *Daemon) Run(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("daemon: run context is required")
+	}
+	if runtime.GOOS == "windows" {
+		restartCtx, stopRun := context.WithCancel(ctx)
+		defer stopRun()
+		d.mu.Lock()
+		if d.stopRun != nil {
+			d.mu.Unlock()
+			return errors.New("daemon: run already active")
+		}
+		d.stopRun = stopRun
+		d.mu.Unlock()
+		defer func() {
+			d.mu.Lock()
+			d.stopRun = nil
+			d.mu.Unlock()
+		}()
+		ctx = restartCtx
 	}
 
 	sigCh, stopSignals := d.signalSource()
@@ -67,6 +85,18 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}
 	return d.shutdownAfterRunTrigger(ctx)
+}
+
+// Windows process signals force termination before the restart response and session checkpoint.
+func (d *Daemon) signalWindowsRestart(_ int, _ syscall.Signal) error {
+	d.mu.Lock()
+	stopRun := d.stopRun
+	d.mu.Unlock()
+	if stopRun == nil {
+		return errRestartNotRunning
+	}
+	stopRun()
+	return nil
 }
 
 func (d *Daemon) cancelBootBeforeReady(cancel context.CancelFunc) {
